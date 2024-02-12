@@ -296,7 +296,7 @@ async fn handle_req(state: Arc<State>, req: Request<Incoming>) -> Response<BoxBo
         match (head.method, path_first) {
             (Method::GET, "static") => {
                 #[derive(RustEmbed)]
-                #[folder= "../../stage/static"]
+                #[folder= "$CARGO_MANIFEST_DIR/../../stage/static"]
                 struct Static;
 
                 let mut path = path_iter.collect::<Vec<&str>>();

@@ -48,6 +48,7 @@ subprocess.check_call(
         "--out-dir={}".format(bindgen_dir),
         "--target=web",
         "--split-linked-modules",
+        "--keep-debug",
     ],
 )
 web_static_dir = here / "rust/web/dist"
