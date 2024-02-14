@@ -58,6 +58,8 @@ PRED_COVER = f"{PREFIX_SUNWET1}/cover"
 # Link to booklet (file node)
 PRED_BOOKLET = f"{PREFIX_SUNWET1}/booklet"
 
+PRED_MEDIA = f"{PREFIX_SUNWET1}/media"
+
 # Collections: owner has first pointing to first element and element pointing to each element. Each element has next and index.
 PRED_INDEX = f"{PREFIX_SUNWET1}/index"
 PRED_ELEMENT = f"{PREFIX_SUNWET1}/element"
@@ -70,6 +72,8 @@ root_albumset_id = NodeId(id=f"{PREFIX_SUNWET1}/albumset")
 root_album_id = NodeId(id=f"{PREFIX_SUNWET1}/album")
 root_track_id = NodeId(id=f"{PREFIX_SUNWET1}/track")
 root_artist_id = NodeId(id=f"{PREFIX_SUNWET1}/artist")
+
+root_music_id = NodeId(id=f"{PREFIX_SUNWET1}/music")
 
 
 # Collect data
@@ -200,6 +204,7 @@ def build_artist(name: str, name_sort: str) -> Node:
 # Albumset
 albumset_id = node_id()
 triples.add(triple(albumset_id, PRED_IS, root_albumset_id))
+triples.add(triple(albumset_id, PRED_MEDIA, root_music_id))
 for v in albumset.covers:
     triples.add(triple(albumset_id, PRED_COVER, node_upload(v)))
 for v in albumset.booklets:
@@ -220,6 +225,7 @@ for real_index, (index, album) in enumerate(sorted(albumset.albums.items())):
     triples.add(triple(albumset_id, PRED_ELEMENT, album_id))
     triples.add(triple(album_id, PRED_INDEX, node_value(index)))
     triples.add(triple(album_id, PRED_IS, root_album_id))
+    triples.add(triple(album_id, PRED_MEDIA, root_music_id))
 
     if len(albumset.albums) == 1:
         triples.add(
@@ -266,6 +272,7 @@ for real_index, (index, album) in enumerate(sorted(albumset.albums.items())):
         triples.add(triple(album_id, PRED_ELEMENT, track_id))
         triples.add(triple(track_id, PRED_INDEX, node_value(track_index)))
         triples.add(triple(track_id, PRED_IS, root_track_id))
+        triples.add(triple(track_id, PRED_MEDIA, root_music_id))
 
         triples.add(triple(track_id, PRED_FILE, node_upload(track.file)))
         for v in set(track.name):

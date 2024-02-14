@@ -1,4 +1,5 @@
 use std::{
+    any::Any,
     cell::RefCell,
     collections::HashMap,
     panic,
@@ -29,6 +30,10 @@ use rooting::{
     set_root,
     spawn_rooted,
     El,
+};
+use rooting_forms::{
+    BigString,
+    Form,
 };
 use serde::de::DeserializeOwned;
 use shared::{
@@ -97,194 +102,261 @@ pub async fn req_post_json<R: DeserializeOwned>(origin: &str, req: C2SReq) -> Re
     );
 }
 
-#[derive(Clone, Copy)]
-enum Subdir {
+#[derive(Clone, Copy, rooting_forms::Form)]
+enum Direction {
+    #[title("Up")]
     Up,
+    #[title("Down")]
     Down,
+    #[title("Left")]
     Left,
+    #[title("Right")]
     Right,
 }
 
-impl Subdir {
+impl Direction {
     fn css_con(self) -> &'static str {
         match self {
-            Subdir::Up => return "converse_up",
-            Subdir::Down => return "converse_down",
-            Subdir::Left => return "converse_left",
-            Subdir::Right => return "converse_right",
+            Direction::Up => return "converse_up",
+            Direction::Down => return "converse_down",
+            Direction::Left => return "converse_left",
+            Direction::Right => return "converse_right",
         }
     }
 
     fn css_trans(self) -> &'static str {
         match self {
-            Subdir::Up => return "transverse_up",
-            Subdir::Down => return "transverse_down",
-            Subdir::Left => return "transverse_left",
-            Subdir::Right => return "transverse_right",
+            Direction::Up => return "transverse_up",
+            Direction::Down => return "transverse_down",
+            Direction::Left => return "transverse_left",
+            Direction::Right => return "transverse_right",
         }
     }
 }
 
-#[derive(Clone, Copy)]
-enum Dir {
+#[derive(Clone, Copy, rooting_forms::Form)]
+enum Orientation {
+    #[title("Bottom-top, right-left")]
     UpLeft,
+    #[title("Bottom-top, left-right")]
     UpRight,
+    #[title("Top-bottom, right-left")]
     DownLeft,
+    #[title("Top-bottom, left-right")]
     DownRight,
+    #[title("Right-left, bottom-top")]
     LeftUp,
+    #[title("Right-left, top-bottom")]
     LeftDown,
+    #[title("Left-right, bottom-top")]
     RightUp,
+    #[title("Left-right, top-bottom")]
     RightDown,
 }
 
-impl Dir {
+impl Orientation {
     fn css(self) -> [&'static str; 3] {
         return [match self {
-            Dir::UpLeft => "direction_up_left",
-            Dir::UpRight => "direction_up_right",
-            Dir::DownLeft => "direction_down_left",
-            Dir::DownRight => "direction_down_right",
-            Dir::LeftUp => "direction_left_up",
-            Dir::LeftDown => "direction_left_down",
-            Dir::RightUp => "direction_right_up",
-            Dir::RightDown => "direction_right_down",
+            Orientation::UpLeft => "orientation_up_left",
+            Orientation::UpRight => "orientation_up_right",
+            Orientation::DownLeft => "orientation_down_left",
+            Orientation::DownRight => "orientation_down_right",
+            Orientation::LeftUp => "orientation_left_up",
+            Orientation::LeftDown => "orientation_left_down",
+            Orientation::RightUp => "orientation_right_up",
+            Orientation::RightDown => "orientation_right_down",
         }, self.con().css_con(), self.trans().css_trans()];
     }
 
-    fn con(self) -> Subdir {
+    fn con(self) -> Direction {
         match self {
-            Dir::UpLeft | Dir::UpRight => return Subdir::Up,
-            Dir::DownLeft | Dir::DownRight => return Subdir::Down,
-            Dir::LeftUp | Dir::LeftDown => return Subdir::Left,
-            Dir::RightUp | Dir::RightDown => return Subdir::Right,
+            Orientation::UpLeft | Orientation::UpRight => return Direction::Up,
+            Orientation::DownLeft | Orientation::DownRight => return Direction::Down,
+            Orientation::LeftUp | Orientation::LeftDown => return Direction::Left,
+            Orientation::RightUp | Orientation::RightDown => return Direction::Right,
         }
     }
 
-    fn trans(self) -> Subdir {
+    fn trans(self) -> Direction {
         match self {
-            Dir::UpLeft | Dir::DownLeft => return Subdir::Left,
-            Dir::UpRight | Dir::DownRight => return Subdir::Right,
-            Dir::LeftUp | Dir::RightUp => return Subdir::Up,
-            Dir::LeftDown | Dir::RightDown => return Subdir::Down,
+            Orientation::UpLeft | Orientation::DownLeft => return Direction::Left,
+            Orientation::UpRight | Orientation::DownRight => return Direction::Right,
+            Orientation::LeftUp | Orientation::RightUp => return Direction::Up,
+            Orientation::LeftDown | Orientation::RightDown => return Direction::Down,
         }
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, rooting_forms::Form)]
 enum Align {
+    #[title("Start")]
     Start,
+    #[title("Middle")]
     Middle,
+    #[title("End")]
     End,
 }
 
-#[derive(Clone)]
+#[derive(Clone, rooting_forms::Form)]
 struct WidgetNest {
-    direction: Dir,
+    #[title("Orientation")]
+    orientation: Orientation,
+    #[title("Alignment")]
     align: Align,
+    #[title("Elements")]
     children: Vec<Widget>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, rooting_forms::Form)]
 struct LayoutIndividual {
-    direction: Dir,
+    #[title("Orientation")]
+    orientation: Orientation,
+    #[title("Alignment")]
     align: Align,
-    nest: WidgetNest,
+    #[title("Item settings")]
+    item: WidgetNest,
 }
 
-#[derive(Clone)]
+#[derive(Clone, rooting_forms::Form)]
 struct LayoutTable {
-    direction: Dir,
+    #[title("Orientation")]
+    orientation: Orientation,
+    #[title("Alignment")]
     align: Align,
-    children: Vec<Widget>,
+    #[title("Columns")]
+    columns: Vec<Widget>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, rooting_forms::Form)]
 enum LineSizeMode {
+    #[title("Expand to show everything")]
     Full,
+    #[title("Ellipsize")]
     Ellipsize,
+    #[title("Wrap")]
     Wrap,
+    #[title("Scroll")]
     Scroll,
 }
 
-#[derive(Clone)]
-struct WidgetTextLineStyle {
+#[derive(Clone, rooting_forms::Form)]
+enum FieldOrLiteral {
+    #[title("Field")]
+    Field(String),
+    #[title("Literal")]
+    Literal(String),
+}
+
+#[derive(Clone, rooting_forms::Form)]
+enum QueryOrField {
+    #[title("Field/parameter")]
+    Field(String),
+    #[title("Query")]
+    Query(BigString),
+}
+
+#[derive(Clone, rooting_forms::Form)]
+struct WidgetTextLine {
+    #[title("Data source")]
+    data: FieldOrLiteral,
+    #[title("Prefix text")]
     prefix: String,
+    #[title("Suffix text")]
     suffix: String,
+    #[title("Font size")]
     size: String,
+    #[title("Line sizing")]
     size_mode: LineSizeMode,
-    direction: Dir,
+    #[title("Orientation")]
+    orientation: Orientation,
+    #[title("Alignment")]
     align: Align,
 }
 
-#[derive(Clone)]
-struct WidgetConstTextLine {
-    text: String,
-    style: WidgetTextLineStyle,
-}
-
-#[derive(Clone)]
-struct WidgetTextLine {
-    field: String,
-    style: WidgetTextLineStyle,
-}
-
-#[derive(Clone)]
+#[derive(Clone, rooting_forms::Form)]
 enum BlockSizeMode {
-    Stretch,
+    #[title("Cover area")]
     Cover,
+    #[title("Fit into area")]
     Contain,
 }
 
-#[derive(Clone)]
+#[derive(Clone, rooting_forms::Form)]
 struct WidgetImage {
-    field: String,
+    #[title("Data source")]
+    data: FieldOrLiteral,
+    #[title("How to size imge")]
     size_mode: BlockSizeMode,
+    #[title("Set image width (any valid css measurement)")]
     width: Option<String>,
+    #[title("Set image height (any valid css measurement)")]
     height: Option<String>,
+    #[title("Alignment in parent")]
     align: Align,
 }
 
-#[derive(Clone)]
+#[derive(Clone, rooting_forms::Form)]
 struct WidgetAudio {
+    #[title("Name of field containing audio file node")]
     field: String,
+    #[title("Name of field containing video name value node")]
     name_field: Option<String>,
+    #[title("Name of field containing album name value node")]
     album_field: Option<String>,
+    #[title("Name of field containing artist name value node")]
     artist_field: Option<String>,
+    #[title("Name of field containing thumbnail image file node")]
     thumbnail_field: Option<String>,
+    #[title("Alignment in parent")]
     align: Align,
 }
 
-#[derive(Clone)]
+#[derive(Clone, rooting_forms::Form)]
 struct WidgetVideo {
+    #[title("Name of field containing video file node")]
     field: String,
+    #[title("Name of field containing video name value node")]
     name_field: Option<String>,
+    #[title("Name of field containing album name value node")]
     album_field: Option<String>,
+    #[title("Name of field containing author name value node")]
     artist_field: Option<String>,
+    #[title("Name of field containing thumbnail image file node")]
     thumbnail_field: Option<String>,
+    #[title("Alignment in parent")]
     align: Align,
 }
 
-#[derive(Clone)]
-struct WidgetQuery {
-    query: String,
+#[derive(Clone, rooting_forms::Form)]
+struct WidgetList {
+    #[title("Data source")]
+    data: QueryOrField,
+    #[title("Layout for data")]
     layout: Layout,
 }
 
-#[derive(Clone)]
+#[derive(Clone, rooting_forms::Form)]
 enum Layout {
+    #[title("Independently sized")]
     Individual(LayoutIndividual),
+    #[title("Table")]
     Table(LayoutTable),
 }
 
-#[derive(Clone)]
+#[derive(Clone, rooting_forms::Form)]
 enum Widget {
+    #[title("Nested")]
     Nest(WidgetNest),
-    ConstTextLine(WidgetConstTextLine),
+    #[title("Text (single line)")]
     TextLine(WidgetTextLine),
+    #[title("Image")]
     Image(WidgetImage),
+    #[title("Audio")]
     Audio(WidgetAudio),
+    #[title("Video")]
     Video(WidgetVideo),
-    Subquery(WidgetQuery),
+    #[title("Expand sublist")]
+    Sublist(WidgetList),
 }
 
 fn extract_node(v: &serde_json::Value) -> Option<Node> {
@@ -442,6 +514,7 @@ struct State_ {
     // Must be Some if playing, otherwise may be Some.
     playing_i: HistPrim<Option<usize>>,
     media_session: MediaSession,
+    main: El,
 }
 
 type State = Rc<State_>;
@@ -485,6 +558,17 @@ fn el_media_button_err(text: String) -> El {
     return el("div").classes(&["error"]).text(&text);
 }
 
+fn json_value_type(v: &serde_json::Value) -> &'static str {
+    match v {
+        serde_json::Value::Null => "null",
+        serde_json::Value::Bool(_) => "bool",
+        serde_json::Value::Number(_) => "number",
+        serde_json::Value::String(_) => "string",
+        serde_json::Value::Array(_) => "array",
+        serde_json::Value::Object(_) => "object",
+    }
+}
+
 fn el_err(text: String) -> El {
     return el("span").classes(&["error"]).text(&text);
 }
@@ -501,12 +585,12 @@ fn build_widget_query(
     pc: &mut ProcessingContext,
     state: &State,
     depth: usize,
-    def: &WidgetQuery,
-    data: &HashMap<String, serde_json::Value>,
+    def: &WidgetList,
+    data: &Rc<HashMap<String, serde_json::Value>>,
 ) -> El {
     return el_group().own(|e| spawn_rooted({
         let def = def.clone();
-        let params = data.clone();
+        let source_data = data.clone();
         let state = state.clone();
         let eg = pc.eg();
         let e = e.weak();
@@ -514,18 +598,81 @@ fn build_widget_query(
             let Some(ele) = e.upgrade() else {
                 return;
             };
-            let res = req_post_json::<Vec<HashMap<String, serde_json::Value>>>(&state.origin, C2SReq::Query(Query {
-                query: def.query,
-                parameters: params,
-            })).await;
-            ele.ref_clear();
-            let rows = match res {
-                Ok(rows) => rows,
-                Err(e) => {
-                    ele.ref_push(el_err(e));
-                    return;
+            let rows;
+            match &def.data {
+                QueryOrField::Field(f) => {
+                    match source_data.get(f) {
+                        Some(f) => match f {
+                            serde_json::Value::Array(v) => {
+                                let mut out = vec![];
+                                for i in v {
+                                    match i {
+                                        serde_json::Value::Object(v) => {
+                                            out.push(
+                                                Rc::new(
+                                                    v
+                                                        .iter()
+                                                        .map(|(k, v)| (k.clone(), v.clone()))
+                                                        .collect::<HashMap<_, _>>(),
+                                                ),
+                                            );
+                                        },
+                                        _ => {
+                                            ele.ref_push(
+                                                el_err(
+                                                    format!(
+                                                        "Specified field for list contains {} element, not object",
+                                                        json_value_type(&i)
+                                                    ),
+                                                ),
+                                            );
+                                            return;
+                                        },
+                                    }
+                                }
+                                rows = out;
+                            },
+                            _ => {
+                                ele.ref_push(
+                                    el_err(
+                                        format!(
+                                            "Specified field for list is a {}, not a list type",
+                                            json_value_type(&f)
+                                        ),
+                                    ),
+                                );
+                                return;
+                            },
+                        },
+                        None => {
+                            ele.ref_push(
+                                el_err(
+                                    "Specified field for list doesn't exist in parent row/parameter data".to_string(),
+                                ),
+                            );
+                            return;
+                        },
+                    }
                 },
-            };
+                QueryOrField::Query(query) => {
+                    let res =
+                        req_post_json::<Vec<HashMap<String, serde_json::Value>>>(
+                            &state.origin,
+                            C2SReq::Query(Query {
+                                query: query.0.clone(),
+                                parameters: source_data.as_ref().to_owned(),
+                            }),
+                        ).await;
+                    ele.ref_clear();
+                    rows = match res {
+                        Ok(rows) => rows.into_iter().map(|x| Rc::new(x)).collect::<Vec<_>>(),
+                        Err(e) => {
+                            ele.ref_push(el_err(e));
+                            return;
+                        },
+                    };
+                },
+            }
             eg.event(|pc| {
                 ele.ref_push(build_layout(pc, &state, depth, &def.layout, &rows));
             });
@@ -553,8 +700,8 @@ const CSS_TREE_TEXT: &'static str = "tree_text";
 const CSS_TREE_IMAGE: &'static str = "tree_image";
 const CSS_TREE_MEDIA_BUTTON: &'static str = "tree_media_button";
 
-fn style_tree(w: &El, depth: usize, type_: &str, align: Align) {
-    w.ref_classes(&[
+fn style_tree(type_: &str, depth: usize, align: Align, widget: &El) {
+    widget.ref_classes(&[
         //. .
         CSS_TREE,
         type_,
@@ -572,74 +719,82 @@ fn style_tree(w: &El, depth: usize, type_: &str, align: Align) {
     ]);
 }
 
-fn build_widget_text_line(text: &String, depth: usize, s: &WidgetTextLineStyle) -> El {
-    let out = el("span").text(&format!("{}{}{}", s.prefix, text, s.suffix));
-    style_tree(&out, depth, CSS_TREE_TEXT, s.align);
-    out.ref_classes(&s.direction.css());
-    let mut style = vec![];
-    style.push(format!("font-size: {}", s.size));
-    match s.size_mode {
-        LineSizeMode::Full => { },
-        LineSizeMode::Ellipsize => style.push(format!("text-overflow: ellipsis")),
-        LineSizeMode::Wrap => style.push(format!("overflow-wrap: break-word")),
-        LineSizeMode::Scroll => match s.direction.con() {
-            Subdir::Up | Subdir::Down => style.push(format!("overflow-x: auto")),
-            Subdir::Left | Subdir::Right => style.push(format!("overflow-y: auto")),
-        },
-    }
-    out.ref_attr("style", &style.join("; "));
-    return out;
-}
-
 fn build_widget(
     pc: &mut ProcessingContext,
     state: &State,
     depth: usize,
     def: &Widget,
-    data: &HashMap<String, serde_json::Value>,
+    data: &Rc<HashMap<String, serde_json::Value>>,
 ) -> El {
     match def {
-        Widget::Nest(d) => return build_nest(pc, state, depth, &d, data),
-        Widget::ConstTextLine(d) => {
-            return build_widget_text_line(&d.text, depth, &d.style);
-        },
+        Widget::Nest(d) => return build_nest(pc, state, depth, d, data),
         Widget::TextLine(d) => {
-            let Some(v) = data.get(&d.field) else {
-                return el_text_err(format!("Missing field {}", d.field));
-            };
-            let mut v = v.clone();
-            if let Some(v1) = extract_node_value(&v) {
-                v = v1;
-            }
-            let text = match v {
-                serde_json::Value::Null => "-".to_string(),
-                serde_json::Value::Bool(v) => match v {
-                    true => "yes".to_string(),
-                    false => "no".to_string(),
+            let text;
+            match &d.data {
+                FieldOrLiteral::Field(field) => {
+                    let Some(v) = data.get(field) else {
+                        return el_text_err(format!("Missing field {}", field));
+                    };
+                    let mut v = v.clone();
+                    if let Some(v1) = extract_node_value(&v) {
+                        v = v1;
+                    }
+                    text = match v {
+                        serde_json::Value::Null => "-".to_string(),
+                        serde_json::Value::Bool(v) => match v {
+                            true => "yes".to_string(),
+                            false => "no".to_string(),
+                        },
+                        serde_json::Value::Number(v) => v.to_string(),
+                        serde_json::Value::String(v) => v.clone(),
+                        serde_json::Value::Array(v) => serde_json::to_string(&v).unwrap(),
+                        serde_json::Value::Object(v) => serde_json::to_string(&v).unwrap(),
+                    };
                 },
-                serde_json::Value::Number(v) => v.to_string(),
-                serde_json::Value::String(v) => v.clone(),
-                serde_json::Value::Array(v) => serde_json::to_string(&v).unwrap(),
-                serde_json::Value::Object(v) => serde_json::to_string(&v).unwrap(),
-            };
-            return build_widget_text_line(&text, depth, &d.style);
+                FieldOrLiteral::Literal(v) => {
+                    text = v.clone();
+                },
+            }
+            let out = el("span").text(&format!("{}{}{}", d.prefix, text, d.suffix));
+            style_tree(CSS_TREE_TEXT, depth, d.align, &out);
+            out.ref_classes(&d.orientation.css());
+            let mut style = vec![];
+            style.push(format!("font-size: {}", d.size));
+            match d.size_mode {
+                LineSizeMode::Full => { },
+                LineSizeMode::Ellipsize => style.push(format!("text-overflow: ellipsis")),
+                LineSizeMode::Wrap => style.push(format!("overflow-wrap: break-word")),
+                LineSizeMode::Scroll => match d.orientation.con() {
+                    Direction::Up | Direction::Down => style.push(format!("overflow-x: auto")),
+                    Direction::Left | Direction::Right => style.push(format!("overflow-y: auto")),
+                },
+            }
+            out.ref_attr("style", &style.join("; "));
+            return out;
         },
         Widget::Image(d) => {
-            let Some(v) = data.get(&d.field) else {
-                return el_image_err(format!("Missing field {}", d.field));
-            };
-            let out = el("img");
-            style_tree(&out, depth, CSS_TREE_IMAGE, d.align);
-            if let Some(n) = extract_node_file(v) {
-                out.ref_attr("src", &file_url(&state.origin, &n));
-            } else if let serde_json::Value::String(v) = v {
-                out.ref_attr("src", &v);
-            } else {
-                return el_image_err(format!("Field contents wasn't string value node or string: {:?}", v));
+            let url;
+            match &d.data {
+                FieldOrLiteral::Field(field) => {
+                    let Some(v) = data.get(field) else {
+                        return el_image_err(format!("Missing field {}", field));
+                    };
+                    if let Some(n) = extract_node_file(v) {
+                        url = file_url(&state.origin, &n);
+                    } else if let serde_json::Value::String(v) = v {
+                        url = v.clone();
+                    } else {
+                        return el_image_err(format!("Field contents wasn't string value node or string: {:?}", v));
+                    }
+                },
+                FieldOrLiteral::Literal(data) => {
+                    url = data.clone();
+                },
             }
+            let out = el("img").attr("src", &url);
+            style_tree(CSS_TREE_IMAGE, depth, d.align, &out);
             let mut style = vec![];
             match d.size_mode {
-                BlockSizeMode::Stretch => style.push(format!("object-fit: stretch")),
                 BlockSizeMode::Cover => style.push(format!("object-fit: cover")),
                 BlockSizeMode::Contain => style.push(format!("object-fit: contain")),
             }
@@ -683,7 +838,7 @@ fn build_widget(
                 media: Box::new(AudioPlaylistMedia(audio)),
             }));
             let out = el_media_button(pc, state, i);
-            style_tree(&out, depth, CSS_TREE_MEDIA_BUTTON, d.align);
+            style_tree(CSS_TREE_MEDIA_BUTTON, depth, d.align, &out);
             return out;
         },
         Widget::Video(d) => {
@@ -718,10 +873,10 @@ fn build_widget(
                 media: Box::new(VideoPlaylistMedia(video)),
             }));
             let out = el_media_button(pc, state, i);
-            style_tree(&out, depth, CSS_TREE_MEDIA_BUTTON, d.align);
+            style_tree(CSS_TREE_MEDIA_BUTTON, depth, d.align, &out);
             return out;
         },
-        Widget::Subquery(d) => return build_widget_query(pc, state, depth, d, data),
+        Widget::Sublist(d) => return build_widget_query(pc, state, depth, d, data),
     }
 }
 
@@ -730,10 +885,10 @@ fn build_nest(
     state: &State,
     depth: usize,
     def: &WidgetNest,
-    data: &HashMap<String, serde_json::Value>,
+    data: &Rc<HashMap<String, serde_json::Value>>,
 ) -> El {
-    let out = el("div").classes(&def.direction.css());
-    style_tree(&out, depth, CSS_TREE_NEST, def.align);
+    let out = el("div").classes(&def.orientation.css());
+    style_tree(CSS_TREE_NEST, depth, def.align, &out);
     for col_def in &def.children {
         out.ref_push(build_widget(pc, state, depth + 1, col_def, data));
     }
@@ -745,39 +900,39 @@ fn build_layout(
     state: &State,
     depth: usize,
     def: &Layout,
-    data: &Vec<HashMap<String, serde_json::Value>>,
+    data: &Vec<Rc<HashMap<String, serde_json::Value>>>,
 ) -> El {
     match def {
         Layout::Individual(d) => {
             let out = el("div");
-            style_tree(&out, depth, CSS_TREE_LAYOUT_INDIVIDUAL, d.align);
-            out.ref_classes(&d.direction.css());
+            style_tree(CSS_TREE_LAYOUT_INDIVIDUAL, depth, d.align, &out);
+            out.ref_classes(&d.orientation.css());
             for row_data in data {
-                out.ref_push(build_nest(pc, state, depth, &d.nest, &row_data));
+                out.ref_push(build_nest(pc, state, depth, &d.item, &row_data));
             }
             return out;
         },
         Layout::Table(d) => {
             let out = el("div");
-            style_tree(&out, depth, CSS_TREE_LAYOUT_TABLE, d.align);
+            style_tree(CSS_TREE_LAYOUT_TABLE, depth, d.align, &out);
             for (trans_i, trans_data) in data.iter().enumerate() {
                 let rev_trans_i = data.len() - trans_i - 1;
-                for (con_i, cell_def) in d.children.iter().enumerate() {
-                    let rev_con_i = d.children.len() - con_i - 1;
+                for (con_i, cell_def) in d.columns.iter().enumerate() {
+                    let rev_con_i = d.columns.len() - con_i - 1;
                     let cell_out = el("div");
                     let mut row = None;
                     let mut col = None;
-                    match d.direction.con() {
-                        Subdir::Up => row = Some(rev_con_i),
-                        Subdir::Down => row = Some(con_i),
-                        Subdir::Left => col = Some(rev_con_i),
-                        Subdir::Right => col = Some(con_i),
+                    match d.orientation.con() {
+                        Direction::Up => row = Some(rev_con_i),
+                        Direction::Down => row = Some(con_i),
+                        Direction::Left => col = Some(rev_con_i),
+                        Direction::Right => col = Some(con_i),
                     }
-                    match d.direction.trans() {
-                        Subdir::Up => row = Some(rev_trans_i),
-                        Subdir::Down => row = Some(trans_i),
-                        Subdir::Left => col = Some(rev_trans_i),
-                        Subdir::Right => col = Some(trans_i),
+                    match d.orientation.trans() {
+                        Direction::Up => row = Some(rev_trans_i),
+                        Direction::Down => row = Some(trans_i),
+                        Direction::Left => col = Some(rev_trans_i),
+                        Direction::Right => col = Some(trans_i),
                     }
                     let mut style = vec![];
                     style.push(format!("grid-row: {}", row.unwrap() + 1));
@@ -792,86 +947,114 @@ fn build_layout(
     }
 }
 
+fn build_page_query(pc: &mut ProcessingContext, state: &State, original_def: Rc<WidgetList>) {
+    let current_def = Rc::new(RefCell::new(original_def.as_ref().clone()));
+    let edit = Prim::new(pc, false);
+    let view_body = el_group();
+    let title_middle = el_group();
+    state.main.ref_replace(vec![el("div").classes(&["titlebar"]).extend(vec![
+        //. .
+        el("div").classes(&["title"]).text("Albums"),
+        el_hbox().classes(&["transport"]).extend(vec![
+            //. .
+            el("div").classes(&["left"]),
+            el("div").classes(&["middle"]).extend(vec![
+                //. .
+                el_button_icon("previous").on("click", {
+                    let eg = pc.eg();
+                    move |_| eg.event(|pc| { })
+                }),
+                el_stack().extend(vec![
+                    //. .
+                    el("div").classes(&["time_layer", "time_gutter"]),
+                    el("div").classes(&["time_layer", "time_fill"]),
+                    el("span").classes(&["time_layer", "time_label"])
+                ]).on("click", {
+                    let eg = pc.eg();
+                    move |_| eg.event(|pc| { })
+                }),
+                el_button_icon("next").on("click", {
+                    let eg = pc.eg();
+                    move |_| eg.event(|pc| { })
+                }),
+                el_button_icon_switch("play", "pause", &state.playing).on("click", {
+                    let eg = pc.eg();
+                    move |_| eg.event(|pc| { })
+                })
+            ]),
+            el("div").classes(&["right"])
+        ]),
+        el_hbox().classes(&["cornernav"]).extend(vec![
+            //. .
+            el_button_icon_toggle_switch("edit", "view", "Edit view", edit).on("click", {
+                let eg = pc.eg();
+                let view_body = view_body.weak();
+                let title_middle = title_middle.clone();
+                move |_| eg.event(|pc| {
+                    let Some(view_body) = view_body.upgrade() else {
+                        return;
+                    };
+                })
+            }),
+            el_button_icon("menu", "Menu").on("click", {
+                let eg = pc.eg();
+                move |_| eg.event(|pc| { })
+            })
+        ])
+    ]).own(|_| {
+        link!(
+            (pc = pc),
+            (edit = edit.clone()),
+            (),
+            (current_def = current_def.clone(), title_middle = title_middle.clone(), view_body = view_body.clone()) {
+                state.playing.set(pc, false);
+                state.playing_i.set(pc, None);
+                if edit.borrow() {
+                    let form_state = WidgetList::new_form("", Some(&def));
+                    title_middle.ref_replace(
+                        vec![el("div").classes(&["edit_buttons"]).extend(vec![el_button("Save: New").on("click", {
+                            let eg = pc.eg();
+                            move |_| eg.event(|pc| { })
+                        }), el_button("Save: Replace").on("click", {
+                            let eg = pc.eg();
+                            move |_| eg.event(|pc| { })
+                        }), el_button("Discard").on("click", {
+                            let eg = pc.eg();
+                            move |_| eg.event(|pc| { })
+                        })])],
+                    );
+                    let form_state_elements = form_state.elements();
+                    let mut form_elements = vec![];
+                    if let Some(error) = form_state_elements.error {
+                        form_elements.push(error);
+                    }
+                    form_elements.extend(form_state_elements.elements);
+                    view_body.ref_replace(form_elements);
+                } else {
+                    view_body.ref_replace(
+                        vec![build_widget_query(pc, &state, 0, &query, &Rc::new(HashMap::new()))],
+                    );
+                }
+            }
+        )
+    })]);
+}
+
 fn main() {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
     let eg = EventGraph::new();
     eg.event(|pc| {
         let origin = window().location().origin().unwrap_throw();
         let media_session = window().navigator().media_session();
+        let show_sidebar = Prim::new(pc, false);
+        let main = el_group();
         let state = State::new(State_ {
             origin: origin,
             playlist: RefCell::new(vec![]),
             playing: Prim::new(pc, false),
             playing_i: HistPrim::new(pc, None),
             media_session: media_session,
-        });
-        let root = el("div").own(|_| {
-            link!(
-                (_pc = pc),
-                (playing = state.playing.clone(), playing_i = state.playing_i.clone()),
-                (),
-                (state = state.clone()) {
-                    if !*playing.borrow() {
-                        // Stop previous
-                        if let Some(i) = playing_i.get_old() {
-                            if let Some(e) = state.playlist.borrow().get(i).cloned() {
-                                e.media.pm_stop();
-                            }
-                        }
-                    } else {
-                        // Stop previous if it changed
-                        if let Some(i) = playing_i.get_old() {
-                            if Some(i) != playing_i.get() {
-                                let e = state.playlist.borrow().get(i).cloned().unwrap();
-                                e.media.pm_stop();
-                                e.media.pm_seek_to(0.);
-                            }
-                        }
-
-                        // Start next/current
-                        let i = match playing_i.get() {
-                            Some(i) => i,
-                            None => {
-                                0
-                            },
-                        };
-                        let e = state.playlist.borrow().get(i).cloned().unwrap();
-                        e.media.pm_play();
-                    }
-                    match state.playing_i.get() {
-                        Some(i) => {
-                            let e = state.playlist.borrow().get(i).cloned().unwrap();
-                            state.media_session.set_metadata(Some(&{
-                                let m = MediaMetadata::new().unwrap();
-                                if let Some(name) = &e.name {
-                                    m.set_title(name);
-                                }
-                                if let Some(album) = &e.album {
-                                    m.set_album(album);
-                                }
-                                if let Some(artist) = &e.artist {
-                                    m.set_artist(artist);
-                                }
-                                if let Some(thumbnail) = &e.thumbnail {
-                                    let arr = js_sys::Array::new();
-                                    let e = js_sys::Object::new();
-                                    js_sys::Reflect::set(
-                                        &e,
-                                        &JsValue::from("src"),
-                                        &JsValue::from(file_url(&state.origin, &thumbnail)),
-                                    ).unwrap();
-                                    arr.push(e.dyn_ref().unwrap());
-                                    m.set_artwork(&arr.dyn_into().unwrap());
-                                }
-                                m
-                            }));
-                        },
-                        None => {
-                            state.media_session.set_metadata(None);
-                        },
-                    }
-                }
-            )
+            main: main,
         });
 
         // # Media control
@@ -965,95 +1148,180 @@ fn main() {
         })));
 
         // # UI
-        state.playing.set(pc, false);
-        state.playing_i.set(pc, None);
-        let query = WidgetQuery {
-            query: include_str!("query_albums.datalog").to_string(),
+        build_page_query(Rc::new(WidgetList {
+            data: QueryOrField::Query(BigString(include_str!("query_albums.datalog").to_string())),
             layout: Layout::Individual(LayoutIndividual {
-                direction: Dir::DownRight,
+                orientation: Orientation::DownRight,
                 align: Align::Start,
-                nest: WidgetNest {
-                    direction: Dir::RightDown,
+                item: WidgetNest {
+                    orientation: Orientation::RightDown,
                     align: Align::Start,
-                    children: vec![Widget::Image(WidgetImage {
-                        field: "cover".to_string(),
-                        size_mode: BlockSizeMode::Cover,
-                        width: Some("5cm".to_string()),
-                        height: Some("5cm".to_string()),
-                        align: Align::Start,
-                    }), Widget::Nest(WidgetNest {
-                        direction: Dir::DownRight,
-                        align: Align::Start,
-                        children: vec![Widget::TextLine(WidgetTextLine {
-                            field: "album".to_string(),
-                            style: WidgetTextLineStyle {
-                                prefix: "".to_string(),
-                                suffix: "".to_string(),
-                                size: "14pt".to_string(),
-                                size_mode: LineSizeMode::Ellipsize,
-                                direction: Dir::RightDown,
-                                align: Align::Start,
-                            },
-                        }), Widget::Subquery(WidgetQuery {
-                            query: include_str!("query_tracks.datalog").to_string(),
-                            layout: Layout::Table(LayoutTable {
-                                direction: Dir::DownRight,
-                                align: Align::Start,
-                                children: vec![Widget::Audio(WidgetAudio {
-                                    field: "file".to_string(),
-                                    name_field: Some("name".to_string()),
-                                    album_field: Some("album".to_string()),
-                                    artist_field: Some("artist".to_string()),
-                                    thumbnail_field: Some("cover".to_string()),
+                    children: vec![
+                        //. .
+                        Widget::Image(WidgetImage {
+                            data: FieldOrLiteral::Field("cover".to_string()),
+                            size_mode: BlockSizeMode::Cover,
+                            width: Some("5cm".to_string()),
+                            height: Some("5cm".to_string()),
+                            align: Align::Start,
+                        }),
+                        Widget::Nest(WidgetNest {
+                            orientation: Orientation::DownRight,
+                            align: Align::Start,
+                            children: vec![
+                                //. .
+                                Widget::TextLine(WidgetTextLine {
+                                    data: FieldOrLiteral::Field("album".to_string()),
+                                    prefix: "".to_string(),
+                                    suffix: "".to_string(),
+                                    size: "14pt".to_string(),
+                                    size_mode: LineSizeMode::Ellipsize,
+                                    orientation: Orientation::RightDown,
                                     align: Align::Start,
-                                }), Widget::TextLine(WidgetTextLine {
-                                    field: "index".to_string(),
-                                    style: WidgetTextLineStyle {
-                                        prefix: "".to_string(),
-                                        suffix: ".".to_string(),
-                                        size: "12pt".to_string(),
-                                        size_mode: LineSizeMode::Full,
-                                        direction: Dir::DownRight,
-                                        align: Align::End,
-                                    },
-                                }), Widget::TextLine(WidgetTextLine {
-                                    field: "artist".to_string(),
-                                    style: WidgetTextLineStyle {
-                                        prefix: "".to_string(),
-                                        suffix: "".to_string(),
-                                        size: "12pt".to_string(),
-                                        size_mode: LineSizeMode::Full,
-                                        direction: Dir::DownRight,
+                                }),
+                                Widget::Sublist(WidgetList {
+                                    data: QueryOrField::Query(
+                                        BigString(include_str!("query_tracks.datalog").to_string()),
+                                    ),
+                                    layout: Layout::Table(LayoutTable {
+                                        orientation: Orientation::DownRight,
                                         align: Align::Start,
-                                    },
-                                }), Widget::ConstTextLine(WidgetConstTextLine {
-                                    text: " - ".to_string(),
-                                    style: WidgetTextLineStyle {
-                                        prefix: "".to_string(),
-                                        suffix: "".to_string(),
-                                        size: "12pt".to_string(),
-                                        size_mode: LineSizeMode::Full,
-                                        direction: Dir::DownRight,
-                                        align: Align::Start,
-                                    },
-                                }), Widget::TextLine(WidgetTextLine {
-                                    field: "name".to_string(),
-                                    style: WidgetTextLineStyle {
-                                        prefix: "".to_string(),
-                                        suffix: "".to_string(),
-                                        size: "12pt".to_string(),
-                                        size_mode: LineSizeMode::Full,
-                                        direction: Dir::DownRight,
-                                        align: Align::Start,
-                                    },
-                                })],
-                            }),
-                        })],
-                    })],
+                                        columns: vec![
+                                            //. .
+                                            Widget::Audio(WidgetAudio {
+                                                field: "file".to_string(),
+                                                name_field: Some("name".to_string()),
+                                                album_field: Some("album".to_string()),
+                                                artist_field: Some("artist".to_string()),
+                                                thumbnail_field: Some("cover".to_string()),
+                                                align: Align::Start,
+                                            }),
+                                            Widget::TextLine(WidgetTextLine {
+                                                data: FieldOrLiteral::Field("index".to_string()),
+                                                prefix: "".to_string(),
+                                                suffix: ".".to_string(),
+                                                size: "12pt".to_string(),
+                                                size_mode: LineSizeMode::Full,
+                                                orientation: Orientation::DownRight,
+                                                align: Align::End,
+                                            }),
+                                            Widget::TextLine(WidgetTextLine {
+                                                data: FieldOrLiteral::Field("artist".to_string()),
+                                                prefix: "".to_string(),
+                                                suffix: "".to_string(),
+                                                size: "12pt".to_string(),
+                                                size_mode: LineSizeMode::Full,
+                                                orientation: Orientation::DownRight,
+                                                align: Align::Start,
+                                            }),
+                                            Widget::TextLine(WidgetTextLine {
+                                                data: FieldOrLiteral::Literal(" - ".to_string()),
+                                                prefix: "".to_string(),
+                                                suffix: "".to_string(),
+                                                size: "12pt".to_string(),
+                                                size_mode: LineSizeMode::Full,
+                                                orientation: Orientation::DownRight,
+                                                align: Align::Start,
+                                            }),
+                                            Widget::TextLine(WidgetTextLine {
+                                                data: FieldOrLiteral::Field("name".to_string()),
+                                                prefix: "".to_string(),
+                                                suffix: "".to_string(),
+                                                size: "12pt".to_string(),
+                                                size_mode: LineSizeMode::Full,
+                                                orientation: Orientation::DownRight,
+                                                align: Align::Start,
+                                            })
+                                        ],
+                                    }),
+                                })
+                            ],
+                        })
+                    ],
                 },
             }),
-        };
-        root.ref_push(build_widget_query(pc, &state, 0, &query, &HashMap::new()));
-        set_root(vec![root]);
+        }));
+        set_root(vec![
+            //. .
+            el("div").extend(vec![
+                //. .
+                el("div").classes(&["sidebar"]).own(|e| link!()).extend(vec![
+                    //. .
+                    el_group().own(|e| link!()),
+                    el_button_icon_text("settings", "Settings").on("click", {
+                        let eg = eg.clone();
+                        move |_| eg.event(|pc| { })
+                    })
+                ]),
+                state.main.clone()
+            ]).own(|_| {
+                link!(
+                    (_pc = pc),
+                    (playing = state.playing.clone(), playing_i = state.playing_i.clone()),
+                    (),
+                    (state = state.clone()) {
+                        if !*playing.borrow() {
+                            // Stop previous
+                            if let Some(i) = playing_i.get_old() {
+                                if let Some(e) = state.playlist.borrow().get(i).cloned() {
+                                    e.media.pm_stop();
+                                }
+                            }
+                        } else {
+                            // Stop previous if it changed
+                            if let Some(i) = playing_i.get_old() {
+                                if Some(i) != playing_i.get() {
+                                    let e = state.playlist.borrow().get(i).cloned().unwrap();
+                                    e.media.pm_stop();
+                                    e.media.pm_seek_to(0.);
+                                }
+                            }
+
+                            // Start next/current
+                            let i = match playing_i.get() {
+                                Some(i) => i,
+                                None => {
+                                    0
+                                },
+                            };
+                            let e = state.playlist.borrow().get(i).cloned().unwrap();
+                            e.media.pm_play();
+                        }
+                        match state.playing_i.get() {
+                            Some(i) => {
+                                let e = state.playlist.borrow().get(i).cloned().unwrap();
+                                state.media_session.set_metadata(Some(&{
+                                    let m = MediaMetadata::new().unwrap();
+                                    if let Some(name) = &e.name {
+                                        m.set_title(name);
+                                    }
+                                    if let Some(album) = &e.album {
+                                        m.set_album(album);
+                                    }
+                                    if let Some(artist) = &e.artist {
+                                        m.set_artist(artist);
+                                    }
+                                    if let Some(thumbnail) = &e.thumbnail {
+                                        let arr = js_sys::Array::new();
+                                        let e = js_sys::Object::new();
+                                        js_sys::Reflect::set(
+                                            &e,
+                                            &JsValue::from("src"),
+                                            &JsValue::from(file_url(&state.origin, &thumbnail)),
+                                        ).unwrap();
+                                        arr.push(e.dyn_ref().unwrap());
+                                        m.set_artwork(&arr.dyn_into().unwrap());
+                                    }
+                                    m
+                                }));
+                            },
+                            None => {
+                                state.media_session.set_metadata(None);
+                            },
+                        }
+                    }
+                )
+            })
+        ]);
     });
 }
