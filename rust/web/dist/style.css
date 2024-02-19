@@ -1,19 +1,268 @@
 /* Reusable */
+@font-face {
+    font-family: "A";
+    src: url('Quicksand-VariableFont_wght.ttf');
+}
+
+@font-face {
+    font-family: "I";
+    src: url('MaterialSymbolsRounded.woff2');
+}
+
+:root {
+    --text-fade: rgb(0, 0, 0, 0.5);
+    --text-full: rgb(0, 0, 0, 1);
+    --time-gutter: #f2f2f2;
+    --time-fill: #b2b2b2;
+}
+
 * {
     padding: 0;
     margin: 0;
+    vertical-align: middle;
+    font-weight: 400;
+    font-family: "A";
 }
 
-/* Specific leaf */
-/* Specific structural */
-html {
+/* General */
+.g_icon {
+    vertical-align: middle;
+    font-family: "I";
+    font-weight: 100;
+    font-size: 24pt;
+}
+
+.g_button {
+    border: none;
+    background: none;
+    color: var(--text-fade);
+    vertical-align: middle;
+
+    &:hover {
+        color: var(--text-full);
+    }
+}
+
+.g_grow {
+    flex-grow: 1;
+}
+
+.g_group {
+    display: contents;
+}
+
+.g_hbox {
+    display: flex;
+    flex-direction: row;
+    justify-content: stretch;
+
+    &>.g_hbox {}
+}
+
+.g_vbox {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    justify-content: stretch;
 }
 
+.g_stack {
+    display: grid;
+    grid-template-columns: 1fr;
+
+    &>* {
+        grid-column: 1;
+        grid-row: 1;
+    }
+}
+
+/* Specific */
+html,
 body {
-    display: flex;
-    flex-direction: column;
+    height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr;
+
+    &>* {
+        grid-column: 1;
+        grid-row: 1;
+    }
+}
+
+.s_vert_title {
+    display: none;
+    webkit-writing-mode: vertical-rl;
+}
+
+.s_titlebar {
+    .g_icon {
+        margin: 1em;
+    }
+
+    & h1 {
+        margin: 0.2em 1em;
+        font-weight: 300;
+        font-size: 38pt;
+        flex-grow: 1;
+    }
+}
+
+.s_transport {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+
+    &>* {
+        grid-row: 1;
+    }
+
+    &>.left {
+        grid-column: 1;
+    }
+
+    &>.middle {
+        grid-column: 2;
+    }
+
+    &>.right {
+        grid-column: 3;
+    }
+}
+
+.s_seekbar {
     align-items: center;
+
+    & * {
+        pointer-events: none;
+    }
+
+    &>.gutter {
+        display: flex;
+        flex-direction: row;
+
+        &,
+        &>.fill {
+            border-radius: 0.05cm;
+        }
+
+        justify-self: middle;
+        background-color: var(--time-gutter);
+        width: 5cm;
+        height: 0.15cm;
+
+        &>.fill {
+            justify-self: flex-start;
+            height: 100%;
+            background-color: var(--time-fill);
+        }
+    }
+
+    &>.label {
+        justify-self: end;
+        opacity: 50%;
+    }
+}
+
+.s_view_body {
+    padding: min(1cm, 5vw);
+}
+
+/* Specific structural: Tree */
+.tree {
+    /* margin: 0.05cm; */
+}
+
+.tree_layout_table {
+    display: grid;
+
+    &.converse_up,
+    &.converse_down {
+        justify-items: center;
+    }
+
+    &.converse_left,
+    &.converse_right {
+        align-items: center;
+    }
+
+    &>*>.g_button_icon {
+        rotate: 90deg;
+    }
+}
+
+.tree_layout_individual {
+    display: flex;
+    gap: 0.1cm;
+
+    &.converse_up {
+        flex-direction: column-reverse;
+    }
+
+    &.converse_down {
+        flex-direction: column;
+    }
+
+    &.converse_left {
+        flex-direction: row-reverse;
+    }
+
+    &.converse_right {
+        flex-direction: row;
+    }
+}
+
+.tree_nest {
+    display: flex;
+    gap: 0.5cm;
+
+    &.converse_up {
+        flex-direction: column-reverse;
+    }
+
+    &.converse_down {
+        flex-direction: column;
+    }
+
+    &.converse_left {
+        flex-direction: row-reverse;
+    }
+
+    &.converse_right {
+        flex-direction: row;
+    }
+}
+
+.tree_text {
+
+    &.converse_up,
+    &.converse_down {
+        &.transverse_left {
+            writing-mode: vertical-rl;
+        }
+
+        &.transverse_right {
+            writing-mode: vertical-lr;
+        }
+    }
+
+    &.converse_left,
+    &.converse_right {
+        writing-mode: horizontal-tb;
+    }
+}
+
+.tree_image {
+    aspect-ratio: auto;
+}
+
+/* Wide/not phone */
+@media (min-aspect-ratio: 1/1) {}
+
+/* Tall/phone */
+@media not all and (min-aspect-ratio: 1/1) {
+    .sidebar .s_vert_title {
+        display: initial;
+    }
+
+    .sidebar .s_title {
+        display: none;
+    }
 }

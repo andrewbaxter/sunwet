@@ -55,6 +55,7 @@ use loga::{
 };
 use serde_json::Number;
 use native::{
+    cap_fn,
     ta_res,
     util::{
         Flag,
@@ -62,7 +63,6 @@ use native::{
     },
 };
 use shared::{
-    cap_fn,
     model::{
         C2SReq,
         CommitResp,
@@ -664,12 +664,14 @@ async fn handle_req(state: Arc<State>, req: Request<Incoming>) -> Response<BoxBo
                                 return Ok(
                                     Response::builder()
                                         .status(206)
+                                        .header("Accept-Ranges", "bytes")
                                         .header("Content-Type", mimetype.as_str())
                                         .header("Cache-Control", format!("max-age=2147483648,immutable"))
                                         .header(
                                             "Content-Range",
                                             format!("bytes {}-{}/{}", start, end - 1, meta1.len()),
                                         )
+                                        .header("Content-Length", end - start)
                                         .body(
                                             http_body_util::StreamBody::new(
                                                 ReaderStream::new(
@@ -681,29 +683,38 @@ async fn handle_req(state: Arc<State>, req: Request<Incoming>) -> Response<BoxBo
                                 );
                             } else {
                                 let boundary = "3d6b6a416f9b5";
+                                let mut content_len = 0;
+                                let mut ranges2 = vec![];
+                                for (i, (start, end)) in ranges.into_iter().enumerate() {
+                                    let subheader =
+                                        format!(
+                                            "{}--{}\nContent-Type: {}\nContent-Range: bytes {}-{}/{}\n\n",
+                                            if i == 0 {
+                                                ""
+                                            } else {
+                                                "\r\n"
+                                            },
+                                            boundary,
+                                            mimetype,
+                                            start,
+                                            end - 1,
+                                            meta1.len()
+                                        ).into_bytes();
+                                    content_len += subheader.len() + (end - start);
+                                    ranges2.push((start, end, subheader));
+                                }
+                                let ranges = ranges2;
+                                let footer = format!("\r\n--{}--", boundary).into_bytes();
+                                content_len += footer.len();
                                 return Ok(
                                     Response::builder()
                                         .status(206)
+                                        .header("Accept-Ranges", "bytes")
                                         .header("Content-Type", format!("multipart/byteranges; boundary={boundary}"))
+                                        .header("Content-Length", content_len)
                                         .body(BoxBody::new(http_body_util::StreamBody::new(async_stream::try_stream!{
-                                            for (i, (start, end)) in ranges.into_iter().enumerate() {
-                                                yield Frame::data(
-                                                    Bytes::from(
-                                                        format!(
-                                                            "{}--{}\nContent-Type: {}\nContent-Range: bytes {}-{}/{}\n\n",
-                                                            if i == 0 {
-                                                                ""
-                                                            } else {
-                                                                "\r\n"
-                                                            },
-                                                            boundary,
-                                                            mimetype,
-                                                            start,
-                                                            end - 1,
-                                                            meta1.len()
-                                                        ).into_bytes(),
-                                                    ),
-                                                );
+                                            for (start, end, subheader) in ranges {
+                                                yield Frame::data(Bytes::from(subheader));
                                                 file.seek(io::SeekFrom::Start(start as u64)).await?;
                                                 let mut remaining = end - start;
                                                 while remaining > 0 {
@@ -715,9 +726,7 @@ async fn handle_req(state: Arc<State>, req: Request<Incoming>) -> Response<BoxBo
                                                     yield Frame::data(Bytes::from(buf));
                                                 }
                                             }
-                                            yield Frame::data(
-                                                Bytes::from(format!("\r\n--{}--", boundary).into_bytes()),
-                                            );
+                                            yield Frame::data(Bytes::from(footer));
                                         })))
                                         .unwrap(),
                                 );
@@ -726,8 +735,10 @@ async fn handle_req(state: Arc<State>, req: Request<Incoming>) -> Response<BoxBo
                             return Ok(
                                 Response::builder()
                                     .status(200)
+                                    .header("Accept-Ranges", "bytes")
                                     .header("Content-Type", mimetype.as_str())
                                     .header("Cache-Control", format!("max-age=2147483648,immutable"))
+                                    .header("Content-Length", meta1.len().to_string())
                                     .body(
                                         http_body_util::StreamBody::new(
                                             ReaderStream::new(file).map_ok(Frame::data),

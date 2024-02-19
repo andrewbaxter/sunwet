@@ -25,6 +25,9 @@ web-sys = { version = "0.3", features = [
     "HtmlAudioElement",
     "HtmlVideoElement",
     "HtmlMediaElement",
+    "MouseEvent",
+    "DomRect",
+    "History",
 ] }
 futures = "0.3"
 tokio = { version = "1", features = ["macros", "sync"] }
@@ -34,4 +37,7 @@ shared = { path = "../shared" }
 sha2 = "0.10"
 lunk = "0.1"
 rooting = { version = "0.1", features = ["futures"] }
-rooting-forms = { version = "0.0.2", path = "/home/andrew/temp/ren/rooting-form" }
+rooting-forms = { version = "0.0.3", path = "/home/andrew/temp/ren/rooting-form", features = [
+    "serde",
+] }
+urlencoding = "2.1.3"
