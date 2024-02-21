@@ -594,11 +594,6 @@ pub fn build_page_view(
     });
     let edit = Prim::new(pc, false);
     let title_group = el_group();
-
-    fn body() -> El {
-        return el("div").classes(&["s_view_body"]);
-    }
-
     state.state.title_group.upgrade().unwrap().ref_clear().ref_push(el_hbox().classes(&[CSS_GROW]).extend(vec![
         //. .
         title_group.clone(),
@@ -617,13 +612,13 @@ pub fn build_page_view(
             let mobile_vert_title_group = state.state.mobile_vert_title_group.upgrade()?;
             mobile_vert_title_group.ref_clear();
             if *edit.borrow() {
+                // Edit
                 let working_def = working_def.borrow();
                 mobile_vert_title_group.ref_push(el("h1").text(&format!("Edit: {}", working_def.name)));
-                let title_state = String::new_form("", Some(&working_def.name));
-                let title_state_elements = title_state.elements();
+                let (title_state_elements, title_state) = String::new_form("", Some(&working_def.name));
                 title_group.ref_extend(title_state_elements.elements);
-                let form_state = WidgetList::new_form("", Some(&working_def.def));
-                let form_state_elements = form_state.elements();
+                let (form_state_elements, form_state) = WidgetList::new_form("", Some(&working_def.def));
+                log("hi");
                 let mut form_elements = vec![];
                 if let Some(error) = form_state_elements.error {
                     form_elements.push(error);
@@ -656,9 +651,10 @@ pub fn build_page_view(
                             edit.set(pc, false);
                         }
                     })
-                ])]).ref_push(body().extend(form_elements));
+                ])]).ref_push(el("div").classes(&["s_edit_view_body"]).extend(form_elements));
                 *state.edit_state.borrow_mut() = Some((title_state, form_state));
             } else {
+                // View
                 if let Some((title_state, form_state)) = state.edit_state.borrow_mut().take() {
                     let title = title_state.parse().unwrap();
                     let form = form_state.parse().unwrap();
@@ -798,9 +794,11 @@ pub fn build_page_view(
                             ]),
                             el_hbox().classes(&["right"])
                         ]),
-                        body().push(
-                            build_widget_query(pc, &state.state, 0, &working_def.def, &Rc::new(HashMap::new())),
-                        )
+                        el("div")
+                            .classes(&["s_view_body"])
+                            .push(
+                                build_widget_query(pc, &state.state, 0, &working_def.def, &Rc::new(HashMap::new())),
+                            )
                     ],
                 );
             }

@@ -24,15 +24,31 @@
     font-family: "A";
 }
 
+input,
+select {
+    font-family: inherit;
+    font-size: inherit;
+    border: none;
+    background: none;
+}
+
 /* General */
-.g_icon {
+.g_icon,
+.form_vec_item_delete,
+.form_vec_move_down,
+.form_vec_move_up,
+.form_vec_item_add {
     vertical-align: middle;
     font-family: "I";
     font-weight: 100;
     font-size: 24pt;
 }
 
-.g_button {
+.g_button,
+.form_vec_item_delete,
+.form_vec_move_down,
+.form_vec_move_up,
+.form_vec_item_add {
     border: none;
     background: none;
     color: var(--text-fade);
@@ -166,9 +182,7 @@ body {
 }
 
 /* Specific structural: Tree */
-.tree {
-    /* margin: 0.05cm; */
-}
+.tree {}
 
 .tree_layout_table {
     display: grid;
@@ -251,6 +265,107 @@ body {
 
 .tree_image {
     aspect-ratio: auto;
+}
+
+/* Specific: form */
+.s_edit_view_body {
+    display: grid;
+    gap: 0.1cm;
+    grid-template-columns: 0fr 1fr;
+    padding: min(1cm, 5vw);
+
+    & .disable_hide {
+        display: none;
+    }
+
+    & input,
+    & select {
+        padding-bottom: 0.1cm;
+        border-bottom: 0.04cm solid #dfdfdf;
+        grid-column: 2;
+        justify-self: start;
+    }
+
+    & input[type=text] {
+        font-family: monospace;
+        font-size: 1.4em;
+        font-weight: 300;
+        white-space: pre;
+    }
+}
+
+.form_vec_item_delete {
+    display: inline;
+    content: '\e8f4';
+    width: 1em;
+    height: 1em;
+}
+
+.form_error {
+    grid-column-start: 1;
+    grid-column-end: 3;
+}
+
+.form_label {
+    grid-column: 1;
+    justify-self: end;
+    align-self: first baseline;
+    margin-right: 1em;
+    text-align: right;
+    width: max-content;
+}
+
+.form_vec {
+    grid-column-start: 1;
+    grid-column-end: 3;
+    display: grid;
+    grid-template-columns: subgrid;
+}
+
+.form_vec_items {
+    display: contents;
+
+    &>.form_subform {
+        border: 0.04cm solid #dfdfdf;
+        border-radius: 0.1cm;
+    }
+}
+
+.form_vec_item_header {
+    display: flex;
+    flex-direction: row;
+    justify-content: start;
+    grid-column: 2;
+}
+
+.form_subform {
+    margin: 0.2cm 0;
+    padding-top: 0.1cm;
+    padding-bottom: 0.1cm;
+    padding-left: 0.3cm;
+    padding-right: 0.2cm;
+    display: grid;
+    gap: 0.2cm;
+    grid-column-start: 1;
+    grid-column-end: 3;
+    grid-template-columns: subgrid;
+    position: relative;
+
+    &:empty {
+        display: none;
+    }
+
+    &:before {
+        position: absolute;
+        content: ' ';
+        display: block;
+        top: 0.1cm;
+        bottom: 0.1cm;
+        left: 0.05cm;
+        width: 0.1cm;
+        border-radius: 0.05cm;
+        background: #dfdfdf;
+    }
 }
 
 /* Wide/not phone */

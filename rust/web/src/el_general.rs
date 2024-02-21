@@ -183,5 +183,5 @@ pub fn el_vbox() -> El {
 }
 
 pub fn log(x: impl Display) {
-    log_1(&JsValue::from_str(&x.to_string()));
+    web_sys::console::log_1(&JsValue::from_str(&x.to_string()));
 }
