@@ -235,10 +235,15 @@ body>.g_hbox {
 }
 
 /* Specific structural: Tree */
-.tree {}
+.tree * {
+    min-width: 0;
+    overflow-x: hidden;
+}
 
 .tree_layout_table {
     display: grid;
+    min-width: max-content;
+    overflow-x: scroll;
 
     &.converse_up,
     &.converse_down {
@@ -318,6 +323,7 @@ body>.g_hbox {
 
 .tree_image {
     aspect-ratio: auto;
+    flex-shrink: 0;
 }
 
 /* Specific: form */
