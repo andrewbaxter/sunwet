@@ -26,6 +26,30 @@ pub static ICON_RESET: CssIcon = CssIcon("\u{e166}");
 pub static ICON_SELECT_ALL: CssIcon = CssIcon("\u{e837}");
 pub static ICON_SELECT_NONE: CssIcon = CssIcon("\u{e836}");
 
+pub trait OptString: Sized {
+    fn if_some(self) -> Option<Self>;
+}
+
+impl OptString for String {
+    fn if_some(self) -> Option<Self> {
+        if self.is_empty() {
+            return None;
+        } else {
+            return Some(self);
+        }
+    }
+}
+
+impl OptString for &String {
+    fn if_some(self) -> Option<Self> {
+        if self.is_empty() {
+            return None;
+        } else {
+            return Some(self);
+        }
+    }
+}
+
 struct BgVal_<T> {
     value: RefCell<Option<T>>,
     notify: Semaphore,

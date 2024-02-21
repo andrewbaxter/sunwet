@@ -196,7 +196,7 @@ pub struct LayoutTable {
 #[derive(Serialize, Deserialize, Clone, Copy, rooting_forms::Form)]
 #[serde(rename_all = "snake_case")]
 pub enum LineSizeMode {
-    #[title("Expand to show everything")]
+    #[title("Expand")]
     Full,
     #[title("Ellipsize")]
     Ellipsize,
@@ -227,7 +227,7 @@ pub enum QueryOrField {
 #[derive(Serialize, Deserialize, Clone, rooting_forms::Form)]
 #[serde(rename_all = "snake_case")]
 pub struct WidgetTextLine {
-    #[title("Data source")]
+    #[title("Data")]
     pub data: FieldOrLiteral,
     #[title("Prefix text")]
     pub prefix: String,
@@ -235,7 +235,7 @@ pub struct WidgetTextLine {
     pub suffix: String,
     #[title("Font size")]
     pub size: String,
-    #[title("Line sizing")]
+    #[title("Sizing mode")]
     pub size_mode: LineSizeMode,
     #[title("Orientation")]
     pub orientation: Orientation,
@@ -248,72 +248,72 @@ pub struct WidgetTextLine {
 pub enum BlockSizeMode {
     #[title("Cover area")]
     Cover,
-    #[title("Fit into area")]
+    #[title("Fit within area")]
     Contain,
 }
 
 #[derive(Serialize, Deserialize, Clone, rooting_forms::Form)]
 #[serde(rename_all = "snake_case")]
 pub struct WidgetImage {
-    #[title("Data source")]
+    #[title("Data")]
     pub data: FieldOrLiteral,
-    #[title("How to size imge")]
+    #[title("Sizing mode")]
     pub size_mode: BlockSizeMode,
-    #[title("Set image width (any valid css measurement)")]
-    pub width: Option<String>,
-    #[title("Set image height (any valid css measurement)")]
-    pub height: Option<String>,
-    #[title("Alignment in parent")]
+    #[title("Width")]
+    pub width: String,
+    #[title("Height")]
+    pub height: String,
+    #[title("Alignment")]
     pub align: Align,
 }
 
 #[derive(Serialize, Deserialize, Clone, rooting_forms::Form)]
 #[serde(rename_all = "snake_case")]
 pub struct WidgetAudio {
-    #[title("Name of field containing audio file node")]
+    #[title("File field")]
     pub field: String,
-    #[title("Name of field containing video name value node")]
-    pub name_field: Option<String>,
-    #[title("Name of field containing album name value node")]
-    pub album_field: Option<String>,
-    #[title("Name of field containing artist name value node")]
-    pub artist_field: Option<String>,
-    #[title("Name of field containing thumbnail image file node")]
-    pub thumbnail_field: Option<String>,
-    #[title("Alignment in parent")]
+    #[title("Name field")]
+    pub name_field: String,
+    #[title("Album name field")]
+    pub album_field: String,
+    #[title("Artist name field")]
+    pub artist_field: String,
+    #[title("Thumbnail file field")]
+    pub thumbnail_field: String,
+    #[title("Alignment")]
     pub align: Align,
 }
 
 #[derive(Serialize, Deserialize, Clone, rooting_forms::Form)]
 #[serde(rename_all = "snake_case")]
 pub struct WidgetVideo {
-    #[title("Name of field containing video file node")]
+    #[title("File field")]
     pub field: String,
-    #[title("Name of field containing video name value node")]
-    pub name_field: Option<String>,
-    #[title("Name of field containing album name value node")]
-    pub album_field: Option<String>,
-    #[title("Name of field containing author name value node")]
-    pub artist_field: Option<String>,
-    #[title("Name of field containing thumbnail image file node")]
-    pub thumbnail_field: Option<String>,
-    #[title("Alignment in parent")]
+    #[title("Name field")]
+    pub name_field: String,
+    #[title("Album name field")]
+    pub album_field: String,
+    #[title("Artist name field")]
+    pub artist_field: String,
+    #[title("Thumbnail file field")]
+    pub thumbnail_field: String,
+    #[title("Alignment")]
     pub align: Align,
 }
 
 #[derive(Serialize, Deserialize, Clone, rooting_forms::Form)]
 #[serde(rename_all = "snake_case")]
 pub struct WidgetList {
-    #[title("Data source")]
+    #[title("Data")]
     pub data: QueryOrField,
-    #[title("Layout for data")]
+    #[title("View")]
     pub layout: Layout,
 }
 
 #[derive(Serialize, Deserialize, Clone, rooting_forms::Form)]
 #[serde(rename_all = "snake_case")]
 pub enum Layout {
-    #[title("Independently sized")]
+    #[title("Independent rows")]
     Individual(LayoutIndividual),
     #[title("Table")]
     Table(LayoutTable),

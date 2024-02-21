@@ -65,6 +65,11 @@ pub static CSS_BUTTON: &'static str = "g_button";
 pub static CSS_BUTTON_ICON: &'static str = "g_button_icon";
 pub static CSS_BUTTON_ICON_TEXT: &'static str = "g_button_icon_text";
 pub static CSS_BUTTON_TEXT: &'static str = "g_button_text";
+pub static CSS_AUTOSCROLL: &'static str = "g_autoscroll";
+
+pub fn el_autoscroll(child: El) -> El {
+    return el("div").classes(&[CSS_AUTOSCROLL]).on_resize({ }).push(child);
+}
 
 pub fn el_group() -> El {
     return el("div").classes(&["g_group"]);

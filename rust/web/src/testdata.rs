@@ -89,8 +89,8 @@ pub fn testdata_albums() -> WidgetList {
                     Widget::Image(WidgetImage {
                         data: FieldOrLiteral::Field("cover".to_string()),
                         size_mode: BlockSizeMode::Cover,
-                        width: Some("5cm".to_string()),
-                        height: Some("5cm".to_string()),
+                        width: "5cm".to_string(),
+                        height: "5cm".to_string(),
                         align: Align::Start,
                     }),
                     Widget::Nest(WidgetNest {
@@ -118,10 +118,10 @@ pub fn testdata_albums() -> WidgetList {
                                         //. .
                                         Widget::Audio(WidgetAudio {
                                             field: "file".to_string(),
-                                            name_field: Some("name".to_string()),
-                                            album_field: Some("album".to_string()),
-                                            artist_field: Some("artist".to_string()),
-                                            thumbnail_field: Some("cover".to_string()),
+                                            name_field: "name".to_string(),
+                                            album_field: "album".to_string(),
+                                            artist_field: "artist".to_string(),
+                                            thumbnail_field: "cover".to_string(),
                                             align: Align::Start,
                                         }),
                                         Widget::TextLine(WidgetTextLine {

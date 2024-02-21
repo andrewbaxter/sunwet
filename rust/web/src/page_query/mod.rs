@@ -94,6 +94,7 @@ use crate::{
         View,
     },
     util::{
+        OptString,
         CSS_GROW,
         ICON_EDIT,
         ICON_NOEDIT,
@@ -382,10 +383,10 @@ fn build_widget(
                 BlockSizeMode::Cover => style.push(format!("object-fit: cover")),
                 BlockSizeMode::Contain => style.push(format!("object-fit: contain")),
             }
-            if let Some(width) = &d.width {
+            if let Some(width) = (&d.width).if_some() {
                 style.push(format!("width: {}", width));
             }
-            if let Some(height) = &d.height {
+            if let Some(height) = (&d.height).if_some() {
                 style.push(format!("height: {}", height));
             }
             out.ref_attr("style", &style.join("; "));
@@ -411,12 +412,11 @@ fn build_widget(
                 return el_media_button_err(format!("Field contents wasn't string value node or string: {:?}", v));
             }
             playlist_push(&state.playlist, Rc::new(PlaylistEntry {
-                name: d.name_field.as_ref().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
-                album: d.album_field.as_ref().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
-                artist: d.artist_field.as_ref().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
-                thumbnail: d
-                    .thumbnail_field
-                    .as_ref()
+                name: (&d.name_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
+                album: (&d.album_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
+                artist: (&d.artist_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
+                thumbnail: (&d.thumbnail_field)
+                    .if_some()
                     .and_then(|v| data.get(v))
                     .and_then(|v| extract_node_file(v))
                     .map(|h| file_url(&state.origin, &h)),
@@ -447,12 +447,11 @@ fn build_widget(
                 })
             });
             playlist_push(&state.playlist, Rc::new(PlaylistEntry {
-                name: d.name_field.as_ref().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
-                album: d.album_field.as_ref().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
-                artist: d.artist_field.as_ref().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
-                thumbnail: d
-                    .thumbnail_field
-                    .as_ref()
+                name: (&d.name_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
+                album: (&d.album_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
+                artist: (&d.artist_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
+                thumbnail: (&d.thumbnail_field)
+                    .if_some()
                     .and_then(|v| data.get(v))
                     .and_then(|v| extract_node_file(v))
                     .map(|h| file_url(&state.origin, &h)),
@@ -616,9 +615,8 @@ pub fn build_page_view(
                 let working_def = working_def.borrow();
                 mobile_vert_title_group.ref_push(el("h1").text(&format!("Edit: {}", working_def.name)));
                 let (title_state_elements, title_state) = String::new_form("", Some(&working_def.name));
-                title_group.ref_extend(title_state_elements.elements);
+                title_group.ref_push(el("h1").extend(title_state_elements.elements));
                 let (form_state_elements, form_state) = WidgetList::new_form("", Some(&working_def.def));
-                log("hi");
                 let mut form_elements = vec![];
                 if let Some(error) = form_state_elements.error {
                     form_elements.push(error);
