@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    rc::Rc,
+};
 use gloo::utils::window;
 use lunk::ProcessingContext;
 use rooting::{
@@ -31,17 +34,26 @@ use crate::{
     testdata::testdata_albums,
 };
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct PlaylistEntryPath(pub Vec<serde_json::Value>);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct PlaylistPos {
+    pub entry_path: PlaylistEntryPath,
+    pub time: f64,
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Ministate {
     Home,
     View {
-        id: usize,
+        id: String,
         title: String,
-        play_entry: Vec<HashMap<String, serde_json::Value>>,
-        play_time: f64,
+        pos: Option<PlaylistPos>,
     },
-    NewView,
 }
 
 pub fn record_new_ministate(s: &Ministate) {

@@ -6,7 +6,7 @@ use futures::Future;
 use tokio::sync::Semaphore;
 use wasm_bindgen_futures::spawn_local;
 
-pub static CSS_GROW: &'static str = "g_grow";
+pub static CSS_GROW: &'static str = "grow";
 
 #[derive(Clone, Copy)]
 pub struct CssIcon(pub &'static str);

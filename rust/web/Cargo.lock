@@ -748,7 +748,9 @@ dependencies = [
 
 [[package]]
 name = "rooting-forms"
-version = "0.0.3"
+version = "0.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5000110e301bd18098488f2f63c1b5f53b49cac255ad4c1dbc3390b7c3bf042d"
 dependencies = [
  "rooting",
  "rooting_forms_proc_macros",
@@ -759,7 +761,9 @@ dependencies = [
 
 [[package]]
 name = "rooting_forms_proc_macros"
-version = "0.0.3"
+version = "0.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a69e9976b347b099dc14e9a1ac9bc563db53d3d93494f11a7527f68e4de7c81d"
 dependencies = [
  "litrs",
  "proc-macro2",

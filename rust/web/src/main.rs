@@ -111,6 +111,10 @@ use web_sys::{
 };
 use world::req_post_json;
 use crate::{
+    ministate::{
+        PlaylistEntryPath,
+        PlaylistPos,
+    },
     state::el_ministate_button,
     testdata::testdata_albums,
 };
@@ -132,7 +136,7 @@ fn main() {
         let show_sidebar = Prim::new(pc, false);
         let mobile_vert_title_group = el_group().classes(&["s_vert_title"]);
         let title_group = el_group().classes(&["s_title"]);
-        let body_group = el_group();
+        let body_group = el_group().classes(&["s_body"]);
         let (playlist_state, playlist_root) = playlist::state_new(pc);
         let views = bg_val({
             let origin = origin.clone();
@@ -146,7 +150,7 @@ fn main() {
                 //.                };
                 return Rc::new(RefCell::new({
                     let mut m = HashMap::new();
-                    m.insert(0, View {
+                    m.insert("albums".to_string(), View {
                         name: "Albums".to_string(),
                         def: testdata_albums(),
                     });
@@ -188,11 +192,11 @@ fn main() {
             }
             break 'ret_ministate Ministate::Home;
         });
-        set_root(vec![el_hbox().classes(&[CSS_GROW]).extend(vec![
+        set_root(vec![el_hbox().classes(&["s_root", CSS_GROW]).extend(vec![
             // Sidebar
             sidebar_group.clone(),
             // Main content
-            el_vbox().classes(&[CSS_GROW]).extend(vec![
+            el_vbox().classes(&["s_main", CSS_GROW]).extend(vec![
                 //. .
                 el_hbox()
                     .classes(&["s_titlebar"])
@@ -223,7 +227,7 @@ fn main() {
                 root.ref_modify_classes(&[("no_sidebar", !*show_sidebar.borrow())]);
                 let sidebar_group = sidebar_group.upgrade()?;
                 if *show_sidebar.borrow() {
-                    let sidebar = el_vbox().classes(&["s_sidebar"]);
+                    let sidebar = el_vbox().classes(&["s_sidebar", CSS_GROW]);
                     bg.set(Some(spawn_rooted({
                         let state = state.clone();
                         let eg = pc.eg();
@@ -232,18 +236,12 @@ fn main() {
                             let views = state.views.get().await;
                             eg.event(|pc| {
                                 for (view_id, view) in &*views.borrow() {
-                                    sidebar.ref_push(
-                                        el_ministate_button(pc, &state, "view", &view.name, Ministate::View {
-                                            id: *view_id,
-                                            title: view.name.clone(),
-                                            play_entry: vec![HashMap::new()],
-                                            play_time: 0.,
-                                        }),
-                                    );
+                                    sidebar.ref_push(el_ministate_button(pc, &state, &view.name, Ministate::View {
+                                        id: view_id.clone(),
+                                        title: view.name.clone(),
+                                        pos: None,
+                                    }));
                                 }
-                                sidebar.ref_push(
-                                    el_ministate_button(pc, &state, "new", "New view", Ministate::NewView),
-                                );
                             });
                         }
                     })));

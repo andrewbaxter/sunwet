@@ -78,9 +78,11 @@ use crate::page_query::definition::{
 pub fn testdata_albums() -> WidgetList {
     return WidgetList {
         data: QueryOrField::Query(BigString(include_str!("query_albums.datalog").to_string())),
+        key_field: "album_id".to_string(),
         layout: Layout::Individual(LayoutIndividual {
             orientation: Orientation::DownRight,
             align: Align::Start,
+            x_scroll: false,
             item: WidgetNest {
                 orientation: Orientation::RightDown,
                 align: Align::Start,
@@ -111,9 +113,11 @@ pub fn testdata_albums() -> WidgetList {
                                 data: QueryOrField::Query(
                                     BigString(include_str!("query_tracks.datalog").to_string()),
                                 ),
+                                key_field: "file".to_string(),
                                 layout: Layout::Table(LayoutTable {
                                     orientation: Orientation::DownRight,
                                     align: Align::Start,
+                                    x_scroll: true,
                                     columns: vec![
                                         //. .
                                         Widget::Audio(WidgetAudio {
@@ -129,7 +133,7 @@ pub fn testdata_albums() -> WidgetList {
                                             prefix: "".to_string(),
                                             suffix: ".".to_string(),
                                             size: "12pt".to_string(),
-                                            size_mode: LineSizeMode::Full,
+                                            size_mode: LineSizeMode::Wrap,
                                             orientation: Orientation::DownRight,
                                             align: Align::End,
                                         }),
@@ -138,7 +142,7 @@ pub fn testdata_albums() -> WidgetList {
                                             prefix: "".to_string(),
                                             suffix: "".to_string(),
                                             size: "12pt".to_string(),
-                                            size_mode: LineSizeMode::Full,
+                                            size_mode: LineSizeMode::Wrap,
                                             orientation: Orientation::DownRight,
                                             align: Align::Start,
                                         }),
@@ -147,7 +151,7 @@ pub fn testdata_albums() -> WidgetList {
                                             prefix: "".to_string(),
                                             suffix: "".to_string(),
                                             size: "12pt".to_string(),
-                                            size_mode: LineSizeMode::Full,
+                                            size_mode: LineSizeMode::Wrap,
                                             orientation: Orientation::DownRight,
                                             align: Align::Start,
                                         }),
@@ -156,7 +160,7 @@ pub fn testdata_albums() -> WidgetList {
                                             prefix: "".to_string(),
                                             suffix: "".to_string(),
                                             size: "12pt".to_string(),
-                                            size_mode: LineSizeMode::Full,
+                                            size_mode: LineSizeMode::Wrap,
                                             orientation: Orientation::DownRight,
                                             align: Align::Start,
                                         })

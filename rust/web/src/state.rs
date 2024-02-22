@@ -25,10 +25,16 @@ use serde::{
     Deserialize,
     Serialize,
 };
+use shared::bb;
 use crate::{
+    el_general::{
+        CSS_BUTTON,
+        CSS_BUTTON_ICON_TEXT,
+    },
     ministate::{
         record_new_ministate,
         Ministate,
+        PlaylistEntryPath,
     },
     page_query::{
         build_page_view,
@@ -42,6 +48,7 @@ use crate::{
             WidgetList,
             WidgetNest,
         },
+        BuildPlaylistPos,
     },
     playlist::PlaylistState,
     util::BgVal,
@@ -56,7 +63,7 @@ pub struct View {
 pub struct State_ {
     pub origin: String,
     pub playlist: PlaylistState,
-    pub views: BgVal<Rc<RefCell<HashMap<usize, View>>>>,
+    pub views: BgVal<Rc<RefCell<HashMap<String, View>>>>,
     pub mobile_vert_title_group: WeakEl,
     pub title_group: WeakEl,
     pub body_group: WeakEl,
@@ -64,16 +71,10 @@ pub struct State_ {
 
 pub type State = Rc<State_>;
 
-pub fn el_ministate_button(
-    pc: &mut ProcessingContext,
-    state: &State,
-    icon: &str,
-    text: &str,
-    ministate: Ministate,
-) -> El {
+pub fn el_ministate_button(pc: &mut ProcessingContext, state: &State, text: &str, ministate: Ministate) -> El {
     return el("a")
+        .classes(&[CSS_BUTTON, CSS_BUTTON_ICON_TEXT])
         .attr("href", &format!("#{}", serde_json::to_string(&ministate).unwrap()))
-        .push(el("div").text(icon))
         .push(el("span").text(text))
         .on("click", {
             let eg = pc.eg();
@@ -92,25 +93,12 @@ pub fn build_ministate(pc: &mut ProcessingContext, state: &State, s: &Ministate)
             state.title_group.upgrade().unwrap().ref_clear().ref_push(el("h1").text("Sunwet"));
             state.body_group.upgrade().unwrap().ref_clear();
         },
-        Ministate::View { id, title, play_entry, play_time } => {
-            build_page_view_by_id(pc, state, &title, *id, play_entry.clone(), *play_time);
-        },
-        Ministate::NewView => {
-            build_page_view(pc, state, View {
-                name: "New view".to_string(),
-                def: WidgetList {
-                    data: QueryOrField::Query(BigString("".to_string())),
-                    layout: Layout::Individual(LayoutIndividual {
-                        orientation: Orientation::DownRight,
-                        align: Align::Start,
-                        item: WidgetNest {
-                            orientation: Orientation::DownRight,
-                            align: Align::Start,
-                            children: vec![],
-                        },
-                    }),
-                },
-            }, vec![], 0.);
+        Ministate::View { id, title, pos } => {
+            build_page_view_by_id(pc, state, title, id, &BuildPlaylistPos {
+                view_id: id.clone(),
+                view_title: title.clone(),
+                entry_path: Some(PlaylistEntryPath(vec![])),
+            }, pos);
         },
     }
 }

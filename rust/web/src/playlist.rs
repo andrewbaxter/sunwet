@@ -1,6 +1,9 @@
 use std::{
     any::Any,
-    cell::RefCell,
+    cell::{
+        Cell,
+        RefCell,
+    },
     collections::HashMap,
     panic,
     rc::Rc,
@@ -59,7 +62,15 @@ use web_sys::{
     MediaMetadata,
     MediaSession,
 };
-use crate::el_general::log;
+use crate::{
+    el_general::log,
+    ministate::{
+        record_replace_ministate,
+        Ministate,
+        PlaylistEntryPath,
+        PlaylistPos,
+    },
+};
 
 pub trait PlaylistMedia {
     fn pm_play(&self);
@@ -69,13 +80,19 @@ pub trait PlaylistMedia {
     fn pm_seek_to(&self, time_seconds: f64);
     fn pm_get_time(&self) -> f64;
     fn pm_get_max_time(&self) -> Option<f64>;
+    fn pm_get_ministate(&self) -> Ministate;
 }
 
-pub struct AudioPlaylistMedia(pub El);
+pub struct AudioPlaylistMedia {
+    pub element: El,
+    pub ministate_id: String,
+    pub ministate_title: String,
+    pub ministate_path: Option<PlaylistEntryPath>,
+}
 
 impl AudioPlaylistMedia {
     fn audio(&self) -> HtmlAudioElement {
-        return self.0.raw().dyn_ref::<HtmlAudioElement>().unwrap().to_owned();
+        return self.element.raw().dyn_ref::<HtmlAudioElement>().unwrap().to_owned();
     }
 }
 
@@ -119,13 +136,32 @@ impl PlaylistMedia for AudioPlaylistMedia {
             return Some(out);
         }
     }
+
+    fn pm_get_ministate(&self) -> Ministate {
+        return Ministate::View {
+            id: self.ministate_id.clone(),
+            title: self.ministate_title.clone(),
+            pos: match self.ministate_path.as_ref() {
+                Some(path) => Some(PlaylistPos {
+                    entry_path: path.clone(),
+                    time: self.pm_get_time(),
+                }),
+                None => None,
+            },
+        };
+    }
 }
 
-pub struct VideoPlaylistMedia(pub El);
+pub struct VideoPlaylistMedia {
+    pub element: El,
+    pub ministate_id: String,
+    pub ministate_title: String,
+    pub ministate_path: Option<PlaylistEntryPath>,
+}
 
 impl VideoPlaylistMedia {
     fn media(&self) -> HtmlMediaElement {
-        return self.0.raw().dyn_ref::<HtmlMediaElement>().unwrap().to_owned();
+        return self.element.raw().dyn_ref::<HtmlMediaElement>().unwrap().to_owned();
     }
 }
 
@@ -175,6 +211,20 @@ impl PlaylistMedia for VideoPlaylistMedia {
         } else {
             return Some(out);
         }
+    }
+
+    fn pm_get_ministate(&self) -> Ministate {
+        return Ministate::View {
+            id: self.ministate_id.clone(),
+            title: self.ministate_title.clone(),
+            pos: match self.ministate_path.as_ref() {
+                Some(path) => Some(PlaylistPos {
+                    entry_path: path.clone(),
+                    time: self.pm_get_time(),
+                }),
+                None => None,
+            },
+        };
     }
 }
 
@@ -234,6 +284,7 @@ pub fn state_new(pc: &mut ProcessingContext) -> (PlaylistState, rooting::ScopeVa
         move |pc, _args| {
             state.0.playing.set(pc, false);
             state.0.playing_i.set(pc, None);
+            state.0.playing_max_time.set(pc, None);
         }
     })));
     media_session.set_action_handler(web_sys::MediaSessionAction::Nexttrack, Some(&media_fn(pc, {
@@ -345,22 +396,31 @@ pub fn state_new(pc: &mut ProcessingContext) -> (PlaylistState, rooting::ScopeVa
         Interval::new(1000, {
             let state = state.clone();
             let eg = pc.eg();
+            let last_state = Cell::new(None);
             move || {
-                if !*state.0.playing.borrow() {
+                let Some(playing_i) =&* state.0.playing_i.borrow() else {
                     return;
-                }
+                };
                 let time;
                 let max_time;
+                let ministate;
                 {
                     let playlist = state.0.playlist.borrow();
-                    let entry = playlist.get(state.0.playing_i.borrow().unwrap()).unwrap();
+                    let entry = playlist.get(*playing_i).unwrap();
                     time = entry.media.pm_get_time();
                     max_time = entry.media.pm_get_max_time();
+                    ministate = entry.media.pm_get_ministate();
                 }
+                let new_state = (time, max_time);
+                if Some(&new_state) == last_state.get().as_ref() {
+                    return;
+                }
+                last_state.set(Some(new_state));
                 eg.event(|pc| {
                     state.0.playing_time.set(pc, time);
                     state.0.playing_max_time.set(pc, max_time);
                 });
+                record_replace_ministate(&ministate);
             }
         }),
     )));
@@ -377,6 +437,7 @@ pub fn playlist_push(state: &PlaylistState, e: Rc<PlaylistEntry>) {
 pub fn playlist_clear(pc: &mut ProcessingContext, state: &PlaylistState) {
     state.0.playing.set(pc, false);
     state.0.playing_i.set(pc, None);
+    state.0.playing_max_time.set(pc, None);
     state.0.playlist.borrow_mut().clear();
 }
 
@@ -393,32 +454,34 @@ pub fn playlist_toggle_play(pc: &mut ProcessingContext, state: &PlaylistState, i
         if state.0.playlist.borrow().is_empty() {
             return;
         }
-        let i = i.unwrap_or(0);
+        let i = i.or(state.0.playing_i.get()).unwrap_or(0);
         state.0.playing_i.set(pc, Some(i));
         state.0.playing.set(pc, true);
     }
 }
 
 pub fn playlist_next(pc: &mut ProcessingContext, state: &PlaylistState, basis: Option<usize>) {
-    let Some(i) = basis else {
+    let Some(i) = basis.or(state.0.playing_i.get()) else {
         return;
     };
     if i + 1 < state.0.playlist.borrow().len() {
         state.0.playing_i.set(pc, Some(i + 1));
     } else {
         state.0.playing_i.set(pc, None);
+        state.0.playing_max_time.set(pc, None);
         state.0.playing.set(pc, false);
     }
 }
 
 pub fn playlist_previous(pc: &mut ProcessingContext, state: &PlaylistState, basis: Option<usize>) {
-    let Some(i) = basis else {
+    let Some(i) = basis.or(state.0.playing_i.get()) else {
         return;
     };
     if i > 0 {
         state.0.playing_i.set(pc, Some(i - 1));
     } else {
         state.0.playing_i.set(pc, None);
+        state.0.playing_max_time.set(pc, None);
         state.0.playing.set(pc, false);
     }
 }

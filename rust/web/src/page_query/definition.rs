@@ -178,6 +178,8 @@ pub struct LayoutIndividual {
     pub orientation: Orientation,
     #[title("Alignment")]
     pub align: Align,
+    #[title("Scroll")]
+    pub x_scroll: bool,
     #[title("Item settings")]
     pub item: WidgetNest,
 }
@@ -189,6 +191,8 @@ pub struct LayoutTable {
     pub orientation: Orientation,
     #[title("Alignment")]
     pub align: Align,
+    #[title("Scroll")]
+    pub x_scroll: bool,
     #[title("Columns")]
     pub columns: Vec<Widget>,
 }
@@ -196,14 +200,10 @@ pub struct LayoutTable {
 #[derive(Serialize, Deserialize, Clone, Copy, rooting_forms::Form)]
 #[serde(rename_all = "snake_case")]
 pub enum LineSizeMode {
-    #[title("Expand")]
-    Full,
     #[title("Ellipsize")]
     Ellipsize,
     #[title("Wrap")]
     Wrap,
-    #[title("Scroll")]
-    Scroll,
 }
 
 #[derive(Serialize, Deserialize, Clone, rooting_forms::Form)]
@@ -305,8 +305,14 @@ pub struct WidgetVideo {
 #[serde(rename_all = "snake_case")]
 pub struct WidgetList {
     #[title("Data")]
+    /// Where to get the data for the sublist.
     pub data: QueryOrField,
+    #[title("Key field")]
+    /// A field of the returned data that can be used as a unique key for
+    /// saving/restoring position in playback.
+    pub key_field: String,
     #[title("View")]
+    /// How to display the received data.
     pub layout: Layout,
 }
 
@@ -314,8 +320,10 @@ pub struct WidgetList {
 #[serde(rename_all = "snake_case")]
 pub enum Layout {
     #[title("Independent rows")]
+    /// Each row is layed out with independent sizing.
     Individual(LayoutIndividual),
     #[title("Table")]
+    /// Rows are laid out as a grid/table.
     Table(LayoutTable),
 }
 
