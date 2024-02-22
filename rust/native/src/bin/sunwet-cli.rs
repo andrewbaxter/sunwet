@@ -14,10 +14,6 @@ use std::{
 };
 use aargvark::{
     vark,
-    Aargvark,
-    AargvarkFile,
-    AargvarkFromStr,
-    AargvarkJson,
 };
 use hyper::Uri;
 use loga::{
@@ -26,11 +22,9 @@ use loga::{
     ea,
 };
 use mime_guess::MimeGuess;
-use serde::{
-    Deserialize,
-    Serialize,
-};
 use shared::model::{
+    self,
+    view::ViewPartList,
     C2SReq,
     Commit,
     CommitFile,
@@ -62,93 +56,138 @@ use tokio::{
     },
 };
 
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CliNode {
-    Id(String),
-    File(FileHash),
-    Value(serde_json::Value),
-    Upload(PathBuf),
-}
+pub mod args {
+    use std::path::PathBuf;
+    use aargvark::{
+        Aargvark,
+        AargvarkFile,
+        AargvarkFromStr,
+        AargvarkJson,
+        AargvarkYaml,
+    };
+    use serde::{
+        de::DeserializeOwned,
+        Deserialize,
+        Serialize,
+    };
+    use shared::model::{
+        view::ViewPartList,
+        FileHash,
+    };
 
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub struct CliTriple {
-    pub subject: CliNode,
-    pub predicate: String,
-    pub object: CliNode,
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub struct CliCommit {
-    #[serde(default)]
-    pub remove: Vec<CliTriple>,
-    //. TODO pub force_remove: Vec<CliTriple>,
-    #[serde(default)]
-    pub add: Vec<CliTriple>,
-}
-
-struct JsonKv {
-    key: String,
-    value: serde_json::Value,
-}
-
-impl AargvarkFromStr for JsonKv {
-    fn from_str(s: &str) -> Result<Self, String> {
-        let Some((k, v)) = s.split_once("=") else {
-            return Err(
-                "Parameters must be in the form K=V where K is an unquoted string corresponding to a query variable and V is a JSON value (i.e. if a string, quoted - you may need double quotes due to shell parsing)".to_string(),
-            );
-        };
-        let v = match serde_json::from_str(v) {
-            Ok(v) => v,
-            Err(e) => {
-                return Err(format!("Error parsing value as JSON: {}", e));
-            },
-        };
-        return Ok(JsonKv {
-            key: k.to_string(),
-            value: v,
-        });
+    #[derive(Serialize, Deserialize)]
+    #[serde(rename_all = "snake_case")]
+    pub enum CliNode {
+        Id(String),
+        File(FileHash),
+        Value(serde_json::Value),
+        Upload(PathBuf),
     }
 
-    fn build_help_pattern(_state: &mut aargvark::HelpState) -> aargvark::HelpPattern {
-        return aargvark::HelpPattern(vec![aargvark::HelpPatternElement::Type("KEY=JSON-VALUE".to_string())]);
+    #[derive(Serialize, Deserialize)]
+    #[serde(rename_all = "snake_case")]
+    pub struct CliTriple {
+        pub subject: CliNode,
+        pub predicate: String,
+        pub object: CliNode,
     }
-}
 
-#[derive(Aargvark)]
-struct ArgQuery {
-    /// File containing cozo datalog query
-    query: AargvarkFile,
-    /// Parameters provided to datalog query (as in parameterized SQL queries)
-    params: Vec<JsonKv>,
-}
+    #[derive(Serialize, Deserialize)]
+    #[serde(rename_all = "snake_case")]
+    pub struct CliCommit {
+        #[serde(default)]
+        pub remove: Vec<CliTriple>,
+        //. TODO pub force_remove: Vec<CliTriple>,
+        #[serde(default)]
+        pub add: Vec<CliTriple>,
+    }
 
-#[derive(Aargvark)]
-enum Command {
-    Query(ArgQuery),
-    Commit(AargvarkJson<CliCommit>),
-}
+    pub struct JsonKv {
+        pub key: String,
+        pub value: serde_json::Value,
+    }
 
-#[derive(Aargvark)]
-struct Args {
-    server: String,
-    command: Command,
+    impl AargvarkFromStr for JsonKv {
+        fn from_str(s: &str) -> Result<Self, String> {
+            let Some((k, v)) = s.split_once("=") else {
+                return Err(
+                    "Parameters must be in the form K=V where K is an unquoted string corresponding to a query variable and V is a JSON value (i.e. if a string, quoted - you may need double quotes due to shell parsing)".to_string(),
+                );
+            };
+            let v = match serde_json::from_str(v) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(format!("Error parsing value as JSON: {}", e));
+                },
+            };
+            return Ok(JsonKv {
+                key: k.to_string(),
+                value: v,
+            });
+        }
+
+        fn build_help_pattern(_state: &mut aargvark::HelpState) -> aargvark::HelpPattern {
+            return aargvark::HelpPattern(vec![aargvark::HelpPatternElement::Type("KEY=JSON-VALUE".to_string())]);
+        }
+    }
+
+    #[derive(Aargvark)]
+    pub struct Query {
+        /// File containing cozo datalog query
+        pub query: AargvarkFile,
+        /// Parameters provided to datalog query (as in parameterized SQL queries)
+        pub params: Vec<JsonKv>,
+    }
+
+    #[derive(Aargvark)]
+    pub enum JsonOrYaml<T: 'static + DeserializeOwned> {
+        Json(AargvarkJson<T>),
+        Yaml(AargvarkYaml<T>),
+    }
+
+    #[derive(Aargvark)]
+    pub struct ViewEnsure {
+        pub id: String,
+        pub definition: JsonOrYaml<ViewPartList>,
+    }
+
+    #[derive(Aargvark)]
+    pub struct ViewDelete {
+        pub id: String,
+    }
+
+    #[derive(Aargvark)]
+    pub enum View {
+        List,
+        Ensure(ViewEnsure),
+        Delete(ViewDelete),
+    }
+
+    #[derive(Aargvark)]
+    pub enum Command {
+        Query(Query),
+        Commit(AargvarkJson<CliCommit>),
+        View(View),
+    }
+
+    #[derive(Aargvark)]
+    pub struct Args {
+        pub server: String,
+        pub command: Command,
+    }
 }
 
 #[tokio::main]
 async fn main() {
     match async {
         let log = Log::new().with_flags(&[Flag::Warn, Flag::Info]);
-        let args = vark::<Args>();
+        let args = vark::<args::Args>();
         let server =
             Uri::from_str(
                 &args.server,
             ).context_with("Couldn't parse specified server as URL", ea!(server = args.server))?;
         match args.command {
-            Command::Query(q) => {
+            args::Command::Query(q) => {
                 let mut conn = new_conn(&server).await.stack_context(&log, "Error connecting to server")?;
                 let res =
                     htreq::post(
@@ -161,14 +200,14 @@ async fn main() {
                             parameters: q.params.into_iter().map(|kv| (kv.key, kv.value)).collect(),
                         })).unwrap(),
                         128 * 1024 * 1024,
-                    ).await.stack_context(&log, "Failed to finish upload")?;
+                    ).await.stack_context(&log, "Failed to make request")?;
                 let res =
                     serde_json::from_slice::<Vec<HashMap<String, serde_json::Value>>>(
                         &res,
                     ).stack_context(&log, "Error parsing response JSON")?;
                 println!("{}", serde_json::to_string_pretty(&res).unwrap());
             },
-            Command::Commit(c) => {
+            args::Command::Commit(c) => {
                 let log = log.fork(ea!(command = "commit"));
                 let mut commit = Commit::default();
                 let mut files = HashMap::new();
@@ -178,13 +217,13 @@ async fn main() {
                     commit: &mut Commit,
                     files: &mut HashMap<PathBuf, (FileHash, u64)>,
                     base_dir: &Path,
-                    n: CliNode,
+                    n: args::CliNode,
                 ) -> Result<Node, loga::Error> {
                     match n {
-                        CliNode::Id(v) => return Ok(Node::Id(v)),
-                        CliNode::File(v) => return Ok(Node::File(v)),
-                        CliNode::Value(v) => return Ok(Node::Value(v)),
-                        CliNode::Upload(v) => {
+                        args::CliNode::Id(v) => return Ok(Node::Id(v)),
+                        args::CliNode::File(v) => return Ok(Node::File(v)),
+                        args::CliNode::Value(v) => return Ok(Node::Value(v)),
+                        args::CliNode::Upload(v) => {
                             let path = base_dir.join(v);
                             match files.entry(path.clone()) {
                                 std::collections::hash_map::Entry::Occupied(h) => return Ok(
@@ -315,6 +354,57 @@ async fn main() {
                         .await
                         .stack_context(&log, "Failed to finish upload")?;
                 }
+            },
+            args::Command::View(c) => match c {
+                args::View::List => {
+                    let mut conn = new_conn(&server).await.stack_context(&log, "Error connecting to server")?;
+                    let res =
+                        htreq::post(
+                            &log,
+                            &mut conn,
+                            format!("{}/api", server),
+                            &HashMap::new(),
+                            serde_json::to_vec(&C2SReq::ViewsList).unwrap(),
+                            128 * 1024 * 1024,
+                        )
+                            .await
+                            .stack_context(&log, "Failed to make request")?;
+                    let res =
+                        serde_json::from_slice::<HashMap<String, ViewPartList>>(
+                            &res,
+                        ).stack_context(&log, "Error parsing response JSON")?;
+                    println!("{}", serde_json::to_string_pretty(&res).unwrap());
+                },
+                args::View::Ensure(args) => {
+                    let mut conn = new_conn(&server).await.stack_context(&log, "Error connecting to server")?;
+                    htreq::post(
+                        &log,
+                        &mut conn,
+                        format!("{}/api", server),
+                        &HashMap::new(),
+                        serde_json::to_vec(&C2SReq::ViewEnsure(model::ViewEnsure {
+                            id: args.id,
+                            def: match args.definition {
+                                args::JsonOrYaml::Json(v) => v.value,
+                                args::JsonOrYaml::Yaml(v) => v.value,
+                            },
+                        })).unwrap(),
+                        1024,
+                    ).await.stack_context(&log, "Failed to make request")?;
+                },
+                args::View::Delete(args) => {
+                    let mut conn = new_conn(&server).await.stack_context(&log, "Error connecting to server")?;
+                    htreq::post(
+                        &log,
+                        &mut conn,
+                        format!("{}/api", server),
+                        &HashMap::new(),
+                        serde_json::to_vec(&C2SReq::ViewDelete(args.id)).unwrap(),
+                        1024,
+                    )
+                        .await
+                        .stack_context(&log, "Failed to make request")?;
+                },
             },
         }
         return Ok(());

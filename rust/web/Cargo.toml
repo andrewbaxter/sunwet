@@ -37,5 +37,4 @@ shared = { path = "../shared" }
 sha2 = "0.10"
 lunk = "0.1"
 rooting = { version = "0.1", features = ["futures"] }
-rooting-forms = { version = "0.0.4", features = ["serde"] }
 urlencoding = "2.1.3"

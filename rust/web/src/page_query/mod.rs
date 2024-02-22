@@ -142,7 +142,6 @@ use self::{
     },
 };
 
-pub mod definition;
 pub mod elements;
 
 fn extract_node_value(v: &serde_json::Value) -> Option<serde_json::Value> {

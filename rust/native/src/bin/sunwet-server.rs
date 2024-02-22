@@ -64,6 +64,7 @@ use native::{
 };
 use shared::{
     model::{
+        view::ViewPartList,
         C2SReq,
         CommitResp,
         FileHash,
@@ -536,7 +537,49 @@ async fn handle_req(state: Arc<State>, req: Request<Incoming>) -> Response<BoxBo
                             }
                             out.push(row_out);
                         }
-                        return Ok(Response::builder().status(200).body(body_json(&out)).unwrap());
+                        return Ok(response_200_json(out));
+                    },
+                    C2SReq::ViewsList => {
+                        let res = spawn_blocking(cap_fn!(()(state) {
+                            state.db.run_script_read_only(&"{?[id, def] := *view{id: id, def: def}}", BTreeMap::new())
+                        })).await?.await.map_err(|e| loga::err(e.to_string()))?;
+                        let mut out = HashMap::new();
+                        for row in res.rows {
+                            out.insert(
+                                row.get(0).unwrap().get_str().unwrap().to_string(),
+                                serde_json::from_str::<ViewPartList>(
+                                    row.get(1).unwrap().get_str().unwrap(),
+                                ).unwrap(),
+                            );
+                        }
+                        return Ok(response_200_json(out));
+                    },
+                    C2SReq::ViewEnsure(args) => {
+                        let mut params = BTreeMap::new();
+                        params.insert("view".to_string(), NamedRows {
+                            headers: vec!["id".to_string(), "def".to_string()],
+                            rows: vec![
+                                vec![
+                                    DataValue::Str(args.id.as_str().into()),
+                                    DataValue::Str(serde_json::to_string(&args.def).unwrap().as_str().into())
+                                ]
+                            ],
+                            next: None,
+                        });
+                        spawn_blocking(cap_fn!(()(state) {
+                            state.db.import_relations(params)
+                        })).await?.await.map_err(|e| loga::err(e.to_string()).context("Error running query"))?;
+                        return Ok(response_200());
+                    },
+                    C2SReq::ViewDelete(id) => {
+                        spawn_blocking(cap_fn!(()(state) {
+                            state.db.run_script_read_only(&"{?[id] <- [[$id]] :rm view {id}}", {
+                                let mut m = BTreeMap::new();
+                                m.insert("id".to_string(), DataValue::Str(id.as_str().into()));
+                                m
+                            })
+                        })).await?.await.map_err(|e| loga::err(e.to_string()))?;
+                        return Ok(response_200());
                     },
                 }
             },
@@ -848,29 +891,7 @@ async fn main() {
             .get_int()
             .unwrap() {
             0 => {
-                for script in [
-                    concat!(
-                        "{:create meta {",
-                        "  node: (String, Any),",
-                        "  =>",
-                        "  mimetype: String,",
-                        "  text: String,",
-                        "}}",
-                        "{::fts create meta:text {",
-                        "  extractor: text,",
-                        "  tokenizer: Simple,",
-                        "  filters: [Lowercase, Stemmer('english'), Stopwords('en')],",
-                        "}}",
-                        "{:create triple {",
-                        "  subject: (String, Any),",
-                        "  predicate: String,",
-                        "  object: (String, Any),",
-                        "  ver: Validity,",
-                        "}}",
-                        "{?[unique, version] <- [[0, 1]] :put schema_ver { unique, version }}"
-                    ),
-                    concat!("::index create triple:rev {object, predicate, subject, ver}"),
-                ] {
+                for script in [include_str!("migrate_00_00.cozo"), include_str!("migrate_00_01.cozo")] {
                     dbc
                         .run_script(script, BTreeMap::new(), cozo::ScriptMutability::Mutable)
                         .map_err(

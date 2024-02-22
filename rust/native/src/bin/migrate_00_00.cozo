@@ -1,0 +1,26 @@
+# System
+{:create view {
+  id: String,
+  =>
+  def: String,
+}}
+
+# Knowledge + files
+{:create meta {
+  node: (String, Any),
+  =>
+  mimetype: String,
+  text: String,
+}}
+{::fts create meta:text {
+  extractor: text,
+  tokenizer: Simple,
+  filters: [Lowercase, Stemmer('english'), Stopwords('en')],
+}}
+{:create triple {
+  subject: (String, Any),
+  predicate: String,
+  object: (String, Any),
+  ver: Validity,
+}}
+{?[unique, version] <- [[0, 1]] :put schema_ver { unique, version }}
