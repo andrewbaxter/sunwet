@@ -1,0 +1,17 @@
+[package]
+name = "import"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aargvark = "0.1"
+taglib = "1"
+shared = { path = "../shared" }
+loga = "0.4"
+zip = "0.6"
+walkdir = "2"
+symphonia = { version = "0.5", features = ["all"] }
+vlc-rs = "0.3"
+uuid = { version = "1", features = ["v4"] }
+serde_json = "1"
+mkvparser = "0.2.0"

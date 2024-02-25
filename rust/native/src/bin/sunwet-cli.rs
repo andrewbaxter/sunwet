@@ -24,6 +24,7 @@ use loga::{
 use mime_guess::MimeGuess;
 use shared::model::{
     self,
+    cli::CliNode,
     view::ViewPartList,
     C2SReq,
     Commit,
@@ -57,7 +58,6 @@ use tokio::{
 };
 
 pub mod args {
-    use std::path::PathBuf;
     use aargvark::{
         Aargvark,
         AargvarkFile,
@@ -67,40 +67,11 @@ pub mod args {
     };
     use serde::{
         de::DeserializeOwned,
-        Deserialize,
-        Serialize,
     };
     use shared::model::{
+        cli::CliCommit,
         view::ViewPartList,
-        FileHash,
     };
-
-    #[derive(Serialize, Deserialize)]
-    #[serde(rename_all = "snake_case")]
-    pub enum CliNode {
-        Id(String),
-        File(FileHash),
-        Value(serde_json::Value),
-        Upload(PathBuf),
-    }
-
-    #[derive(Serialize, Deserialize)]
-    #[serde(rename_all = "snake_case")]
-    pub struct CliTriple {
-        pub subject: CliNode,
-        pub predicate: String,
-        pub object: CliNode,
-    }
-
-    #[derive(Serialize, Deserialize)]
-    #[serde(rename_all = "snake_case")]
-    pub struct CliCommit {
-        #[serde(default)]
-        pub remove: Vec<CliTriple>,
-        //. TODO pub force_remove: Vec<CliTriple>,
-        #[serde(default)]
-        pub add: Vec<CliTriple>,
-    }
 
     pub struct JsonKv {
         pub key: String,
@@ -217,13 +188,13 @@ async fn main() {
                     commit: &mut Commit,
                     files: &mut HashMap<PathBuf, (FileHash, u64)>,
                     base_dir: &Path,
-                    n: args::CliNode,
+                    n: CliNode,
                 ) -> Result<Node, loga::Error> {
                     match n {
-                        args::CliNode::Id(v) => return Ok(Node::Id(v)),
-                        args::CliNode::File(v) => return Ok(Node::File(v)),
-                        args::CliNode::Value(v) => return Ok(Node::Value(v)),
-                        args::CliNode::Upload(v) => {
+                        CliNode::Id(v) => return Ok(Node::Id(v)),
+                        CliNode::File(v) => return Ok(Node::File(v)),
+                        CliNode::Value(v) => return Ok(Node::Value(v)),
+                        CliNode::Upload(v) => {
                             let path = base_dir.join(v);
                             match files.entry(path.clone()) {
                                 std::collections::hash_map::Entry::Occupied(h) => return Ok(
