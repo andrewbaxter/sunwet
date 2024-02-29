@@ -11,7 +11,11 @@ use std::{
 use chrono::{
     Duration,
 };
-use futures::future::join_all;
+use futures::{
+    future::{
+        join_all,
+    },
+};
 use hickory_resolver::config::LookupIpStrategy;
 use http_body_util::{
     Limited,
@@ -19,14 +23,14 @@ use http_body_util::{
     Full,
 };
 use hyper::{
-    body::{
-        Bytes,
-    },
+    body::Bytes,
     client::conn::http1::{
         Connection,
         SendRequest,
     },
+    HeaderMap,
     Request,
+    StatusCode,
     Uri,
 };
 use hyper_rustls::{
@@ -44,11 +48,17 @@ use rand::{
 };
 use rustls::ClientConfig;
 use tokio::{
-    select,
-    time::sleep,
-    sync::{
-        mpsc,
+    io::{
+        AsyncWrite,
+        AsyncWriteExt,
     },
+    join,
+    select,
+    sync::mpsc::{
+        self,
+        channel,
+    },
+    time::sleep,
 };
 use tower_service::Service;
 use crate::{
@@ -125,13 +135,25 @@ pub fn uri_parts(url: &Uri) -> Result<(String, HostPart, u16), loga::Error> {
     return Ok((scheme, host, port));
 }
 
-pub async fn send(
+#[must_use]
+pub struct ContinueSend<'a> {
+    body: hyper::body::Incoming,
+    conn_send: SendRequest<Full<Bytes>>,
+    conn_bg: Connection<
+        hyper_rustls::MaybeHttpsStream<hyper_util::rt::TokioIo<tokio::net::TcpStream>>,
+        Full<Bytes>,
+    >,
+    conn: &'a mut Conn,
+}
+
+pub async fn send_recv_head<
+    'a,
+>(
     log: &Log,
-    conn: &mut Conn,
-    max_size: usize,
+    conn: &'a mut Conn,
     max_time: Duration,
     req: Request<Full<Bytes>>,
-) -> Result<Vec<u8>, loga::Error> {
+) -> Result<(StatusCode, HeaderMap, ContinueSend<'a>), loga::Error> {
     let Some((mut conn_send, mut conn_bg)) = conn.inner.take() else {
         return Err(loga::err("Connection already lost"));
     };
@@ -147,41 +169,123 @@ pub async fn send(
         }.context("Error sending request")?;
         let status = resp.status();
         let headers = resp.headers().clone();
-        let work = Limited::new(resp.into_body(), max_size).collect();
+        return Ok((status, headers, ContinueSend {
+            body: resp.into_body(),
+            conn_send: conn_send,
+            conn_bg: conn_bg,
+            conn: conn,
+        }));
+    };
+    let (status, headers, continue_send) = select!{
+        _ = sleep(max_time.to_std().unwrap()) => {
+            return Err(loga::err("Timeout sending request and waiting for headers from server"));
+        }
+        x = read => x ?,
+    };
+    log.log_with(
+        Flag::Debug,
+        "Receive (streamed)",
+        ea!(method = method, url = url, status = status, headers = headers.dbg_str()),
+    );
+    if !status.is_success() {
+        let err = loga::err_with("Server returned error response", ea!(status = status));
+        if let Err(e) = recv_body(continue_send, 10 * 1024, Duration::seconds(30)).await {
+            return Err(err.also(e));
+        }
+        return Err(err);
+    }
+    return Ok((status, headers, continue_send));
+}
+
+pub async fn recv_body_write<
+    'a,
+>(mut continue_send: ContinueSend<'a>, mut writer: impl Unpin + AsyncWrite) -> Result<(), loga::Error> {
+    let (chan_tx, mut chan_rx) = channel(10);
+    let work_read = async {
+        loop {
+            let work = continue_send.body.frame();
+            let frame = match select!{
+                _ =& mut continue_send.conn_bg => {
+                    return Err(loga::err("Connection failed while reading body"));
+                }
+                r = work => r,
+            } {
+                Some(f) => {
+                    f
+                        .map_err(|e| loga::err_with("Error reading response", ea!(err = e)))?
+                        .into_data()
+                        .map_err(|e| loga::err_with("Received unexpected non-data frame", ea!(err = e.dbg_str())))?
+                        .to_vec()
+                },
+                None => {
+                    break;
+                },
+            };
+            chan_tx.send(frame).await.context("Error writing frame to channel for writer")?;
+        }
+        return Ok(()) as Result<(), loga::Error>;
+    };
+    let work_write = async {
+        while let Some(frame) = chan_rx.recv().await {
+            writer.write_all(&frame).await.context("Error sending frame to writer")?;
+        }
+        return Ok(()) as Result<(), loga::Error>;
+    };
+    let (read_res, write_res) = join!(work_read, work_write);
+    let mut errs = vec![];
+    if let Err(e) = read_res {
+        errs.push(e);
+    }
+    if let Err(e) = write_res {
+        errs.push(e);
+    }
+    if !errs.is_empty() {
+        return Err(loga::agg_err("Encountered errors while streaming response body", errs));
+    }
+    continue_send.conn.inner = Some((continue_send.conn_send, continue_send.conn_bg));
+    return Ok(());
+}
+
+pub async fn recv_body<
+    'a,
+>(mut continue_send: ContinueSend<'a>, max_size: usize, max_time: Duration) -> Result<Vec<u8>, loga::Error> {
+    let read = async move {
+        let work = Limited::new(continue_send.body, max_size).collect();
         let body = select!{
-            _ =& mut conn_bg => {
+            _ =& mut continue_send.conn_bg => {
                 return Err(loga::err("Connection failed while reading body"));
             }
             r = work => r,
         }.map_err(|e| loga::err_with("Error reading response", ea!(err = e)))?.to_bytes().to_vec();
-        return Ok((status, headers, body, conn_send, conn_bg));
+        return Ok((body, continue_send.conn_send, continue_send.conn_bg));
     };
-    let (status, headers, body, conn_send, conn_bg) = select!{
+    let (body, conn_send, conn_bg) = select!{
         _ = sleep(max_time.to_std().unwrap()) => {
             return Err(loga::err("Timeout waiting for response from server"));
         }
         x = read => x ?,
     };
-    conn.inner = Some((conn_send, conn_bg));
-    log.log_with(
-        Flag::Debug,
-        "Receive",
-        ea!(
-            method = method,
-            url = url,
-            status = status,
-            headers = headers.dbg_str(),
-            body = String::from_utf8_lossy(&body)
-        ),
-    );
-    if !status.is_success() {
-        return Err(
-            loga::err_with(
-                "Server returned error response",
-                ea!(status = status, body = String::from_utf8_lossy(&body)),
-            ),
-        );
-    }
+    continue_send.conn.inner = Some((conn_send, conn_bg));
+    return Ok(body);
+}
+
+pub async fn send(
+    log: &Log,
+    conn: &mut Conn,
+    max_size: usize,
+    max_time: Duration,
+    req: Request<Full<Bytes>>,
+) -> Result<Vec<u8>, loga::Error> {
+    let work = async {
+        let (_, _, continue_send) = send_recv_head(log, conn, max_time, req).await?;
+        return Ok(recv_body(continue_send, max_size, max_time).await?) as Result<Vec<u8>, loga::Error>;
+    };
+    let body = select!{
+        _ = sleep(max_time.to_std().unwrap()) => {
+            return Err(loga::err("Timeout waiting for response from server"));
+        }
+        x = work => x ?,
+    };
     return Ok(body);
 }
 

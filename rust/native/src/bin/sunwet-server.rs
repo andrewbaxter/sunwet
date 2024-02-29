@@ -3,22 +3,31 @@ use std::{
     collections::{
         BTreeMap,
         HashMap,
+        HashSet,
     },
     io::Write,
     net::SocketAddr,
     path::{
+        Component,
         Path,
         PathBuf,
     },
     str::FromStr,
-    sync::Arc,
+    sync::{
+        Arc,
+        Mutex,
+    },
     task::Poll,
 };
 use aargvark::{
     vark,
     Aargvark,
 };
-use chrono::Utc;
+use async_walkdir::WalkDir;
+use chrono::{
+    Duration,
+    Utc,
+};
 use cozo::{
     DataValue,
     Db,
@@ -29,7 +38,9 @@ use cozo::{
     Validity,
     ValidityTs,
 };
-use futures::TryStreamExt;
+use futures::{
+    TryStreamExt,
+};
 use http_body::Frame;
 use http_body_util::{
     combinators::BoxBody,
@@ -69,6 +80,7 @@ use shared::{
         CommitResp,
         FileHash,
         Node,
+        UploadFinishResp,
         HEADER_OFFSET,
     },
     unenum,
@@ -81,9 +93,11 @@ use sha2::{
     Sha256,
     Digest,
 };
+use taskmanager::TaskManager;
 use tokio::{
     fs::{
         create_dir_all,
+        remove_file,
         rename,
         File,
     },
@@ -99,7 +113,10 @@ use tokio::{
     task::spawn_blocking,
 };
 use rust_embed::RustEmbed;
-use tokio_stream::wrappers::TcpListenerStream;
+use tokio_stream::{
+    wrappers::TcpListenerStream,
+    StreamExt,
+};
 use tokio_util::io::ReaderStream;
 
 #[derive(Serialize, Deserialize)]
@@ -279,10 +296,12 @@ pub fn response_404() -> Response<BoxBody<Bytes, std::io::Error>> {
 }
 
 struct State {
+    tm: TaskManager,
     log: Log,
     db: Db<SqliteStorage>,
     files_dir: PathBuf,
     stage_dir: PathBuf,
+    finishing_uploads: Mutex<HashSet<FileHash>>,
 }
 
 async fn handle_req(state: Arc<State>, req: Request<Incoming>) -> Response<BoxBody<Bytes, std::io::Error>> {
@@ -454,62 +473,99 @@ async fn handle_req(state: Arc<State>, req: Request<Incoming>) -> Response<BoxBo
                         return Ok(response_200_json(CommitResp { incomplete: incomplete }));
                     },
                     C2SReq::UploadFinish(hash) => {
-                        let source = staged_file_path(&state.stage_dir, &hash)?;
-                        let mut got_file = File::open(&source).await.context("Failed to open staged uploaded file")?;
-                        match &hash {
-                            FileHash::Sha256(hash) => {
-                                struct HashAsyncWriter {
-                                    hash: Sha256,
-                                }
+                        let done;
+                        if file_path(&state.files_dir, &hash)?.exists() {
+                            done = true;
+                        } else {
+                            done = false;
+                            if state.finishing_uploads.lock().unwrap().insert(hash.clone()) {
+                                state.tm.task(format!("Finish upload ({})", hash.to_string()), {
+                                    let state = state.clone();
+                                    async move {
+                                        match async {
+                                            let source = staged_file_path(&state.stage_dir, &hash)?;
+                                            let mut got_file =
+                                                File::open(&source)
+                                                    .await
+                                                    .context("Failed to open staged uploaded file")?;
+                                            match &hash {
+                                                FileHash::Sha256(hash) => {
+                                                    struct HashAsyncWriter {
+                                                        hash: Sha256,
+                                                    }
 
-                                impl AsyncWrite for HashAsyncWriter {
-                                    fn poll_write(
-                                        mut self: std::pin::Pin<&mut Self>,
-                                        _cx: &mut std::task::Context<'_>,
-                                        buf: &[u8],
-                                    ) -> Poll<Result<usize, std::io::Error>> {
-                                        return Poll::Ready(self.as_mut().hash.write_all(buf).map(|_| buf.len()));
+                                                    impl AsyncWrite for HashAsyncWriter {
+                                                        fn poll_write(
+                                                            mut self: std::pin::Pin<&mut Self>,
+                                                            _cx: &mut std::task::Context<'_>,
+                                                            buf: &[u8],
+                                                        ) -> Poll<Result<usize, std::io::Error>> {
+                                                            return Poll::Ready(
+                                                                self.as_mut().hash.write_all(buf).map(|_| buf.len()),
+                                                            );
+                                                        }
+
+                                                        fn poll_flush(
+                                                            self: std::pin::Pin<&mut Self>,
+                                                            _cx: &mut std::task::Context<'_>,
+                                                        ) -> Poll<Result<(), std::io::Error>> {
+                                                            return Poll::Ready(Ok(()));
+                                                        }
+
+                                                        fn poll_shutdown(
+                                                            self: std::pin::Pin<&mut Self>,
+                                                            _cx: &mut std::task::Context<'_>,
+                                                        ) -> Poll<Result<(), std::io::Error>> {
+                                                            return Poll::Ready(Ok(()));
+                                                        }
+                                                    }
+
+                                                    let mut got_hash = HashAsyncWriter { hash: Sha256::new() };
+                                                    copy(&mut got_file, &mut got_hash)
+                                                        .await
+                                                        .context("Failed to read staged uploaded file")?;
+                                                    let got_hash = hex::encode(&got_hash.hash.finalize());
+                                                    if &got_hash != hash {
+                                                        drop(got_file);
+                                                        return Err(
+                                                            loga::err_with(
+                                                                "Uploaded file hash mismatch",
+                                                                ea!(want_hash = hash, got_hash = got_hash),
+                                                            ),
+                                                        );
+                                                    }
+                                                },
+                                            }
+                                            let dest = file_path(&state.files_dir, &hash)?;
+                                            if let Some(p) = dest.parent() {
+                                                create_dir_all(&p)
+                                                    .await
+                                                    .context(
+                                                        "Failed to create parent directories for uploaded file",
+                                                    )?;
+                                            }
+                                            rename(&source, &dest).await.context("Failed to place uploaded file")?;
+                                            return Ok(());
+                                        }.await {
+                                            Ok(_) => { },
+                                            Err(e) => {
+                                                state
+                                                    .log
+                                                    .log_err(
+                                                        Flag::Debug,
+                                                        e.context_with(
+                                                            "Error finishing upload",
+                                                            ea!(hash = hash.to_string()),
+                                                        ),
+                                                    );
+                                            },
+                                        }
+                                        state.finishing_uploads.lock().unwrap().remove(&hash);
                                     }
-
-                                    fn poll_flush(
-                                        self: std::pin::Pin<&mut Self>,
-                                        _cx: &mut std::task::Context<'_>,
-                                    ) -> Poll<Result<(), std::io::Error>> {
-                                        return Poll::Ready(Ok(()));
-                                    }
-
-                                    fn poll_shutdown(
-                                        self: std::pin::Pin<&mut Self>,
-                                        _cx: &mut std::task::Context<'_>,
-                                    ) -> Poll<Result<(), std::io::Error>> {
-                                        return Poll::Ready(Ok(()));
-                                    }
-                                }
-
-                                let mut got_hash = HashAsyncWriter { hash: Sha256::new() };
-                                copy(&mut got_file, &mut got_hash)
-                                    .await
-                                    .context("Failed to read staged uploaded file")?;
-                                let got_hash = hex::encode(&got_hash.hash.finalize());
-                                if &got_hash != hash {
-                                    drop(got_file);
-                                    return Err(
-                                        loga::err_with(
-                                            "Uploaded file hash mismatch",
-                                            ea!(want_hash = hash, got_hash = got_hash),
-                                        ),
-                                    );
-                                }
-                            },
+                                });
+                            }
                         }
-                        let dest = file_path(&state.files_dir, &hash)?;
-                        if let Some(p) = dest.parent() {
-                            create_dir_all(&p)
-                                .await
-                                .context("Failed to create parent directories for uploaded file")?;
-                        }
-                        rename(&source, &dest).await.context("Failed to place uploaded file")?;
-                        return Ok(response_200());
+                        return Ok(response_200_json(UploadFinishResp { done: done }));
                     },
                     C2SReq::Query(q) => {
                         let mut parameters = BTreeMap::new();
@@ -904,6 +960,132 @@ async fn main() {
         };
         let tm = taskmanager::TaskManager::new();
 
+        // GC
+        tm.periodic("Garbage collection", Duration::hours(24).to_std().unwrap(), cap_fn!(()(log, dbc, files_dir) {
+            let log = log.fork(ea!(sys = "gc"));
+            match async {
+                ta_res!(());
+                spawn_blocking({
+                    let dbc = dbc.clone();
+                    move || {
+                        ta_res!(());
+                        dbc
+                            .run_script(include_str!("gc.cozo"), {
+                                let mut m = BTreeMap::new();
+                                m.insert(
+                                    "cutoff".to_string(),
+                                    DataValue::Num(Num::Int(Utc::now().timestamp_micros())),
+                                );
+                                m
+                            }, cozo::ScriptMutability::Mutable)
+                            .map_err(|e| loga::err_with("Error running gc query", ea!(err = e)))?;
+                        return Ok(());
+                    }
+                }).await??;
+                let mut walk = WalkDir::new(&files_dir);
+                let mut batch = HashMap::new();
+
+                async fn flush(
+                    log: &Log,
+                    dbc: &Db<SqliteStorage>,
+                    batch: &mut HashMap<FileHash, PathBuf>,
+                ) -> Result<(), loga::Error> {
+                    let db_files =
+                        DataValue::List(
+                            batch.keys().map(|k| DataValue::Str(k.to_string().into())).collect::<Vec<_>>(),
+                        );
+                    let found = spawn_blocking({
+                        let dbc = dbc.clone();
+                        move || {
+                            ta_res!(Vec < FileHash >);
+                            let res =
+                                dbc
+                                    .run_script(include_str!("gc_file_referenced.cozo"), {
+                                        let mut m = BTreeMap::new();
+                                        m.insert("files".to_string(), db_files);
+                                        m
+                                    }, cozo::ScriptMutability::Immutable)
+                                    .map_err(|e| loga::err_with("Error running gc query", ea!(err = e)))?;
+                            let mut out = vec![];
+                            for r in res.rows {
+                                let Some(DataValue::Str(hash)) = r.get(0) else {
+                                    panic!("{:?}", r);
+                                };
+                                out.push(FileHash::from_str(hash.as_str()).unwrap());
+                            }
+                            return Ok(out);
+                        }
+                    }).await??;
+                    for hash in found {
+                        batch.remove(&hash);
+                    }
+                    for path in batch.values() {
+                        match remove_file(path).await {
+                            Ok(_) => { },
+                            Err(e) => {
+                                log.log_err(
+                                    Flag::Warn,
+                                    e.context_with(
+                                        "Failed to delete unreferenced file",
+                                        ea!(path = path.display().to_string()),
+                                    ),
+                                );
+                            },
+                        };
+                    }
+                    batch.clear();
+                    return Ok(());
+                }
+
+                while let Some(entry) = walk.next().await {
+                    let entry = match entry {
+                        Ok(entry) => entry,
+                        Err(e) => {
+                            log.log_err(Flag::Warn, e.context("Unable to scan file in files_dir"));
+                            continue;
+                        },
+                    };
+                    let path = entry.path();
+                    let log = log.fork(ea!(path = path.to_string_lossy()));
+                    if !entry.metadata().await.stack_context(&log, "Error reading metadata")?.is_file() {
+                        continue;
+                    }
+                    let components = path.strip_prefix(&files_dir).unwrap().components().filter_map(|c| match c {
+                        Component::Normal(c) => Some(c),
+                        _ => None,
+                    }).collect::<Vec<_>>();
+                    let Some(hash_type) = components.first().and_then(|c| c.to_str()) else {
+                        log.log(Flag::Warn, "File in files dir not in hash type directory");
+                        continue;
+                    };
+                    let Some(hash_hash) = components.last().and_then(|c| c.to_str()) else {
+                        log.log(Flag::Warn, "File in files dir has non-utf8 last path segment");
+                        continue;
+                    };
+                    let hash = match FileHash::from_str(&format!("{}:{}", hash_type, hash_hash)) {
+                        Ok(h) => h,
+                        Err(e) => {
+                            log.log_err(Flag::Warn, loga::err(e).context("Failed to determine hash for file"));
+                            continue;
+                        },
+                    };
+                    batch.insert(hash.clone(), path);
+                    if batch.len() >= 1000 {
+                        flush(&log, &dbc, &mut batch).await?;
+                    }
+                }
+                if !batch.is_empty() {
+                    flush(&log, &dbc, &mut batch).await?;
+                }
+                return Ok(());
+            }.await {
+                Ok(_) => { },
+                Err(e) => {
+                    log.log_err(Flag::Warn, e.context("Error performing garbage collection"));
+                },
+            }
+        }));
+
         // Client<->server
         tm.critical_stream(
             "Server",
@@ -912,10 +1094,12 @@ async fn main() {
             ),
             {
                 let state = Arc::new(State {
+                    tm: tm.clone(),
                     db: dbc.clone(),
                     log: log.clone(),
                     files_dir: files_dir,
                     stage_dir: stage_dir,
+                    finishing_uploads: Mutex::new(HashSet::new()),
                 });
                 cap_fn!((stream)(log, state) {
                     let stream = match stream {

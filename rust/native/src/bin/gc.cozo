@@ -1,0 +1,6 @@
+{
+    ?[s, p, o] := 
+        *triple{subject: s, predicate: p, object: o, rev: rev},
+        get(rev, 0) < $cutoff
+        :rm triple {s, p, o, rev}
+}

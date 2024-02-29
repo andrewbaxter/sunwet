@@ -6,35 +6,7 @@ use std::{
     rc::Rc,
     str::FromStr,
 };
-use gloo::{
-    console::{
-        log,
-        warn,
-    },
-    utils::{
-        document,
-        window,
-    },
-};
-use js_sys::Function;
-use lunk::{
-    link,
-    EventGraph,
-    HistPrim,
-    Prim,
-    ProcessingContext,
-};
 use reqwasm::http::Request;
-use rooting::{
-    el,
-    set_root,
-    spawn_rooted,
-    El,
-};
-use rooting_forms::{
-    BigString,
-    Form,
-};
 use serde::de::DeserializeOwned;
 use shared::{
     model::{
@@ -45,12 +17,7 @@ use shared::{
     },
     unenum,
 };
-use wasm_bindgen::{
-    closure::Closure,
-    JsCast,
-    JsValue,
-    UnwrapThrowExt,
-};
+use wasm_bindgen::UnwrapThrowExt;
 use web_sys::{
     HtmlAudioElement,
     HtmlMediaElement,

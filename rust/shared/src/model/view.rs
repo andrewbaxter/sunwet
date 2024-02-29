@@ -128,6 +128,15 @@ pub enum FieldOrLiteral {
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case")]
+pub enum QueryParameter {
+    Text,
+    Number,
+    Bool,
+    Datetime,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "snake_case")]
 pub enum QueryOrField {
     Field(String),
     Query(String),

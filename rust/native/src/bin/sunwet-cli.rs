@@ -15,26 +15,46 @@ use std::{
 use aargvark::{
     vark,
 };
-use hyper::Uri;
-use loga::{
-    fatal,
-    ResultContext,
-    ea,
+use chrono::Duration;
+use http_body_util::Full;
+use hyper::{
+    body::Bytes,
+    Method,
+    Request,
+    Uri,
 };
-use mime_guess::MimeGuess;
-use shared::model::{
-    self,
-    cli::CliNode,
-    view::ViewPartList,
-    C2SReq,
-    Commit,
-    CommitFile,
-    CommitResp,
-    FileHash,
-    Node,
-    Query,
-    Triple,
-    HEADER_OFFSET,
+use loga::{
+    ea,
+    fatal,
+    DebugDisplay,
+    ResultContext,
+};
+use mime_guess::{
+    Mime,
+    MimeGuess,
+};
+use serde::Deserialize;
+use shared::{
+    bb,
+    model::{
+        self,
+        cli::{
+            CliCommit,
+            CliNode,
+            CliTriple,
+        },
+        view::ViewPartList,
+        C2SReq,
+        Commit,
+        CommitFile,
+        CommitResp,
+        FileHash,
+        Node,
+        Query,
+        Triple,
+        UploadFinishResp,
+        HEADER_OFFSET,
+    },
 };
 use native::{
     htreq::{
@@ -49,15 +69,18 @@ use native::{
 };
 use tokio::{
     fs::{
+        write,
         File,
     },
     io::{
         AsyncReadExt,
         AsyncSeekExt,
+        AsyncWriteExt,
     },
 };
 
 pub mod args {
+    use std::path::PathBuf;
     use aargvark::{
         Aargvark,
         AargvarkFile,
@@ -71,6 +94,7 @@ pub mod args {
     use shared::model::{
         cli::CliCommit,
         view::ViewPartList,
+        FileHash,
     };
 
     pub struct JsonKv {
@@ -117,6 +141,16 @@ pub mod args {
     }
 
     #[derive(Aargvark)]
+    pub struct Export {
+        /// Where to write exported triples and files.
+        pub out_dir: PathBuf,
+        /// The query to run to generate triples to export. The query result should have
+        /// three field named `subject`, `predicate`, and `object` corresponding to the
+        /// triple fields.
+        pub query: Query,
+    }
+
+    #[derive(Aargvark)]
     pub struct ViewEnsure {
         pub id: String,
         pub definition: JsonOrYaml<ViewPartList>,
@@ -136,8 +170,16 @@ pub mod args {
 
     #[derive(Aargvark)]
     pub enum Command {
+        /// Run a query and return the response as json.
         Query(Query),
+        /// Upload triples and files to the database.
         Commit(AargvarkJson<CliCommit>),
+        /// Download triples and files from the database in a format suitable for
+        /// committing again.
+        Export(Export),
+        /// Download a file by its hash.
+        Download(FileHash),
+        /// Commands for configuring UI views.
         View(View),
     }
 
@@ -146,6 +188,48 @@ pub mod args {
         pub server: String,
         pub command: Command,
     }
+}
+
+async fn download(
+    log: &Log,
+    conn: &mut htreq::Conn,
+    server: &Uri,
+    out_dir: &Path,
+    hash: &FileHash,
+) -> Result<PathBuf, loga::Error> {
+    let (_, headers, continue_recv) =
+        htreq::send_recv_head(
+            &log,
+            conn,
+            Duration::seconds(15),
+            Request::builder().uri(format!("{}/file/{}", server, hash.to_string())).method(Method::GET)
+                //. .header("Authorization", format!("Bearer {}", token))
+                .body(Full::new(Bytes::new())).unwrap(),
+        ).await.stack_context(&log, "Error getting file")?;
+    let out_path = bb!{
+        'named _;
+        bb!{
+            let Some(content_type) = headers.get("Content-Type") else {
+                break;
+            };
+            let Ok(content_type) = content_type.to_str() else {
+                break;
+            };
+            let Ok(mime) = Mime:: from_str(content_type) else {
+                break;
+            };
+            let Some(suffix) = mime.suffix() else {
+                break;
+            };
+            break 'named out_dir.join(format!("{}.{}", hash.to_string(), suffix));
+        }
+        break 'named out_dir.join(hash.to_string());
+    };
+    let mut out =
+        File::create(&out_path).await.context_with("Error creating file", ea!(path = out_path.to_string_lossy()))?;
+    htreq::recv_body_write(continue_recv, &mut out).await?;
+    out.flush().await.context_with("Error flushing data to file", ea!(path = out_path.to_string_lossy()))?;
+    return Ok(out_path);
 }
 
 #[tokio::main]
@@ -208,6 +292,11 @@ async fn main() {
                                                 "Unable to read file metadata",
                                                 ea!(path = path.to_string_lossy()),
                                             )?;
+                                    log.log_with(
+                                        Flag::Info,
+                                        "Hashing file before upload",
+                                        ea!(file = path.to_string_lossy()),
+                                    );
                                     let hash = hash_file_sha256(&log, &path).await?;
                                     e.insert((hash.clone(), m.size()));
                                     commit.files.push(CommitFile {
@@ -222,6 +311,7 @@ async fn main() {
                     }
                 }
 
+                log.log(Flag::Info, "Processing commit");
                 let base_dir = match c.source {
                     aargvark::Source::Stdin => current_dir().stack_context(
                         &log,
@@ -264,6 +354,7 @@ async fn main() {
                         object: o,
                     });
                 }
+                log.log(Flag::Info, "Sending triples");
                 let mut conn = new_conn(&server).await.stack_context(&log, "Error connecting to server")?;
                 let commit_res =
                     htreq::post(
@@ -286,6 +377,7 @@ async fn main() {
                         continue;
                     }
                     let log = log.fork(ea!(state = "upload", file = p.to_string_lossy()));
+                    log.log(Flag::Info, "Uploading file");
                     const CHUNK_SIZE: u64 = 1024 * 1024 * 8;
                     let chunks = size.div_ceil(CHUNK_SIZE);
                     let mut f = File::open(&p).await.stack_context(&log, "Failed to open file for upload")?;
@@ -314,17 +406,133 @@ async fn main() {
                                 ),
                             )?;
                     }
+                    log.log(Flag::Info, "Verifying upload");
+                    loop {
+                        let resp_bytes =
+                            htreq::post(
+                                &log,
+                                &mut conn,
+                                format!("{}/api", server),
+                                &HashMap::new(),
+                                serde_json::to_vec(&C2SReq::UploadFinish(hash.clone())).unwrap(),
+                                1024,
+                            )
+                                .await
+                                .stack_context(&log, "Failed to verify upload")?;
+                        let resp =
+                            serde_json::from_slice::<UploadFinishResp>(
+                                &resp_bytes,
+                            ).context("Error parsing response from server")?;
+                        if resp.done {
+                            break;
+                        }
+                        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                    }
+                }
+            },
+            args::Command::Download(hash) => {
+                let mut conn = new_conn(&server).await.stack_context(&log, "Error connecting to server")?;
+                let path =
+                    download(
+                        &log,
+                        &mut conn,
+                        &server,
+                        &current_dir().context("Couldn't determine current directory")?,
+                        &hash,
+                    ).await?;
+                println!("{}", path.to_str().unwrap());
+            },
+            args::Command::Export(export) => {
+                let mut conn = new_conn(&server).await.stack_context(&log, "Error connecting to server")?;
+                let res =
                     htreq::post(
                         &log,
                         &mut conn,
                         format!("{}/api", server),
                         &HashMap::new(),
-                        serde_json::to_vec(&C2SReq::UploadFinish(hash.clone())).unwrap(),
-                        1024,
-                    )
-                        .await
-                        .stack_context(&log, "Failed to finish upload")?;
+                        serde_json::to_vec(&C2SReq::Query(Query {
+                            query: String::from_utf8(
+                                export.query.query.value,
+                            ).context("Query file contents isn't valid utf8")?,
+                            parameters: export.query.params.into_iter().map(|kv| (kv.key, kv.value)).collect(),
+                        })).unwrap(),
+                        128 * 1024 * 1024,
+                    ).await.stack_context(&log, "Failed to make request")?;
+
+                #[derive(Deserialize)]
+                struct RespTriple {
+                    subject: (String, serde_json::Value),
+                    predicate: String,
+                    object: (String, serde_json::Value),
                 }
+
+                let res =
+                    serde_json::from_slice::<Vec<RespTriple>>(
+                        &res,
+                    ).stack_context(&log, "Error parsing response JSON")?;
+                let mut triples = vec![];
+                for row in res {
+                    async fn process_node(
+                        log: &Log,
+                        conn: &mut htreq::Conn,
+                        server: &Uri,
+                        out_dir: &Path,
+                        node_in: (String, serde_json::Value),
+                    ) -> Result<CliNode, loga::Error> {
+                        match node_in.0.as_str() {
+                            "id" => {
+                                let serde_json:: Value:: String(v) = node_in.1 else {
+                                    return Err(
+                                        loga::err_with(
+                                            "Id nodes must have a string value, but got another json type",
+                                            ea!(value = node_in.1.dbg_str()),
+                                        ),
+                                    );
+                                };
+                                return Ok(CliNode::Id(v));
+                            },
+                            "value" => {
+                                return Ok(CliNode::Value(node_in.1));
+                            },
+                            "file" => {
+                                let serde_json:: Value:: String(hash_raw) = node_in.1 else {
+                                    return Err(
+                                        loga::err_with(
+                                            "File nodes must have a hash string value, but got another json type",
+                                            ea!(value = node_in.1.dbg_str()),
+                                        ),
+                                    );
+                                };
+                                let hash =
+                                    FileHash::from_str(
+                                        &hash_raw,
+                                    ).map_err(
+                                        |e| loga::err(
+                                            e.to_string(),
+                                        ).context_with("Failed to parse hash for node", ea!(hash = hash_raw)),
+                                    )?;
+                                let path = download(&log, conn, &server, out_dir, &hash).await?;
+                                return Ok(CliNode::Upload(path));
+                            },
+                            _ => {
+                                return Err(loga::err_with("Unexpected node type", ea!(type_ = node_in.0)));
+                            },
+                        }
+                    }
+
+                    triples.push(CliTriple {
+                        subject: process_node(&log, &mut conn, &server, &export.out_dir, row.subject).await?,
+                        predicate: row.predicate,
+                        object: process_node(&log, &mut conn, &server, &export.out_dir, row.object).await?,
+                    });
+                }
+                let commit_path = export.out_dir.join("sunwet.json");
+                write(&commit_path, &serde_json::to_vec_pretty(&CliCommit {
+                    add: triples,
+                    remove: vec![],
+                }).unwrap())
+                    .await
+                    .context_with("Error writing commit file", ea!(path = commit_path.to_string_lossy()))?;
             },
             args::Command::View(c) => match c {
                 args::View::List => {

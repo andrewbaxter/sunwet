@@ -9,10 +9,10 @@ use std::{
     rc::Rc,
     str::FromStr,
 };
+use chrono::Utc;
 use gloo::{
-    console::{
-        warn,
-    },
+    console::warn,
+    timers::future::TimeoutFuture,
     utils::{
         document,
         window,
@@ -32,11 +32,6 @@ use rooting::{
     set_root,
     spawn_rooted,
     El,
-};
-use rooting_forms::{
-    BigString,
-    Form,
-    FormState,
 };
 use serde::de::DeserializeOwned;
 use shared::{
@@ -60,28 +55,47 @@ use web_sys::{
     Event,
     HtmlAudioElement,
     HtmlElement,
+    HtmlInputElement,
     HtmlMediaElement,
     MediaMetadata,
     MediaSession,
     MouseEvent,
 };
-use crate::{
+use web::{
     el_general::{
+        el_async,
+        el_audio,
         el_button_icon,
         el_button_icon_switch,
         el_button_icon_switch_auto,
+        el_button_icon_text,
         el_button_text,
         el_group,
         el_hbox,
         el_hscroll,
+        el_modal,
         el_stack,
         el_vbox,
+        el_video,
         log,
+        CSS_GROW,
+        ICON_EDIT,
+        ICON_NOEDIT,
+        ICON_SHARE,
+        ICON_TRANSPORT_NEXT,
+        ICON_TRANSPORT_PAUSE,
+        ICON_TRANSPORT_PLAY,
+        ICON_TRANSPORT_PREVIOUS,
+        ICON_VOLUME,
     },
-    ministate::{
-        PlaylistEntryPath,
-        PlaylistPos,
-    },
+    util::OptString,
+};
+use web::world::{
+    file_url,
+    req_post_json,
+};
+use crate::{
+    mainlib::playlist::PlaylistState,
     playlist::{
         playlist_clear,
         playlist_len,
@@ -99,33 +113,19 @@ use crate::{
         State,
         View,
     },
-    util::{
-        OptString,
-        CSS_GROW,
-        ICON_EDIT,
-        ICON_NOEDIT,
-        ICON_TRANSPORT_NEXT,
-        ICON_TRANSPORT_PAUSE,
-        ICON_TRANSPORT_PLAY,
-        ICON_TRANSPORT_PREVIOUS,
-    },
-    world::{
-        file_url,
-        req_post_json,
-    },
+};
+use shared::model::view::{
+    BlockSizeMode,
+    Direction,
+    FieldOrLiteral,
+    Layout,
+    LineSizeMode,
+    QueryOrField,
+    Widget,
+    ViewPartList,
+    WidgetNest,
 };
 use self::{
-    definition::{
-        BlockSizeMode,
-        Direction,
-        FieldOrLiteral,
-        Layout,
-        LineSizeMode,
-        QueryOrField,
-        Widget,
-        WidgetList,
-        WidgetNest,
-    },
     elements::{
         el_err,
         el_image_err,
@@ -140,6 +140,10 @@ use self::{
         CSS_TREE_NEST,
         CSS_TREE_TEXT,
     },
+};
+use super::ministate::{
+    PlaylistEntryPath,
+    PlaylistPos,
 };
 
 pub mod elements;
@@ -214,12 +218,12 @@ pub fn build_widget_query(
     pc: &mut ProcessingContext,
     state: &State,
     depth: usize,
-    def: &WidgetList,
+    def: &ViewPartList,
     data: &Rc<HashMap<String, serde_json::Value>>,
     build_playlist_pos: &BuildPlaylistPos,
     restore_playlist_pos: &Option<PlaylistPos>,
 ) -> El {
-    return el_group().own(|e| spawn_rooted({
+    return el_async().own(|e| spawn_rooted({
         let def = def.clone();
         let source_data = data.clone();
         let state = state.clone();
@@ -228,7 +232,7 @@ pub fn build_widget_query(
         let build_playlist_pos = build_playlist_pos.clone();
         let restore_playlist_pos = restore_playlist_pos.clone();
         async move {
-            let Some(ele) = e.upgrade() else {
+            let Some(placeholder) = e.upgrade() else {
                 return;
             };
             let rows;
@@ -237,11 +241,11 @@ pub fn build_widget_query(
                     match source_data.get(f) {
                         Some(f) => match f {
                             serde_json::Value::Array(v) => {
-                                let mut out = vec![];
+                                let mut out_rows = vec![];
                                 for i in v {
                                     match i {
                                         serde_json::Value::Object(v) => {
-                                            out.push(
+                                            out_rows.push(
                                                 Rc::new(
                                                     v
                                                         .iter()
@@ -251,38 +255,29 @@ pub fn build_widget_query(
                                             );
                                         },
                                         _ => {
-                                            ele.ref_push(
-                                                el_err(
-                                                    format!(
-                                                        "Specified field for list contains {} element, not object",
-                                                        json_value_type(&i)
-                                                    ),
-                                                ),
-                                            );
+                                            placeholder.ref_replace(vec![
+                                                //. .
+                                                el_err(format!("Specified field for list contains {} element, not object", json_value_type(&i)))
+                                            ]);
                                             return;
                                         },
                                     }
                                 }
-                                rows = out;
+                                rows = out_rows;
                             },
                             _ => {
-                                ele.ref_push(
-                                    el_err(
-                                        format!(
-                                            "Specified field for list is a {}, not a list type",
-                                            json_value_type(&f)
-                                        ),
-                                    ),
-                                );
+                                placeholder.ref_replace(vec![
+                                    //. .
+                                    el_err(format!("Specified field for list is a {}, not a list type", json_value_type(&f)))
+                                ]);
                                 return;
                             },
                         },
                         None => {
-                            ele.ref_push(
-                                el_err(
-                                    "Specified field for list doesn't exist in parent row/parameter data".to_string(),
-                                ),
-                            );
+                            placeholder.ref_replace(vec![
+                                //. .
+                                el_err("Specified field for list doesn't exist in parent row/parameter data".to_string())
+                            ]);
                             return;
                         },
                     }
@@ -292,33 +287,25 @@ pub fn build_widget_query(
                         req_post_json::<Vec<HashMap<String, serde_json::Value>>>(
                             &state.origin,
                             C2SReq::Query(Query {
-                                query: query.0.clone(),
+                                query: query.clone(),
                                 parameters: source_data.as_ref().to_owned(),
                             }),
                         ).await;
-                    ele.ref_clear();
+                    placeholder.ref_clear();
                     rows = match res {
                         Ok(rows) => rows.into_iter().map(|x| Rc::new(x)).collect::<Vec<_>>(),
                         Err(e) => {
-                            ele.ref_push(el_err(e));
+                            placeholder.ref_push(el_err(e));
                             return;
                         },
                     };
                 },
             }
             eg.event(|pc| {
-                ele.ref_push(
-                    build_layout(
-                        pc,
-                        &state,
-                        depth,
-                        &def.layout,
-                        &rows,
-                        &def.key_field,
-                        &build_playlist_pos,
-                        &restore_playlist_pos,
-                    ),
-                );
+                placeholder.ref_replace(vec![
+                    //. .
+                    build_layout(pc, &state, depth, &def.layout, &rows, &def.key_field, &build_playlist_pos, &restore_playlist_pos)
+                ]);
             });
         }
     }));
@@ -438,7 +425,15 @@ fn build_widget(
                 return el_media_button_err(format!("Missing field {}", d.field));
             };
             let i = playlist_len(&state.playlist);
-            let audio = el("audio").attr("preload", "metadata").on("ended", {
+            let source;
+            if let Some(n) = extract_node_file(v) {
+                source = file_url(&state.origin, &n);
+            } else if let serde_json::Value::String(v) = v {
+                source = v.to_string();
+            } else {
+                return el_media_button_err(format!("Field contents wasn't string value node or string: {:?}", v));
+            }
+            let audio = el_audio(&source).on("ended", {
                 let state = state.clone();
                 let eg = pc.eg();
                 move |_| eg.event(|pc| {
@@ -461,18 +456,11 @@ fn build_widget(
                 };
                 break 'restore_pos false;
             };
-            if let Some(n) = extract_node_file(v) {
-                audio.ref_attr("src", &file_url(&state.origin, &n));
-            } else if let serde_json::Value::String(v) = v {
-                audio.ref_attr("src", &v);
-            } else {
-                return el_media_button_err(format!("Field contents wasn't string value node or string: {:?}", v));
-            }
             playlist_push(&state.playlist, Rc::new(PlaylistEntry {
                 name: (&d.name_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
                 album: (&d.album_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
                 artist: (&d.artist_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
-                thumbnail: (&d.thumbnail_field)
+                cover: (&d.thumbnail_field)
                     .if_some()
                     .and_then(|v| data.get(v))
                     .and_then(|v| extract_node_file(v))
@@ -496,15 +484,15 @@ fn build_widget(
                 return el_image_err(format!("Missing field {}", d.field));
             };
             let i = playlist_len(&state.playlist);
-            let source = el("source");
+            let source;
             if let Some(n) = extract_node_file(v) {
-                source.ref_attr("src", &file_url(&state.origin, &n));
+                source = file_url(&state.origin, &n);
             } else if let serde_json::Value::String(v) = v {
-                source.ref_attr("src", &v);
+                source = v.clone();
             } else {
                 return el_media_button_err(format!("Field contents wasn't string value node or string: {:?}", v));
             }
-            let video = el("video").attr("preload", "metadata").push(source).on("ended", {
+            let video = el_video(&source).on("ended", {
                 let state = state.clone();
                 let eg = pc.eg();
                 move |_| eg.event(|pc| {
@@ -531,7 +519,7 @@ fn build_widget(
                 name: (&d.name_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
                 album: (&d.album_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
                 artist: (&d.artist_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
-                thumbnail: (&d.thumbnail_field)
+                cover: (&d.thumbnail_field)
                     .if_some()
                     .and_then(|v| data.get(v))
                     .and_then(|v| extract_node_file(v))
@@ -753,140 +741,354 @@ pub fn build_page_view(
     };
     title_group.ref_clear().ref_push(el("h1").text(&def.name));
 
+    fn get_mouse_pct(ev: &Event) -> (f64, f64) {
+        let element = ev.target().unwrap().dyn_into::<Element>().unwrap();
+        let ev = ev.dyn_ref::<MouseEvent>().unwrap();
+        let element_rect = element.get_bounding_client_rect();
+        let percent_x = ((ev.client_x() as f64 - element_rect.x()) / element_rect.width().max(0.001)).clamp(0., 1.);
+        let percent_y = ((ev.client_y() as f64 - element_rect.y()) / element_rect.width().max(0.001)).clamp(0., 1.);
+        return (percent_x, percent_y);
+    }
+
     fn get_mouse_time(ev: &Event, state: &State) -> Option<f64> {
         let Some(max_time) =* state.playlist.0.playing_max_time.borrow() else {
             return None;
         };
-        let bar = ev.target().unwrap().dyn_into::<Element>().unwrap();
-        let ev = ev.dyn_ref::<MouseEvent>().unwrap();
-        let bar_rect = bar.get_bounding_client_rect();
-        let percent = ((ev.client_x() as f64 - bar_rect.x()) / bar_rect.width().max(0.001)).clamp(0., 1.);
+        let percent = get_mouse_pct(ev).0;
         return Some(max_time * percent);
     }
 
+    let body =
+        el("div")
+            .classes(&["s_view_body"])
+            .push(
+                build_widget_query(
+                    pc,
+                    &state,
+                    0,
+                    &def.def.def,
+                    &Rc::new(HashMap::new()),
+                    build_playlist_pos,
+                    restore_playlist_pos,
+                ),
+            );
     let hover_time = Prim::new(pc, None);
-    state.body_group.upgrade().unwrap().ref_clear().ref_extend(
-        vec![
-            el("div").classes(&["s_transport"]).extend(vec![
+    state.body_group.upgrade().unwrap().ref_clear().ref_extend(vec![
+        //. .
+        el("div").classes(&["s_transport"]).extend(vec![
+            //. .
+            el_hbox().classes(&["left"]).extend(vec![
                 //. .
-                el_hbox().classes(&["left"]),
-                el_hbox().classes(&["middle", CSS_GROW]).extend(vec![
-                    //. .
-                    el_button_icon(pc, ICON_TRANSPORT_PREVIOUS, "Previous", {
-                        let state = state.clone();
-                        move |pc| {
-                            playlist_previous(pc, &state.playlist, None);
+                el_button_icon(pc, ICON_SHARE, "Share stream", {
+                    let modals = state.stack.clone();
+                    move |pc| {
+                        fn build_body(pc: &mut ProcessingContext, state: &PlaylistState, share: &str) -> El {
+                            return el_vbox().extend(vec![
+                                //. .
+                                qr(share),
+                                el_button_icon_text(pc, ICON_NOSHARE, "Stop sharing", {
+                                    |pc| {
+                                        state.share.set(pc, None);
+                                        close_modal();
+                                    }
+                                })
+                            ]);
                         }
-                    }),
-                    el_stack().classes(&["s_seekbar"]).extend(vec![
-                        //. .
-                        el("div").classes(&["gutter"]).push(el("div").classes(&["fill"]).own(|fill| link!(
-                            //. .
-                            (_pc = pc),
-                            (
-                                time = state.playlist.0.playing_time.clone(),
-                                max_time = state.playlist.0.playing_max_time.clone(),
-                            ),
-                            (),
-                            (fill = fill.weak()) {
-                                let Some(max_time) =* max_time.borrow() else {
-                                    return None;
-                                };
-                                let fill = fill.upgrade()?;
-                                fill.ref_attr(
-                                    "style",
-                                    &format!("width: {}%;", *time.borrow() / max_time.max(0.0001) * 100.),
-                                );
-                            }
-                        ))),
-                        el("span").classes(&["label"]).own(|label| link!(
-                            //. .
-                            (_pc = pc),
-                            (playing_time = state.playlist.0.playing_time.clone(), hover_time = hover_time.clone()),
-                            (),
-                            (label = label.weak()) {
-                                let label = label.upgrade()?;
-                                let time: f64;
-                                if let Some(t) = *hover_time.borrow() {
-                                    time = t;
-                                } else {
-                                    time = *playing_time.borrow();
+
+                        let body;
+                        if let Some(share) = state.share.borrow() {
+                            body = build_body(pc, state, share);
+                        } else {
+                            body = el_async().own(|e| {
+                                let e = e.weak();
+                                let eg = pc.eg();
+                                async move {
+                                    let share = req(C2SReq::Share).await;
+                                    let Some(e) = e.upgrade() else {
+                                        return;
+                                    };
+                                    eg.event(|pc| {
+                                        state.share.set(pc, Some(share));
+                                        e.replace(build_body(pc, state, share));
+                                    })
                                 }
-                                let time = time as u64;
-                                let seconds = time % 60;
-                                let time = time / 60;
-                                let minutes = time % 60;
-                                let time = time / 60;
-                                let hours = time % 24;
-                                let days = time / 24;
-                                if days > 0 {
-                                    label.text(&format!("{:02}:{:02}:{:02}:{:02}", days, hours, minutes, seconds));
-                                } else if hours > 0 {
-                                    label.text(&format!("{:02}:{:02}:{:02}", hours, minutes, seconds));
-                                } else {
-                                    label.text(&format!("{:02}:{:02}", minutes, seconds));
-                                }
-                            }
-                        ))
-                    ]).on("mousemove", {
-                        let eg = pc.eg();
-                        let state = state.clone();
-                        let hover_time = hover_time.clone();
-                        move |ev| eg.event(|pc| {
-                            hover_time.set(pc, get_mouse_time(ev, &state));
-                        })
-                    }).on("mouseleave", {
-                        let eg = pc.eg();
-                        let hover_time = hover_time.clone();
-                        move |_| eg.event(|pc| {
-                            hover_time.set(pc, None);
-                        })
-                    }).on("click", {
-                        let state = state.clone();
-                        let eg = pc.eg();
-                        move |ev| eg.event(|pc| {
-                            let Some(time) = get_mouse_time(ev, &state) else {
-                                return;
-                            };
-                            playlist_seek(pc, &state.playlist, time);
-                        })
-                    }),
-                    el_button_icon(pc, ICON_TRANSPORT_NEXT, "Next", {
-                        let state = state.clone();
-                        move |pc| {
-                            playlist_next(pc, &state.playlist, None);
+                            })
                         }
-                    }),
-                    el_button_icon_switch(
-                        pc,
-                        ICON_TRANSPORT_PLAY,
-                        "Play",
-                        ICON_TRANSPORT_PAUSE,
-                        "Pause",
-                        &state.playlist.0.playing,
-                    ).on("click", {
-                        let eg = pc.eg();
-                        let state = state.clone();
-                        move |_| eg.event(|pc| {
-                            playlist_toggle_play(pc, &state.playlist, None);
-                        })
-                    })
-                ]),
-                el_hbox().classes(&["right"])
+                        modals.ref_push(el_modal(pc, "Share", body));
+                    }
+                }).own(|e| link!((pc = pc), (share = state.playlist.0.share.clone()), (), (e = e.weak()) {
+                    let e = e.upgrade()?;
+                    e.ref_modify_classes(&[("on", share.borrow().is_some())]);
+                }))
             ]),
-            el("div")
-                .classes(&["s_view_body"])
-                .push(
-                    build_widget_query(
-                        pc,
-                        &state,
-                        0,
-                        &def.def,
-                        &Rc::new(HashMap::new()),
-                        build_playlist_pos,
-                        restore_playlist_pos,
-                    ),
-                )
-        ],
-    );
+            el_hbox().classes(&["middle", CSS_GROW]).extend(vec![
+                //. .
+                el_button_icon(pc, ICON_TRANSPORT_PREVIOUS, "Previous", {
+                    let state = state.clone();
+                    move |pc| {
+                        playlist_previous(pc, &state.playlist, None);
+                    }
+                }),
+                el_stack().classes(&["s_seekbar"]).extend(vec![
+                    //. .
+                    el("div").classes(&["gutter"]).push(el("div").classes(&["fill"]).own(|fill| link!(
+                        //. .
+                        (_pc = pc),
+                        (
+                            time = state.playlist.0.playing_time.clone(),
+                            max_time = state.playlist.0.playing_max_time.clone(),
+                        ),
+                        (),
+                        (fill = fill.weak()) {
+                            let Some(max_time) =* max_time.borrow() else {
+                                return None;
+                            };
+                            let fill = fill.upgrade()?;
+                            fill.ref_attr(
+                                "style",
+                                &format!("width: {}%;", *time.borrow() / max_time.max(0.0001) * 100.),
+                            );
+                        }
+                    ))),
+                    el("span").classes(&["label"]).own(|label| link!(
+                        //. .
+                        (_pc = pc),
+                        (playing_time = state.playlist.0.playing_time.clone(), hover_time = hover_time.clone()),
+                        (),
+                        (label = label.weak()) {
+                            let label = label.upgrade()?;
+                            let time: f64;
+                            if let Some(t) = *hover_time.borrow() {
+                                time = t;
+                            } else {
+                                time = *playing_time.borrow();
+                            }
+                            let time = time as u64;
+                            let seconds = time % 60;
+                            let time = time / 60;
+                            let minutes = time % 60;
+                            let time = time / 60;
+                            let hours = time % 24;
+                            let days = time / 24;
+                            if days > 0 {
+                                label.text(&format!("{:02}:{:02}:{:02}:{:02}", days, hours, minutes, seconds));
+                            } else if hours > 0 {
+                                label.text(&format!("{:02}:{:02}:{:02}", hours, minutes, seconds));
+                            } else {
+                                label.text(&format!("{:02}:{:02}", minutes, seconds));
+                            }
+                        }
+                    ))
+                ]).on("mousemove", {
+                    let eg = pc.eg();
+                    let state = state.clone();
+                    let hover_time = hover_time.clone();
+                    move |ev| eg.event(|pc| {
+                        hover_time.set(pc, get_mouse_time(ev, &state));
+                    })
+                }).on("mouseleave", {
+                    let eg = pc.eg();
+                    let hover_time = hover_time.clone();
+                    move |_| eg.event(|pc| {
+                        hover_time.set(pc, None);
+                    })
+                }).on("click", {
+                    let state = state.clone();
+                    let eg = pc.eg();
+                    move |ev| eg.event(|pc| {
+                        let Some(time) = get_mouse_time(ev, &state) else {
+                            return;
+                        };
+                        playlist_seek(pc, &state.playlist, time);
+                    })
+                }),
+                el_button_icon(pc, ICON_TRANSPORT_NEXT, "Next", {
+                    let state = state.clone();
+                    move |pc| {
+                        playlist_next(pc, &state.playlist, None);
+                    }
+                }),
+                el_button_icon_switch(
+                    pc,
+                    ICON_TRANSPORT_PLAY,
+                    "Play",
+                    ICON_TRANSPORT_PAUSE,
+                    "Pause",
+                    &state.playlist.0.playing,
+                ).on("click", {
+                    let eg = pc.eg();
+                    let state = state.clone();
+                    move |_| eg.event(|pc| {
+                        playlist_toggle_play(pc, &state.playlist, None);
+                    })
+                })
+            ]),
+            el_hbox().classes(&["right"]).extend(vec![
+                //. .
+                el_button_icon(pc, ICON_VOLUME, "Set volume", {
+                    let modals = modals.clone();
+                    move |pc| {
+                        modals.ref_push(modal("Volume", el_vbox().classes(&["s_volume"]).extend(vec![
+                            //. .
+                            el_stack().extend(vec![
+                                //. .
+                                el("img").attr("src", TODO),
+                                el("div")
+                                    .classes(&["puck"])
+                                    .own(
+                                        |e| link!(
+                                            (pc = pc),
+                                            (vol = state.playlist.0.volume.clone()),
+                                            (),
+                                            (e = e.weak()) {
+                                                let e = e.upgrade()?;
+                                                let (x, y) = &*vol.borrow();
+                                                e.ref_attr(
+                                                    "style",
+                                                    &format!("left: {}%; bottom: {}%;", x * 200., y * 200.),
+                                                );
+                                            }
+                                        ),
+                                    )
+                            ]).on("mousemove", {
+                                let state = state.playlist.clone();
+                                let eg = pc.eg();
+                                move |ev| {
+                                    let (x, y) = get_mouse_pct(ev);
+                                    eg.event(|pc| {
+                                        state.0.volume.set(pc, (x / 2., y / 2.));
+                                    });
+                                }
+                            }),
+                            el(
+                                "span",
+                            ).own(|e| link!((pc = pc), (vol = state.playlist.0.volume.clone()), (), (e = e.weak()) {
+                                let e = e.upgrade()?;
+                                let (x, y) = &*vol.borrow();
+                                e.ref_text(&format!("{}%", ((x + y) * 100.) as i32));
+                            }))
+                        ])));
+                    }
+                })
+            ])
+        ]),
+        {
+            let parameters = el_vbox().classes(&["s_parameters"]);
+            if !def.def.parameters.is_empty() {
+                let bg = Rc::new(RefCell::new(None));
+                let parameter_values = Rc::new(RefCell::new(HashMap::new()));
+                let delay_rebuild = {
+                    let bg = bg.clone();
+                    let state = state.clone();
+                    let def = def.clone();
+                    let parameters = parameter_values.clone();
+                    let build_playlist_pos = build_playlist_pos.clone();
+                    move |pc: &mut ProcessingContext| {
+                        *bg.borrow_mut() = Some(spawn_rooted({
+                            let eg = pc.eg();
+                            let bg = bg.clone();
+                            let state = state.clone();
+                            let def = def.clone();
+                            let parameters = parameters.clone();
+                            let build_playlist_pos = build_playlist_pos.clone();
+                            async move {
+                                TimeoutFuture::new(1000).await;
+                                eg.event(|pc| {
+                                    body
+                                        .ref_clear()
+                                        .ref_push(
+                                            build_widget_query(
+                                                pc,
+                                                &state,
+                                                0,
+                                                &def.def.def,
+                                                &Rc::new((&*parameters.borrow()).clone()),
+                                                &build_playlist_pos,
+                                                &None,
+                                            ),
+                                        );
+                                });
+                            }
+                        }));
+                    }
+                };
+                parameters.ref_own(|_| bg.clone());
+                for (k, v) in def.def.parameters {
+                    parameters.ref_push(el("label").extend(vec![el("span").text(&k), match v {
+                        shared::model::QueryDefParameter::Text => {
+                            parameter_values
+                                .borrow_mut()
+                                .insert(k.clone(), serde_json::Value::String("".to_string()));
+                            el("input").attr("type", "text").on("input", {
+                                let eg = pc.eg();
+                                let delay_rebuild = delay_rebuild.clone();
+                                move |ev| eg.event(|pc| {
+                                    let e = ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
+                                    parameter_values
+                                        .borrow_mut()
+                                        .insert(k.clone(), serde_json::Value::String(e.value()));
+                                    delay_rebuild(pc);
+                                })
+                            })
+                        },
+                        shared::model::QueryDefParameter::Number => {
+                            parameter_values
+                                .borrow_mut()
+                                .insert(k.clone(), serde_json::Value::Number(serde_json::Number::from(0)));
+                            el("input").attr("type", "text").on("input", {
+                                let eg = pc.eg();
+                                let delay_rebuild = delay_rebuild.clone();
+                                move |ev| eg.event(|pc| {
+                                    let e = ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
+                                    match serde_json::Number::from_str(&e.value()) {
+                                        Ok(v) => {
+                                            parameter_values
+                                                .borrow_mut()
+                                                .insert(k.clone(), serde_json::Value::Number(v));
+                                            delay_rebuild(pc);
+                                        },
+                                        Err(e) => {
+                                            // TODO mark textbox err
+                                        },
+                                    }
+                                })
+                            })
+                        },
+                        shared::model::QueryDefParameter::Bool => {
+                            parameter_values.borrow_mut().insert(k.clone(), serde_json::Value::Bool(false));
+                            el("input").attr("type", "checkbox").on("input", {
+                                let eg = pc.eg();
+                                let delay_rebuild = delay_rebuild.clone();
+                                move |ev| eg.event(|pc| {
+                                    let e = ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
+                                    parameter_values
+                                        .borrow_mut()
+                                        .insert(k.clone(), serde_json::Value::Bool(e.checked()));
+                                    delay_rebuild(pc);
+                                })
+                            })
+                        },
+                        shared::model::QueryDefParameter::Datetime => {
+                            parameter_values
+                                .borrow_mut()
+                                .insert(k.clone(), serde_json::Value::String(Utc::now().to_rfc3339()));
+                            el("input").attr("type", "datetime-local").on("input", {
+                                let eg = pc.eg();
+                                let delay_rebuild = delay_rebuild.clone();
+                                move |ev| eg.event(|pc| {
+                                    let e = ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
+                                    parameter_values
+                                        .borrow_mut()
+                                        .insert(k.clone(), serde_json::Value::String(e.value()));
+                                    delay_rebuild(pc);
+                                })
+                            })
+                        },
+                    }]));
+                }
+            }
+            parameters
+        },
+        body
+    ]);
 }

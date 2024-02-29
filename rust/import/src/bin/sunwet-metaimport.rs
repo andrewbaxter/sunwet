@@ -72,8 +72,6 @@ enum Args {
 }
 
 fn import_dir(log: &StandardLog, root_dir: PathBuf) -> Result<(), loga::Error> {
-    let vlc_inst = vlc::Instance::new().context("Error initializing lib vlc")?;
-
     fn parents(root_dir: &Path, start: &Path) -> Vec<PathBuf> {
         let mut out = vec![];
         let mut at = start;
@@ -107,6 +105,8 @@ fn import_dir(log: &StandardLog, root_dir: PathBuf) -> Result<(), loga::Error> {
     struct GatherAlbum {
         id: String,
         index: Option<usize>,
+        name: Vec<String>,
+        name_sort: Vec<String>,
         artist: Vec<String>,
         artist_sort: Vec<String>,
         tracks: Vec<Rc<RefCell<GatherTrack>>>,
@@ -192,7 +192,6 @@ fn import_dir(log: &StandardLog, root_dir: PathBuf) -> Result<(), loga::Error> {
                                 albumset.name.push(tag.value.to_string());
                             },
                             symphonia::core::meta::StandardTagKey::AlbumArtist => {
-                                albumset.artist.push(tag.value.to_string());
                                 album_artist.push(tag.value.to_string());
                             },
                             symphonia::core::meta::StandardTagKey::Artist => {
@@ -205,7 +204,6 @@ fn import_dir(log: &StandardLog, root_dir: PathBuf) -> Result<(), loga::Error> {
                                 albumset.name_sort.push(tag.value.to_string());
                             },
                             symphonia::core::meta::StandardTagKey::SortAlbumArtist => {
-                                albumset.artist_sort.push(tag.value.to_string());
                                 album_artist_sort.push(tag.value.to_string());
                             },
                             symphonia::core::meta::StandardTagKey::SortArtist => {
@@ -234,6 +232,8 @@ fn import_dir(log: &StandardLog, root_dir: PathBuf) -> Result<(), loga::Error> {
                         let a = Rc::new(RefCell::new(GatherAlbum {
                             id: node_id(),
                             index: disk_number,
+                            name: vec![],
+                            name_sort: vec![],
                             artist: vec![],
                             artist_sort: vec![],
                             tracks: vec![],
@@ -263,23 +263,204 @@ fn import_dir(log: &StandardLog, root_dir: PathBuf) -> Result<(), loga::Error> {
                     name_sort: track_name_sort,
                 })));
             },
-            b"mp4" | b"mkv" => {
-                let info = match vlc::Media::new_path(&vlc_inst, file.path()) {
-                    Some(i) => i,
-                    None => {
-                        log.log(StandardFlag::Warning, "Unable to read metadata in video file");
+            b"mkv" => {
+                let elements = match mkvdump::parse_elements_from_file(file.path(), false) {
+                    Ok(e) => e,
+                    Err(e) => {
+                        log.log_err(
+                            StandardFlag::Warning,
+                            loga::err(e.to_string()).context("Unable to read metadata in video file"),
+                        );
                         continue;
                     },
                 };
-                for tag_k in [vlc::Meta::Album, vlc::Meta::ShowName] {
-                    if let Some(tag_value) = info.get_meta(tag_k) {
-                        albumset.name.push(tag_value.clone());
+
+                // Must access untyped json values due to
+                // (https://github.com/cadubentzen/mkvdump/issues/138)
+                let serde_json:: Value:: Array(
+                    tree
+                ) = serde_json:: to_value(&mkvparser::tree::build_element_trees(&elements)).unwrap() else {
+                    continue
+                };
+
+                fn parse_value<
+                    'a,
+                >(
+                    x: &'a serde_json::Value,
+                ) -> Option<
+                    (&'a String, Option<&Vec<serde_json::Value>>, &serde_json::Map<String, serde_json::Value>),
+                > {
+                    let serde_json:: Value:: Object(child) = x else {
+                        return None;
+                    };
+                    let Some(serde_json::Value::String(id)) = child.get("id") else {
+                        return None;
+                    };
+                    let children_;
+                    if let Some(serde_json::Value::Array(children)) = x.get("children") {
+                        children_ = Some(children);
+                    } else {
+                        children_ = None;
                     }
+                    return Some((id, children_, child));
                 }
+
+                fn find_element_with_id<
+                    'a,
+                >(
+                    arr: &'a Vec<serde_json::Value>,
+                    key: &str,
+                ) -> Option<&'a serde_json::Map<String, serde_json::Value>> {
+                    for child in arr {
+                        let serde_json:: Value:: Object(child) = child else {
+                            continue;
+                        };
+                        let Some(serde_json::Value::String(id)) = child.get("id") else {
+                            continue;
+                        };
+                        if id.as_str() == key {
+                            return Some(child);
+                        }
+                    }
+                    return None;
+                }
+
+                fn get_children<
+                    'a,
+                >(x: &'a serde_json::Map<String, serde_json::Value>) -> Option<&'a Vec<serde_json::Value>> {
+                    let Some(serde_json::Value::Array(children)) = x.get("children") else {
+                        return None;
+                    };
+                    return Some(children);
+                }
+
+                fn find_child_with_id<
+                    'a,
+                >(
+                    x: &'a serde_json::Map<String, serde_json::Value>,
+                    key: &str,
+                ) -> Option<&'a serde_json::Map<String, serde_json::Value>> {
+                    let Some(children) = get_children(x) else {
+                        return None;
+                    };
+                    for child in children {
+                        let serde_json:: Value:: Object(child) = child else {
+                            continue;
+                        };
+                        let Some(serde_json::Value::String(id)) = child.get("id") else {
+                            continue;
+                        };
+                        if id.as_str() == key {
+                            return Some(child);
+                        }
+                    }
+                    return None;
+                }
+
+                let Some(segment) = find_element_with_id(&tree, "Segment") else {
+                    continue;
+                };
+                let Some(tags) = find_child_with_id(segment, "Tags") else {
+                    continue;
+                };
+                let Some(tags_children) = get_children(tags) else {
+                    continue;
+                };
+                let mut album_name = vec![];
+                let mut album_artist = vec![];
+                let mut track_name = vec![];
+                let mut track_artist = vec![];
                 let mut disk_number = None;
-                for tag_k in [vlc::Meta::Season] {
-                    if let Some(tag_value) = info.get_meta(tag_k) {
-                        disk_number = Some(usize::from_str_radix(&tag_value, 10)?);
+                let mut track_number = None;
+                for tag in tags_children {
+                    let Some((_, Some(tag_children), _)) = parse_value(tag) else {
+                        continue;
+                    };
+                    let mut levels = vec![];
+                    let mut tags = vec![];
+                    for child in tag_children {
+                        let Some((child_id, Some(child_children), _)) = parse_value(child) else {
+                            continue;
+                        };
+                        match child_id.as_str() {
+                            "Targets" => {
+                                for value_obj in child_children {
+                                    let serde_json:: Value:: Object(value_obj) = value_obj else {
+                                        continue;
+                                    };
+                                    let Some(serde_json::Value::String(value)) = value_obj.get("value") else {
+                                        continue;
+                                    };
+                                    levels.push(value.clone());
+                                }
+                            },
+                            "SimpleTag" => {
+                                match (
+                                    find_element_with_id(child_children, "TagName").and_then(|v| v.get("value")),
+                                    find_element_with_id(child_children, "TagString").and_then(|v| v.get("value")),
+                                ) {
+                                    (Some(serde_json::Value::String(k)), Some(serde_json::Value::String(v))) => {
+                                        tags.push((k.clone(), v.clone()));
+                                    },
+                                    _ => {
+                                        continue;
+                                    },
+                                }
+                            },
+                            _ => {
+                                continue;
+                            },
+                        }
+                    }
+                    for level in &levels {
+                        match level.as_str() {
+                            "COLLECTION" => {
+                                for (k, v) in &tags {
+                                    match k.as_str() {
+                                        "TITLE" => {
+                                            albumset.name.push(v.clone());
+                                        },
+                                        "ARTIST" => {
+                                            albumset.artist.push(v.clone());
+                                        },
+                                        _ => { },
+                                    }
+                                }
+                            },
+                            "EDITION / ISSUE / VOLUME / OPUS / SEASON / SEQUEL" | "fake_ALBUM" => {
+                                for (k, v) in &tags {
+                                    match k.as_str() {
+                                        "TITLE" => {
+                                            album_name.push(v.clone());
+                                        },
+                                        "ARTIST" => {
+                                            album_artist.push(v.clone());
+                                        },
+                                        "PART_NUMBER" => {
+                                            disk_number = Some(usize::from_str_radix(&v, 10)?);
+                                        },
+                                        _ => { },
+                                    }
+                                }
+                            },
+                            "TRACK / SONG / CHAPTER" => {
+                                for (k, v) in &tags {
+                                    match k.as_str() {
+                                        "TITLE" => {
+                                            track_name.push(v.clone());
+                                        },
+                                        "ARTIST" => {
+                                            track_artist.push(v.clone());
+                                        },
+                                        "PART_NUMBER" => {
+                                            track_number = Some(usize::from_str_radix(&v, 10)?);
+                                        },
+                                        _ => { },
+                                    }
+                                }
+                            },
+                            _ => { },
+                        }
                     }
                 }
                 let album = match albumset.albums.iter().find(|a| a.borrow().index == disk_number) {
@@ -288,6 +469,8 @@ fn import_dir(log: &StandardLog, root_dir: PathBuf) -> Result<(), loga::Error> {
                         let a = Rc::new(RefCell::new(GatherAlbum {
                             id: node_id(),
                             index: disk_number,
+                            name: vec![],
+                            name_sort: vec![],
                             artist: vec![],
                             artist_sort: vec![],
                             tracks: vec![],
@@ -304,40 +487,16 @@ fn import_dir(log: &StandardLog, root_dir: PathBuf) -> Result<(), loga::Error> {
                         .album
                         .insert(album.id.clone());
                 }
-                let mut track_artist = vec![];
-                for tag_k in [vlc::Meta::Artist] {
-                    if let Some(tag_value) = info.get_meta(tag_k) {
-                        track_artist.push(tag_value);
-                    }
-                }
-                album.artist.extend(track_artist.clone());
-                album.artist_sort.extend(track_artist.clone());
-                albumset.artist.extend(track_artist.clone());
-                albumset.artist_sort.extend(track_artist.clone());
+                album.name.extend(album_name.clone());
+                album.artist.extend(album_artist.clone());
                 album.tracks.push(Rc::new(RefCell::new(GatherTrack {
                     type_: GatherTrackType::Video,
                     id: node_id(),
-                    index: {
-                        let mut track_number = None;
-                        for tag_k in [vlc::Meta::TrackNumber, vlc::Meta::Episode] {
-                            if let Some(tag_value) = info.get_meta(tag_k) {
-                                track_number = Some(usize::from_str_radix(&tag_value, 10)?);
-                            }
-                        }
-                        track_number
-                    },
+                    index: track_number,
                     file: file.path().to_path_buf(),
                     artist: track_artist,
                     artist_sort: vec![],
-                    name: {
-                        let mut values = vec![];
-                        for tag_k in [vlc::Meta::Title] {
-                            if let Some(tag_value) = info.get_meta(tag_k) {
-                                values.push(tag_value);
-                            }
-                        }
-                        values
-                    },
+                    name: track_name,
                     name_sort: vec![],
                 })));
             },
@@ -403,13 +562,24 @@ fn import_dir(log: &StandardLog, root_dir: PathBuf) -> Result<(), loga::Error> {
         }
         triples.push(triple(&album_id, &pred_is(), &root_album_id()));
         triples.push(triple(&album_id, &pred_media(), &root_audio_id()));
-        if albumset.albums.len() > 1 && album.index.is_some() {
+        if album.name.len() >= 1 {
+            for name in &album.name {
+                triples.push(triple(&album_id, &pred_name(), &node_value_str(&name)));
+            }
+        } else if albumset.albums.len() > 1 && album.index.is_some() {
             let index = album.index.unwrap();
             for name in &albumset.name {
                 triples.push(
                     triple(&album_id, &pred_name(), &node_value_str(&format!("{} (Disk {})", name, index))),
                 );
             }
+        }
+        if album.name_sort.len() >= 1 {
+            for name in &album.name_sort {
+                triples.push(triple(&album_id, &pred_name_sort(), &node_value_str(&name)));
+            }
+        } else if albumset.albums.len() > 1 && album.index.is_some() {
+            let index = album.index.unwrap();
             for album_name_sort in &albumset.name_sort {
                 triples.push(
                     triple(
@@ -418,7 +588,6 @@ fn import_dir(log: &StandardLog, root_dir: PathBuf) -> Result<(), loga::Error> {
                         &node_value_str(&format!("{} (Disk {})", album_name_sort, index)),
                     ),
                 );
-                break;
             }
         }
         for (v, v_sort) in pair_artists(&album.artist, &album.artist_sort) {
@@ -443,7 +612,7 @@ fn import_dir(log: &StandardLog, root_dir: PathBuf) -> Result<(), loga::Error> {
                     triples.push(triple(&track_id, &pred_media(), &root_video_id()));
                 },
             }
-            triples.push(triple(&track_id, &pred_file(), &node_upload(&track.file)));
+            triples.push(triple(&track_id, &pred_file(), &node_upload(&root_dir, &track.file)));
             for v in track.name.iter().collect::<HashSet<_>>() {
                 triples.push(triple(&track_id, &pred_name(), &node_value_str(v)));
             }
@@ -473,7 +642,7 @@ fn import_dir(log: &StandardLog, root_dir: PathBuf) -> Result<(), loga::Error> {
                 }
             }
             let subj = subj.unwrap_or_else(|| albumset_id.clone());
-            triples.push(triple(&subj, &predicate, &node_upload(&v)));
+            triples.push(triple(&subj, &predicate, &node_upload(&root_dir, &v)));
         }
     };
     assoc_nontrack(images, &pred_image());

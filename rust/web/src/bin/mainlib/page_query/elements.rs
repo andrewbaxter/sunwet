@@ -34,10 +34,6 @@ use rooting::{
     spawn_rooted,
     El,
 };
-use rooting_forms::{
-    BigString,
-    Form,
-};
 use serde::de::DeserializeOwned;
 use shared::{
     model::{
@@ -47,6 +43,12 @@ use shared::{
         Query,
     },
     unenum,
+};
+use shared_web::el_general::{
+    el_button_icon_blank,
+    el_icon,
+    ICON_TRANSPORT_PAUSE,
+    ICON_TRANSPORT_PLAY,
 };
 use wasm_bindgen::{
     closure::Closure,
@@ -61,20 +63,12 @@ use web_sys::{
     MediaSession,
 };
 use crate::{
-    el_general::{
-        el_button_icon_blank,
-        el_icon,
-    },
     playlist::{
         playlist_toggle_play,
         PlaylistState,
     },
-    util::{
-        ICON_TRANSPORT_PAUSE,
-        ICON_TRANSPORT_PLAY,
-    },
 };
-use super::definition::Align;
+use shared::model::view::Align;
 
 pub const CSS_TREE: &'static str = "tree";
 pub const CSS_TREE_NEST: &'static str = "tree_nest";

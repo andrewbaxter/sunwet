@@ -8,30 +8,25 @@ use rooting::{
     el,
     El,
 };
-use rooting_forms::BigString;
 use serde::{
     Deserialize,
     Serialize,
 };
 use wasm_bindgen::JsValue;
 use crate::{
-    page_query::{
-        build_page_view,
-        definition::{
-            Align,
-            Layout,
-            LayoutIndividual,
-            Orientation,
-            QueryOrField,
-            WidgetList,
-            WidgetNest,
-        },
-    },
     state::{
         State,
         View,
     },
-    testdata::testdata_albums,
+};
+use shared::model::view::{
+    Align,
+    Layout,
+    LayoutIndividual,
+    Orientation,
+    QueryOrField,
+    ViewPartList,
+    WidgetNest,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

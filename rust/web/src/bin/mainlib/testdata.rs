@@ -31,10 +31,6 @@ use rooting::{
     spawn_rooted,
     El,
 };
-use rooting_forms::{
-    BigString,
-    Form,
-};
 use serde::de::DeserializeOwned;
 use shared::{
     model::{
@@ -57,7 +53,7 @@ use web_sys::{
     MediaMetadata,
     MediaSession,
 };
-use crate::page_query::definition::{
+use shared::model::view::{
     Align,
     BlockSizeMode,
     FieldOrLiteral,
@@ -70,14 +66,14 @@ use crate::page_query::definition::{
     Widget,
     WidgetAudio,
     WidgetImage,
-    WidgetList,
+    ViewPartList,
     WidgetNest,
     WidgetTextLine,
 };
 
-pub fn testdata_albums() -> WidgetList {
-    return WidgetList {
-        data: QueryOrField::Query(BigString(include_str!("query_albums.datalog").to_string())),
+pub fn testdata_albums() -> ViewPartList {
+    return ViewPartList {
+        data: QueryOrField::Query(include_str!("query_albums.datalog").to_string()),
         key_field: "album_id".to_string(),
         layout: Layout::Individual(LayoutIndividual {
             orientation: Orientation::DownRight,
@@ -109,10 +105,8 @@ pub fn testdata_albums() -> WidgetList {
                                 orientation: Orientation::RightDown,
                                 align: Align::Start,
                             }),
-                            Widget::Sublist(WidgetList {
-                                data: QueryOrField::Query(
-                                    BigString(include_str!("query_tracks.datalog").to_string()),
-                                ),
+                            Widget::Sublist(ViewPartList {
+                                data: QueryOrField::Query(include_str!("query_tracks.datalog").to_string()),
                                 key_field: "file".to_string(),
                                 layout: Layout::Table(LayoutTable {
                                     orientation: Orientation::DownRight,

@@ -6,15 +6,26 @@ use std::{
     },
     collections::HashMap,
     panic,
-    rc::Rc,
+    rc::{
+        Rc,
+        Weak,
+    },
     str::FromStr,
 };
+use chrono::{
+    DateTime,
+    Utc,
+};
 use gloo::{
-    console::{
-        log,
-        warn,
+    console::warn,
+    events::EventListener,
+    timers::{
+        callback::{
+            Interval,
+            Timeout,
+        },
+        future::TimeoutFuture,
     },
-    timers::callback::Interval,
     utils::{
         document,
         window,
@@ -35,14 +46,18 @@ use rooting::{
     set_root,
     spawn_rooted,
     El,
-};
-use rooting_forms::{
-    BigString,
-    Form,
+    ScopeValue,
 };
 use serde::de::DeserializeOwned;
 use shared::{
     model::{
+        link::{
+            Prepare,
+            PrepareAudio,
+            PrepareMedia,
+            WsC2SNotify,
+            WsC2SReq,
+        },
         C2SReq,
         FileHash,
         Node,
@@ -56,24 +71,30 @@ use wasm_bindgen::{
     JsValue,
     UnwrapThrowExt,
 };
+use web::{
+    el_general::{
+        async_event,
+        log,
+        log_js,
+    },
+    websocket::Ws,
+};
 use web_sys::{
     HtmlAudioElement,
     HtmlMediaElement,
     MediaMetadata,
     MediaSession,
 };
-use crate::{
-    el_general::log,
-    ministate::{
-        record_replace_ministate,
-        Ministate,
-        PlaylistEntryPath,
-        PlaylistPos,
-    },
+use crate::mainlib::ministate::record_replace_ministate;
+use super::ministate::{
+    Ministate,
+    PlaylistEntryPath,
+    PlaylistPos,
 };
 
 pub trait PlaylistMedia {
-    fn pm_play(&self);
+    fn pm_set_volume(&self, vol: f64);
+    fn pm_play(&self, pc: &mut ProcessingContext, state: &PlaylistState);
     fn pm_stop(&self);
     fn pm_seek_forward(&self, offset_seconds: f64);
     fn pm_seek_backwards(&self, offset_seconds: f64);
@@ -81,6 +102,7 @@ pub trait PlaylistMedia {
     fn pm_get_time(&self) -> f64;
     fn pm_get_max_time(&self) -> Option<f64>;
     fn pm_get_ministate(&self) -> Ministate;
+    fn pm_el(&self) -> &El;
 }
 
 pub struct AudioPlaylistMedia {
@@ -97,7 +119,16 @@ impl AudioPlaylistMedia {
 }
 
 impl PlaylistMedia for AudioPlaylistMedia {
-    fn pm_play(&self) {
+    fn pm_set_volume(&self, vol: f64) {
+        let audio = self.audio();
+        audio.set_volume(vol);
+    }
+
+    fn pm_el(&self) -> &El {
+        return &self.element;
+    }
+
+    fn pm_play(&self, pc: &mut ProcessingContext, state: &PlaylistState) {
         let audio = self.audio();
         _ = audio.play().unwrap();
     }
@@ -157,6 +188,7 @@ pub struct VideoPlaylistMedia {
     pub ministate_id: String,
     pub ministate_title: String,
     pub ministate_path: Option<PlaylistEntryPath>,
+    pub fullscreen_listener: Cell<Option<ScopeValue>>,
 }
 
 impl VideoPlaylistMedia {
@@ -166,13 +198,36 @@ impl VideoPlaylistMedia {
 }
 
 impl PlaylistMedia for VideoPlaylistMedia {
-    fn pm_play(&self) {
+    fn pm_set_volume(&self, vol: f64) {
+        let media = self.media();
+        media.set_volume(vol);
+    }
+
+    fn pm_el(&self) -> &El {
+        return &self.element;
+    }
+
+    fn pm_play(&self, pc: &mut ProcessingContext, state: &PlaylistState) {
         let s = self.media();
         match s.request_fullscreen() {
             Err(e) => {
-                warn!("Failed to fullscreen video: {}", e);
+                log_js("Failed to fullscreen video", &e);
             },
-            _ => { },
+            _ => {
+                self.fullscreen_listener.set(Some(scope_any(EventListener::new(&s, "fullscreenchange", {
+                    let state = state.weak();
+                    let s = s.clone();
+                    let eg = pc.eg();
+                    move |_| eg.event(|pc| {
+                        let Some(state) = state.upgrade() else {
+                            return;
+                        };
+                        if !window().document().unwrap().fullscreen() {
+                            playlist_pause(pc, &state);
+                        }
+                    })
+                }))));
+            },
         }
         _ = s.play().unwrap();
     }
@@ -181,6 +236,7 @@ impl PlaylistMedia for VideoPlaylistMedia {
         let s = self.media();
         s.pause().unwrap();
         document().exit_fullscreen();
+        self.fullscreen_listener.set(None);
     }
 
     fn pm_seek_forward(&self, offset_seconds: f64) {
@@ -228,11 +284,18 @@ impl PlaylistMedia for VideoPlaylistMedia {
     }
 }
 
+pub enum PlaylistEntryMediaType {
+    Audio,
+    Video,
+}
+
 pub struct PlaylistEntry {
     pub name: Option<String>,
     pub album: Option<String>,
     pub artist: Option<String>,
-    pub thumbnail: Option<String>,
+    pub cover_url: Option<String>,
+    pub file_url: String,
+    pub media_type: PlaylistEntryMediaType,
     pub media: Box<dyn PlaylistMedia>,
 }
 
@@ -243,10 +306,30 @@ pub struct PlaylistState_ {
     pub playing_i: HistPrim<Option<usize>>,
     pub playing_time: Prim<f64>,
     pub playing_max_time: Prim<Option<f64>>,
+    pub volume: Prim<(f64, f64)>,
+    pub share: Prim<Option<Ws<WsC2SNotify, (), WsC2SReq>>>,
 }
 
 #[derive(Clone)]
 pub struct PlaylistState(pub Rc<PlaylistState_>);
+
+impl PlaylistState {
+    pub fn weak(&self) -> WeakPlaylistState {
+        return WeakPlaylistState(Rc::downgrade(&self.0));
+    }
+}
+
+#[derive(Clone)]
+pub struct WeakPlaylistState(pub Weak<PlaylistState_>);
+
+impl WeakPlaylistState {
+    pub fn upgrade(&self) -> Option<PlaylistState> {
+        match self.0.upgrade() {
+            Some(p) => return Some(PlaylistState(p)),
+            None => return None,
+        }
+    }
+}
 
 pub fn state_new(pc: &mut ProcessingContext) -> (PlaylistState, rooting::ScopeValue) {
     let state = PlaylistState(Rc::new(PlaylistState_ {
@@ -255,6 +338,8 @@ pub fn state_new(pc: &mut ProcessingContext) -> (PlaylistState, rooting::ScopeVa
         playing_i: HistPrim::new(pc, None),
         playing_time: Prim::new(pc, 0.),
         playing_max_time: Prim::new(pc, None),
+        volume: Prim::new(pc, (0.5, 0.5)),
+        share: Prim::new(pc, None),
     }));
     let media_session = window().navigator().media_session();
 
@@ -330,16 +415,32 @@ pub fn state_new(pc: &mut ProcessingContext) -> (PlaylistState, rooting::ScopeVa
     })));
     return (state.clone(), scope_any((
         //. .
+        link!((_pc = pc), (volume = state.0.volume.clone()), (), (state = state.clone()) {
+            let Some(i) = state.0.playing_i.get_old() else {
+                return None;
+            };
+            let e = state.0.playlist.borrow().get(i).cloned().unwrap();
+            let volume = volume.borrow();
+            e.media.pm_set_volume(volume.0 + volume.1)
+        }),
         link!(
             //. .
-            (_pc = pc),
+            (pc = pc),
             (playing = state.0.playing.clone(), playing_i = state.0.playing_i.clone()),
             (),
-            (state = state.clone(), media_session = media_session) {
+            (state = state.clone(), media_session = media_session, bg = Cell::new(None)) {
                 if !*playing.borrow() {
                     // Stop previous
                     if let Some(i) = playing_i.get_old() {
                         if let Some(e) = state.0.playlist.borrow().get(i).cloned() {
+                            if let Some(ws) = &*state.0.share.borrow() {
+                                bg.set(Some(spawn_rooted({
+                                    let ws = ws.clone();
+                                    async move {
+                                        ws.notify(WsC2SNotify::Pause).await;
+                                    }
+                                })));
+                            }
                             e.media.pm_stop();
                         }
                     }
@@ -361,7 +462,53 @@ pub fn state_new(pc: &mut ProcessingContext) -> (PlaylistState, rooting::ScopeVa
                         },
                     };
                     let e = state.0.playlist.borrow().get(i).cloned().unwrap();
-                    e.media.pm_play();
+                    if let Some(ws) = &*state.0.share.borrow() {
+                        bg.set(Some(spawn_rooted({
+                            let ws = ws.clone();
+                            async move {
+                                ws.notify(WsC2SNotify::Prepare(Prepare {
+                                    artist: e.artist.clone().unwrap_or_default(),
+                                    album: e.album.clone().unwrap_or_default(),
+                                    name: e.name.clone().unwrap_or_default(),
+                                    media: match e.media_type {
+                                        PlaylistEntryMediaType::Audio => PrepareMedia::Audio(PrepareAudio {
+                                            cover_url: e.cover_url.clone().unwrap_or_default(),
+                                            audio_url: e.file_url.clone(),
+                                        }),
+                                        PlaylistEntryMediaType::Video => PrepareMedia::Video(e.file_url.clone()),
+                                    },
+                                    media_time: e.media.pm_get_time(),
+                                })).await;
+                                let media_el = e.media.pm_el();
+                                media_el.ref_attr("preload", "auto");
+                                let raw_media_el = media_el.raw().dyn_into::<HtmlMediaElement>().unwrap();
+
+                                // `HAVE_ENOUGH_DATA`
+                                if raw_media_el.ready_state() < 4 {
+                                    async_event(&raw_media_el, "canplaythrough").await;
+                                }
+                                let play_at =
+                                    match ws.request::<DateTime<Utc>>(WsC2SReq::Ready(Utc::now())).await {
+                                        Ok(Some(r)) => r,
+                                        Ok(None) => {
+                                            return;
+                                        },
+                                        Err(e) => {
+                                            log(format!("Received error from ready request: {}", e));
+                                            return;
+                                        },
+                                    };
+                                TimeoutFuture::new((play_at - Utc::now()).num_milliseconds().max(0) as u32).await;
+                                let vol = state.0.volume.borrow();
+                                e.media.pm_set_volume(vol.0 + vol.1);
+                                e.media.pm_play(pc, &state);
+                            }
+                        })));
+                    } else {
+                        let vol = state.0.volume.borrow();
+                        e.media.pm_set_volume(vol.0 + vol.1);
+                        e.media.pm_play(pc, &state);
+                    }
                 }
                 match state.0.playing_i.get() {
                     Some(i) => {
@@ -377,10 +524,10 @@ pub fn state_new(pc: &mut ProcessingContext) -> (PlaylistState, rooting::ScopeVa
                             if let Some(artist) = &e.artist {
                                 m.set_artist(artist);
                             }
-                            if let Some(thumbnail) = &e.thumbnail {
+                            if let Some(cover) = &e.cover_url {
                                 let arr = js_sys::Array::new();
                                 let e = js_sys::Object::new();
-                                js_sys::Reflect::set(&e, &JsValue::from("src"), &JsValue::from(thumbnail)).unwrap();
+                                js_sys::Reflect::set(&e, &JsValue::from("src"), &JsValue::from(cover)).unwrap();
                                 arr.push(e.dyn_ref().unwrap());
                                 m.set_artwork(&arr.dyn_into().unwrap());
                             }

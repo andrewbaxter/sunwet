@@ -1,0 +1,7 @@
+{
+    files[hash] <- $files
+    ?[hash] := 
+        files[hash],
+        file_node = ["file", hash],
+        *triple{subject: file_node} or *triple{object: file_node}
+}

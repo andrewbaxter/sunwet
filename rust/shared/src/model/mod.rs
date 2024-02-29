@@ -10,6 +10,7 @@ use self::view::ViewPartList;
 
 pub mod view;
 pub mod cli;
+pub mod link;
 
 pub const HEADER_OFFSET: &'static str = "x-file-offset";
 
@@ -91,6 +92,16 @@ impl FromStr for FileHash {
     }
 }
 
+impl aargvark::AargvarkFromStr for FileHash {
+    fn from_str(s: &str) -> Result<Self, String> {
+        return <Self as std::str::FromStr>::from_str(s).map_err(|e| e.to_string());
+    }
+
+    fn build_help_pattern(_state: &mut aargvark::HelpState) -> aargvark::HelpPattern {
+        return aargvark::HelpPattern(vec![aargvark::HelpPatternElement::Type("FILE_HASH".to_string())]);
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct Query {
@@ -98,11 +109,27 @@ pub struct Query {
     pub parameters: HashMap<String, serde_json::Value>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum QueryDefParameter {
+    Text,
+    Number,
+    Bool,
+    Datetime,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ViewDef {
+    pub parameters: Vec<(String, QueryDefParameter)>,
+    pub def: ViewPartList,
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ViewEnsure {
     pub id: String,
-    pub def: ViewPartList,
+    pub def: ViewDef,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -114,4 +141,10 @@ pub enum C2SReq {
     ViewsList,
     ViewEnsure(ViewEnsure),
     ViewDelete(String),
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct UploadFinishResp {
+    pub done: bool,
 }

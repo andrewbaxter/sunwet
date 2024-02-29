@@ -9,8 +9,8 @@ pub fn node_id() -> String {
     return Uuid::new_v4().hyphenated().to_string();
 }
 
-pub fn node_upload(p: &Path) -> CliNode {
-    return CliNode::Upload(p.to_path_buf());
+pub fn node_upload(root: &Path, p: &Path) -> CliNode {
+    return CliNode::Upload(p.strip_prefix(root).unwrap().to_path_buf());
 }
 
 pub fn node_value_str(v: &str) -> CliNode {

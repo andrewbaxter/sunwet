@@ -1,18 +1,9 @@
 use std::{
     cell::RefCell,
     collections::HashMap,
-    pin::Pin,
     rc::Rc,
 };
-use futures::{
-    future::{
-        BoxFuture,
-        Shared,
-    },
-    Future,
-};
 use lunk::{
-    Prim,
     ProcessingContext,
 };
 use rooting::{
@@ -20,50 +11,46 @@ use rooting::{
     El,
     WeakEl,
 };
-use rooting_forms::BigString;
 use serde::{
     Deserialize,
     Serialize,
 };
-use shared::bb;
-use crate::{
+use shared::model::{
+    ViewDef,
+};
+use web::{
+    async_::BgVal,
     el_general::{
         CSS_BUTTON,
         CSS_BUTTON_ICON_TEXT,
     },
+};
+use crate::{
+    playlist::PlaylistState,
+};
+use super::{
     ministate::{
         record_new_ministate,
         Ministate,
         PlaylistEntryPath,
     },
     page_query::{
-        build_page_view,
         build_page_view_by_id,
-        definition::{
-            Align,
-            Layout,
-            LayoutIndividual,
-            Orientation,
-            QueryOrField,
-            WidgetList,
-            WidgetNest,
-        },
         BuildPlaylistPos,
     },
-    playlist::PlaylistState,
-    util::BgVal,
 };
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct View {
     pub name: String,
-    pub def: WidgetList,
+    pub def: ViewDef,
 }
 
 pub struct State_ {
     pub origin: String,
     pub playlist: PlaylistState,
     pub views: BgVal<Rc<RefCell<HashMap<String, View>>>>,
+    pub stack: WeakEl,
     pub mobile_vert_title_group: WeakEl,
     pub title_group: WeakEl,
     pub body_group: WeakEl,

@@ -7,17 +7,7 @@ use std::{
     rc::Rc,
     str::FromStr,
 };
-use gloo::{
-    console::{
-        log,
-        warn,
-    },
-    utils::{
-        document,
-        window,
-    },
-};
-use js_sys::Function;
+use futures::channel::oneshot::channel;
 use lunk::{
     link,
     EventGraph,
@@ -25,18 +15,12 @@ use lunk::{
     Prim,
     ProcessingContext,
 };
-use reqwasm::http::Request;
 use rooting::{
     el,
     set_root,
     spawn_rooted,
     El,
 };
-use rooting_forms::{
-    BigString,
-    Form,
-};
-use serde::de::DeserializeOwned;
 use shared::{
     model::{
         C2SReq,
@@ -54,13 +38,36 @@ use wasm_bindgen::{
 };
 use web_sys::{
     console::log_1,
+    Event,
+    EventTarget,
     HtmlAudioElement,
     HtmlMediaElement,
     MediaMetadata,
     MediaSession,
 };
-use crate::util::CssIcon;
+use gloo::events::EventListener;
 
+#[derive(Clone, Copy)]
+pub struct CssIcon(pub &'static str);
+
+pub static ICON_TRANSPORT_PLAY: CssIcon = CssIcon("\u{e037}");
+pub static ICON_TRANSPORT_PAUSE: CssIcon = CssIcon("\u{e034}");
+pub static ICON_TRANSPORT_NEXT: CssIcon = CssIcon("\u{e5cc}");
+pub static ICON_TRANSPORT_PREVIOUS: CssIcon = CssIcon("\u{e5cb}");
+pub static ICON_MENU: CssIcon = CssIcon("\u{e5d2}");
+pub static ICON_NOMENU: CssIcon = CssIcon("\u{e9bd}");
+pub static ICON_EDIT: CssIcon = CssIcon("\u{e3c9}");
+pub static ICON_NOEDIT: CssIcon = CssIcon("\u{e8f4}");
+pub static ICON_ADD: CssIcon = CssIcon("\u{e145}");
+pub static ICON_REMOVE: CssIcon = CssIcon("\u{e15b}");
+pub static ICON_FILL: CssIcon = CssIcon("\u{e877}");
+pub static ICON_RESET: CssIcon = CssIcon("\u{e166}");
+pub static ICON_SELECT_ALL: CssIcon = CssIcon("\u{e837}");
+pub static ICON_SELECT_NONE: CssIcon = CssIcon("\u{e836}");
+pub static ICON_VOLUME: CssIcon = CssIcon("\u{e050}");
+pub static ICON_SHARE: CssIcon = CssIcon("\u{e80d}");
+pub static ICON_CLOSE: CssIcon = CssIcon("\u{e5cd}");
+pub static CSS_GROW: &'static str = "grow";
 pub static CSS_BUTTON: &'static str = "g_button";
 pub static CSS_BUTTON_ICON: &'static str = "g_button_icon";
 pub static CSS_BUTTON_ICON_TEXT: &'static str = "g_button_icon_text";
@@ -188,4 +195,53 @@ pub fn el_vbox() -> El {
 
 pub fn log(x: impl Display) {
     web_sys::console::log_1(&JsValue::from_str(&x.to_string()));
+}
+
+pub fn log_js(x: impl Display, v: &JsValue) {
+    web_sys::console::log_2(&JsValue::from_str(&x.to_string()), v);
+}
+
+pub fn log_js2(x: impl Display, v: &JsValue, v2: &JsValue) {
+    web_sys::console::log_3(&JsValue::from_str(&x.to_string()), v, v2);
+}
+
+pub fn el_async() -> El {
+    return el("div").classes(&["g_async"]);
+}
+
+pub fn el_modal(pc: &mut ProcessingContext, title: &str, body: El) -> El {
+    let out = el_stack();
+    out.ref_extend(
+        vec![
+            el("div").classes(&["s_modal_bg"]),
+            el_vbox()
+                .classes(&["s_modal"])
+                .extend(vec![el_hbox().extend(vec![el("h1").text(title), el_button_icon(pc, ICON_CLOSE, "Close", {
+                    let out = out.weak();
+                    move |_pc| {
+                        let Some(out) = out.upgrade() else {
+                            return;
+                        };
+                        out.ref_replace(vec![]);
+                    }
+                })]), body])
+        ],
+    );
+    out
+}
+
+pub async fn async_event(e: &EventTarget, event: &str) -> Event {
+    let (tx, rx) = channel();
+    let _l = EventListener::once(e, event.to_string(), move |ev| {
+        _ = tx.send(ev.clone());
+    });
+    return rx.await.unwrap();
+}
+
+pub fn el_video(src: &str) -> El {
+    return el("video").attr("preload", "metadata").push(el("source").attr("src", src));
+}
+
+pub fn el_audio(src: &str) -> El {
+    return el("audio").attr("preload", "metadata").attr("src", src);
 }
