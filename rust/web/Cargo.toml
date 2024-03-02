@@ -34,9 +34,9 @@ tokio = { version = "1", features = ["macros", "sync"] }
 hex = "0.4"
 defer = "0.1"
 shared = { path = "../shared" }
-shared_web = { path = "../shared_web" }
 sha2 = "0.10"
 lunk = "0.1"
 rooting = { version = "0.1", features = ["futures"] }
 urlencoding = "2.1.3"
-qrcode = "0.13.0"
+qrcode = { version = "0.13.0", default-features = false, features = ["svg"] }
+uuid = { version = "1.7.0", features = ["v4"] }

@@ -93,8 +93,8 @@ pub mod args {
     };
     use shared::model::{
         cli::CliCommit,
-        view::ViewPartList,
         FileHash,
+        ViewDef,
     };
 
     pub struct JsonKv {
@@ -153,7 +153,7 @@ pub mod args {
     #[derive(Aargvark)]
     pub struct ViewEnsure {
         pub id: String,
-        pub definition: JsonOrYaml<ViewPartList>,
+        pub definition: JsonOrYaml<ViewDef>,
     }
 
     #[derive(Aargvark)]

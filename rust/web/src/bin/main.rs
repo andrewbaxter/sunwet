@@ -123,7 +123,7 @@ fn main() {
         EventListener::new(&window(), "popstate", {
             let eg = pc.eg();
             let state = state.clone();
-            move |e| eg.event(|pc| {
+            move |_e| eg.event(|pc| {
                 restore_ministate(pc, &state);
             })
         }).forget();

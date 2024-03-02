@@ -1,44 +1,24 @@
 use std::{
-    any::Any,
     cell::{
         Cell,
         RefCell,
     },
-    collections::HashMap,
     panic,
     rc::Rc,
-    str::FromStr,
 };
 use chrono::{
     DateTime,
-    Duration,
     Utc,
 };
-use futures::{
-    Future,
-    FutureExt,
-};
 use gloo::{
-    console::{
-        console,
-        warn,
-    },
-    events::EventListener,
     timers::future::TimeoutFuture,
-    utils::{
-        document,
-        window,
-    },
+    utils::window,
 };
-use js_sys::Function;
 use lunk::{
     link,
     EventGraph,
-    HistPrim,
     Prim,
-    ProcessingContext,
 };
-use reqwasm::http::Request;
 use rooting::{
     el,
     scope_any,
@@ -47,42 +27,13 @@ use rooting::{
     El,
     ScopeValue,
 };
-use serde::{
-    de::DeserializeOwned,
-    Deserialize,
-    Serialize,
+use shared::model::link::{
+    PrepareMedia,
+    WsL2SReq,
+    WsL2SReqMode,
+    WsS2LNotify,
 };
-use shared::{
-    bb,
-    model::{
-        link::{
-            PrepareMedia,
-            WsL2SReq,
-            WsS2LNotify,
-        },
-        view::{
-            LayoutIndividual,
-            ViewPartList,
-            WidgetNest,
-        },
-        C2SReq,
-        FileHash,
-        Node,
-        Query,
-    },
-    unenum,
-};
-use tokio::sync::{
-    broadcast,
-    OnceCell,
-};
-use wasm_bindgen::{
-    closure::Closure,
-    JsCast,
-    JsValue,
-    UnwrapThrowExt,
-};
-use wasm_bindgen_futures::spawn_local;
+use wasm_bindgen::JsCast;
 use web::{
     el_general::{
         async_event,
@@ -97,15 +48,8 @@ use web::{
     websocket::Ws,
 };
 use web_sys::{
-    console::log_2,
-    HtmlAudioElement,
     HtmlInputElement,
     HtmlMediaElement,
-    MediaMetadata,
-    MediaSession,
-    MessageEvent,
-    Url,
-    WebSocket,
 };
 
 struct State_ {
@@ -125,6 +69,11 @@ fn main() {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
     let eg = EventGraph::new();
     eg.event(|pc| {
+        let hash = window().location().hash().unwrap();
+        let Some(sess_id) = hash.strip_prefix("#") else {
+            panic!("Missing session id");
+        };
+        let sess_id = sess_id.to_string();
         let display = el("div").classes(&["s_display"]);
         let album = el("span").classes(&["s_album"]);
         let artist = el("span").classes(&["s_author"]);
@@ -141,10 +90,12 @@ fn main() {
         }));
         let ws = Ws::<(), WsS2LNotify, WsL2SReq>::new({
             let state = state.clone();
+            let sess_id = sess_id.clone();
             move |ws, message| {
                 state.0.message_bg.set(scope_any(spawn_rooted({
                     let ws = ws.clone();
                     let state = state.clone();
+                    let sess_id = sess_id.clone();
                     async move {
                         match message {
                             WsS2LNotify::Prepare(prepare) => {
@@ -178,17 +129,19 @@ fn main() {
                                 if raw_media_el.ready_state() < 4 {
                                     async_event(&raw_media_el, "canplaythrough").await;
                                 }
-                                let play_at =
-                                    match ws.request::<DateTime<Utc>>(WsL2SReq::Ready(Utc::now())).await {
-                                        Ok(Some(r)) => r,
-                                        Ok(None) => {
-                                            return;
-                                        },
-                                        Err(e) => {
-                                            log(format!("Received error from ready request: {}", e));
-                                            return;
-                                        },
-                                    };
+                                let play_at = match ws.request::<DateTime<Utc>>(WsL2SReq {
+                                    session_id: sess_id.clone(),
+                                    mode: WsL2SReqMode::Ready(Utc::now()),
+                                }).await {
+                                    Ok(Some(r)) => r,
+                                    Ok(None) => {
+                                        return;
+                                    },
+                                    Err(e) => {
+                                        log(format!("Received error from ready request: {}", e));
+                                        return;
+                                    },
+                                };
                                 TimeoutFuture::new((play_at - Utc::now()).num_milliseconds().max(0) as u32).await;
                                 media_el2.set_volume(*state.0.volume.borrow());
                                 _ = media_el2.play().unwrap();
@@ -211,14 +164,17 @@ fn main() {
                 album,
                 el_hbox().extend(vec![artist, name]),
                 el_hbox().extend(
-                    vec![el_icon(ICON_VOLUME, "Volume"), el("input").attr("type", "range").on("input", {
-                        let volume = volume.clone();
-                        let eg = pc.eg();
-                        move |ev| eg.event(|pc| {
-                            let input = ev.dyn_ref::<HtmlInputElement>().unwrap();
-                            volume.set(pc, input.value_as_number());
+                    vec![
+                        el_icon(ICON_VOLUME).attr("title", "Volume"),
+                        el("input").attr("type", "range").on("input", {
+                            let volume = volume.clone();
+                            let eg = pc.eg();
+                            move |ev| eg.event(|pc| {
+                                let input = ev.dyn_ref::<HtmlInputElement>().unwrap();
+                                volume.set(pc, input.value_as_number());
+                            })
                         })
-                    })],
+                    ],
                 )
             ]).own(|_| (ws, link!((_pc = pc), (volume = volume), (), (state = state.clone()) {
                 let media = state.0.media.borrow();

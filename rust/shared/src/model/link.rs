@@ -7,6 +7,12 @@ use serde::{
     Serialize,
 };
 
+#[derive(Debug, Serialize, Deserialize)]
+pub enum WsMessage {
+    Notify(serde_json::Value),
+    Request(serde_json::Value),
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case")]
 pub struct PrepareAudio {
@@ -40,19 +46,40 @@ pub enum WsS2LNotify {
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case")]
-pub enum WsL2SReq {
+pub struct WsL2SReq {
+    pub session_id: String,
+    pub mode: WsL2SReqMode,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum WsL2SReqMode {
     Ready(DateTime<Utc>),
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case")]
-pub enum WsC2SNotify {
+pub struct WsC2SNotify {
+    pub session_id: String,
+    pub mode: WsC2SNotifyMode,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum WsC2SNotifyMode {
     Prepare(Prepare),
     Pause,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case")]
-pub enum WsC2SReq {
+pub struct WsC2SReq {
+    pub session_id: String,
+    pub mode: WsC2SReqMode,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum WsC2SReqMode {
     Ready(DateTime<Utc>),
 }

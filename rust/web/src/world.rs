@@ -1,29 +1,10 @@
-use std::{
-    any::Any,
-    cell::RefCell,
-    collections::HashMap,
-    panic,
-    rc::Rc,
-    str::FromStr,
-};
 use reqwasm::http::Request;
 use serde::de::DeserializeOwned;
-use shared::{
-    model::{
-        C2SReq,
-        FileHash,
-        Node,
-        Query,
-    },
-    unenum,
+use shared::model::{
+    C2SReq,
+    FileHash,
 };
 use wasm_bindgen::UnwrapThrowExt;
-use web_sys::{
-    HtmlAudioElement,
-    HtmlMediaElement,
-    MediaMetadata,
-    MediaSession,
-};
 
 pub async fn send_req(req: Request) -> Result<Vec<u8>, String> {
     let resp = match req.send().await {

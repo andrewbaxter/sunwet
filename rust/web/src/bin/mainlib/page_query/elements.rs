@@ -1,66 +1,21 @@
 use std::{
-    any::Any,
     cell::{
         Cell,
-        RefCell,
-    },
-    collections::HashMap,
-    panic,
-    rc::Rc,
-    str::FromStr,
-};
-use gloo::{
-    console::{
-        log,
-        warn,
-    },
-    utils::{
-        document,
-        window,
     },
 };
-use js_sys::Function;
 use lunk::{
     link,
-    EventGraph,
-    HistPrim,
-    Prim,
     ProcessingContext,
 };
-use reqwasm::http::Request;
 use rooting::{
     el,
-    set_root,
-    spawn_rooted,
     El,
 };
-use serde::de::DeserializeOwned;
-use shared::{
-    model::{
-        C2SReq,
-        FileHash,
-        Node,
-        Query,
-    },
-    unenum,
-};
-use shared_web::el_general::{
+use web::el_general::{
     el_button_icon_blank,
     el_icon,
     ICON_TRANSPORT_PAUSE,
     ICON_TRANSPORT_PLAY,
-};
-use wasm_bindgen::{
-    closure::Closure,
-    JsCast,
-    JsValue,
-    UnwrapThrowExt,
-};
-use web_sys::{
-    HtmlAudioElement,
-    HtmlMediaElement,
-    MediaMetadata,
-    MediaSession,
 };
 use crate::{
     playlist::{
@@ -103,9 +58,9 @@ pub fn el_media_button(pc: &mut ProcessingContext, state: &PlaylistState, entry:
             if previous.get() != Some(new_playing) {
                 button.ref_clear();
                 if new_playing {
-                    button.ref_push(el_icon(ICON_TRANSPORT_PAUSE, "Pause")).ref_attr("title", "Pause");
+                    button.ref_push(el_icon(ICON_TRANSPORT_PAUSE)).ref_attr("title", "Pause");
                 } else {
-                    button.ref_push(el_icon(ICON_TRANSPORT_PLAY, "Play")).ref_attr("title", "Play");
+                    button.ref_push(el_icon(ICON_TRANSPORT_PLAY)).ref_attr("title", "Play");
                 }
             }
             previous.set(Some(new_playing));

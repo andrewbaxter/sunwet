@@ -67,7 +67,7 @@ impl<T: Clone> WaitVal<T> {
             },
             None => {
                 if self.0.value.borrow().is_some() {
-                    self.0.notify.try_acquire().unwrap();
+                    self.0.notify.try_acquire().unwrap().forget();
                     *self.0.value.borrow_mut() = None;
                 } else {
                     // nop

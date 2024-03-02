@@ -28,6 +28,7 @@ use serde::{
     Deserialize,
     Serialize,
 };
+use shared::model::link::WsMessage;
 use wasm_bindgen::JsCast;
 use web_sys::{
     MessageEvent,
@@ -41,13 +42,6 @@ use crate::{
         log_js2,
     },
 };
-
-#[derive(Debug, Serialize, Deserialize)]
-enum WsMessage {
-    Ack(usize),
-    Notify((usize, serde_json::Value)),
-    Request((usize, serde_json::Value)),
-}
 
 pub struct Ws_<SN: Serialize + DeserializeOwned, RN: Serialize + DeserializeOwned, SR: Serialize + DeserializeOwned> {
     ws: WaitVal<WebSocket>,

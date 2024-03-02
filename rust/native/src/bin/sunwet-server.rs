@@ -1,10 +1,12 @@
 use std::{
+    any::Any,
     cmp::Reverse,
     collections::{
         BTreeMap,
         HashMap,
         HashSet,
     },
+    convert::Infallible,
     io::Write,
     net::SocketAddr,
     path::{
@@ -14,6 +16,10 @@ use std::{
     },
     str::FromStr,
     sync::{
+        atomic::{
+            AtomicU8,
+            Ordering,
+        },
         Arc,
         Mutex,
     },
@@ -39,12 +45,15 @@ use cozo::{
     ValidityTs,
 };
 use futures::{
+    SinkExt,
     TryStreamExt,
 };
+use http::request::Parts;
 use http_body::Frame;
 use http_body_util::{
     combinators::BoxBody,
     BodyExt,
+    Full,
 };
 use hyper::{
     body::{
@@ -53,16 +62,23 @@ use hyper::{
     },
     server::conn::http1,
     service::service_fn,
+    upgrade::Upgraded,
     Method,
     Request,
     Response,
+};
+use hyper_tungstenite::{
+    HyperWebsocket,
+    WebSocketStream,
 };
 use hyper_util::rt::TokioIo;
 use loga::{
     ea,
     fatal,
+    DebugDisplay,
     ErrContext,
     ResultContext,
+    StandardFlag,
 };
 use serde_json::Number;
 use native::{
@@ -74,7 +90,12 @@ use native::{
     },
 };
 use shared::{
+    bb,
     model::{
+        link::{
+            WsMessage,
+            WsS2LNotify,
+        },
         view::ViewPartList,
         C2SReq,
         CommitResp,
@@ -110,6 +131,11 @@ use tokio::{
         AsyncWriteExt,
     },
     net::TcpListener,
+    select,
+    sync::{
+        mpsc,
+        oneshot,
+    },
     task::spawn_blocking,
 };
 use rust_embed::RustEmbed;
@@ -295,6 +321,25 @@ pub fn response_404() -> Response<BoxBody<Bytes, std::io::Error>> {
     return Response::builder().status(404).body(body_empty()).unwrap();
 }
 
+pub fn response_401() -> Response<BoxBody<Bytes, std::io::Error>> {
+    return Response::builder().status(401).body(body_empty()).unwrap();
+}
+
+fn check_auth(state: &Arc<State>, parts: &Parts) -> Option<Response<BoxBody<Bytes, std::io::Error>>> { }
+
+fn check_file_auth(
+    state: &Arc<State>,
+    parts: &Parts,
+    file: &FileHash,
+) -> Option<Response<BoxBody<Bytes, std::io::Error>>> {
+
+}
+
+struct WsState {
+    send: mpsc::Sender<WsMessage>,
+    ready: Mutex<Option<oneshot::Sender<Duration>>>,
+}
+
 struct State {
     tm: TaskManager,
     log: Log,
@@ -302,9 +347,284 @@ struct State {
     files_dir: PathBuf,
     stage_dir: PathBuf,
     finishing_uploads: Mutex<HashSet<FileHash>>,
+    // Websockets
+    link_ids: AtomicU8,
+    link_main: Mutex<Option<Arc<WsState>>>,
+    link_links: Mutex<HashMap<u8, Arc<WsState>>>,
+    link_bg: Option<Box<dyn Any>>,
+    link_public_files: HashSet<FileHash>,
+    link_session: Mutex<Option<String>>,
+}
+
+fn handle_ws_main(state: Arc<State>, websocket: HyperWebsocket) {
+    let (tx, rx) = mpsc::channel(10);
+    *state.link_main.lock().unwrap() = Some(Arc::new(WsState {
+        send: tx,
+        ready: Mutex::new(None),
+    }));
+    tokio::spawn(async move {
+        match async move {
+            ta_res!(());
+            let mut websocket = websocket.await?;
+            loop {
+                match async {
+                    ta_res!(bool);
+
+                    select!{
+                        m = rx.recv() => {
+                            let Some(to_remote) = m else {
+                                return Ok(false);
+                            };
+                            websocket
+                                .send(
+                                    hyper_tungstenite::tungstenite::Message::text(
+                                        serde_json::to_string(&to_remote).unwrap(),
+                                    ),
+                                )
+                                .await?;
+                        },
+                        m = websocket.next() => {
+                            let Some(from_remote) = m else {
+                                return Ok(false);
+                            };
+
+                            bb!{
+                                match from_remote? {
+                                    hyper_tungstenite::tungstenite::Message::Text(m) => {
+                                        match serde_json::from_str::<WsC2S>(
+                                            &m,
+                                        ).context("Error parsing message json")? {
+                                            WsC2S::Prepare(prepare) => {
+                                                let (main_ready_tx, main_ready_rx) = oneshot::channel();
+                                                let Some(main) = state.link_main.lock().unwrap().clone() else {
+                                                    continue;
+                                                };
+                                                *main.ready.lock().unwrap() = Some(main_ready_tx);
+                                                let mut link_readies = vec![];
+                                                for link in state.link_links.lock().unwrap().values().cloned() {
+                                                    let link = link.clone();
+                                                    let (ready_tx, ready_rx) = oneshot::channel();
+                                                    *link.ready.lock().unwrap() = Some(ready_tx);
+                                                    _ = link.send.send(WsS2L::Prepare(prepare.clone())).await;
+                                                    link_readies.push(ready_rx);
+                                                }
+                                                state.link_bg = spawn_scoped(async move {
+                                                    let mut delays = vec![];
+                                                    if let Ok(delay) = main_ready_rx.await {
+                                                        delays.push(delay);
+                                                    }
+                                                    for ready in link_readies {
+                                                        if let Ok(delay) = ready.await {
+                                                            delays.push(delay);
+                                                        }
+                                                    }
+                                                    delays.sort();
+                                                    let delay = delays.last().unwrap();
+                                                    let start_at = Utc::now() + *delay * 5;
+                                                    _ = main.send.send(WsS2C::Play(start_at)).await;
+                                                    for link in state.link_links.lock().unwrap().values().cloned() {
+                                                        _ = link.send.send(WsS2L::Play(start_at)).await;
+                                                    }
+                                                })
+                                            },
+                                            WsC2S::Ready(sent_at) => {
+                                                bb!{
+                                                    let Some(main) = state.link_main.lock().unwrap().clone() else {
+                                                        break;
+                                                    };
+                                                    let Some(ready) = main.ready.lock().unwrap().take() else {
+                                                        break;
+                                                    };
+                                                    ready.send(Utc::now() - sent_at);
+                                                }
+                                            },
+                                            WsC2S::Stop => {
+                                                for link in state.link_links.lock().unwrap().cloned() {
+                                                    link.send.send(WsS2L::Stop);
+                                                }
+                                            },
+                                        }
+                                    },
+                                    _ => {
+                                        state
+                                            .log
+                                            .log_with(
+                                                Flag::Debug,
+                                                "Received unhandled websocket message type",
+                                                ea!(message = from_remote.dbg_str()),
+                                            );
+                                    },
+                                }
+                            }
+                        }
+                    }
+
+                    return Ok(true);
+                }.await {
+                    Ok(live) => {
+                        if !live {
+                            break;
+                        }
+                    },
+                    Err(e) => {
+                        state.log.log(Flag::Debug, "Error handling event in websocket task");
+                    },
+                }
+            }
+            return Ok(());
+        }.await {
+            Ok(_) => { },
+            Err(e) => {
+                state.log.log_err(Flag::Debug, e.context("Error in websocket connection"));
+            },
+        }
+        *state.link_main.lock().unwrap() = None;
+        *state.link_session.lock().unwrap() = None;
+    });
+}
+
+fn handle_ws_link(state: Arc<State>, websocket: HyperWebsocket) {
+    let id = state.link_ids.fetch_add(1, Ordering::Relaxed);
+    let (tx, rx) = mpsc::channel(10);
+    state.link_links.lock().unwrap().insert(id, Arc::new(WsState {
+        send: tx,
+        ready: Mutex::new(None),
+    }));
+    tokio::spawn(async move {
+        match async move {
+            ta_res!(());
+            let mut websocket = websocket.await?;
+            loop {
+                match async {
+                    ta_res!(bool);
+
+                    select!{
+                        m = rx.recv() => {
+                            let Some(to_remote) = m else {
+                                return Ok(false);
+                            };
+                            websocket
+                                .send(
+                                    hyper_tungstenite::tungstenite::Message::text(
+                                        serde_json::to_string(&to_remote).unwrap(),
+                                    ),
+                                )
+                                .await?;
+                        },
+                        m = websocket.next() => {
+                            let Some(from_remote) = m else {
+                                return Ok(false);
+                            };
+                            match from_remote? {
+                                hyper_tungstenite::tungstenite::Message::Text(m) => {
+                                    match serde_json::from_str::<WsL2S>(
+                                        &m,
+                                    ).context("Error parsing message json")? {
+                                        WsL2S::Ready(sent_at) => {
+                                            bb!{
+                                                let Some(link) = state.link_links.lock().unwrap().get(&id) else {
+                                                    break;
+                                                };
+                                                let Some(ready) = link.ready.lock().unwrap().take() else {
+                                                    break;
+                                                };
+                                                ready.send(Utc::now() - sent_at);
+                                            }
+                                        },
+                                    }
+                                },
+                                _ => {
+                                    state
+                                        .log
+                                        .log_with(
+                                            Flag::Debug,
+                                            "Received unhandled websocket message type",
+                                            ea!(message = from_remote.dbg_str()),
+                                        );
+                                },
+                            }
+                        }
+                    }
+
+                    return Ok(true);
+                }.await {
+                    Ok(live) => {
+                        if !live {
+                            break;
+                        }
+                    },
+                    Err(e) => {
+                        state.log.log(Flag::Debug, "Error handling event in websocket task");
+                    },
+                }
+            }
+            return Ok(());
+        }.await {
+            Ok(_) => { },
+            Err(e) => {
+                state.log.log_err(Flag::Debug, e.context("Error in websocket connection"));
+            },
+        }
+        state.link_links.lock().unwrap().remove(&id);
+    });
+}
+
+fn handle_ws(
+    state: Arc<State>,
+    head: http::request::Parts,
+    upgrade:
+        Result<
+            (hyper::Response<Full<Bytes>>, HyperWebsocket),
+            hyper_tungstenite::tungstenite::error::ProtocolError,
+        >,
+    handle: fn(Arc<State>, HyperWebsocket) -> (),
+) -> Response<BoxBody<Bytes, std::io::Error>> {
+    let (response, websocket) = match upgrade {
+        Ok(x) => x,
+        Err(e) => {
+            state.log.log_err(Flag::Warn, e.context_with("Error serving response", ea!(url = head.uri)));
+            return Response::builder()
+                .status(503)
+                .body(http_body_util::Full::new(Bytes::new()).map_err(|_| std::io::Error::other("")).boxed())
+                .unwrap();
+        },
+    };
+    handle(state, websocket);
+    let (resp_header, resp_body) = response.into_parts();
+    return Response::from_parts(resp_header, resp_body.map_err(|_| std::io::Error::other("")).boxed());
 }
 
 async fn handle_req(state: Arc<State>, req: Request<Incoming>) -> Response<BoxBody<Bytes, std::io::Error>> {
+    if hyper_tungstenite::is_upgrade_request(&req) {
+        let upgrade = hyper_tungstenite::upgrade(&mut req, None);
+        let (head, _) = req.into_parts();
+        let mut path_iter = head.uri.path().trim_matches('/').split('/');
+        let mut link_type = path_iter.next().unwrap();
+        let mut session = path_iter.next().unwrap();
+        match link_type {
+            "link" => {
+                {
+                    let Some(want_session) = state.link_session.lock().unwrap() else {
+                        return response_401();
+                    };
+                    if want_session.as_str() != session {
+                        return response_401();
+                    }
+                }
+                return handle_ws(state, head, upgrade, handle_ws_link);
+            },
+            "main" => {
+                if let Some(resp) = check_auth(&state, &head) {
+                    return resp;
+                }
+                *state.link_session.lock().unwrap() = Some(session.to_string());
+                return handle_ws(state, head, session, upgrade, handle_ws_main);
+            },
+            _ => {
+                state.log.log_with(Flag::Debug, "Websocket connection on unknown path", ea!(path = link_type));
+            },
+        }
+    }
     let (head, body) = req.into_parts();
     match async {
         ta_res!(Response < BoxBody < Bytes, std:: io:: Error >>);
@@ -343,6 +663,9 @@ async fn handle_req(state: Arc<State>, req: Request<Incoming>) -> Response<BoxBo
                 }
             },
             (Method::POST, "api") => {
+                if let Some(resp) = check_auth(&state, &head) {
+                    return Ok(resp);
+                }
                 let req =
                     serde_json::from_slice::<C2SReq>(
                         &body.collect().await.context("Error reading request bytes")?.to_bytes(),
@@ -647,6 +970,9 @@ async fn handle_req(state: Arc<State>, req: Request<Incoming>) -> Response<BoxBo
                     ).map_err(|e| loga::err(e).context_with("Couldn't parse hash", ea!(hash = hash)))?;
                 match m {
                     Method::HEAD => {
+                        if let Some(resp) = check_file_auth(&state, &head, &file) {
+                            return Ok(resp);
+                        }
                         let Some(meta0) = spawn_blocking(
                             cap_fn!(()(state) {
                                 state.db.run_script("{?[mimetype] := *meta{node:$node, mimetype:mimetype}}", {
@@ -680,6 +1006,9 @@ async fn handle_req(state: Arc<State>, req: Request<Incoming>) -> Response<BoxBo
                         );
                     },
                     Method::GET => {
+                        if let Some(resp) = check_file_auth(&state, &head, &file) {
+                            return Ok(resp);
+                        }
                         let Some(meta0) = spawn_blocking(
                             cap_fn!(()(state, file) {
                                 state.db.run_script("{?[mimetype] := *meta{node:$node, mimetype:mimetype}}", {
@@ -848,6 +1177,9 @@ async fn handle_req(state: Arc<State>, req: Request<Incoming>) -> Response<BoxBo
                         }
                     },
                     Method::POST => {
+                        if let Some(resp) = check_auth(&state, &head) {
+                            return Ok(resp);
+                        }
                         let offset = async {
                             Ok(
                                 head

@@ -1,49 +1,19 @@
-use std::{
-    any::Any,
-    cell::RefCell,
-    collections::HashMap,
-    fmt::Display,
-    panic,
-    rc::Rc,
-    str::FromStr,
-};
+use std::fmt::Display;
 use futures::channel::oneshot::channel;
 use lunk::{
     link,
-    EventGraph,
-    HistPrim,
     Prim,
     ProcessingContext,
 };
 use rooting::{
     el,
-    set_root,
-    spawn_rooted,
     El,
+    WeakEl,
 };
-use shared::{
-    model::{
-        C2SReq,
-        FileHash,
-        Node,
-        Query,
-    },
-    unenum,
-};
-use wasm_bindgen::{
-    closure::Closure,
-    JsCast,
-    JsValue,
-    UnwrapThrowExt,
-};
+use wasm_bindgen::JsValue;
 use web_sys::{
-    console::log_1,
     Event,
     EventTarget,
-    HtmlAudioElement,
-    HtmlMediaElement,
-    MediaMetadata,
-    MediaSession,
 };
 use gloo::events::EventListener;
 
@@ -66,6 +36,7 @@ pub static ICON_SELECT_ALL: CssIcon = CssIcon("\u{e837}");
 pub static ICON_SELECT_NONE: CssIcon = CssIcon("\u{e836}");
 pub static ICON_VOLUME: CssIcon = CssIcon("\u{e050}");
 pub static ICON_SHARE: CssIcon = CssIcon("\u{e80d}");
+pub static ICON_NOSHARE: CssIcon = CssIcon("\u{f6cb}");
 pub static ICON_CLOSE: CssIcon = CssIcon("\u{e5cd}");
 pub static CSS_GROW: &'static str = "grow";
 pub static CSS_BUTTON: &'static str = "g_button";
@@ -85,8 +56,8 @@ pub fn el_stack() -> El {
     return el("div").classes(&["g_stack"]);
 }
 
-pub fn el_icon(icon: CssIcon, help: &str) -> El {
-    return el("div").classes(&["g_icon"]).attr("title", help).text(icon.0);
+pub fn el_icon(icon: CssIcon) -> El {
+    return el("div").classes(&["g_icon"]).text(icon.0);
 }
 
 pub fn el_button_text(
@@ -94,7 +65,7 @@ pub fn el_button_text(
     text: &str,
     mut f: impl 'static + FnMut(&mut ProcessingContext) -> (),
 ) -> El {
-    return el("button").classes(&[CSS_BUTTON, CSS_BUTTON_TEXT]).on("click", {
+    return el("button").classes(&[CSS_BUTTON, CSS_BUTTON_TEXT]).text(text).on("click", {
         let eg = pc.eg();
         move |_| eg.event(|pc| f(pc))
     });
@@ -116,10 +87,14 @@ pub fn el_button_icon(
     help: &str,
     mut f: impl 'static + FnMut(&mut ProcessingContext) -> (),
 ) -> El {
-    return el("button").classes(&[CSS_BUTTON, CSS_BUTTON_ICON]).push(el_icon(icon, help)).on("click", {
-        let eg = pc.eg();
-        move |_| eg.event(|pc| f(pc))
-    });
+    return el("button")
+        .classes(&[CSS_BUTTON, CSS_BUTTON_ICON])
+        .push(el_icon(icon))
+        .attr("title", help)
+        .on("click", {
+            let eg = pc.eg();
+            move |_| eg.event(|pc| f(pc))
+        });
 }
 
 pub fn el_button_icon_switch(
@@ -146,9 +121,11 @@ pub fn el_button_icon_switch(
                 ) {
                     let e = e.upgrade()?;
                     if *state.borrow() {
-                        e.ref_clear().ref_push(el_icon(*on_icon, on_help));
+                        e.ref_clear().ref_push(el_icon(*on_icon));
+                        e.ref_attr("title", on_help);
                     } else {
-                        e.ref_clear().ref_push(el_icon(*off_icon, off_help));
+                        e.ref_clear().ref_push(el_icon(*off_icon));
+                        e.ref_attr("title", off_help);
                     }
                 }
             ),
@@ -179,10 +156,14 @@ pub fn el_button_icon_text(
     text: &str,
     mut f: impl 'static + FnMut(&mut ProcessingContext) -> (),
 ) -> El {
-    return el("button").classes(&[CSS_BUTTON, CSS_BUTTON_ICON_TEXT]).on("click", {
-        let eg = pc.eg();
-        move |_| eg.event(|pc| f(pc))
-    });
+    return el("button")
+        .push(el_icon(icon))
+        .push(el("span").text(text))
+        .classes(&[CSS_BUTTON, CSS_BUTTON_ICON_TEXT])
+        .on("click", {
+            let eg = pc.eg();
+            move |_| eg.event(|pc| f(pc))
+        });
 }
 
 pub fn el_hbox() -> El {
@@ -209,25 +190,25 @@ pub fn el_async() -> El {
     return el("div").classes(&["g_async"]);
 }
 
-pub fn el_modal(pc: &mut ProcessingContext, title: &str, body: El) -> El {
-    let out = el_stack();
-    out.ref_extend(
+pub fn el_modal(pc: &mut ProcessingContext, title: &str, body: impl Fn(&mut ProcessingContext, WeakEl) -> El) -> El {
+    let root = el_stack();
+    root.ref_extend(
         vec![
             el("div").classes(&["s_modal_bg"]),
             el_vbox()
                 .classes(&["s_modal"])
                 .extend(vec![el_hbox().extend(vec![el("h1").text(title), el_button_icon(pc, ICON_CLOSE, "Close", {
-                    let out = out.weak();
+                    let out = root.weak();
                     move |_pc| {
                         let Some(out) = out.upgrade() else {
                             return;
                         };
                         out.ref_replace(vec![]);
                     }
-                })]), body])
+                })]), body(pc, root.weak())])
         ],
     );
-    out
+    root
 }
 
 pub async fn async_event(e: &EventTarget, event: &str) -> Event {

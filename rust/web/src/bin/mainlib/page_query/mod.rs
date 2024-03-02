@@ -1,39 +1,33 @@
 use std::{
-    any::Any,
     cell::{
         Cell,
         RefCell,
     },
     collections::HashMap,
-    panic,
     rc::Rc,
     str::FromStr,
 };
 use chrono::Utc;
 use gloo::{
-    console::warn,
     timers::future::TimeoutFuture,
     utils::{
         document,
         window,
     },
 };
-use js_sys::Function;
 use lunk::{
     link,
-    EventGraph,
-    HistPrim,
     Prim,
     ProcessingContext,
 };
-use reqwasm::http::Request;
+use qrcode::QrCode;
 use rooting::{
     el,
-    set_root,
+    el_from_raw,
     spawn_rooted,
     El,
+    ScopeValue,
 };
-use serde::de::DeserializeOwned;
 use shared::{
     bb,
     model::{
@@ -44,21 +38,13 @@ use shared::{
     },
     unenum,
 };
-use wasm_bindgen::{
-    closure::Closure,
-    JsCast,
-    JsValue,
-    UnwrapThrowExt,
-};
+use uuid::Uuid;
+use wasm_bindgen::JsCast;
 use web_sys::{
     Element,
     Event,
-    HtmlAudioElement,
-    HtmlElement,
     HtmlInputElement,
     HtmlMediaElement,
-    MediaMetadata,
-    MediaSession,
     MouseEvent,
 };
 use web::{
@@ -67,9 +53,7 @@ use web::{
         el_audio,
         el_button_icon,
         el_button_icon_switch,
-        el_button_icon_switch_auto,
         el_button_icon_text,
-        el_button_text,
         el_group,
         el_hbox,
         el_hscroll,
@@ -77,10 +61,8 @@ use web::{
         el_stack,
         el_vbox,
         el_video,
-        log,
         CSS_GROW,
-        ICON_EDIT,
-        ICON_NOEDIT,
+        ICON_NOSHARE,
         ICON_SHARE,
         ICON_TRANSPORT_NEXT,
         ICON_TRANSPORT_PAUSE,
@@ -89,13 +71,13 @@ use web::{
         ICON_VOLUME,
     },
     util::OptString,
+    websocket::Ws,
 };
 use web::world::{
     file_url,
     req_post_json,
 };
 use crate::{
-    mainlib::playlist::PlaylistState,
     playlist::{
         playlist_clear,
         playlist_len,
@@ -141,9 +123,12 @@ use self::{
         CSS_TREE_TEXT,
     },
 };
-use super::ministate::{
-    PlaylistEntryPath,
-    PlaylistPos,
+use super::{
+    ministate::{
+        PlaylistEntryPath,
+        PlaylistPos,
+    },
+    playlist::PlaylistEntryMediaType,
 };
 
 pub mod elements;
@@ -433,11 +418,39 @@ fn build_widget(
             } else {
                 return el_media_button_err(format!("Field contents wasn't string value node or string: {:?}", v));
             }
-            let audio = el_audio(&source).on("ended", {
+            let audio = el_audio(&source).attr("controls", "true").on("ended", {
                 let state = state.clone();
                 let eg = pc.eg();
                 move |_| eg.event(|pc| {
                     playlist_next(pc, &state.playlist, Some(i));
+                })
+            }).on("pause", {
+                let eg = pc.eg();
+                let state = state.playlist.weak();
+                move |_| eg.event(|pc| {
+                    let Some(state) = state.upgrade() else {
+                        return;
+                    };
+                    state.0.playing.set(pc, false);
+                })
+            }).on("play", {
+                let eg = pc.eg();
+                let state = state.playlist.weak();
+                move |_| eg.event(|pc| {
+                    let Some(state) = state.upgrade() else {
+                        return;
+                    };
+                    state.0.playing.set(pc, true);
+                })
+            }).on("volumechange", {
+                let eg = pc.eg();
+                let state = state.playlist.weak();
+                move |ev| eg.event(|pc| {
+                    let Some(state) = state.upgrade() else {
+                        return;
+                    };
+                    let vol = ev.dyn_ref::<HtmlMediaElement>().unwrap().volume();
+                    state.0.volume.set(pc, (vol / 0.5, vol / 0.5));
                 })
             });
             let restore_pos = bb!{
@@ -460,11 +473,13 @@ fn build_widget(
                 name: (&d.name_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
                 album: (&d.album_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
                 artist: (&d.artist_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
-                cover: (&d.thumbnail_field)
+                cover_url: (&d.thumbnail_field)
                     .if_some()
                     .and_then(|v| data.get(v))
                     .and_then(|v| extract_node_file(v))
                     .map(|h| file_url(&state.origin, &h)),
+                file_url: source,
+                media_type: PlaylistEntryMediaType::Audio,
                 media: Box::new(AudioPlaylistMedia {
                     element: audio,
                     ministate_id: build_playlist_pos.view_id.clone(),
@@ -492,11 +507,39 @@ fn build_widget(
             } else {
                 return el_media_button_err(format!("Field contents wasn't string value node or string: {:?}", v));
             }
-            let video = el_video(&source).on("ended", {
+            let video = el_video(&source).attr("controls", "true").on("ended", {
                 let state = state.clone();
                 let eg = pc.eg();
                 move |_| eg.event(|pc| {
                     playlist_next(pc, &state.playlist, Some(i));
+                })
+            }).on("pause", {
+                let eg = pc.eg();
+                let state = state.playlist.weak();
+                move |_| eg.event(|pc| {
+                    let Some(state) = state.upgrade() else {
+                        return;
+                    };
+                    state.0.playing.set(pc, false);
+                })
+            }).on("play", {
+                let eg = pc.eg();
+                let state = state.playlist.weak();
+                move |_| eg.event(|pc| {
+                    let Some(state) = state.upgrade() else {
+                        return;
+                    };
+                    state.0.playing.set(pc, true);
+                })
+            }).on("volumechange", {
+                let eg = pc.eg();
+                let state = state.playlist.weak();
+                move |ev| eg.event(|pc| {
+                    let Some(state) = state.upgrade() else {
+                        return;
+                    };
+                    let vol = ev.dyn_ref::<HtmlMediaElement>().unwrap().volume();
+                    state.0.volume.set(pc, (vol / 0.5, vol / 0.5));
                 })
             });
             let restore_pos = bb!{
@@ -519,16 +562,19 @@ fn build_widget(
                 name: (&d.name_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
                 album: (&d.album_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
                 artist: (&d.artist_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
-                cover: (&d.thumbnail_field)
+                cover_url: (&d.thumbnail_field)
                     .if_some()
                     .and_then(|v| data.get(v))
                     .and_then(|v| extract_node_file(v))
                     .map(|h| file_url(&state.origin, &h)),
+                file_url: source,
+                media_type: PlaylistEntryMediaType::Video,
                 media: Box::new(VideoPlaylistMedia {
                     element: video,
                     ministate_id: build_playlist_pos.view_id.clone(),
                     ministate_title: build_playlist_pos.view_title.clone(),
                     ministate_path: build_playlist_pos.entry_path.clone(),
+                    fullscreen_listener: Cell::new(None),
                 }),
             }));
             if restore_pos {
@@ -780,43 +826,55 @@ pub fn build_page_view(
             el_hbox().classes(&["left"]).extend(vec![
                 //. .
                 el_button_icon(pc, ICON_SHARE, "Share stream", {
-                    let modals = state.stack.clone();
+                    let state = state.clone();
                     move |pc| {
-                        fn build_body(pc: &mut ProcessingContext, state: &PlaylistState, share: &str) -> El {
+                        let Some(stack) = state.stack.upgrade() else {
+                            return;
+                        };
+                        let sess_id = match &*state.playlist.0.share.borrow() {
+                            Some((sess_id, _)) => {
+                                sess_id.clone()
+                            },
+                            None => {
+                                let id = Uuid::new_v4().to_string();
+                                state
+                                    .playlist
+                                    .0
+                                    .share
+                                    .set(pc, Some((id.clone(), Ws::new(|_, _| unreachable!()))));
+                                id
+                            },
+                        };
+                        let link = format!("https://{}/link#{}", window().location().host().unwrap(), sess_id);
+                        stack.ref_push(el_modal(pc, "Share", |pc, root| {
                             return el_vbox().extend(vec![
                                 //. .
-                                qr(share),
+                                el("a").attr("href", &link).push({
+                                    let e = document().create_element("template").unwrap();
+                                    e.set_inner_html(
+                                        &QrCode::new(&link)
+                                            .unwrap()
+                                            .render::<qrcode::render::svg::Color>()
+                                            .quiet_zone(false)
+                                            .build(),
+                                    );
+                                    el_from_raw(e.children().get_with_index(0).unwrap())
+                                }),
                                 el_button_icon_text(pc, ICON_NOSHARE, "Stop sharing", {
-                                    |pc| {
-                                        state.share.set(pc, None);
-                                        close_modal();
+                                    let state = state.clone();
+                                    let root = root.clone();
+                                    move |pc| {
+                                        let Some(root) = root.upgrade() else {
+                                            return;
+                                        };
+                                        state.playlist.0.share.set(pc, None);
+                                        root.ref_replace(vec![]);
                                     }
                                 })
                             ]);
-                        }
-
-                        let body;
-                        if let Some(share) = state.share.borrow() {
-                            body = build_body(pc, state, share);
-                        } else {
-                            body = el_async().own(|e| {
-                                let e = e.weak();
-                                let eg = pc.eg();
-                                async move {
-                                    let share = req(C2SReq::Share).await;
-                                    let Some(e) = e.upgrade() else {
-                                        return;
-                                    };
-                                    eg.event(|pc| {
-                                        state.share.set(pc, Some(share));
-                                        e.replace(build_body(pc, state, share));
-                                    })
-                                }
-                            })
-                        }
-                        modals.ref_push(el_modal(pc, "Share", body));
+                        }));
                     }
-                }).own(|e| link!((pc = pc), (share = state.playlist.0.share.clone()), (), (e = e.weak()) {
+                }).own(|e| link!((_pc = pc), (share = state.playlist.0.share.clone()), (), (e = e.weak()) {
                     let e = e.upgrade()?;
                     e.ref_modify_classes(&[("on", share.borrow().is_some())]);
                 }))
@@ -926,48 +984,55 @@ pub fn build_page_view(
             el_hbox().classes(&["right"]).extend(vec![
                 //. .
                 el_button_icon(pc, ICON_VOLUME, "Set volume", {
-                    let modals = modals.clone();
+                    let state = state.clone();
                     move |pc| {
-                        modals.ref_push(modal("Volume", el_vbox().classes(&["s_volume"]).extend(vec![
-                            //. .
-                            el_stack().extend(vec![
+                        let Some(stack) = state.stack.upgrade() else {
+                            return;
+                        };
+                        stack.ref_push(
+                            el_modal(pc, "Volume", |pc, _root| el_vbox().classes(&["s_volume"]).extend(vec![
                                 //. .
-                                el("img").attr("src", TODO),
-                                el("div")
-                                    .classes(&["puck"])
-                                    .own(
-                                        |e| link!(
-                                            (pc = pc),
-                                            (vol = state.playlist.0.volume.clone()),
-                                            (),
-                                            (e = e.weak()) {
-                                                let e = e.upgrade()?;
-                                                let (x, y) = &*vol.borrow();
-                                                e.ref_attr(
-                                                    "style",
-                                                    &format!("left: {}%; bottom: {}%;", x * 200., y * 200.),
-                                                );
-                                            }
-                                        ),
-                                    )
-                            ]).on("mousemove", {
-                                let state = state.playlist.clone();
-                                let eg = pc.eg();
-                                move |ev| {
-                                    let (x, y) = get_mouse_pct(ev);
-                                    eg.event(|pc| {
-                                        state.0.volume.set(pc, (x / 2., y / 2.));
-                                    });
-                                }
-                            }),
-                            el(
-                                "span",
-                            ).own(|e| link!((pc = pc), (vol = state.playlist.0.volume.clone()), (), (e = e.weak()) {
-                                let e = e.upgrade()?;
-                                let (x, y) = &*vol.borrow();
-                                e.ref_text(&format!("{}%", ((x + y) * 100.) as i32));
-                            }))
-                        ])));
+                                el_stack().extend(vec![
+                                    //. .
+                                    el("div").classes(&["s_vol_bg"]).extend(vec![el("div"), el("div")]),
+                                    el("div")
+                                        .classes(&["puck"])
+                                        .own(
+                                            |e| link!(
+                                                (_pc = pc),
+                                                (vol = state.playlist.0.volume.clone()),
+                                                (),
+                                                (e = e.weak()) {
+                                                    let e = e.upgrade()?;
+                                                    let (x, y) = &*vol.borrow();
+                                                    e.ref_attr(
+                                                        "style",
+                                                        &format!("left: {}%; bottom: {}%;", x * 200., y * 200.),
+                                                    );
+                                                }
+                                            ),
+                                        )
+                                ]).on("mousemove", {
+                                    let state = state.playlist.clone();
+                                    let eg = pc.eg();
+                                    move |ev| {
+                                        let (x, y) = get_mouse_pct(ev);
+                                        eg.event(|pc| {
+                                            state.0.volume.set(pc, (x / 2., y / 2.));
+                                        });
+                                    }
+                                }),
+                                el(
+                                    "span",
+                                ).own(
+                                    |e| link!((_pc = pc), (vol = state.playlist.0.volume.clone()), (), (e = e.weak()) {
+                                        let e = e.upgrade()?;
+                                        let (x, y) = &*vol.borrow();
+                                        e.ref_text(&format!("{}%", ((x + y) * 100.) as i32));
+                                    }),
+                                )
+                            ])),
+                        );
                     }
                 })
             ])
@@ -977,20 +1042,26 @@ pub fn build_page_view(
             if !def.def.parameters.is_empty() {
                 let bg = Rc::new(RefCell::new(None));
                 let parameter_values = Rc::new(RefCell::new(HashMap::new()));
-                let delay_rebuild = {
-                    let bg = bg.clone();
-                    let state = state.clone();
-                    let def = def.clone();
-                    let parameters = parameter_values.clone();
-                    let build_playlist_pos = build_playlist_pos.clone();
-                    move |pc: &mut ProcessingContext| {
-                        *bg.borrow_mut() = Some(spawn_rooted({
+
+                #[derive(Clone)]
+                struct DelayRebuild {
+                    bg: Rc<RefCell<Option<ScopeValue>>>,
+                    state: State,
+                    def: View,
+                    parameter_values: Rc<RefCell<HashMap<String, serde_json::Value>>>,
+                    build_playlist_pos: BuildPlaylistPos,
+                    body: El,
+                }
+
+                impl DelayRebuild {
+                    fn call(&self, pc: &mut ProcessingContext) {
+                        *self.bg.borrow_mut() = Some(spawn_rooted({
                             let eg = pc.eg();
-                            let bg = bg.clone();
-                            let state = state.clone();
-                            let def = def.clone();
-                            let parameters = parameters.clone();
-                            let build_playlist_pos = build_playlist_pos.clone();
+                            let state = self.state.clone();
+                            let def = self.def.clone();
+                            let parameter_values = self.parameter_values.clone();
+                            let build_playlist_pos = self.build_playlist_pos.clone();
+                            let body = self.body.clone();
                             async move {
                                 TimeoutFuture::new(1000).await;
                                 eg.event(|pc| {
@@ -1002,7 +1073,7 @@ pub fn build_page_view(
                                                 &state,
                                                 0,
                                                 &def.def.def,
-                                                &Rc::new((&*parameters.borrow()).clone()),
+                                                &Rc::new((&*parameter_values.borrow()).clone()),
                                                 &build_playlist_pos,
                                                 &None,
                                             ),
@@ -1011,6 +1082,15 @@ pub fn build_page_view(
                             }
                         }));
                     }
+                }
+
+                let delay_rebuild = DelayRebuild {
+                    bg: bg.clone(),
+                    state: state.clone(),
+                    def: def.clone(),
+                    parameter_values: parameter_values.clone(),
+                    build_playlist_pos: build_playlist_pos.clone(),
+                    body: body.clone(),
                 };
                 parameters.ref_own(|_| bg.clone());
                 for (k, v) in def.def.parameters {
@@ -1022,12 +1102,13 @@ pub fn build_page_view(
                             el("input").attr("type", "text").on("input", {
                                 let eg = pc.eg();
                                 let delay_rebuild = delay_rebuild.clone();
+                                let parameter_values = parameter_values.clone();
                                 move |ev| eg.event(|pc| {
                                     let e = ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
                                     parameter_values
                                         .borrow_mut()
                                         .insert(k.clone(), serde_json::Value::String(e.value()));
-                                    delay_rebuild(pc);
+                                    delay_rebuild.call(pc);
                                 })
                             })
                         },
@@ -1035,21 +1116,18 @@ pub fn build_page_view(
                             parameter_values
                                 .borrow_mut()
                                 .insert(k.clone(), serde_json::Value::Number(serde_json::Number::from(0)));
-                            el("input").attr("type", "text").on("input", {
+                            el("input").attr("type", "number").on("input", {
                                 let eg = pc.eg();
                                 let delay_rebuild = delay_rebuild.clone();
+                                let parameter_values = parameter_values.clone();
                                 move |ev| eg.event(|pc| {
                                     let e = ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
-                                    match serde_json::Number::from_str(&e.value()) {
-                                        Ok(v) => {
-                                            parameter_values
-                                                .borrow_mut()
-                                                .insert(k.clone(), serde_json::Value::Number(v));
-                                            delay_rebuild(pc);
-                                        },
-                                        Err(e) => {
-                                            // TODO mark textbox err
-                                        },
+                                    if !e.value().is_empty() {
+                                        let n = serde_json::Number::from_str(&e.value()).unwrap();
+                                        parameter_values
+                                            .borrow_mut()
+                                            .insert(k.clone(), serde_json::Value::Number(n));
+                                        delay_rebuild.call(pc);
                                     }
                                 })
                             })
@@ -1059,12 +1137,13 @@ pub fn build_page_view(
                             el("input").attr("type", "checkbox").on("input", {
                                 let eg = pc.eg();
                                 let delay_rebuild = delay_rebuild.clone();
+                                let parameter_values = parameter_values.clone();
                                 move |ev| eg.event(|pc| {
                                     let e = ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
                                     parameter_values
                                         .borrow_mut()
                                         .insert(k.clone(), serde_json::Value::Bool(e.checked()));
-                                    delay_rebuild(pc);
+                                    delay_rebuild.call(pc);
                                 })
                             })
                         },
@@ -1075,12 +1154,13 @@ pub fn build_page_view(
                             el("input").attr("type", "datetime-local").on("input", {
                                 let eg = pc.eg();
                                 let delay_rebuild = delay_rebuild.clone();
+                                let parameter_values = parameter_values.clone();
                                 move |ev| eg.event(|pc| {
                                     let e = ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
                                     parameter_values
                                         .borrow_mut()
                                         .insert(k.clone(), serde_json::Value::String(e.value()));
-                                    delay_rebuild(pc);
+                                    delay_rebuild.call(pc);
                                 })
                             })
                         },
