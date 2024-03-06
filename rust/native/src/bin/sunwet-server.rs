@@ -1,12 +1,10 @@
 use std::{
-    any::Any,
     cmp::Reverse,
     collections::{
         BTreeMap,
         HashMap,
         HashSet,
     },
-    convert::Infallible,
     io::Write,
     net::SocketAddr,
     path::{
@@ -14,6 +12,7 @@ use std::{
         Path,
         PathBuf,
     },
+    process::Stdio,
     str::FromStr,
     sync::{
         atomic::{
@@ -48,7 +47,10 @@ use futures::{
     SinkExt,
     TryStreamExt,
 };
-use http::request::Parts;
+use http::{
+    header::AUTHORIZATION,
+    request::Parts,
+};
 use http_body::Frame;
 use http_body_util::{
     combinators::BoxBody,
@@ -62,15 +64,11 @@ use hyper::{
     },
     server::conn::http1,
     service::service_fn,
-    upgrade::Upgraded,
     Method,
     Request,
     Response,
 };
-use hyper_tungstenite::{
-    HyperWebsocket,
-    WebSocketStream,
-};
+use hyper_tungstenite::HyperWebsocket;
 use hyper_util::rt::TokioIo;
 use loga::{
     ea,
@@ -78,28 +76,32 @@ use loga::{
     DebugDisplay,
     ErrContext,
     ResultContext,
-    StandardFlag,
 };
 use serde_json::Number;
 use native::{
     cap_fn,
     ta_res,
     util::{
+        spawn_scoped,
         Flag,
         Log,
+        ScopeValue,
     },
 };
 use shared::{
     bb,
     model::{
         link::{
-            WsMessage,
-            WsS2LNotify,
+            WsC2S,
+            WsL2S,
+            WsS2C,
+            WsS2L,
         },
         view::ViewPartList,
         C2SReq,
         CommitResp,
         FileHash,
+        FileUrlQuery,
         Node,
         UploadFinishResp,
         HEADER_OFFSET,
@@ -116,6 +118,7 @@ use sha2::{
 };
 use taskmanager::TaskManager;
 use tokio::{
+    process::Command,
     fs::{
         create_dir_all,
         remove_file,
@@ -144,12 +147,14 @@ use tokio_stream::{
     StreamExt,
 };
 use tokio_util::io::ReaderStream;
+use tempfile::tempdir;
 
 #[derive(Serialize, Deserialize)]
 pub struct Config {
     #[serde(default)]
     pub debug: bool,
     pub persistent_dir: PathBuf,
+    pub cache_dir: PathBuf,
     pub bind_addr: SocketAddr,
 }
 
@@ -165,6 +170,23 @@ fn file_path(root_path: &Path, hash: &FileHash) -> Result<PathBuf, loga::Error> 
                 return Err(loga::err_with("Hash is too short", ea!(length = hash.len())));
             }
             return Ok(root_path.join("sha256").join(&hash[0 .. 2]).join(&hash[2 .. 4]).join(hash));
+        },
+    }
+}
+
+fn generated_path(root_path: &Path, hash: &FileHash, generation: &str) -> Result<PathBuf, loga::Error> {
+    match hash {
+        FileHash::Sha256(hash) => {
+            if hash.len() < 4 {
+                return Err(loga::err_with("Hash is too short", ea!(length = hash.len())));
+            }
+            return Ok(
+                root_path
+                    .join("sha256")
+                    .join(&hash[0 .. 2])
+                    .join(&hash[2 .. 4])
+                    .join(format!("{}.{}", hash, generation)),
+            );
         },
     }
 }
@@ -325,18 +347,26 @@ pub fn response_401() -> Response<BoxBody<Bytes, std::io::Error>> {
     return Response::builder().status(401).body(body_empty()).unwrap();
 }
 
-fn check_auth(state: &Arc<State>, parts: &Parts) -> Option<Response<BoxBody<Bytes, std::io::Error>>> { }
+fn check_auth(_state: &Arc<State>, parts: &Parts) -> Option<Response<BoxBody<Bytes, std::io::Error>>> {
+    if parts.headers.get(AUTHORIZATION).is_none() {
+        return Some(response_401());
+    }
+    return None;
+}
 
 fn check_file_auth(
     state: &Arc<State>,
     parts: &Parts,
     file: &FileHash,
 ) -> Option<Response<BoxBody<Bytes, std::io::Error>>> {
-
+    if state.link_public_files.contains(file) {
+        return None;
+    }
+    return check_auth(state, parts);
 }
 
-struct WsState {
-    send: mpsc::Sender<WsMessage>,
+struct WsState<M> {
+    send: mpsc::Sender<M>,
     ready: Mutex<Option<oneshot::Sender<Duration>>>,
 }
 
@@ -345,25 +375,26 @@ struct State {
     log: Log,
     db: Db<SqliteStorage>,
     files_dir: PathBuf,
+    generated_dir: PathBuf,
     stage_dir: PathBuf,
     finishing_uploads: Mutex<HashSet<FileHash>>,
     // Websockets
     link_ids: AtomicU8,
-    link_main: Mutex<Option<Arc<WsState>>>,
-    link_links: Mutex<HashMap<u8, Arc<WsState>>>,
-    link_bg: Option<Box<dyn Any>>,
+    link_main: Mutex<Option<Arc<WsState<WsS2C>>>>,
+    link_links: Mutex<HashMap<u8, Arc<WsState<WsS2L>>>>,
+    link_bg: Mutex<Option<ScopeValue>>,
     link_public_files: HashSet<FileHash>,
     link_session: Mutex<Option<String>>,
 }
 
 fn handle_ws_main(state: Arc<State>, websocket: HyperWebsocket) {
-    let (tx, rx) = mpsc::channel(10);
+    let (tx, mut rx) = mpsc::channel(10);
     *state.link_main.lock().unwrap() = Some(Arc::new(WsState {
         send: tx,
         ready: Mutex::new(None),
     }));
     tokio::spawn(async move {
-        match async move {
+        match async {
             ta_res!(());
             let mut websocket = websocket.await?;
             loop {
@@ -387,9 +418,10 @@ fn handle_ws_main(state: Arc<State>, websocket: HyperWebsocket) {
                             let Some(from_remote) = m else {
                                 return Ok(false);
                             };
+                            let from_remote = from_remote?;
 
                             bb!{
-                                match from_remote? {
+                                match &from_remote {
                                     hyper_tungstenite::tungstenite::Message::Text(m) => {
                                         match serde_json::from_str::<WsC2S>(
                                             &m,
@@ -401,14 +433,22 @@ fn handle_ws_main(state: Arc<State>, websocket: HyperWebsocket) {
                                                 };
                                                 *main.ready.lock().unwrap() = Some(main_ready_tx);
                                                 let mut link_readies = vec![];
-                                                for link in state.link_links.lock().unwrap().values().cloned() {
+                                                let links =
+                                                    state
+                                                        .link_links
+                                                        .lock()
+                                                        .unwrap()
+                                                        .values()
+                                                        .cloned()
+                                                        .collect::<Vec<_>>();
+                                                for link in &links {
                                                     let link = link.clone();
                                                     let (ready_tx, ready_rx) = oneshot::channel();
                                                     *link.ready.lock().unwrap() = Some(ready_tx);
                                                     _ = link.send.send(WsS2L::Prepare(prepare.clone())).await;
                                                     link_readies.push(ready_rx);
                                                 }
-                                                state.link_bg = spawn_scoped(async move {
+                                                *state.link_bg.lock().unwrap() = Some(spawn_scoped(async move {
                                                     let mut delays = vec![];
                                                     if let Ok(delay) = main_ready_rx.await {
                                                         delays.push(delay);
@@ -422,10 +462,10 @@ fn handle_ws_main(state: Arc<State>, websocket: HyperWebsocket) {
                                                     let delay = delays.last().unwrap();
                                                     let start_at = Utc::now() + *delay * 5;
                                                     _ = main.send.send(WsS2C::Play(start_at)).await;
-                                                    for link in state.link_links.lock().unwrap().values().cloned() {
+                                                    for link in links {
                                                         _ = link.send.send(WsS2L::Play(start_at)).await;
                                                     }
-                                                })
+                                                }));
                                             },
                                             WsC2S::Ready(sent_at) => {
                                                 bb!{
@@ -435,12 +475,20 @@ fn handle_ws_main(state: Arc<State>, websocket: HyperWebsocket) {
                                                     let Some(ready) = main.ready.lock().unwrap().take() else {
                                                         break;
                                                     };
-                                                    ready.send(Utc::now() - sent_at);
+                                                    _ = ready.send(Utc::now() - sent_at);
                                                 }
                                             },
-                                            WsC2S::Stop => {
-                                                for link in state.link_links.lock().unwrap().cloned() {
-                                                    link.send.send(WsS2L::Stop);
+                                            WsC2S::Pause => {
+                                                let links =
+                                                    state
+                                                        .link_links
+                                                        .lock()
+                                                        .unwrap()
+                                                        .values()
+                                                        .cloned()
+                                                        .collect::<Vec<_>>();
+                                                for link in links {
+                                                    _ = link.send.send(WsS2L::Pause);
                                                 }
                                             },
                                         }
@@ -467,7 +515,7 @@ fn handle_ws_main(state: Arc<State>, websocket: HyperWebsocket) {
                         }
                     },
                     Err(e) => {
-                        state.log.log(Flag::Debug, "Error handling event in websocket task");
+                        state.log.log_err(Flag::Debug, e.context("Error handling event in websocket task"));
                     },
                 }
             }
@@ -485,13 +533,13 @@ fn handle_ws_main(state: Arc<State>, websocket: HyperWebsocket) {
 
 fn handle_ws_link(state: Arc<State>, websocket: HyperWebsocket) {
     let id = state.link_ids.fetch_add(1, Ordering::Relaxed);
-    let (tx, rx) = mpsc::channel(10);
+    let (tx, mut rx) = mpsc::channel(10);
     state.link_links.lock().unwrap().insert(id, Arc::new(WsState {
         send: tx,
         ready: Mutex::new(None),
     }));
     tokio::spawn(async move {
-        match async move {
+        match async {
             ta_res!(());
             let mut websocket = websocket.await?;
             loop {
@@ -515,20 +563,22 @@ fn handle_ws_link(state: Arc<State>, websocket: HyperWebsocket) {
                             let Some(from_remote) = m else {
                                 return Ok(false);
                             };
-                            match from_remote? {
+                            let from_remote = from_remote?;
+                            match &from_remote {
                                 hyper_tungstenite::tungstenite::Message::Text(m) => {
                                     match serde_json::from_str::<WsL2S>(
                                         &m,
                                     ).context("Error parsing message json")? {
                                         WsL2S::Ready(sent_at) => {
                                             bb!{
-                                                let Some(link) = state.link_links.lock().unwrap().get(&id) else {
+                                                let links = state.link_links.lock().unwrap();
+                                                let Some(link) = links.get(&id) else {
                                                     break;
                                                 };
                                                 let Some(ready) = link.ready.lock().unwrap().take() else {
                                                     break;
                                                 };
-                                                ready.send(Utc::now() - sent_at);
+                                                _ = ready.send(Utc::now() - sent_at);
                                             }
                                         },
                                     }
@@ -554,7 +604,7 @@ fn handle_ws_link(state: Arc<State>, websocket: HyperWebsocket) {
                         }
                     },
                     Err(e) => {
-                        state.log.log(Flag::Debug, "Error handling event in websocket task");
+                        state.log.log_err(Flag::Debug, e.context("Error handling event in websocket task"));
                     },
                 }
             }
@@ -594,17 +644,41 @@ fn handle_ws(
     return Response::from_parts(resp_header, resp_body.map_err(|_| std::io::Error::other("")).boxed());
 }
 
-async fn handle_req(state: Arc<State>, req: Request<Incoming>) -> Response<BoxBody<Bytes, std::io::Error>> {
+async fn get_mimetype(state: &Arc<State>, hash: &FileHash) -> Result<Option<String>, loga::Error> {
+    let state = state.clone();
+    let hash = hash.clone();
+    let Some(meta0) = spawn_blocking(
+        cap_fn!(()(state) {
+            state.db.run_script("{?[mimetype] := *meta{node:$node, mimetype:mimetype}}", {
+                let mut m = BTreeMap::new();
+                m.insert(
+                    "node".to_string(),
+                    DataValue::List(vec![DataValue::Str("file".into()), DataValue::Str(hash.to_string().into())]),
+                );
+                m
+            }, cozo::ScriptMutability::Immutable)
+        })
+    ).await ?.await.map_err(
+        |e| loga::err(e.dbg_str()).context("Error looking up metadata")
+    ) ?.rows.into_iter().next() else {
+        return Ok(None);
+    };
+    let mut meta0 = meta0.into_iter();
+    let mimetype = unenum!(meta0.next().unwrap(), DataValue:: Str(s) => s).unwrap();
+    return Ok(Some(mimetype.to_string()));
+}
+
+async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<BoxBody<Bytes, std::io::Error>> {
     if hyper_tungstenite::is_upgrade_request(&req) {
         let upgrade = hyper_tungstenite::upgrade(&mut req, None);
         let (head, _) = req.into_parts();
         let mut path_iter = head.uri.path().trim_matches('/').split('/');
-        let mut link_type = path_iter.next().unwrap();
-        let mut session = path_iter.next().unwrap();
+        let link_type = path_iter.next().unwrap();
+        let session = path_iter.next().unwrap();
         match link_type {
             "link" => {
                 {
-                    let Some(want_session) = state.link_session.lock().unwrap() else {
+                    let Some(want_session) =&* state.link_session.lock().unwrap() else {
                         return response_401();
                     };
                     if want_session.as_str() != session {
@@ -618,10 +692,11 @@ async fn handle_req(state: Arc<State>, req: Request<Incoming>) -> Response<BoxBo
                     return resp;
                 }
                 *state.link_session.lock().unwrap() = Some(session.to_string());
-                return handle_ws(state, head, session, upgrade, handle_ws_main);
+                return handle_ws(state, head, upgrade, handle_ws_main);
             },
             _ => {
                 state.log.log_with(Flag::Debug, "Websocket connection on unknown path", ea!(path = link_type));
+                return response_404();
             },
         }
     }
@@ -633,7 +708,7 @@ async fn handle_req(state: Arc<State>, req: Request<Incoming>) -> Response<BoxBo
         if path_first == "" {
             path_first = "static";
         }
-        match (head.method, path_first) {
+        match (head.method.clone(), path_first) {
             (Method::GET, "static") => {
                 #[derive(RustEmbed)]
                 #[folder= "$CARGO_MANIFEST_DIR/../../stage/static"]
@@ -807,10 +882,9 @@ async fn handle_req(state: Arc<State>, req: Request<Incoming>) -> Response<BoxBo
                                     async move {
                                         match async {
                                             let source = staged_file_path(&state.stage_dir, &hash)?;
-                                            let mut got_file =
-                                                File::open(&source)
-                                                    .await
-                                                    .context("Failed to open staged uploaded file")?;
+
+                                            // Validate hash
+                                            let mut got_file = File::open(&source).await.context("Failed to open staged uploaded file")?;
                                             match &hash {
                                                 FileHash::Sha256(hash) => {
                                                     struct HashAsyncWriter {
@@ -859,12 +933,174 @@ async fn handle_req(state: Arc<State>, req: Request<Incoming>) -> Response<BoxBo
                                                     }
                                                 },
                                             }
+
+                                            // Pre-generate web files for video
+                                            bb!{
+                                                let Some(mimetype) = get_mimetype(&state, &hash).await ? else {
+                                                    break;
+                                                };
+                                                match mimetype.as_str() {
+                                                    "video/x-matroska" | "video/mp4" => { },
+                                                    _ => {
+                                                        break;
+                                                    },
+                                                }
+
+                                                // Extract subs
+                                                let streams_res =
+                                                    Command::new("ffprobe")
+                                                        .stdin(Stdio::null())
+                                                        .args(&["-v", "quiet"])
+                                                        .args(&["-print_format", "json"])
+                                                        .arg("-show_streams")
+                                                        .arg(&source)
+                                                        .output()
+                                                        .await?;
+                                                if !streams_res.status.success() {
+                                                    return Err(
+                                                        loga::err_with(
+                                                            "Getting video streams failed",
+                                                            ea!(output = streams_res.pretty_dbg_str()),
+                                                        ),
+                                                    );
+                                                }
+
+                                                #[derive(Deserialize)]
+                                                struct Stream {
+                                                    index: usize,
+                                                    codec_type: String,
+                                                    codec_name: String,
+                                                    #[serde(default)]
+                                                    tags: HashMap<String, String>,
+                                                }
+
+                                                #[derive(Deserialize)]
+                                                struct Streams {
+                                                    streams: Vec<Stream>,
+                                                }
+
+                                                let streams =
+                                                    serde_json::from_slice::<Streams>(
+                                                        &streams_res.stdout,
+                                                    ).context("Error parsing video streams json")?;
+                                                for stream in streams.streams {
+                                                    if stream.codec_type != "subtitle" {
+                                                        continue
+                                                    }
+                                                    match stream.codec_name.as_str() {
+                                                        "ass" | "srt" | "ssa" | "webvtt" | "subrip" | "stl" => { },
+                                                        _ => {
+                                                            continue
+                                                        },
+                                                    }
+                                                    let Some(lang) = stream.tags.get("language") else {
+                                                        continue;
+                                                    };
+                                                    let subtitle_dest =
+                                                        generated_path(
+                                                            &state.generated_dir,
+                                                            &hash,
+                                                            &format!("webvtt_{}", lang),
+                                                        )?;
+                                                    if let Some(p) = subtitle_dest.parent() {
+                                                        create_dir_all(&p)
+                                                            .await
+                                                            .context_with(
+                                                                "Failed to create parent directories for generated subtitle file",
+                                                                ea!(path = subtitle_dest.display()),
+                                                            )?;
+                                                    }
+                                                    let extract_res =
+                                                        Command::new("ffmpeg")
+                                                            .stdin(Stdio::null())
+                                                            .arg("-i")
+                                                            .arg(&source)
+                                                            .args(&["-map", "0:s:0"])
+                                                            .args(&["-codec:s", "webvtt"])
+                                                            .args(&["-f", "webvtt"])
+                                                            .arg(&subtitle_dest)
+                                                            .output()
+                                                            .await?;
+                                                    if !extract_res.status.success() {
+                                                        return Err(
+                                                            loga::err_with(
+                                                                "Extracting subtitle track failed",
+                                                                ea!(
+                                                                    track = stream.index,
+                                                                    output = extract_res.pretty_dbg_str()
+                                                                ),
+                                                            ),
+                                                        );
+                                                    }
+                                                }
+
+                                                // Webm
+                                                let webm_tmp = tempdir()?;
+                                                let webm_dest = generated_path(&state.generated_dir, &hash, "webm")?;
+                                                if let Some(p) = webm_dest.parent() {
+                                                    create_dir_all(&p)
+                                                        .await
+                                                        .context_with(
+                                                            "Failed to create parent directories for generated webm file",
+                                                            ea!(path = webm_dest.display()),
+                                                        )?;
+                                                }
+                                                let pass1_res =
+                                                    Command::new("ffmpeg")
+                                                        .stdin(Stdio::null())
+                                                        .arg("-i")
+                                                        .arg(&source)
+                                                        .args(&["-b:v", "0"])
+                                                        .args(&["-crf", "30"])
+                                                        .args(&["-pass", "1"])
+                                                        .arg("-passlogfile")
+                                                        .arg(&webm_tmp.path().join("passlog"))
+                                                        .arg("-an")
+                                                        .args(&["-f", "webm"])
+                                                        .args(&["-y", "/dev/null"])
+                                                        .output()
+                                                        .await
+                                                        .context("Error starting webm conversion pass 1")?;
+                                                if !pass1_res.status.success() {
+                                                    return Err(
+                                                        loga::err_with(
+                                                            "Generating webm, pass 1 failed",
+                                                            ea!(output = pass1_res.pretty_dbg_str()),
+                                                        ),
+                                                    );
+                                                }
+                                                let pass2_res =
+                                                    Command::new("ffmpeg")
+                                                        .stdin(Stdio::null())
+                                                        .arg("-i")
+                                                        .arg(&source)
+                                                        .args(&["-b:v", "0"])
+                                                        .args(&["-crf", "30"])
+                                                        .args(&["-pass", "2"])
+                                                        .arg("-passlogfile")
+                                                        .arg(&webm_tmp.path().join("passlog"))
+                                                        .arg(webm_dest)
+                                                        .output()
+                                                        .await
+                                                        .context("Error starting webm conversion pass 1")?;
+                                                if !pass2_res.status.success() {
+                                                    return Err(
+                                                        loga::err_with(
+                                                            "Generating webm, pass 2 failed",
+                                                            ea!(output = pass2_res.pretty_dbg_str()),
+                                                        ),
+                                                    );
+                                                }
+                                            }
+
+                                            // Place file
                                             let dest = file_path(&state.files_dir, &hash)?;
                                             if let Some(p) = dest.parent() {
                                                 create_dir_all(&p)
                                                     .await
-                                                    .context(
+                                                    .context_with(
                                                         "Failed to create parent directories for uploaded file",
+                                                        ea!(path = dest.display()),
                                                     )?;
                                             }
                                             rename(&source, &dest).await.context("Failed to place uploaded file")?;
@@ -875,7 +1111,7 @@ async fn handle_req(state: Arc<State>, req: Request<Incoming>) -> Response<BoxBo
                                                 state
                                                     .log
                                                     .log_err(
-                                                        Flag::Debug,
+                                                        Flag::Warn,
                                                         e.context_with(
                                                             "Error finishing upload",
                                                             ea!(hash = hash.to_string()),
@@ -973,29 +1209,9 @@ async fn handle_req(state: Arc<State>, req: Request<Incoming>) -> Response<BoxBo
                         if let Some(resp) = check_file_auth(&state, &head, &file) {
                             return Ok(resp);
                         }
-                        let Some(meta0) = spawn_blocking(
-                            cap_fn!(()(state) {
-                                state.db.run_script("{?[mimetype] := *meta{node:$node, mimetype:mimetype}}", {
-                                    let mut m = BTreeMap::new();
-                                    m.insert(
-                                        "node".to_string(),
-                                        DataValue::List(
-                                            vec![
-                                                DataValue::Str("file".into()),
-                                                DataValue::Str(file.to_string().into())
-                                            ],
-                                        ),
-                                    );
-                                    m
-                                }, cozo::ScriptMutability::Immutable)
-                            })
-                        ).await ?.await.map_err(
-                            |e| loga::err(e.to_string()).context("Error looking up metadata")
-                        ) ?.rows.into_iter().next() else {
+                        let Some(mimetype) = get_mimetype(&state, &file).await ? else {
                             return Ok(response_404());
                         };
-                        let mut meta0 = meta0.into_iter();
-                        let mimetype = unenum!(meta0.next().unwrap(), DataValue:: Str(s) => s).unwrap();
                         return Ok(
                             Response::builder()
                                 .status(200)
@@ -1009,38 +1225,30 @@ async fn handle_req(state: Arc<State>, req: Request<Incoming>) -> Response<BoxBo
                         if let Some(resp) = check_file_auth(&state, &head, &file) {
                             return Ok(resp);
                         }
-                        let Some(meta0) = spawn_blocking(
-                            cap_fn!(()(state, file) {
-                                state.db.run_script("{?[mimetype] := *meta{node:$node, mimetype:mimetype}}", {
-                                    let mut m = BTreeMap::new();
-                                    m.insert(
-                                        "node".to_string(),
-                                        DataValue::List(
-                                            vec![
-                                                DataValue::Str("file".into()),
-                                                DataValue::Str(file.to_string().into())
-                                            ],
-                                        ),
-                                    );
-                                    m
-                                }, cozo::ScriptMutability::Immutable)
-                            })
-                        ).await ?.await.map_err(
-                            |e| loga::err(e.to_string()).context("Error looking up metadata")
-                        ) ?.rows.into_iter().next() else {
-                            return Ok(response_404());
-                        };
-                        let mut meta0 = meta0.into_iter();
-                        let mimetype = unenum!(meta0.next().unwrap(), DataValue:: Str(s) => s).unwrap();
-                        let file_path = file_path(&state.files_dir, &file)?;
-                        let meta1 = file_path.metadata()?;
+                        let query =
+                            serde_urlencoded::from_str::<FileUrlQuery>(
+                                head.uri.query().unwrap_or_default(),
+                            ).context("Error parsing query string")?;
+                        let mimetype;
+                        let local_path;
+                        if let Some(generated) = query.generated {
+                            mimetype = generated.mime;
+                            local_path = generated_path(&state.generated_dir, &file, &generated.name)?;
+                        } else {
+                            let Some(mimetype1) = get_mimetype(&state, &file).await ? else {
+                                return Ok(response_404());
+                            };
+                            mimetype = mimetype1;
+                            local_path = file_path(&state.files_dir, &file)?;
+                        }
+                        let meta1 = local_path.metadata()?;
                         let mut file =
-                            File::open(&file_path)
+                            File::open(&local_path)
                                 .await
                                 .stack_context_with(
                                     &state.log,
                                     "Error opening stored file to read",
-                                    ea!(path = file_path.to_string_lossy()),
+                                    ea!(path = local_path.to_string_lossy()),
                                 )?;
                         if let Some(ranges) = head.headers.get("Accept-Ranges") {
                             let Some(ranges_text) = ranges.to_str() ?.strip_prefix("bytes=") else {
@@ -1246,6 +1454,8 @@ async fn main() {
         create_dir_all(&files_dir).await.context("Failed to ensure files dir")?;
         let stage_dir = config.persistent_dir.join("stage");
         create_dir_all(&stage_dir).await.context("Failed to ensure stage dir")?;
+        let generated_dir = config.cache_dir.join("generated");
+        create_dir_all(&generated_dir).await.context("Failed to ensure generated dir")?;
         let dbc =
             match DbInstance::new(
                 "sqlite",
@@ -1283,7 +1493,10 @@ async fn main() {
                     dbc
                         .run_script(script, BTreeMap::new(), cozo::ScriptMutability::Mutable)
                         .map_err(
-                            |e| loga::err_with("Error running migration", ea!(err = e, version = 0, script = script)),
+                            |e| loga::err_with(
+                                "Error running migration",
+                                ea!(err = e.dbg_str(), version = 0, script = script),
+                            ),
                         )?;
                 }
             },
@@ -1293,130 +1506,185 @@ async fn main() {
         let tm = taskmanager::TaskManager::new();
 
         // GC
-        tm.periodic("Garbage collection", Duration::hours(24).to_std().unwrap(), cap_fn!(()(log, dbc, files_dir) {
-            let log = log.fork(ea!(sys = "gc"));
-            match async {
-                ta_res!(());
-                spawn_blocking({
-                    let dbc = dbc.clone();
-                    move || {
-                        ta_res!(());
-                        dbc
-                            .run_script(include_str!("gc.cozo"), {
-                                let mut m = BTreeMap::new();
-                                m.insert(
-                                    "cutoff".to_string(),
-                                    DataValue::Num(Num::Int(Utc::now().timestamp_micros())),
-                                );
-                                m
-                            }, cozo::ScriptMutability::Mutable)
-                            .map_err(|e| loga::err_with("Error running gc query", ea!(err = e)))?;
-                        return Ok(());
-                    }
-                }).await??;
-                let mut walk = WalkDir::new(&files_dir);
-                let mut batch = HashMap::new();
+        tm.periodic(
+            "Garbage collection",
+            Duration::hours(24).to_std().unwrap(),
+            cap_fn!(()(log, dbc, files_dir, generated_dir) {
+                let log = log.fork(ea!(sys = "gc"));
+                match async {
+                    ta_res!(());
 
-                async fn flush(
-                    log: &Log,
-                    dbc: &Db<SqliteStorage>,
-                    batch: &mut HashMap<FileHash, PathBuf>,
-                ) -> Result<(), loga::Error> {
-                    let db_files =
-                        DataValue::List(
-                            batch.keys().map(|k| DataValue::Str(k.to_string().into())).collect::<Vec<_>>(),
-                        );
-                    let found = spawn_blocking({
+                    // Clean up old triples
+                    spawn_blocking({
                         let dbc = dbc.clone();
                         move || {
-                            ta_res!(Vec < FileHash >);
-                            let res =
-                                dbc
-                                    .run_script(include_str!("gc_file_referenced.cozo"), {
-                                        let mut m = BTreeMap::new();
-                                        m.insert("files".to_string(), db_files);
-                                        m
-                                    }, cozo::ScriptMutability::Immutable)
-                                    .map_err(|e| loga::err_with("Error running gc query", ea!(err = e)))?;
-                            let mut out = vec![];
-                            for r in res.rows {
-                                let Some(DataValue::Str(hash)) = r.get(0) else {
-                                    panic!("{:?}", r);
-                                };
-                                out.push(FileHash::from_str(hash.as_str()).unwrap());
-                            }
-                            return Ok(out);
+                            ta_res!(());
+                            dbc
+                                .run_script(include_str!("gc.cozo"), {
+                                    let mut m = BTreeMap::new();
+                                    m.insert(
+                                        "cutoff".to_string(),
+                                        DataValue::Num(Num::Int(Utc::now().timestamp_micros())),
+                                    );
+                                    m
+                                }, cozo::ScriptMutability::Mutable)
+                                .map_err(|e| loga::err(e.dbg_str()).context("Error running gc query"))?;
+                            return Ok(());
                         }
                     }).await??;
-                    for hash in found {
-                        batch.remove(&hash);
+
+                    // Clean up unreferenced files
+                    async fn flush(
+                        log: &Log,
+                        dbc: &Db<SqliteStorage>,
+                        batch: &mut HashMap<FileHash, PathBuf>,
+                    ) -> Result<(), loga::Error> {
+                        let db_files =
+                            DataValue::List(
+                                batch
+                                    .keys()
+                                    .map(|k| DataValue::List(vec![DataValue::Str(k.to_string().into())]))
+                                    .collect::<Vec<_>>(),
+                            );
+                        let found = spawn_blocking({
+                            let dbc = dbc.clone();
+                            move || {
+                                ta_res!(Vec < FileHash >);
+                                let res =
+                                    dbc
+                                        .run_script(include_str!("gc_file_referenced.cozo"), {
+                                            let mut m = BTreeMap::new();
+                                            m.insert("files".to_string(), db_files);
+                                            m
+                                        }, cozo::ScriptMutability::Immutable)
+                                        .map_err(
+                                            |e| loga::err(e.dbg_str()).context("Error running file gc query"),
+                                        )?;
+                                let mut out = vec![];
+                                for r in res.rows {
+                                    let Some(DataValue::Str(hash)) = r.get(0) else {
+                                        panic!("{:?}", r);
+                                    };
+                                    out.push(FileHash::from_str(hash.as_str()).unwrap());
+                                }
+                                return Ok(out);
+                            }
+                        }).await??;
+                        for hash in found {
+                            batch.remove(&hash);
+                        }
+                        for path in batch.values() {
+                            match remove_file(path).await {
+                                Ok(_) => { },
+                                Err(e) => {
+                                    log.log_err(
+                                        Flag::Warn,
+                                        e.context_with(
+                                            "Failed to delete unreferenced file",
+                                            ea!(path = path.display().to_string()),
+                                        ),
+                                    );
+                                },
+                            };
+                        }
+                        batch.clear();
+                        return Ok(());
                     }
-                    for path in batch.values() {
-                        match remove_file(path).await {
-                            Ok(_) => { },
+
+                    fn get_file_hash(log: &Log, root: &Path, path: &Path) -> Option<FileHash> {
+                        let components = path.strip_prefix(root).unwrap().components().filter_map(|c| match c {
+                            Component::Normal(c) => Some(c),
+                            _ => None,
+                        }).collect::<Vec<_>>();
+                        let Some(hash_type) = components.first().and_then(|c| c.to_str()) else {
+                            log.log(Flag::Warn, "File in files dir not in hash type directory");
+                            return None;
+                        };
+                        let Some(hash_hash) = components.last().and_then(|c| c.to_str()) else {
+                            log.log(Flag::Warn, "File in files dir has non-utf8 last path segment");
+                            return None;
+                        };
+                        let hash = match FileHash::from_str(&format!("{}:{}", hash_type, hash_hash)) {
+                            Ok(h) => h,
                             Err(e) => {
-                                log.log_err(
-                                    Flag::Warn,
-                                    e.context_with(
-                                        "Failed to delete unreferenced file",
-                                        ea!(path = path.display().to_string()),
-                                    ),
-                                );
+                                log.log_err(Flag::Warn, loga::err(e).context("Failed to determine hash for file"));
+                                return None;
                             },
                         };
+                        return Some(hash);
                     }
-                    batch.clear();
-                    return Ok(());
-                }
 
-                while let Some(entry) = walk.next().await {
-                    let entry = match entry {
-                        Ok(entry) => entry,
-                        Err(e) => {
-                            log.log_err(Flag::Warn, e.context("Unable to scan file in files_dir"));
+                    let mut walk = WalkDir::new(&files_dir);
+                    let mut batch = HashMap::new();
+                    while let Some(entry) = walk.next().await {
+                        let entry = match entry {
+                            Ok(entry) => entry,
+                            Err(e) => {
+                                log.log_err(Flag::Warn, e.context("Unable to scan file in files_dir"));
+                                continue;
+                            },
+                        };
+                        let path = entry.path();
+                        let log = log.fork(ea!(path = path.to_string_lossy()));
+                        if !entry.metadata().await.stack_context(&log, "Error reading metadata")?.is_file() {
                             continue;
-                        },
-                    };
-                    let path = entry.path();
-                    let log = log.fork(ea!(path = path.to_string_lossy()));
-                    if !entry.metadata().await.stack_context(&log, "Error reading metadata")?.is_file() {
-                        continue;
+                        }
+                        let Some(hash) = get_file_hash(&log, &files_dir, &path) else {
+                            continue;
+                        };
+                        batch.insert(hash.clone(), path);
+                        if batch.len() >= 1000 {
+                            flush(&log, &dbc, &mut batch).await?;
+                        }
                     }
-                    let components = path.strip_prefix(&files_dir).unwrap().components().filter_map(|c| match c {
-                        Component::Normal(c) => Some(c),
-                        _ => None,
-                    }).collect::<Vec<_>>();
-                    let Some(hash_type) = components.first().and_then(|c| c.to_str()) else {
-                        log.log(Flag::Warn, "File in files dir not in hash type directory");
-                        continue;
-                    };
-                    let Some(hash_hash) = components.last().and_then(|c| c.to_str()) else {
-                        log.log(Flag::Warn, "File in files dir has non-utf8 last path segment");
-                        continue;
-                    };
-                    let hash = match FileHash::from_str(&format!("{}:{}", hash_type, hash_hash)) {
-                        Ok(h) => h,
-                        Err(e) => {
-                            log.log_err(Flag::Warn, loga::err(e).context("Failed to determine hash for file"));
-                            continue;
-                        },
-                    };
-                    batch.insert(hash.clone(), path);
-                    if batch.len() >= 1000 {
+                    if !batch.is_empty() {
                         flush(&log, &dbc, &mut batch).await?;
                     }
+
+                    // Clean up unreferenced generated files
+                    let mut walk = WalkDir::new(&generated_dir);
+                    while let Some(entry) = walk.next().await {
+                        let entry = match entry {
+                            Ok(entry) => entry,
+                            Err(e) => {
+                                log.log_err(Flag::Warn, e.context("Unable to scan file in files_dir"));
+                                continue;
+                            },
+                        };
+                        let path = entry.path();
+                        let log = log.fork(ea!(path = path.to_string_lossy()));
+                        if !entry.metadata().await.stack_context(&log, "Error reading metadata")?.is_file() {
+                            continue;
+                        }
+                        let Some(hash) = get_file_hash(&log, &generated_dir, &path) else {
+                            continue;
+                        };
+                        if !file_path(&files_dir, &hash).unwrap().exists() {
+                            match remove_file(&path).await {
+                                Ok(_) => { },
+                                Err(e) => {
+                                    log.log_err(
+                                        Flag::Warn,
+                                        e.context_with(
+                                            "Failed to delete unreferenced generated file",
+                                            ea!(path = path.display().to_string()),
+                                        ),
+                                    );
+                                },
+                            };
+                        }
+                    }
+
+                    // Don
+                    return Ok(());
+                }.await {
+                    Ok(_) => { },
+                    Err(e) => {
+                        log.log_err(Flag::Warn, e.context("Error performing garbage collection"));
+                    },
                 }
-                if !batch.is_empty() {
-                    flush(&log, &dbc, &mut batch).await?;
-                }
-                return Ok(());
-            }.await {
-                Ok(_) => { },
-                Err(e) => {
-                    log.log_err(Flag::Warn, e.context("Error performing garbage collection"));
-                },
-            }
-        }));
+            }),
+        );
 
         // Client<->server
         tm.critical_stream(
@@ -1431,7 +1699,14 @@ async fn main() {
                     log: log.clone(),
                     files_dir: files_dir,
                     stage_dir: stage_dir,
+                    generated_dir: generated_dir,
                     finishing_uploads: Mutex::new(HashSet::new()),
+                    link_bg: Mutex::new(None),
+                    link_ids: AtomicU8::new(0),
+                    link_main: Mutex::new(None),
+                    link_links: Mutex::new(HashMap::new()),
+                    link_public_files: HashSet::new(),
+                    link_session: Mutex::new(None),
                 });
                 cap_fn!((stream)(log, state) {
                     let stream = match stream {

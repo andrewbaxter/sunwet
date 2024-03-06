@@ -1,0 +1,40 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+<style type="text/css">
+  @keyframes grow_kf {
+    0% { transform: translate(0, 0) scale(1); }
+    40% { transform: translate(0, 0) scale(1.8); }
+    48% { transform: translate(0, 0) scale(2.0); }
+    50% { transform: translate(0, 0) scale(3); }
+    58% { transform: translate(0, 0) scale(2.8); }
+    60% { transform: translate(0, 0) scale(1.8); }
+    100%   { transform: translate(0, 0) scale(1); }
+  }
+  .grow { animation: grow_kf 3.6s ease-in-out infinite; }
+  @keyframes rotate_kf {
+    0% { transform: rotate(0deg); }
+    75% { transform: rotate(20deg); }
+    100%   { transform: rotate(0deg); }
+  }
+  .rotate { animation: rotate_kf 3.6s linear infinite; }
+  .c1 * {animation-delay: 0s;}
+  .c2 * {animation-delay: -0.4s;}
+  .c3 * {animation-delay: -0.8s;}
+  .c4 * {animation-delay: -1.2s;}
+  .c5 * {animation-delay: -1.6s;}
+  .c6 * {animation-delay: -2.0s;}
+  .c7 * {animation-delay: -2.4s;}
+  .c8 * {animation-delay: -2.8s;}
+  .c9 * {animation-delay: -3.2s;}
+ </style>
+ <g transform="translate(50,50)">
+ <g class="c1"><g class="rotate"><g transform="translate(0, -30)"><circle class="grow" r="2.5" /></g></g></g>
+ <g class="c2"><g class="rotate"><g transform="translate(0, -30)"><circle class="grow" r="2.5" /></g></g></g>
+ <g class="c3"><g class="rotate"><g transform="translate(0, -30)"><circle class="grow" r="2.5" /></g></g></g>
+ <g class="c4"><g class="rotate"><g transform="translate(0, -30)"><circle class="grow" r="2.5" /></g></g></g>
+ <g class="c5"><g class="rotate"><g transform="translate(0, -30)"><circle class="grow" r="2.5" /></g></g></g>
+ <g class="c6"><g class="rotate"><g transform="translate(0, -30)"><circle class="grow" r="2.5" /></g></g></g>
+ <g class="c7"><g class="rotate"><g transform="translate(0, -30)"><circle class="grow" r="2.5" /></g></g></g>
+ <g class="c8"><g class="rotate"><g transform="translate(0, -30)"><circle class="grow" r="2.5" /></g></g></g>
+ <g class="c9"><g class="rotate"><g transform="translate(0, -30)"><circle class="grow" r="2.5" /></g></g></g>
+ </g>
+</svg>

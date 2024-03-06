@@ -3,7 +3,10 @@ use std::{
         HashMap,
         HashSet,
     },
-    env::current_dir,
+    env::{
+        self,
+        current_dir,
+    },
     io::SeekFrom,
     os::unix::fs::MetadataExt,
     path::{
@@ -16,6 +19,7 @@ use aargvark::{
     vark,
 };
 use chrono::Duration;
+use http::header::AUTHORIZATION;
 use http_body_util::Full;
 use hyper::{
     body::Bytes,
@@ -93,7 +97,6 @@ pub mod args {
     };
     use shared::model::{
         cli::CliCommit,
-        FileHash,
         ViewDef,
     };
 
@@ -178,7 +181,7 @@ pub mod args {
         /// committing again.
         Export(Export),
         /// Download a file by its hash.
-        Download(FileHash),
+        Download(String),
         /// Commands for configuring UI views.
         View(View),
     }
@@ -193,19 +196,19 @@ pub mod args {
 async fn download(
     log: &Log,
     conn: &mut htreq::Conn,
+    headers: &HashMap<String, String>,
     server: &Uri,
     out_dir: &Path,
     hash: &FileHash,
 ) -> Result<PathBuf, loga::Error> {
+    let mut req = Request::builder().uri(format!("{}/file/{}", server, hash.to_string())).method(Method::GET);
+    for (k, v) in headers {
+        req = req.header(k, v);
+    }
     let (_, headers, continue_recv) =
-        htreq::send_recv_head(
-            &log,
-            conn,
-            Duration::seconds(15),
-            Request::builder().uri(format!("{}/file/{}", server, hash.to_string())).method(Method::GET)
-                //. .header("Authorization", format!("Bearer {}", token))
-                .body(Full::new(Bytes::new())).unwrap(),
-        ).await.stack_context(&log, "Error getting file")?;
+        htreq::send_recv_head(&log, conn, Duration::seconds(15), req.body(Full::new(Bytes::new())).unwrap())
+            .await
+            .stack_context(&log, "Error getting file")?;
     let out_path = bb!{
         'named _;
         bb!{
@@ -241,6 +244,10 @@ async fn main() {
             Uri::from_str(
                 &args.server,
             ).context_with("Couldn't parse specified server as URL", ea!(server = args.server))?;
+        let mut headers = HashMap::new();
+        if let Some(token) = env::var("SUNWET_TOKEN").ok() {
+            headers.insert(AUTHORIZATION.to_string(), format!("Bearer {}", token));
+        }
         match args.command {
             args::Command::Query(q) => {
                 let mut conn = new_conn(&server).await.stack_context(&log, "Error connecting to server")?;
@@ -249,7 +256,7 @@ async fn main() {
                         &log,
                         &mut conn,
                         format!("{}/api", server),
-                        &HashMap::new(),
+                        &headers,
                         serde_json::to_vec(&C2SReq::Query(Query {
                             query: String::from_utf8(q.query.value).context("Query file contents isn't valid utf8")?,
                             parameters: q.params.into_iter().map(|kv| (kv.key, kv.value)).collect(),
@@ -361,7 +368,7 @@ async fn main() {
                         &log,
                         &mut conn,
                         &format!("{}/api", server),
-                        &HashMap::new(),
+                        &headers,
                         serde_json::to_vec(&C2SReq::Commit(commit.clone())).unwrap(),
                         1024,
                     )
@@ -392,7 +399,7 @@ async fn main() {
                         chunk.resize(chunk_size as usize, 0);
                         f.read_exact(&mut chunk).await.stack_context(&log, "Error reading chunk from source file")?;
                         htreq::post(&log, &mut conn, format!("{}/file/{}", &server, hash.to_string()), &{
-                            let mut headers = HashMap::new();
+                            let mut headers = headers.clone();
                             headers.insert(HEADER_OFFSET.to_string(), chunk_start.to_string());
                             headers
                         }, chunk, 1024)
@@ -413,7 +420,7 @@ async fn main() {
                                 &log,
                                 &mut conn,
                                 format!("{}/api", server),
-                                &HashMap::new(),
+                                &headers,
                                 serde_json::to_vec(&C2SReq::UploadFinish(hash.clone())).unwrap(),
                                 1024,
                             )
@@ -431,11 +438,13 @@ async fn main() {
                 }
             },
             args::Command::Download(hash) => {
+                let hash = FileHash::from_str(&hash).map_err(|e| loga::err(e))?;
                 let mut conn = new_conn(&server).await.stack_context(&log, "Error connecting to server")?;
                 let path =
                     download(
                         &log,
                         &mut conn,
+                        &headers,
                         &server,
                         &current_dir().context("Couldn't determine current directory")?,
                         &hash,
@@ -449,7 +458,7 @@ async fn main() {
                         &log,
                         &mut conn,
                         format!("{}/api", server),
-                        &HashMap::new(),
+                        &headers,
                         serde_json::to_vec(&C2SReq::Query(Query {
                             query: String::from_utf8(
                                 export.query.query.value,
@@ -475,6 +484,7 @@ async fn main() {
                     async fn process_node(
                         log: &Log,
                         conn: &mut htreq::Conn,
+                        headers: &HashMap<String, String>,
                         server: &Uri,
                         out_dir: &Path,
                         node_in: (String, serde_json::Value),
@@ -511,7 +521,7 @@ async fn main() {
                                             e.to_string(),
                                         ).context_with("Failed to parse hash for node", ea!(hash = hash_raw)),
                                     )?;
-                                let path = download(&log, conn, &server, out_dir, &hash).await?;
+                                let path = download(&log, conn, headers, &server, out_dir, &hash).await?;
                                 return Ok(CliNode::Upload(path));
                             },
                             _ => {
@@ -521,9 +531,9 @@ async fn main() {
                     }
 
                     triples.push(CliTriple {
-                        subject: process_node(&log, &mut conn, &server, &export.out_dir, row.subject).await?,
+                        subject: process_node(&log, &mut conn, &headers, &server, &export.out_dir, row.subject).await?,
                         predicate: row.predicate,
-                        object: process_node(&log, &mut conn, &server, &export.out_dir, row.object).await?,
+                        object: process_node(&log, &mut conn, &headers, &server, &export.out_dir, row.object).await?,
                     });
                 }
                 let commit_path = export.out_dir.join("sunwet.json");
@@ -542,7 +552,7 @@ async fn main() {
                             &log,
                             &mut conn,
                             format!("{}/api", server),
-                            &HashMap::new(),
+                            &headers,
                             serde_json::to_vec(&C2SReq::ViewsList).unwrap(),
                             128 * 1024 * 1024,
                         )
@@ -560,7 +570,7 @@ async fn main() {
                         &log,
                         &mut conn,
                         format!("{}/api", server),
-                        &HashMap::new(),
+                        &headers,
                         serde_json::to_vec(&C2SReq::ViewEnsure(model::ViewEnsure {
                             id: args.id,
                             def: match args.definition {
@@ -577,7 +587,7 @@ async fn main() {
                         &log,
                         &mut conn,
                         format!("{}/api", server),
-                        &HashMap::new(),
+                        &headers,
                         serde_json::to_vec(&C2SReq::ViewDelete(args.id)).unwrap(),
                         1024,
                     )

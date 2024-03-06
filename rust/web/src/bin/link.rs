@@ -7,7 +7,6 @@ use std::{
     rc::Rc,
 };
 use chrono::{
-    DateTime,
     Utc,
 };
 use gloo::{
@@ -29,9 +28,8 @@ use rooting::{
 };
 use shared::model::link::{
     PrepareMedia,
-    WsL2SReq,
-    WsL2SReqMode,
-    WsS2LNotify,
+    WsL2S,
+    WsS2L,
 };
 use wasm_bindgen::JsCast;
 use web::{
@@ -42,7 +40,6 @@ use web::{
         el_icon,
         el_vbox,
         el_video,
-        log,
         ICON_VOLUME,
     },
     websocket::Ws,
@@ -88,17 +85,15 @@ fn main() {
             message_bg: Cell::new(scope_any(())),
             media: RefCell::new(None),
         }));
-        let ws = Ws::<(), WsS2LNotify, WsL2SReq>::new({
+        let ws = Ws::<WsL2S, WsS2L>::new(format!("link/{}", sess_id), {
             let state = state.clone();
-            let sess_id = sess_id.clone();
             move |ws, message| {
                 state.0.message_bg.set(scope_any(spawn_rooted({
                     let ws = ws.clone();
                     let state = state.clone();
-                    let sess_id = sess_id.clone();
                     async move {
                         match message {
-                            WsS2LNotify::Prepare(prepare) => {
+                            WsS2L::Prepare(prepare) => {
                                 state.0.album.ref_text(&prepare.album);
                                 state.0.artist.ref_text(&prepare.artist);
                                 state.0.name.ref_text(&prepare.name);
@@ -129,24 +124,18 @@ fn main() {
                                 if raw_media_el.ready_state() < 4 {
                                     async_event(&raw_media_el, "canplaythrough").await;
                                 }
-                                let play_at = match ws.request::<DateTime<Utc>>(WsL2SReq {
-                                    session_id: sess_id.clone(),
-                                    mode: WsL2SReqMode::Ready(Utc::now()),
-                                }).await {
-                                    Ok(Some(r)) => r,
-                                    Ok(None) => {
-                                        return;
-                                    },
-                                    Err(e) => {
-                                        log(format!("Received error from ready request: {}", e));
-                                        return;
-                                    },
-                                };
-                                TimeoutFuture::new((play_at - Utc::now()).num_milliseconds().max(0) as u32).await;
-                                media_el2.set_volume(*state.0.volume.borrow());
-                                _ = media_el2.play().unwrap();
+                                ws.send(WsL2S::Ready(Utc::now())).await;
                             },
-                            WsS2LNotify::Pause => {
+                            WsS2L::Play(play_at) => {
+                                if let Some(media) = &*state.0.media.borrow() {
+                                    TimeoutFuture::new(
+                                        (play_at - Utc::now()).num_milliseconds().max(0) as u32,
+                                    ).await;
+                                    media.set_volume(*state.0.volume.borrow());
+                                    _ = media.play().unwrap();
+                                }
+                            },
+                            WsS2L::Pause => {
                                 if let Some(media) = &*state.0.media.borrow() {
                                     media.pause().unwrap();
                                 }

@@ -2,7 +2,9 @@ use reqwasm::http::Request;
 use serde::de::DeserializeOwned;
 use shared::model::{
     C2SReq,
+    FileGenerated,
     FileHash,
+    FileUrlQuery,
 };
 use wasm_bindgen::UnwrapThrowExt;
 
@@ -52,4 +54,16 @@ pub async fn req_post_json<R: DeserializeOwned>(origin: &str, req: C2SReq) -> Re
 
 pub fn file_url(origin: &String, hash: &FileHash) -> String {
     return format!("{}/file/{}", origin, hash.to_string());
+}
+
+pub fn generated_file_url(origin: &String, hash: &FileHash, generation: &str, mime: &str) -> String {
+    return format!(
+        "{}/file/{}?{}",
+        origin,
+        hash.to_string(),
+        serde_urlencoded::to_string(&FileUrlQuery { generated: Some(FileGenerated {
+            name: generation.to_string(),
+            mime: mime.to_string(),
+        }) }).unwrap()
+    );
 }

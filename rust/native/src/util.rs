@@ -4,6 +4,10 @@ use std::{
     task::Poll,
     io::Write,
 };
+use futures::{
+    channel::oneshot,
+    Future,
+};
 use loga::{
     FlagStyle,
     ResultContext,
@@ -16,9 +20,11 @@ use shared::model::FileHash;
 use tokio::{
     fs::File,
     io::{
-        AsyncWrite,
         copy,
+        AsyncWrite,
     },
+    select,
+    spawn,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -132,4 +138,36 @@ macro_rules! ta_res{
             loga::Error > ::Ok(unreachable_value());
         }
     }
+}
+
+trait ScopeValue_: Send + Sync { }
+
+impl<T: 'static + Send + Sync> ScopeValue_ for T { }
+
+pub struct ScopeValue(
+    #[allow(dead_code)]
+    Box<dyn ScopeValue_>,
+);
+
+struct ScopeBg {
+    kill: Option<oneshot::Sender<()>>,
+}
+
+impl Drop for ScopeBg {
+    fn drop(&mut self) {
+        _ = self.kill.take().unwrap().send(());
+    }
+}
+
+pub fn spawn_scoped<F: 'static + Send + Future<Output = ()>>(f: F) -> ScopeValue {
+    let (kill, killed) = oneshot::channel();
+    spawn(async move {
+        select!{
+            _ = killed => {
+            },
+            _ = f => {
+            }
+        }
+    });
+    return ScopeValue(Box::new(ScopeBg { kill: Some(kill) }));
 }

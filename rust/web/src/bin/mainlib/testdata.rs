@@ -73,7 +73,7 @@ use shared::model::view::{
 
 pub fn testdata_albums() -> ViewPartList {
     return ViewPartList {
-        data: QueryOrField::Query(include_str!("query_albums.datalog").to_string()),
+        data: QueryOrField::Query(include_str!("query_albums.cozo").to_string()),
         key_field: "album_id".to_string(),
         layout: Layout::Individual(LayoutIndividual {
             orientation: Orientation::DownRight,
@@ -106,7 +106,7 @@ pub fn testdata_albums() -> ViewPartList {
                                 align: Align::Start,
                             }),
                             Widget::Sublist(ViewPartList {
-                                data: QueryOrField::Query(include_str!("query_tracks.datalog").to_string()),
+                                data: QueryOrField::Query(include_str!("query_tracks.cozo").to_string()),
                                 key_field: "file".to_string(),
                                 layout: Layout::Table(LayoutTable {
                                     orientation: Orientation::DownRight,

@@ -5,16 +5,11 @@ edition = "2021"
 
 [dependencies]
 chrono = "0.4"
-tokio = { version = "1", features = [
-    "rt",
-    "macros",
-    "rt-multi-thread",
-    "fs",
-    "io-util",
-] }
+tokio = { version = "1", features = ["rt", "macros", "rt-multi-thread", "fs", "io-util", "process"] }
 serde = { version = "1", features = ["derive"] }
 tokio-util = { version = "0.7", features = ["compat", "io"] }
 serde_json = "1"
+serde_urlencoded = "0.7"
 rand = "0.8"
 sha2 = "0.10"
 zbase32 = "0.1"
@@ -31,20 +26,21 @@ hyper = { version = "1", features = ["server", "client", "http1"] }
 http-body-util = "0.1"
 http-body = "1"
 aargvark = { version = "0.1", features = ["serde_json", "serde_yaml"] }
-tokio-stream = { version = "0.1.14", features = ["net"] }
-include_directory = "0.1.1"
-rust-embed = { version = "8.2.0", features = [
+tokio-stream = { version = "0.1", features = ["net"] }
+include_directory = "0.1"
+rust-embed = { version = "8", features = [
     "mime-guess",
     "interpolate-folder-path",
 ] }
-hyper-util = { version = "0.1.3", features = ["tokio"] }
-hickory-resolver = "0.24.0"
-hyper-rustls = "0.26.0"
-rustls = "0.22.2"
-tower-service = "0.3.2"
-mime_guess = "2.0.4"
-async-stream = "0.3.5"
-console_error_panic_hook = "0.1.7"
-async-walkdir = "1.0.0"
-hyper-tungstenite = "0.13.0"
-http = "1.0.0"
+hyper-util = { version = "0.1", features = ["tokio"] }
+hickory-resolver = "0.24"
+hyper-rustls = "0.26"
+rustls = "0.22"
+tower-service = "0.3"
+mime_guess = "2"
+async-stream = "0.3"
+console_error_panic_hook = "0.1"
+async-walkdir = "1"
+hyper-tungstenite = "0.13"
+http = "1"
+tempfile = "3.10.1"

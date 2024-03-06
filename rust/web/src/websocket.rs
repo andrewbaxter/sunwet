@@ -1,17 +1,11 @@
 use std::{
     cell::{
         Cell,
-        RefCell,
     },
-    collections::HashMap,
     rc::{
         Rc,
         Weak,
     },
-};
-use futures::channel::oneshot::{
-    channel,
-    Sender,
 };
 use gloo::{
     events::EventListener,
@@ -25,10 +19,8 @@ use rooting::{
 };
 use serde::{
     de::DeserializeOwned,
-    Deserialize,
     Serialize,
 };
-use shared::model::link::WsMessage;
 use wasm_bindgen::JsCast;
 use web_sys::{
     MessageEvent,
@@ -43,52 +35,44 @@ use crate::{
     },
 };
 
-pub struct Ws_<SN: Serialize + DeserializeOwned, RN: Serialize + DeserializeOwned, SR: Serialize + DeserializeOwned> {
+pub struct Ws_<S: Serialize + DeserializeOwned, R: Serialize + DeserializeOwned> {
+    path: String,
     ws: WaitVal<WebSocket>,
     ws_state: Cell<ScopeValue>,
-    send_index: Cell<usize>,
-    history: RefCell<Vec<WsMessage>>,
-    requests: RefCell<HashMap<usize, Sender<serde_json::Value>>>,
-    notify_handler: Box<dyn Fn(&Ws<SN, RN, SR>, RN) -> ()>,
+    handler: Box<dyn Fn(&Ws<S, R>, R) -> ()>,
 }
 
-pub struct Ws<SN: Serialize + DeserializeOwned, RN: Serialize + DeserializeOwned, SR: Serialize + DeserializeOwned>(
-    Rc<Ws_<SN, RN, SR>>,
-);
+pub struct Ws<S: Serialize + DeserializeOwned, R: Serialize + DeserializeOwned>(Rc<Ws_<S, R>>);
 
-impl<
-    SN: Serialize + DeserializeOwned,
-    RN: Serialize + DeserializeOwned,
-    SR: Serialize + DeserializeOwned,
-> Clone for Ws<SN, RN, SR> {
+impl<S: Serialize + DeserializeOwned, R: Serialize + DeserializeOwned> Clone for Ws<S, R> {
     fn clone(&self) -> Self {
         return Self(self.0.clone());
     }
 }
 
-impl<
-    SN: 'static + Serialize + DeserializeOwned,
-    RN: 'static + Serialize + DeserializeOwned,
-    SR: 'static + Serialize + DeserializeOwned,
-> Ws<SN, RN, SR> {
-    pub fn weak(&self) -> Weak<Ws_<SN, RN, SR>> {
+impl<S: 'static + Serialize + DeserializeOwned, R: 'static + Serialize + DeserializeOwned> Ws<S, R> {
+    pub fn weak(&self) -> Weak<Ws_<S, R>> {
         return Rc::downgrade(&self.0);
     }
 
-    pub fn new(notify_handler: impl 'static + Fn(&Ws<SN, RN, SR>, RN) -> ()) -> Self {
+    pub fn new(path: impl ToString, notify_handler: impl 'static + Fn(&Ws<S, R>, R) -> ()) -> Self {
+        let path = path.to_string();
+
         fn connect<
-            SN: 'static + Serialize + DeserializeOwned,
-            RN: 'static + Serialize + DeserializeOwned,
-            SR: 'static + Serialize + DeserializeOwned,
-        >(state: Ws<SN, RN, SR>) {
-            let ws = match WebSocket::new(&format!("wss://{}", window().location().host().unwrap().as_str())) {
-                Ok(ws) => ws,
-                Err(e) => {
-                    log_js("Error creating websocket", &e);
-                    delay_reconnect(state);
-                    return;
-                },
-            };
+            S: 'static + Serialize + DeserializeOwned,
+            R: 'static + Serialize + DeserializeOwned,
+        >(state: Ws<S, R>) {
+            let ws =
+                match WebSocket::new(
+                    &format!("wss://{}/{}", window().location().host().unwrap().as_str(), state.0.path),
+                ) {
+                    Ok(ws) => ws,
+                    Err(e) => {
+                        log_js("Error creating websocket", &e);
+                        delay_reconnect(state);
+                        return;
+                    },
+                };
             state.0.ws_state.set(scope_any((
                 //. .
                 EventListener::once(&ws, "open", {
@@ -99,25 +83,10 @@ impl<
                             return;
                         };
                         let state = Ws(state);
-                        let mut send = vec![];
-                        for message in &*state.0.history.borrow() {
-                            send.push(serde_json::to_string(&message).unwrap());
-                        }
-                        for message in send {
-                            match ws.send_with_str(&message) {
-                                Ok(_) => { },
-                                Err(e) => {
-                                    log_js("Error resending unacked history message", &e);
-                                    delay_reconnect(state);
-                                    return;
-                                },
-                            }
-                        }
                         state.0.ws.set(Some(ws));
                     }
                 }),
                 EventListener::new(&ws, "message", {
-                    let ws = ws.clone();
                     let state = state.weak();
                     move |e| {
                         let Some(state) = state.upgrade() else {
@@ -133,57 +102,14 @@ impl<
                             },
                         };
                         let body = body.as_string().unwrap();
-                        let message = match serde_json::from_str::<WsMessage>(&body) {
+                        let message = match serde_json::from_str::<R>(&body) {
                             Ok(v) => v,
                             Err(e) => {
                                 log(format!("Failed to deserialize message: {}\nMessage: {}", e, body));
                                 return;
                             },
                         };
-                        match message {
-                            WsMessage::Ack(index) => {
-                                state.0.history.borrow_mut().retain(|message| match message {
-                                    WsMessage::Ack(_) => unreachable!(),
-                                    WsMessage::Notify((i, _)) => return *i > index,
-                                    WsMessage::Request((i, _)) => return *i > index,
-                                });
-                            },
-                            WsMessage::Notify((index, data)) => {
-                                match ws.send_with_str(&serde_json::to_string(&WsMessage::Ack(index)).unwrap()) {
-                                    Ok(_) => { },
-                                    Err(e) => {
-                                        log_js("Error sending ack", &e);
-                                        return;
-                                    },
-                                };
-                                let data = match serde_json::from_value(data.clone()) {
-                                    Ok(v) => v,
-                                    Err(e) => {
-                                        log(
-                                            format!(
-                                                "Failed deserializing ws notification, discarding: {}\nBody: {:?}",
-                                                e.to_string(),
-                                                data
-                                            ),
-                                        );
-                                        return;
-                                    },
-                                };
-                                (state.0.notify_handler)(&state, data);
-                            },
-                            WsMessage::Request((index, data)) => {
-                                match ws.send_with_str(&serde_json::to_string(&WsMessage::Ack(index)).unwrap()) {
-                                    Ok(_) => { },
-                                    Err(_) => {
-                                        log_js("Error sending ack", ev);
-                                        return;
-                                    },
-                                };
-                                if let Some(req) = state.0.requests.borrow_mut().remove(&index) {
-                                    _ = req.send(data);
-                                }
-                            },
-                        }
+                        (state.0.handler)(&state, message);
                     }
                 }),
                 EventListener::once(&ws, "error", {
@@ -205,10 +131,9 @@ impl<
         }
 
         fn delay_reconnect<
-            SN: 'static + Serialize + DeserializeOwned,
-            RN: 'static + Serialize + DeserializeOwned,
-            SR: 'static + Serialize + DeserializeOwned,
-        >(state: Ws<SN, RN, SR>) {
+            S: 'static + Serialize + DeserializeOwned,
+            R: 'static + Serialize + DeserializeOwned,
+        >(state: Ws<S, R>) {
             state.0.ws.set(None);
             state.0.ws_state.set(spawn_rooted({
                 let state = state.clone();
@@ -220,67 +145,24 @@ impl<
         }
 
         let out = Ws(Rc::new(Ws_ {
+            path: path,
             ws: WaitVal::new(),
             ws_state: Cell::new(scope_any(())),
-            send_index: Cell::new(0),
-            history: RefCell::new(vec![]),
-            requests: RefCell::new(HashMap::new()),
-            notify_handler: Box::new(notify_handler),
+            handler: Box::new(notify_handler),
         }));
         connect(out.clone());
         return out;
     }
 
-    pub async fn notify(&self, data: SN) {
-        let index = self.0.send_index.get();
-        self.0.send_index.set(index + 1);
-        let message = WsMessage::Notify((index, serde_json::to_value(&data).unwrap()));
-        let message_str = serde_json::to_string(&message).unwrap();
-        self.0.history.borrow_mut().push(message);
+    pub async fn send(&self, data: S) {
         loop {
-            match self.0.ws.get().await.send_with_str(&message_str) {
+            match self.0.ws.get().await.send_with_str(&serde_json::to_string(&data).unwrap()) {
                 Ok(_) => break,
                 Err(e) => {
                     log_js("Error sending notification; retrying", &e);
                     TimeoutFuture::new(1000).await;
                 },
             }
-        }
-    }
-
-    // Resp is None if shutting down (dropped).
-    pub async fn request<RR: DeserializeOwned>(&self, req: SR) -> Result<Option<RR>, String> {
-        let index = self.0.send_index.get();
-        self.0.send_index.set(index + 1);
-        let message = WsMessage::Request((index, serde_json::to_value(&req).unwrap()));
-        let message_str = serde_json::to_string(&message).unwrap();
-        self.0.history.borrow_mut().push(message);
-        let (tx, rx) = channel();
-        self.0.requests.borrow_mut().insert(index, tx);
-        loop {
-            match self.0.ws.get().await.send_with_str(&message_str) {
-                Ok(_) => break,
-                Err(e) => {
-                    log_js("Error sending request; retrying", &e);
-                    TimeoutFuture::new(1000).await;
-                },
-            }
-        }
-        match rx.await {
-            Ok(v) => match serde_json::from_value(v.clone()) {
-                Ok(v) => return Ok(Some(v)),
-                Err(e) => {
-                    return Err(
-                        format!(
-                            "Received invalid response to request {:?}: {}\nBody: {:?}",
-                            serde_json::to_value(&req),
-                            e.to_string(),
-                            v
-                        ),
-                    );
-                },
-            },
-            Err(_) => return Ok(None),
         }
     }
 }

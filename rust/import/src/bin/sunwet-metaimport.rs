@@ -26,13 +26,17 @@ use loga::{
     StandardFlag,
     StandardLog,
 };
-use shared::model::cli::{
-    CliCommit,
-    CliNode,
-    CliTriple,
+use shared::{
+    bb,
+    model::cli::{
+        CliCommit,
+        CliNode,
+        CliTriple,
+    },
 };
 use symphonia::core::{
     io::MediaSourceStream,
+    meta::MetadataRevision,
     probe::Hint,
 };
 use walkdir::WalkDir;
@@ -165,10 +169,11 @@ fn import_dir(log: &StandardLog, root_dir: PathBuf) -> Result<(), loga::Error> {
                     ) {
                         Ok(i) => i,
                         Err(e) => {
-                            log.log_err(StandardFlag::Warning, e.context("Unable to read audio file metadata"));
+                            log.log_err(StandardFlag::Warning, e.context("Unable to read audio file"));
                             continue;
                         },
                     };
+                let mut found_metadata = false;
                 let mut album_artist = vec![];
                 let mut album_artist_sort = vec![];
                 let mut track_artist = vec![];
@@ -177,54 +182,71 @@ fn import_dir(log: &StandardLog, root_dir: PathBuf) -> Result<(), loga::Error> {
                 let mut track_name_sort = vec![];
                 let mut track_number = None;
                 let mut disk_number = None;
-                let Some(metadata) = info.metadata.get() else {
+                let mut parse_metadata = |metadata: &MetadataRevision| {
+                    found_metadata = true;
+                    for tag in metadata.tags() {
+                        match tag.std_key {
+                            Some(k) => match k {
+                                symphonia::core::meta::StandardTagKey::Album => {
+                                    albumset.name.push(tag.value.to_string());
+                                },
+                                symphonia::core::meta::StandardTagKey::AlbumArtist => {
+                                    album_artist.push(tag.value.to_string());
+                                },
+                                symphonia::core::meta::StandardTagKey::Artist => {
+                                    track_artist.push(tag.value.to_string());
+                                },
+                                symphonia::core::meta::StandardTagKey::DiscNumber => {
+                                    disk_number = Some(usize::from_str_radix(&tag.value.to_string(), 10)?);
+                                },
+                                symphonia::core::meta::StandardTagKey::SortAlbum => {
+                                    albumset.name_sort.push(tag.value.to_string());
+                                },
+                                symphonia::core::meta::StandardTagKey::SortAlbumArtist => {
+                                    album_artist_sort.push(tag.value.to_string());
+                                },
+                                symphonia::core::meta::StandardTagKey::SortArtist => {
+                                    track_artist_sort.push(tag.value.to_string());
+                                },
+                                symphonia::core::meta::StandardTagKey::SortTrackTitle => {
+                                    track_name_sort.push(tag.value.to_string());
+                                },
+                                symphonia::core::meta::StandardTagKey::TrackNumber => {
+                                    track_number =
+                                        Some(
+                                            usize::from_str_radix(
+                                                &tag.value.to_string().split("/").next().unwrap(),
+                                                10,
+                                            )?,
+                                        );
+                                },
+                                symphonia::core::meta::StandardTagKey::TrackTitle => {
+                                    track_name.push(tag.value.to_string());
+                                },
+                                _ => { },
+                            },
+                            None => { },
+                        }
+                    }
+                    return Ok(()) as Result<(), loga::Error>;
+                };
+
+                bb!{
+                    let Some(metadata) = info.metadata.get() else {
+                        break;
+                    };
+                    let Some(metadata) = metadata.current() else {
+                        break;
+                    };
+                    parse_metadata(metadata)?;
+                }
+
+                if let Some(metadata) = info.format.metadata().current() {
+                    parse_metadata(metadata)?;
+                }
+                if !found_metadata {
                     log.log(StandardFlag::Warning, "File has no metadata, skipping");
                     continue;
-                };
-                let Some(metadata) = metadata.current() else {
-                    log.log(StandardFlag::Warning, "File has no metadata revision, skipping");
-                    continue;
-                };
-                for tag in metadata.tags() {
-                    match tag.std_key {
-                        Some(k) => match k {
-                            symphonia::core::meta::StandardTagKey::Album => {
-                                albumset.name.push(tag.value.to_string());
-                            },
-                            symphonia::core::meta::StandardTagKey::AlbumArtist => {
-                                album_artist.push(tag.value.to_string());
-                            },
-                            symphonia::core::meta::StandardTagKey::Artist => {
-                                track_artist.push(tag.value.to_string());
-                            },
-                            symphonia::core::meta::StandardTagKey::DiscNumber => {
-                                disk_number = Some(usize::from_str_radix(&tag.value.to_string(), 10)?);
-                            },
-                            symphonia::core::meta::StandardTagKey::SortAlbum => {
-                                albumset.name_sort.push(tag.value.to_string());
-                            },
-                            symphonia::core::meta::StandardTagKey::SortAlbumArtist => {
-                                album_artist_sort.push(tag.value.to_string());
-                            },
-                            symphonia::core::meta::StandardTagKey::SortArtist => {
-                                track_artist_sort.push(tag.value.to_string());
-                            },
-                            symphonia::core::meta::StandardTagKey::SortTrackTitle => {
-                                track_name_sort.push(tag.value.to_string());
-                            },
-                            symphonia::core::meta::StandardTagKey::TrackNumber => {
-                                track_number =
-                                    Some(
-                                        usize::from_str_radix(&tag.value.to_string().split("/").next().unwrap(), 10)?,
-                                    );
-                            },
-                            symphonia::core::meta::StandardTagKey::TrackTitle => {
-                                track_name.push(tag.value.to_string());
-                            },
-                            _ => { },
-                        },
-                        None => { },
-                    }
                 }
                 let album = match albumset.albums.iter().find(|a| a.borrow().index == disk_number) {
                     Some(a) => a.clone(),
@@ -367,9 +389,13 @@ fn import_dir(log: &StandardLog, root_dir: PathBuf) -> Result<(), loga::Error> {
                     continue;
                 };
                 let mut album_name = vec![];
+                let mut album_name_sort = vec![];
                 let mut album_artist = vec![];
+                let mut album_artist_sort = vec![];
                 let mut track_name = vec![];
+                let mut track_name_sort = vec![];
                 let mut track_artist = vec![];
+                let mut track_artist_sort = vec![];
                 let mut disk_number = None;
                 let mut track_number = None;
                 for tag in tags_children {
@@ -395,16 +421,48 @@ fn import_dir(log: &StandardLog, root_dir: PathBuf) -> Result<(), loga::Error> {
                                 }
                             },
                             "SimpleTag" => {
+                                let parent_tag;
                                 match (
                                     find_element_with_id(child_children, "TagName").and_then(|v| v.get("value")),
                                     find_element_with_id(child_children, "TagString").and_then(|v| v.get("value")),
                                 ) {
                                     (Some(serde_json::Value::String(k)), Some(serde_json::Value::String(v))) => {
+                                        parent_tag = k.clone();
                                         tags.push((k.clone(), v.clone()));
                                     },
                                     _ => {
                                         continue;
                                     },
+                                }
+                                for maybe_nested in child_children {
+                                    let Some(
+                                        (maybe_nested_id, Some(nested_children), _)
+                                    ) = parse_value(maybe_nested) else {
+                                        continue;
+                                    };
+                                    if maybe_nested_id != "SimpleTag" {
+                                        continue;
+                                    }
+                                    match (
+                                        find_element_with_id(
+                                            nested_children,
+                                            "TagName",
+                                        ).and_then(|v| v.get("value")),
+                                        find_element_with_id(
+                                            nested_children,
+                                            "TagString",
+                                        ).and_then(|v| v.get("value")),
+                                    ) {
+                                        (
+                                            Some(serde_json::Value::String(k)),
+                                            Some(serde_json::Value::String(v)),
+                                        ) => {
+                                            tags.push((format!("{}__{}", parent_tag, k), v.clone()));
+                                        },
+                                        _ => {
+                                            continue;
+                                        },
+                                    }
                                 }
                             },
                             _ => {
@@ -420,8 +478,14 @@ fn import_dir(log: &StandardLog, root_dir: PathBuf) -> Result<(), loga::Error> {
                                         "TITLE" => {
                                             albumset.name.push(v.clone());
                                         },
+                                        "TITLE__SORT_WITH" => {
+                                            albumset.name_sort.push(v.clone());
+                                        },
                                         "ARTIST" => {
                                             albumset.artist.push(v.clone());
+                                        },
+                                        "ARTIST__SORT_WITH" => {
+                                            albumset.artist_sort.push(v.clone());
                                         },
                                         _ => { },
                                     }
@@ -433,8 +497,14 @@ fn import_dir(log: &StandardLog, root_dir: PathBuf) -> Result<(), loga::Error> {
                                         "TITLE" => {
                                             album_name.push(v.clone());
                                         },
+                                        "TITLE__SORT_WITH" => {
+                                            album_name_sort.push(v.clone());
+                                        },
                                         "ARTIST" => {
                                             album_artist.push(v.clone());
+                                        },
+                                        "ARTIST__SORT_WITH" => {
+                                            album_artist_sort.push(v.clone());
                                         },
                                         "PART_NUMBER" => {
                                             disk_number = Some(usize::from_str_radix(&v, 10)?);
@@ -449,8 +519,14 @@ fn import_dir(log: &StandardLog, root_dir: PathBuf) -> Result<(), loga::Error> {
                                         "TITLE" => {
                                             track_name.push(v.clone());
                                         },
+                                        "TITLE__SORT_WITH" => {
+                                            track_name_sort.push(v.clone());
+                                        },
                                         "ARTIST" => {
                                             track_artist.push(v.clone());
+                                        },
+                                        "ARTIST__SORT_WITH" => {
+                                            track_artist_sort.push(v.clone());
                                         },
                                         "PART_NUMBER" => {
                                             track_number = Some(usize::from_str_radix(&v, 10)?);
@@ -488,16 +564,18 @@ fn import_dir(log: &StandardLog, root_dir: PathBuf) -> Result<(), loga::Error> {
                         .insert(album.id.clone());
                 }
                 album.name.extend(album_name.clone());
+                album.name_sort.extend(album_name_sort.clone());
                 album.artist.extend(album_artist.clone());
+                album.artist_sort.extend(album_artist_sort.clone());
                 album.tracks.push(Rc::new(RefCell::new(GatherTrack {
                     type_: GatherTrackType::Video,
                     id: node_id(),
                     index: track_number,
                     file: file.path().to_path_buf(),
                     artist: track_artist,
-                    artist_sort: vec![],
+                    artist_sort: track_artist_sort,
                     name: track_name,
-                    name_sort: vec![],
+                    name_sort: track_name_sort,
                 })));
             },
             b"txt" | b"md" | b"doc" | b"docx" | b"odt" | b"pdf" | b"rst" => {

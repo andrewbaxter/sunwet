@@ -1,0 +1,33 @@
+{
+    container[id, container_id, container_dist] := 
+        *triple{subject:id @ 'NOW'}, 
+        container_id = id,
+        container_dist = 0
+    container[id, container_id, container_dist] := 
+        *triple{subject:container_id, predicate:"sunwet/1/element", object:id @ 'NOW'}, 
+        container_dist = 1
+    container[id, c2_id, c2_dist] :=
+        container[id, c1_id, c1_dist],
+        *triple{subject:c2_id, predicate:"sunwet/1/element", object:c1_id @ 'NOW'},
+        c2_dist = c1_dist + 1
+
+    nearest_val_[root_id, pred, min_cost(val)] := 
+        container[root_id, container_id, container_dist],
+        *triple{subject:container_id, predicate:pred, object:val0 @ 'NOW'},
+        val = [val0, container_dist]
+    nearest_val[root_id, pred, val] :=
+        nearest_val_[root_id, pred, val0],
+        val = first(val0)
+
+    ?[track_id, file, index, artist, name] :=
+        *triple{subject:$album_id, predicate:"sunwet/1/element", object:track_id},
+        *triple{subject:track_id, predicate:"sunwet/1/is", object:["id","sunwet/1/track"]},
+        *triple{subject:track_id, predicate:"sunwet/1/index", object:index},
+        *triple{subject:track_id, predicate:"sunwet/1/name", object:name0},
+        name = coalesce(name0, "Unknown"),
+        *triple{subject:track_id, predicate:"sunwet/1/file", object:file},
+        nearest_val[track_id, "sunwet/1/artist", artist_id],
+        nearest_val[track_id, "sunwet/1/name", artist0],
+        artist = coalesce(artist0, "Unknown")
+    :sort index
+}

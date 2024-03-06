@@ -9,7 +9,6 @@ use std::{
     },
 };
 use chrono::{
-    DateTime,
     Utc,
 };
 use gloo::{
@@ -38,18 +37,12 @@ use rooting::{
     El,
     ScopeValue,
 };
-use shared::{
-    model::{
-        link::{
-            Prepare,
-            PrepareAudio,
-            PrepareMedia,
-            WsC2SNotify,
-            WsC2SNotifyMode,
-            WsC2SReq,
-            WsC2SReqMode,
-        },
-    },
+use shared::model::link::{
+    Prepare,
+    PrepareAudio,
+    PrepareMedia,
+    WsC2S,
+    WsS2C,
 };
 use wasm_bindgen::{
     closure::Closure,
@@ -59,7 +52,6 @@ use wasm_bindgen::{
 use web::{
     el_general::{
         async_event,
-        log,
         log_js,
     },
     websocket::Ws,
@@ -234,7 +226,7 @@ pub struct PlaylistState_ {
     pub playing_time: Prim<f64>,
     pub playing_max_time: Prim<Option<f64>>,
     pub volume: Prim<(f64, f64)>,
-    pub share: Prim<Option<(String, Ws<WsC2SNotify, (), WsC2SReq>)>>,
+    pub share: Prim<Option<(String, Ws<WsC2S, WsS2C>)>>,
 }
 
 #[derive(Clone)]
@@ -360,15 +352,11 @@ pub fn state_new(pc: &mut ProcessingContext) -> (PlaylistState, rooting::ScopeVa
                     // Stop previous
                     if let Some(i) = playing_i.get_old() {
                         if let Some(e) = state.0.playlist.borrow().get(i).cloned() {
-                            if let Some((sess_id, ws)) = &*state.0.share.borrow() {
+                            if let Some((_, ws)) = &*state.0.share.borrow() {
                                 bg.set(Some(spawn_rooted({
-                                    let sess_id = sess_id.clone();
                                     let ws = ws.clone();
                                     async move {
-                                        ws.notify(WsC2SNotify {
-                                            session_id: sess_id.clone(),
-                                            mode: WsC2SNotifyMode::Pause,
-                                        }).await;
+                                        ws.send(WsC2S::Pause).await;
                                     }
                                 })));
                             }
@@ -393,29 +381,23 @@ pub fn state_new(pc: &mut ProcessingContext) -> (PlaylistState, rooting::ScopeVa
                         },
                     };
                     let e = state.0.playlist.borrow().get(i).cloned().unwrap();
-                    if let Some((sess_id, ws)) = &*state.0.share.borrow() {
+                    if let Some((_, ws)) = &*state.0.share.borrow() {
                         bg.set(Some(spawn_rooted({
-                            let state = state.clone();
-                            let sess_id = sess_id.clone();
                             let ws = ws.clone();
-                            let eg = pc.eg();
                             async move {
-                                ws.notify(WsC2SNotify {
-                                    session_id: sess_id.clone(),
-                                    mode: WsC2SNotifyMode::Prepare(Prepare {
-                                        artist: e.artist.clone().unwrap_or_default(),
-                                        album: e.album.clone().unwrap_or_default(),
-                                        name: e.name.clone().unwrap_or_default(),
-                                        media: match e.media_type {
-                                            PlaylistEntryMediaType::Audio => PrepareMedia::Audio(PrepareAudio {
-                                                cover_url: e.cover_url.clone().unwrap_or_default(),
-                                                audio_url: e.file_url.clone(),
-                                            }),
-                                            PlaylistEntryMediaType::Video => PrepareMedia::Video(e.file_url.clone()),
-                                        },
-                                        media_time: e.media.pm_media().current_time(),
-                                    }),
-                                }).await;
+                                ws.send(WsC2S::Prepare(Prepare {
+                                    artist: e.artist.clone().unwrap_or_default(),
+                                    album: e.album.clone().unwrap_or_default(),
+                                    name: e.name.clone().unwrap_or_default(),
+                                    media: match e.media_type {
+                                        PlaylistEntryMediaType::Audio => PrepareMedia::Audio(PrepareAudio {
+                                            cover_url: e.cover_url.clone().unwrap_or_default(),
+                                            audio_url: e.file_url.clone(),
+                                        }),
+                                        PlaylistEntryMediaType::Video => PrepareMedia::Video(e.file_url.clone()),
+                                    },
+                                    media_time: e.media.pm_media().current_time(),
+                                })).await;
                                 let media_el = e.media.pm_media();
                                 media_el.set_attribute("preload", "auto").unwrap();
 
@@ -423,25 +405,7 @@ pub fn state_new(pc: &mut ProcessingContext) -> (PlaylistState, rooting::ScopeVa
                                 if media_el.ready_state() < 4 {
                                     async_event(&media_el, "canplaythrough").await;
                                 }
-                                let play_at = match ws.request::<DateTime<Utc>>(WsC2SReq {
-                                    session_id: sess_id.clone(),
-                                    mode: WsC2SReqMode::Ready(Utc::now()),
-                                }).await {
-                                    Ok(Some(r)) => r,
-                                    Ok(None) => {
-                                        return;
-                                    },
-                                    Err(e) => {
-                                        log(format!("Received error from ready request: {}", e));
-                                        return;
-                                    },
-                                };
-                                TimeoutFuture::new((play_at - Utc::now()).num_milliseconds().max(0) as u32).await;
-                                let vol = state.0.volume.borrow();
-                                media_el.set_volume(vol.0 + vol.1);
-                                eg.event(|pc| {
-                                    e.media.pm_play(pc, &state);
-                                });
+                                ws.send(WsC2S::Ready(Utc::now())).await;
                             }
                         })));
                     } else {
@@ -511,6 +475,40 @@ pub fn state_new(pc: &mut ProcessingContext) -> (PlaylistState, rooting::ScopeVa
             }
         }),
     )));
+}
+
+pub fn playlist_set_link(pc: &mut ProcessingContext, state: &PlaylistState, id: &str) {
+    state.0.share.set(pc, Some((id.to_string(), Ws::new(format!("main/{}", id), {
+        let state = state.clone();
+        let bg = Cell::new(None);
+        let eg = pc.eg();
+        move |_, msg| {
+            match msg {
+                WsS2C::Play(play_at) => {
+                    let i = match state.0.playing_i.get() {
+                        Some(i) => i,
+                        None => {
+                            0
+                        },
+                    };
+                    let e = state.0.playlist.borrow().get(i).cloned().unwrap();
+                    let media_el = e.media.pm_media();
+                    bg.set(Some(spawn_rooted({
+                        let eg = eg.clone();
+                        let state = state.clone();
+                        async move {
+                            TimeoutFuture::new((play_at - Utc::now()).num_milliseconds().max(0) as u32).await;
+                            let vol = state.0.volume.borrow();
+                            media_el.set_volume(vol.0 + vol.1);
+                            eg.event(|pc| {
+                                e.media.pm_play(pc, &state);
+                            });
+                        }
+                    })));
+                },
+            }
+        }
+    }))));
 }
 
 pub fn playlist_len(state: &PlaylistState) -> usize {

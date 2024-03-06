@@ -1,6 +1,11 @@
 {
-    ?[s, p, o] := 
-        *triple{subject: s, predicate: p, object: o, rev: rev},
-        get(rev, 0) < $cutoff
-        :rm triple {s, p, o, rev}
+    latest_assert[subject, predicate, object, ver, max(ver_ts)] := 
+        *triple{subject: subject, predicate: predicate, object: object, ver: ver},
+        to_bool(ver),
+        ver_ts = to_int(ver)
+    ?[subject, predicate, object, ver] := 
+        *triple{subject: subject, predicate: predicate, object: object, ver: ver},
+        to_int(ver) < $cutoff,
+        not latest_assert[subject, predicate, object, ver, _]
+    :rm triple {subject, predicate, object, ver}
 }

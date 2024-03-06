@@ -92,16 +92,6 @@ impl FromStr for FileHash {
     }
 }
 
-impl aargvark::AargvarkFromStr for FileHash {
-    fn from_str(s: &str) -> Result<Self, String> {
-        return <Self as std::str::FromStr>::from_str(s).map_err(|e| e.to_string());
-    }
-
-    fn build_help_pattern(_state: &mut aargvark::HelpState) -> aargvark::HelpPattern {
-        return aargvark::HelpPattern(vec![aargvark::HelpPatternElement::Type("FILE_HASH".to_string())]);
-    }
-}
-
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct Query {
@@ -147,4 +137,17 @@ pub enum C2SReq {
 #[serde(rename_all = "snake_case")]
 pub struct UploadFinishResp {
     pub done: bool,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct FileGenerated {
+    pub name: String,
+    pub mime: String,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct FileUrlQuery {
+    pub generated: Option<FileGenerated>,
 }

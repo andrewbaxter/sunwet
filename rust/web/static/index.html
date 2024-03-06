@@ -7,17 +7,17 @@
     <link rel="stylesheet" href="/static/style.css" />
     <link
       rel="preload"
-      href="/static/web_bg.wasm"
+      href="/static/main_bg.wasm"
       as="fetch"
       type="application/wasm"
       crossorigin=""
     />
-    <link rel="modulepreload" href="/static/web.js" />
+    <link rel="modulepreload" href="/static/main.js" />
   </head>
   <body>
     <script type="module">
-      import init from "/static/web.js";
-      init("/static/web_bg.wasm");
+      import init from "/static/main.js";
+      init("/static/main_bg.wasm");
     </script>
   </body>
 </html>

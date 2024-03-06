@@ -33,10 +33,6 @@ pub const CSS_TREE_TEXT: &'static str = "tree_text";
 pub const CSS_TREE_IMAGE: &'static str = "tree_image";
 pub const CSS_TREE_MEDIA_BUTTON: &'static str = "tree_media_button";
 
-pub fn el_text_err(text: String) -> El {
-    return el("span").classes(&["error"]).text(&text);
-}
-
 pub fn el_image_err(text: String) -> El {
     return el("img").attr("src", &text);
 }
@@ -69,7 +65,7 @@ pub fn el_media_button(pc: &mut ProcessingContext, state: &PlaylistState, entry:
 }
 
 pub fn el_media_button_err(text: String) -> El {
-    return el("div").classes(&["error"]).text(&text);
+    return el("div").classes(&["g_error"]).text(&text);
 }
 
 pub fn style_tree(type_: &str, depth: usize, align: Align, widget: &El) {
@@ -92,5 +88,5 @@ pub fn style_tree(type_: &str, depth: usize, align: Align, widget: &El) {
 }
 
 pub fn el_err(text: String) -> El {
-    return el("span").classes(&["error"]).text(&text);
+    return el("span").classes(&["g_error"]).text(&text);
 }

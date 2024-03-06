@@ -61,6 +61,7 @@ use web::{
         el_stack,
         el_vbox,
         el_video,
+        log,
         CSS_GROW,
         ICON_NOSHARE,
         ICON_SHARE,
@@ -72,6 +73,7 @@ use web::{
     },
     util::OptString,
     websocket::Ws,
+    world::generated_file_url,
 };
 use web::world::{
     file_url,
@@ -113,7 +115,6 @@ use self::{
         el_image_err,
         el_media_button,
         el_media_button_err,
-        el_text_err,
         style_tree,
         CSS_TREE_IMAGE,
         CSS_TREE_LAYOUT_INDIVIDUAL,
@@ -336,7 +337,9 @@ fn build_widget(
             match &d.data {
                 FieldOrLiteral::Field(field) => {
                     let Some(v) = data.get(field) else {
-                        return el_text_err(format!("Missing field {}", field));
+                        let out = el_err(format!("Missing field {}", field));
+                        style_tree(CSS_TREE_TEXT, depth, d.align, &out);
+                        return out;
                     };
                     let mut v = v.clone();
                     if let Some(v1) = extract_node_value(&v) {
@@ -499,9 +502,28 @@ fn build_widget(
                 return el_image_err(format!("Missing field {}", d.field));
             };
             let i = playlist_len(&state.playlist);
+            let mut sub_tracks = vec![];
             let source;
             if let Some(n) = extract_node_file(v) {
-                source = file_url(&state.origin, &n);
+                source = generated_file_url(&state.origin, &n, "webm", "video/webm");
+                for lang in window().navigator().languages() {
+                    let lang = lang.as_string().unwrap();
+                    sub_tracks.push((generated_file_url(&state.origin, &n, &format!("webvtt_{}", {
+                        let lang = if let Some((lang, _)) = lang.split_once("-") {
+                            lang
+                        } else {
+                            &lang
+                        };
+                        match lang {
+                            "en" => "eng",
+                            "jp" => "jpn",
+                            _ => {
+                                log(format!("Unhandled subtitle translation for language {}", lang));
+                                continue;
+                            },
+                        }
+                    }), "text/vtt"), lang));
+                }
             } else if let serde_json::Value::String(v) = v {
                 source = v.clone();
             } else {
@@ -542,6 +564,13 @@ fn build_widget(
                     state.0.volume.set(pc, (vol / 0.5, vol / 0.5));
                 })
             });
+            for (i, (url, lang)) in sub_tracks.iter().enumerate() {
+                let track = el("track").attr("kind", "subtitles").attr("src", url).attr("srclang", lang);
+                if i == 0 {
+                    track.ref_attr("default", "default");
+                }
+                video.ref_push(track);
+            }
             let restore_pos = bb!{
                 'restore_pos _;
                 bb!{
@@ -762,7 +791,7 @@ pub fn build_page_view_by_id(
                         build_page_view(pc, &outer_state, v.clone(), &build_playlist_pos, &restore_playlist_pos);
                     },
                     None => {
-                        e.ref_replace(vec![el("span").text("Unknown view")]);
+                        e.ref_replace(vec![el_err("Unknown view".to_string())]);
                     },
                 }
             });
@@ -841,7 +870,10 @@ pub fn build_page_view(
                                     .playlist
                                     .0
                                     .share
-                                    .set(pc, Some((id.clone(), Ws::new(|_, _| unreachable!()))));
+                                    .set(
+                                        pc,
+                                        Some((id.clone(), Ws::new(format!("main/{}", id), |_, _| unreachable!()))),
+                                    );
                                 id
                             },
                         };
