@@ -11,12 +11,8 @@ use rooting::{
     El,
     WeakEl,
 };
-use serde::{
-    Deserialize,
-    Serialize,
-};
 use shared::model::{
-    ViewDef,
+    View,
 };
 use web::{
     async_::BgVal,
@@ -39,12 +35,6 @@ use super::{
         BuildPlaylistPos,
     },
 };
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct View {
-    pub name: String,
-    pub def: ViewDef,
-}
 
 pub struct State_ {
     pub origin: String,

@@ -1,17 +1,18 @@
 use std::{
     cell::{
-        Cell,
         RefCell,
     },
     collections::HashMap,
     rc::Rc,
     str::FromStr,
 };
-use chrono::Utc;
+use chrono::{
+    Duration,
+    Utc,
+};
 use gloo::{
     timers::future::TimeoutFuture,
     utils::{
-        document,
         window,
     },
 };
@@ -35,17 +36,20 @@ use shared::{
         FileHash,
         Node,
         Query,
+        View,
     },
     unenum,
 };
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
 use web_sys::{
+    DomParser,
     Element,
     Event,
     HtmlInputElement,
     HtmlMediaElement,
     MouseEvent,
+    SupportedType,
 };
 use web::{
     el_general::{
@@ -54,6 +58,8 @@ use web::{
         el_button_icon,
         el_button_icon_switch,
         el_button_icon_text,
+        el_err_block,
+        el_err_span,
         el_group,
         el_hbox,
         el_hscroll,
@@ -93,13 +99,10 @@ use crate::{
         VideoPlaylistMedia,
     },
     state::{
-        self,
         State,
-        View,
     },
 };
 use shared::model::view::{
-    BlockSizeMode,
     Direction,
     FieldOrLiteral,
     Layout,
@@ -111,7 +114,6 @@ use shared::model::view::{
 };
 use self::{
     elements::{
-        el_err,
         el_image_err,
         el_media_button,
         el_media_button_err,
@@ -243,7 +245,7 @@ pub fn build_widget_query(
                                         _ => {
                                             placeholder.ref_replace(vec![
                                                 //. .
-                                                el_err(format!("Specified field for list contains {} element, not object", json_value_type(&i)))
+                                                el_err_span(format!("Specified field for list contains {} element, not object", json_value_type(&i)))
                                             ]);
                                             return;
                                         },
@@ -254,7 +256,7 @@ pub fn build_widget_query(
                             _ => {
                                 placeholder.ref_replace(vec![
                                     //. .
-                                    el_err(format!("Specified field for list is a {}, not a list type", json_value_type(&f)))
+                                    el_err_span(format!("Specified field for list is a {}, not a list type", json_value_type(&f)))
                                 ]);
                                 return;
                             },
@@ -262,7 +264,7 @@ pub fn build_widget_query(
                         None => {
                             placeholder.ref_replace(vec![
                                 //. .
-                                el_err("Specified field for list doesn't exist in parent row/parameter data".to_string())
+                                el_err_span("Specified field for list doesn't exist in parent row/parameter data".to_string())
                             ]);
                             return;
                         },
@@ -281,7 +283,7 @@ pub fn build_widget_query(
                     rows = match res {
                         Ok(rows) => rows.into_iter().map(|x| Rc::new(x)).collect::<Vec<_>>(),
                         Err(e) => {
-                            placeholder.ref_push(el_err(e));
+                            placeholder.ref_push(el_err_span(e));
                             return;
                         },
                     };
@@ -337,7 +339,7 @@ fn build_widget(
             match &d.data {
                 FieldOrLiteral::Field(field) => {
                     let Some(v) = data.get(field) else {
-                        let out = el_err(format!("Missing field {}", field));
+                        let out = el_err_span(format!("Missing field {}", field));
                         style_tree(CSS_TREE_TEXT, depth, d.align, &out);
                         return out;
                     };
@@ -370,6 +372,12 @@ fn build_widget(
                 LineSizeMode::Ellipsize => style.push(format!("text-overflow: ellipsis")),
                 LineSizeMode::Wrap => style.push(format!("overflow-wrap: break-word")),
             }
+            if let Some(size_max) = (&d.size_max).if_some() {
+                match d.orientation.con() {
+                    Direction::Up | Direction::Down => style.push(format!("max-height: {}", size_max)),
+                    Direction::Left | Direction::Right => style.push(format!("max-width: {}", size_max)),
+                }
+            }
             out.ref_attr("style", &style.join("; "));
             return out;
         },
@@ -395,10 +403,6 @@ fn build_widget(
             let out = el("img").attr("src", &url);
             style_tree(CSS_TREE_IMAGE, depth, d.align, &out);
             let mut style = vec![];
-            match d.size_mode {
-                BlockSizeMode::Cover => style.push(format!("object-fit: cover")),
-                BlockSizeMode::Contain => style.push(format!("object-fit: contain")),
-            }
             if let Some(width) = (&d.width).if_some() {
                 style.push(format!("width: {}", width));
             }
@@ -408,134 +412,155 @@ fn build_widget(
             out.ref_attr("style", &style.join("; "));
             return out;
         },
-        Widget::Audio(d) => {
-            let Some(v) = data.get(&d.field) else {
-                return el_media_button_err(format!("Missing field {}", d.field));
-            };
-            let i = playlist_len(&state.playlist);
-            let source;
-            if let Some(n) = extract_node_file(v) {
-                source = file_url(&state.origin, &n);
-            } else if let serde_json::Value::String(v) = v {
-                source = v.to_string();
-            } else {
-                return el_media_button_err(format!("Field contents wasn't string value node or string: {:?}", v));
-            }
-            let audio = el_audio(&source).attr("controls", "true").on("ended", {
-                let state = state.clone();
-                let eg = pc.eg();
-                move |_| eg.event(|pc| {
-                    playlist_next(pc, &state.playlist, Some(i));
-                })
-            }).on("pause", {
-                let eg = pc.eg();
-                let state = state.playlist.weak();
-                move |_| eg.event(|pc| {
-                    let Some(state) = state.upgrade() else {
-                        return;
-                    };
-                    state.0.playing.set(pc, false);
-                })
-            }).on("play", {
-                let eg = pc.eg();
-                let state = state.playlist.weak();
-                move |_| eg.event(|pc| {
-                    let Some(state) = state.upgrade() else {
-                        return;
-                    };
-                    state.0.playing.set(pc, true);
-                })
-            }).on("volumechange", {
-                let eg = pc.eg();
-                let state = state.playlist.weak();
-                move |ev| eg.event(|pc| {
-                    let Some(state) = state.upgrade() else {
-                        return;
-                    };
-                    let vol = ev.dyn_ref::<HtmlMediaElement>().unwrap().volume();
-                    state.0.volume.set(pc, (vol / 0.5, vol / 0.5));
-                })
-            });
-            let restore_pos = bb!{
-                'restore_pos _;
-                bb!{
-                    let Some(init) = restore_playlist_pos else {
-                        break;
-                    };
-                    audio.ref_on("loadedmetadata", {
-                        let time = init.time;
-                        move |e| {
-                            e.target().unwrap().dyn_into::<HtmlMediaElement>().unwrap().set_current_time(time);
-                        }
-                    });
-                    break 'restore_pos true;
-                };
-                break 'restore_pos false;
-            };
-            playlist_push(&state.playlist, Rc::new(PlaylistEntry {
-                name: (&d.name_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
-                album: (&d.album_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
-                artist: (&d.artist_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
-                cover_url: (&d.thumbnail_field)
-                    .if_some()
-                    .and_then(|v| data.get(v))
-                    .and_then(|v| extract_node_file(v))
-                    .map(|h| file_url(&state.origin, &h)),
-                file_url: source,
-                media_type: PlaylistEntryMediaType::Audio,
-                media: Box::new(AudioPlaylistMedia {
-                    element: audio,
-                    ministate_id: build_playlist_pos.view_id.clone(),
-                    ministate_title: build_playlist_pos.view_title.clone(),
-                    ministate_path: build_playlist_pos.entry_path.clone(),
-                }),
-            }));
-            if restore_pos {
-                state.playlist.0.playing_i.set(pc, Some(i));
-            }
-            let out = el_media_button(pc, &state.playlist, i);
-            style_tree(CSS_TREE_MEDIA_BUTTON, depth, d.align, &out);
-            return out;
-        },
-        Widget::Video(d) => {
+        Widget::MediaButton(d) => {
             let Some(v) = data.get(&d.field) else {
                 return el_image_err(format!("Missing field {}", d.field));
             };
-            let i = playlist_len(&state.playlist);
-            let mut sub_tracks = vec![];
-            let source;
-            if let Some(n) = extract_node_file(v) {
-                source = generated_file_url(&state.origin, &n, "webm", "video/webm");
-                for lang in window().navigator().languages() {
-                    let lang = lang.as_string().unwrap();
-                    sub_tracks.push((generated_file_url(&state.origin, &n, &format!("webvtt_{}", {
-                        let lang = if let Some((lang, _)) = lang.split_once("-") {
-                            lang
-                        } else {
-                            &lang
-                        };
-                        match lang {
-                            "en" => "eng",
-                            "jp" => "jpn",
-                            _ => {
-                                log(format!("Unhandled subtitle translation for language {}", lang));
-                                continue;
-                            },
-                        }
-                    }), "text/vtt"), lang));
-                }
-            } else if let serde_json::Value::String(v) = v {
-                source = v.clone();
-            } else {
-                return el_media_button_err(format!("Field contents wasn't string value node or string: {:?}", v));
+            let media_type;
+            let media;
+            match &d.media_field {
+                FieldOrLiteral::Field(field) => {
+                    let Some(v) = data.get(field) else {
+                        return el_image_err(format!("Missing field media {}", d.field));
+                    };
+                    let mut v = v.clone();
+                    if let Some(v1) = extract_node_value(&v) {
+                        v = v1;
+                    }
+                    let serde_json:: Value:: String(m) = v else {
+                        return el_image_err("Media field value not string".to_string());
+                    };
+                    media_type = m;
+                },
+                FieldOrLiteral::Literal(v) => {
+                    media_type = v.clone();
+                },
             }
-            let video = el_video(&source).attr("controls", "true").on("ended", {
-                let state = state.clone();
-                let eg = pc.eg();
-                move |_| eg.event(|pc| {
-                    playlist_next(pc, &state.playlist, Some(i));
-                })
-            }).on("pause", {
+            let i = playlist_len(&state.playlist);
+            match media_type.as_str() {
+                "sunwet/1/audio" => {
+                    let source;
+                    if let Some(n) = extract_node_file(v) {
+                        source = file_url(&state.origin, &n);
+                    } else if let serde_json::Value::String(v) = v {
+                        source = v.to_string();
+                    } else {
+                        return el_media_button_err(
+                            format!("Field contents wasn't string value node or string: {:?}", v),
+                        );
+                    }
+                    media = el_audio(&source).attr("controls", "true").on("ended", {
+                        let state = state.clone();
+                        let eg = pc.eg();
+                        move |_| eg.event(|pc| {
+                            playlist_next(pc, &state.playlist, Some(i));
+                        })
+                    });
+                    playlist_push(&state.playlist, Rc::new(PlaylistEntry {
+                        name: (&d.name_field)
+                            .if_some()
+                            .and_then(|v| data.get(v))
+                            .and_then(|v| extract_node_text(v)),
+                        album: (&d.album_field)
+                            .if_some()
+                            .and_then(|v| data.get(v))
+                            .and_then(|v| extract_node_text(v)),
+                        artist: (&d.artist_field)
+                            .if_some()
+                            .and_then(|v| data.get(v))
+                            .and_then(|v| extract_node_text(v)),
+                        cover_url: (&d.thumbnail_field)
+                            .if_some()
+                            .and_then(|v| data.get(v))
+                            .and_then(|v| extract_node_file(v))
+                            .map(|h| file_url(&state.origin, &h)),
+                        file_url: source,
+                        media_type: PlaylistEntryMediaType::Audio,
+                        media: Box::new(AudioPlaylistMedia {
+                            element: media.clone(),
+                            ministate_id: build_playlist_pos.view_id.clone(),
+                            ministate_title: build_playlist_pos.view_title.clone(),
+                            ministate_path: build_playlist_pos.entry_path.clone(),
+                        }),
+                    }));
+                },
+                "sunwet/1/video" => {
+                    let mut sub_tracks = vec![];
+                    let source;
+                    if let Some(n) = extract_node_file(v) {
+                        source = generated_file_url(&state.origin, &n, "", "video/webm");
+                        for lang in window().navigator().languages() {
+                            let lang = lang.as_string().unwrap();
+                            sub_tracks.push((generated_file_url(&state.origin, &n, &format!("webvtt_{}", {
+                                let lang = if let Some((lang, _)) = lang.split_once("-") {
+                                    lang
+                                } else {
+                                    &lang
+                                };
+                                match lang {
+                                    "en" => "eng",
+                                    "jp" => "jpn",
+                                    _ => {
+                                        log(format!("Unhandled subtitle translation for language {}", lang));
+                                        continue;
+                                    },
+                                }
+                            }), "text/vtt"), lang));
+                        }
+                    } else if let serde_json::Value::String(v) = v {
+                        source = v.clone();
+                    } else {
+                        return el_media_button_err(
+                            format!("Field contents wasn't string value node or string: {:?}", v),
+                        );
+                    }
+                    media = el_video(&source).attr("controls", "true").on("ended", {
+                        let state = state.clone();
+                        let eg = pc.eg();
+                        move |_| eg.event(|pc| {
+                            playlist_next(pc, &state.playlist, Some(i));
+                        })
+                    });
+                    for (i, (url, lang)) in sub_tracks.iter().enumerate() {
+                        let track = el("track").attr("kind", "subtitles").attr("src", url).attr("srclang", lang);
+                        if i == 0 {
+                            track.ref_attr("default", "default");
+                        }
+                        media.ref_push(track);
+                    }
+                    playlist_push(&state.playlist, Rc::new(PlaylistEntry {
+                        name: (&d.name_field)
+                            .if_some()
+                            .and_then(|v| data.get(v))
+                            .and_then(|v| extract_node_text(v)),
+                        album: (&d.album_field)
+                            .if_some()
+                            .and_then(|v| data.get(v))
+                            .and_then(|v| extract_node_text(v)),
+                        artist: (&d.artist_field)
+                            .if_some()
+                            .and_then(|v| data.get(v))
+                            .and_then(|v| extract_node_text(v)),
+                        cover_url: (&d.thumbnail_field)
+                            .if_some()
+                            .and_then(|v| data.get(v))
+                            .and_then(|v| extract_node_file(v))
+                            .map(|h| file_url(&state.origin, &h)),
+                        file_url: source,
+                        media_type: PlaylistEntryMediaType::Video,
+                        media: Box::new(VideoPlaylistMedia {
+                            element: media.clone(),
+                            ministate_id: build_playlist_pos.view_id.clone(),
+                            ministate_title: build_playlist_pos.view_title.clone(),
+                            ministate_path: build_playlist_pos.entry_path.clone(),
+                        }),
+                    }));
+                },
+                _ => {
+                    return el_image_err(format!("Unknown media type {}", media_type));
+                },
+            }
+            media.ref_on("pause", {
                 let eg = pc.eg();
                 let state = state.playlist.weak();
                 move |_| eg.event(|pc| {
@@ -544,7 +569,7 @@ fn build_widget(
                     };
                     state.0.playing.set(pc, false);
                 })
-            }).on("play", {
+            }).ref_on("play", {
                 let eg = pc.eg();
                 let state = state.playlist.weak();
                 move |_| eg.event(|pc| {
@@ -553,31 +578,27 @@ fn build_widget(
                     };
                     state.0.playing.set(pc, true);
                 })
-            }).on("volumechange", {
+            }).ref_on("volumechange", {
                 let eg = pc.eg();
-                let state = state.playlist.weak();
-                move |ev| eg.event(|pc| {
-                    let Some(state) = state.upgrade() else {
+                let volume = state.playlist.0.volume.clone();
+                let debounce = state.playlist.0.volume_debounce.clone();
+                move |ev| {
+                    if Utc::now().signed_duration_since(debounce.get()) < Duration::milliseconds(200) {
                         return;
-                    };
-                    let vol = ev.dyn_ref::<HtmlMediaElement>().unwrap().volume();
-                    state.0.volume.set(pc, (vol / 0.5, vol / 0.5));
-                })
-            });
-            for (i, (url, lang)) in sub_tracks.iter().enumerate() {
-                let track = el("track").attr("kind", "subtitles").attr("src", url).attr("srclang", lang);
-                if i == 0 {
-                    track.ref_attr("default", "default");
+                    }
+                    eg.event(|pc| {
+                        let v = ev.target().unwrap().dyn_ref::<HtmlMediaElement>().unwrap().volume();
+                        volume.set(pc, (v / 2., v / 2.));
+                    })
                 }
-                video.ref_push(track);
-            }
+            });
             let restore_pos = bb!{
                 'restore_pos _;
                 bb!{
                     let Some(init) = restore_playlist_pos else {
                         break;
                     };
-                    video.ref_on("loadedmetadata", {
+                    media.ref_on("loadedmetadata", {
                         let time = init.time;
                         move |e| {
                             e.target().unwrap().dyn_into::<HtmlMediaElement>().unwrap().set_current_time(time);
@@ -587,25 +608,6 @@ fn build_widget(
                 };
                 break 'restore_pos false;
             };
-            playlist_push(&state.playlist, Rc::new(PlaylistEntry {
-                name: (&d.name_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
-                album: (&d.album_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
-                artist: (&d.artist_field).if_some().and_then(|v| data.get(v)).and_then(|v| extract_node_text(v)),
-                cover_url: (&d.thumbnail_field)
-                    .if_some()
-                    .and_then(|v| data.get(v))
-                    .and_then(|v| extract_node_file(v))
-                    .map(|h| file_url(&state.origin, &h)),
-                file_url: source,
-                media_type: PlaylistEntryMediaType::Video,
-                media: Box::new(VideoPlaylistMedia {
-                    element: video,
-                    ministate_id: build_playlist_pos.view_id.clone(),
-                    ministate_title: build_playlist_pos.view_title.clone(),
-                    ministate_path: build_playlist_pos.entry_path.clone(),
-                    fullscreen_listener: Cell::new(None),
-                }),
-            }));
             if restore_pos {
                 state.playlist.0.playing_i.set(pc, Some(i));
             }
@@ -791,7 +793,7 @@ pub fn build_page_view_by_id(
                         build_page_view(pc, &outer_state, v.clone(), &build_playlist_pos, &restore_playlist_pos);
                     },
                     None => {
-                        e.ref_replace(vec![el_err("Unknown view".to_string())]);
+                        e.ref_replace(vec![el_err_block("Unknown view".to_string())]);
                     },
                 }
             });
@@ -802,7 +804,7 @@ pub fn build_page_view_by_id(
 pub fn build_page_view(
     pc: &mut ProcessingContext,
     state: &State,
-    def: state::View,
+    def: View,
     build_playlist_pos: &BuildPlaylistPos,
     restore_playlist_pos: &Option<PlaylistPos>,
 ) {
@@ -816,13 +818,13 @@ pub fn build_page_view(
     };
     title_group.ref_clear().ref_push(el("h1").text(&def.name));
 
-    fn get_mouse_pct(ev: &Event) -> (f64, f64) {
+    fn get_mouse_pct(ev: &Event) -> (f64, f64, MouseEvent) {
         let element = ev.target().unwrap().dyn_into::<Element>().unwrap();
         let ev = ev.dyn_ref::<MouseEvent>().unwrap();
         let element_rect = element.get_bounding_client_rect();
         let percent_x = ((ev.client_x() as f64 - element_rect.x()) / element_rect.width().max(0.001)).clamp(0., 1.);
         let percent_y = ((ev.client_y() as f64 - element_rect.y()) / element_rect.width().max(0.001)).clamp(0., 1.);
-        return (percent_x, percent_y);
+        return (percent_x, percent_y, ev.clone());
     }
 
     fn get_mouse_time(ev: &Event, state: &State) -> Option<f64> {
@@ -841,7 +843,7 @@ pub fn build_page_view(
                     pc,
                     &state,
                     0,
-                    &def.def.def,
+                    &def.def,
                     &Rc::new(HashMap::new()),
                     build_playlist_pos,
                     restore_playlist_pos,
@@ -860,8 +862,9 @@ pub fn build_page_view(
                         let Some(stack) = state.stack.upgrade() else {
                             return;
                         };
-                        let sess_id = match &*state.playlist.0.share.borrow() {
-                            Some((sess_id, _)) => {
+                        let sess_id = state.playlist.0.share.borrow().as_ref().map(|x| x.0.clone());
+                        let sess_id = match sess_id {
+                            Some(sess_id) => {
                                 sess_id.clone()
                             },
                             None => {
@@ -879,19 +882,24 @@ pub fn build_page_view(
                         };
                         let link = format!("https://{}/link#{}", window().location().host().unwrap(), sess_id);
                         stack.ref_push(el_modal(pc, "Share", |pc, root| {
-                            return el_vbox().extend(vec![
+                            return vec![
                                 //. .
-                                el("a").attr("href", &link).push({
-                                    let e = document().create_element("template").unwrap();
-                                    e.set_inner_html(
-                                        &QrCode::new(&link)
-                                            .unwrap()
-                                            .render::<qrcode::render::svg::Color>()
-                                            .quiet_zone(false)
-                                            .build(),
-                                    );
-                                    el_from_raw(e.children().get_with_index(0).unwrap())
-                                }),
+                                el("a").classes(&["g_qr"]).attr("href", &link).push(el_from_raw(
+                                    //. .
+                                    DomParser::new()
+                                        .unwrap()
+                                        .parse_from_string(
+                                            &QrCode::new(&link)
+                                                .unwrap()
+                                                .render::<qrcode::render::svg::Color>()
+                                                .quiet_zone(false)
+                                                .build(),
+                                            SupportedType::ImageSvgXml,
+                                        )
+                                        .unwrap()
+                                        .first_element_child()
+                                        .unwrap(),
+                                )),
                                 el_button_icon_text(pc, ICON_NOSHARE, "Stop sharing", {
                                     let state = state.clone();
                                     let root = root.clone();
@@ -903,7 +911,7 @@ pub fn build_page_view(
                                         root.ref_replace(vec![]);
                                     }
                                 })
-                            ]);
+                            ];
                         }));
                     }
                 }).own(|e| link!((_pc = pc), (share = state.playlist.0.share.clone()), (), (e = e.weak()) {
@@ -1022,11 +1030,11 @@ pub fn build_page_view(
                             return;
                         };
                         stack.ref_push(
-                            el_modal(pc, "Volume", |pc, _root| el_vbox().classes(&["s_volume"]).extend(vec![
+                            el_modal(pc, "Volume", |pc, _root| vec![el_vbox().classes(&["s_volume"]).extend(vec![
                                 //. .
                                 el_stack().extend(vec![
                                     //. .
-                                    el("div").classes(&["s_vol_bg"]).extend(vec![el("div"), el("div")]),
+                                    el_stack().classes(&["s_vol_bg"]).extend(vec![el("div"), el("div")]),
                                     el("div")
                                         .classes(&["puck"])
                                         .own(
@@ -1048,9 +1056,28 @@ pub fn build_page_view(
                                     let state = state.playlist.clone();
                                     let eg = pc.eg();
                                     move |ev| {
-                                        let (x, y) = get_mouse_pct(ev);
+                                        let (x, y, ev) = get_mouse_pct(ev);
+                                        if ev.buttons() != 1 {
+                                            return;
+                                        }
+                                        let vol = (x / 2., (1. - y) / 2.);
                                         eg.event(|pc| {
-                                            state.0.volume.set(pc, (x / 2., y / 2.));
+                                            state.0.volume.set(pc, vol);
+                                            state.0.volume_debounce.set(Utc::now());
+                                        });
+                                    }
+                                }).on("click", {
+                                    let state = state.playlist.clone();
+                                    let eg = pc.eg();
+                                    move |ev| {
+                                        let (x, y, ev) = get_mouse_pct(ev);
+                                        if ev.button() != 0 {
+                                            return;
+                                        }
+                                        let vol = (x / 2., (1. - y) / 2.);
+                                        eg.event(|pc| {
+                                            state.0.volume.set(pc, vol);
+                                            state.0.volume_debounce.set(Utc::now());
                                         });
                                     }
                                 }),
@@ -1063,7 +1090,7 @@ pub fn build_page_view(
                                         e.ref_text(&format!("{}%", ((x + y) * 100.) as i32));
                                     }),
                                 )
-                            ])),
+                            ])]),
                         );
                     }
                 })
@@ -1071,7 +1098,7 @@ pub fn build_page_view(
         ]),
         {
             let parameters = el_vbox().classes(&["s_parameters"]);
-            if !def.def.parameters.is_empty() {
+            if !def.parameters.is_empty() {
                 let bg = Rc::new(RefCell::new(None));
                 let parameter_values = Rc::new(RefCell::new(HashMap::new()));
 
@@ -1104,7 +1131,7 @@ pub fn build_page_view(
                                                 pc,
                                                 &state,
                                                 0,
-                                                &def.def.def,
+                                                &def.def,
                                                 &Rc::new((&*parameter_values.borrow()).clone()),
                                                 &build_playlist_pos,
                                                 &None,
@@ -1125,7 +1152,7 @@ pub fn build_page_view(
                     body: body.clone(),
                 };
                 parameters.ref_own(|_| bg.clone());
-                for (k, v) in def.def.parameters {
+                for (k, v) in def.parameters {
                     parameters.ref_push(el("label").extend(vec![el("span").text(&k), match v {
                         shared::model::QueryDefParameter::Text => {
                             parameter_values

@@ -150,22 +150,15 @@ pub struct WidgetTextLine {
     pub suffix: String,
     pub size: String,
     pub size_mode: LineSizeMode,
+    pub size_max: String,
     pub orientation: Orientation,
     pub align: Align,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case")]
-pub enum BlockSizeMode {
-    Cover,
-    Contain,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "snake_case")]
 pub struct WidgetImage {
     pub data: FieldOrLiteral,
-    pub size_mode: BlockSizeMode,
     pub width: String,
     pub height: String,
     pub align: Align,
@@ -173,19 +166,10 @@ pub struct WidgetImage {
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case")]
-pub struct WidgetAudio {
+pub struct WidgetMediaButton {
     pub field: String,
-    pub name_field: String,
-    pub album_field: String,
-    pub artist_field: String,
-    pub thumbnail_field: String,
-    pub align: Align,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "snake_case")]
-pub struct WidgetVideo {
-    pub field: String,
+    /// The media type (ex `sunwet/1/video`, `/audio`)
+    pub media_field: FieldOrLiteral,
     pub name_field: String,
     pub album_field: String,
     pub artist_field: String,
@@ -220,7 +204,6 @@ pub enum Widget {
     Nest(WidgetNest),
     TextLine(WidgetTextLine),
     Image(WidgetImage),
-    Audio(WidgetAudio),
-    Video(WidgetVideo),
+    MediaButton(WidgetMediaButton),
     Sublist(ViewPartList),
 }

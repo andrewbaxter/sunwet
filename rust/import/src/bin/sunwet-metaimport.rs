@@ -55,12 +55,12 @@ use import::data::{
     pred_media,
     pred_name,
     pred_name_sort,
-    root_album_id,
-    root_albumset_id,
-    root_artist_id,
-    root_audio_id,
-    root_track_id,
-    root_video_id,
+    root_album_value,
+    root_albumset_value,
+    root_artist_value,
+    root_audio_value,
+    root_track_value,
+    root_video_value,
     triple,
 };
 
@@ -592,15 +592,15 @@ fn import_dir(log: &StandardLog, root_dir: PathBuf) -> Result<(), loga::Error> {
     let mut triples = vec![];
     let mut build_artist = |triples: &mut Vec<CliTriple>, name: &str, name_sort: &str| -> CliNode {
         let artist_id = artists.entry(name.to_string()).or_insert_with(|| CliNode::Id(node_id())).clone();
-        triples.push(triple(&artist_id, &pred_is(), &root_artist_id()));
+        triples.push(triple(&artist_id, &pred_is(), &root_artist_value()));
         triples.push(triple(&artist_id, &pred_name(), &node_value_str(name)));
         triples.push(triple(&artist_id, &pred_name_sort(), &node_value_str(name_sort)));
         return artist_id;
     };
     let albumset_id = CliNode::Id(node_id());
-    triples.push(triple(&albumset_id, &pred_is(), &root_albumset_id()));
-    triples.push(triple(&albumset_id, &pred_is(), &root_albumset_id()));
-    triples.push(triple(&albumset_id, &pred_media(), &root_audio_id()));
+    triples.push(triple(&albumset_id, &pred_is(), &root_albumset_value()));
+    triples.push(triple(&albumset_id, &pred_is(), &root_albumset_value()));
+    triples.push(triple(&albumset_id, &pred_media(), &root_audio_value()));
     for v in albumset.name.iter().collect::<HashSet<_>>() {
         triples.push(triple(&albumset_id, &pred_name(), &node_value_str(&v)));
     }
@@ -638,8 +638,8 @@ fn import_dir(log: &StandardLog, root_dir: PathBuf) -> Result<(), loga::Error> {
         if let Some(index) = album.index {
             triples.push(triple(&album_id, &pred_index(), &node_value_usize(index)));
         }
-        triples.push(triple(&album_id, &pred_is(), &root_album_id()));
-        triples.push(triple(&album_id, &pred_media(), &root_audio_id()));
+        triples.push(triple(&album_id, &pred_is(), &root_album_value()));
+        triples.push(triple(&album_id, &pred_media(), &root_audio_value()));
         if album.name.len() >= 1 {
             for name in &album.name {
                 triples.push(triple(&album_id, &pred_name(), &node_value_str(&name)));
@@ -681,13 +681,13 @@ fn import_dir(log: &StandardLog, root_dir: PathBuf) -> Result<(), loga::Error> {
             if let Some(index) = track.index {
                 triples.push(triple(&track_id, &pred_index(), &node_value_usize(index)));
             }
-            triples.push(triple(&track_id, &pred_is(), &root_track_id()));
+            triples.push(triple(&track_id, &pred_is(), &root_track_value()));
             match track.type_ {
                 GatherTrackType::Audio => {
-                    triples.push(triple(&track_id, &pred_media(), &root_audio_id()));
+                    triples.push(triple(&track_id, &pred_media(), &root_audio_value()));
                 },
                 GatherTrackType::Video => {
-                    triples.push(triple(&track_id, &pred_media(), &root_video_id()));
+                    triples.push(triple(&track_id, &pred_media(), &root_video_value()));
                 },
             }
             triples.push(triple(&track_id, &pred_file(), &node_upload(&root_dir, &track.file)));

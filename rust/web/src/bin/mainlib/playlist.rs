@@ -9,10 +9,10 @@ use std::{
     },
 };
 use chrono::{
+    DateTime,
     Utc,
 };
 use gloo::{
-    events::EventListener,
     timers::{
         callback::{
             Interval,
@@ -20,11 +20,13 @@ use gloo::{
         future::TimeoutFuture,
     },
     utils::{
-        document,
         window,
     },
 };
-use js_sys::Function;
+use js_sys::{
+    Function,
+    Reflect,
+};
 use lunk::{
     link,
     HistPrim,
@@ -35,7 +37,6 @@ use rooting::{
     scope_any,
     spawn_rooted,
     El,
-    ScopeValue,
 };
 use shared::model::link::{
     Prepare,
@@ -52,7 +53,7 @@ use wasm_bindgen::{
 use web::{
     el_general::{
         async_event,
-        log_js,
+        log,
     },
     websocket::Ws,
 };
@@ -68,7 +69,8 @@ use super::ministate::{
 };
 
 pub trait PlaylistMedia {
-    fn pm_play(&self, pc: &mut ProcessingContext, state: &PlaylistState);
+    fn pm_display(&self) -> bool;
+    fn pm_play(&self);
     fn pm_stop(&self);
 
     fn pm_seek_forward(&self, offset_seconds: f64) {
@@ -82,6 +84,7 @@ pub trait PlaylistMedia {
     }
     fn pm_get_max_time(&self) -> Option<f64>;
     fn pm_get_ministate(&self) -> Ministate;
+    fn pm_el(&self) -> &El;
     fn pm_media(&self) -> HtmlMediaElement;
 }
 
@@ -93,11 +96,19 @@ pub struct AudioPlaylistMedia {
 }
 
 impl PlaylistMedia for AudioPlaylistMedia {
+    fn pm_display(&self) -> bool {
+        return false;
+    }
+
+    fn pm_el(&self) -> &El {
+        return &self.element;
+    }
+
     fn pm_media(&self) -> HtmlMediaElement {
         return self.element.raw().dyn_ref::<HtmlMediaElement>().unwrap().to_owned();
     }
 
-    fn pm_play(&self, _pc: &mut ProcessingContext, _state: &PlaylistState) {
+    fn pm_play(&self) {
         let audio = self.pm_media();
         _ = audio.play().unwrap();
     }
@@ -137,45 +148,36 @@ pub struct VideoPlaylistMedia {
     pub ministate_id: String,
     pub ministate_title: String,
     pub ministate_path: Option<PlaylistEntryPath>,
-    pub fullscreen_listener: Cell<Option<ScopeValue>>,
 }
 
 impl VideoPlaylistMedia { }
 
 impl PlaylistMedia for VideoPlaylistMedia {
+    fn pm_display(&self) -> bool {
+        return true;
+    }
+
+    fn pm_el(&self) -> &El {
+        return &self.element;
+    }
+
     fn pm_media(&self) -> HtmlMediaElement {
         return self.element.raw().dyn_ref::<HtmlMediaElement>().unwrap().to_owned();
     }
 
-    fn pm_play(&self, pc: &mut ProcessingContext, state: &PlaylistState) {
+    fn pm_play(&self) {
         let s = self.pm_media();
-        match s.request_fullscreen() {
-            Err(e) => {
-                log_js("Failed to fullscreen video", &e);
-            },
-            _ => {
-                self.fullscreen_listener.set(Some(scope_any(EventListener::new(&s, "fullscreenchange", {
-                    let state = state.weak();
-                    let eg = pc.eg();
-                    move |_| eg.event(|pc| {
-                        let Some(state) = state.upgrade() else {
-                            return;
-                        };
-                        if !window().document().unwrap().fullscreen() {
-                            playlist_pause(pc, &state);
-                        }
-                    })
-                }))));
-            },
-        }
+        Reflect::define_property(
+            &window().dyn_ref::<js_sys::Object>().unwrap(),
+            &JsValue::from_str("x_playing"),
+            &s,
+        ).unwrap();
         _ = s.play().unwrap();
     }
 
     fn pm_stop(&self) {
         let s = self.pm_media();
         s.pause().unwrap();
-        document().exit_fullscreen();
-        self.fullscreen_listener.set(None);
     }
 
     fn pm_get_max_time(&self) -> Option<f64> {
@@ -219,13 +221,14 @@ pub struct PlaylistEntry {
 }
 
 pub struct PlaylistState_ {
-    playlist: RefCell<Vec<Rc<PlaylistEntry>>>,
-    pub playing: Prim<bool>,
+    pub playlist: RefCell<Vec<Rc<PlaylistEntry>>>,
+    pub playing: HistPrim<bool>,
     // Must be Some if playing, otherwise may be Some.
     pub playing_i: HistPrim<Option<usize>>,
     pub playing_time: Prim<f64>,
     pub playing_max_time: Prim<Option<f64>>,
     pub volume: Prim<(f64, f64)>,
+    pub volume_debounce: Rc<Cell<DateTime<Utc>>>,
     pub share: Prim<Option<(String, Ws<WsC2S, WsS2C>)>>,
 }
 
@@ -253,11 +256,12 @@ impl WeakPlaylistState {
 pub fn state_new(pc: &mut ProcessingContext) -> (PlaylistState, rooting::ScopeValue) {
     let state = PlaylistState(Rc::new(PlaylistState_ {
         playlist: RefCell::new(vec![]),
-        playing: Prim::new(pc, false),
+        playing: HistPrim::new(pc, false),
         playing_i: HistPrim::new(pc, None),
         playing_time: Prim::new(pc, 0.),
         playing_max_time: Prim::new(pc, None),
         volume: Prim::new(pc, (0.5, 0.5)),
+        volume_debounce: Rc::new(Cell::new(Utc::now())),
         share: Prim::new(pc, None),
     }));
     let media_session = window().navigator().media_session();
@@ -334,20 +338,46 @@ pub fn state_new(pc: &mut ProcessingContext) -> (PlaylistState, rooting::ScopeVa
     })));
     return (state.clone(), scope_any((
         //. .
-        link!((_pc = pc), (volume = state.0.volume.clone()), (), (state = state.clone()) {
-            let Some(i) = state.0.playing_i.get_old() else {
-                return None;
-            };
-            let e = state.0.playlist.borrow().get(i).cloned().unwrap();
-            let volume = volume.borrow();
-            e.media.pm_media().set_volume(volume.0 + volume.1)
-        }),
         link!(
             //. .
             (pc = pc),
             (playing = state.0.playing.clone(), playing_i = state.0.playing_i.clone()),
             (),
-            (state = state.clone(), media_session = media_session, bg = Cell::new(None)) {
+            (state = state.clone(), media_session = media_session, bg = Cell::new(None), store = Cell::new(None)) {
+                match state.0.playing_i.get() {
+                    Some(i) => {
+                        let e = state.0.playlist.borrow().get(i).cloned().unwrap();
+                        media_session.set_metadata(Some(&{
+                            let m = MediaMetadata::new().unwrap();
+                            if let Some(name) = &e.name {
+                                m.set_title(name);
+                            }
+                            if let Some(album) = &e.album {
+                                m.set_album(album);
+                            }
+                            if let Some(artist) = &e.artist {
+                                m.set_artist(artist);
+                            }
+                            if let Some(cover) = &e.cover_url {
+                                let arr = js_sys::Array::new();
+                                let e = js_sys::Object::new();
+                                js_sys::Reflect::set(&e, &JsValue::from("src"), &JsValue::from(cover)).unwrap();
+                                arr.push(e.dyn_ref().unwrap());
+                                m.set_artwork(&arr.dyn_into().unwrap());
+                            }
+                            m
+                        }));
+                        store.set(Some(link!((_pc = pc), (volume = state.0.volume.clone()), (), (e = e) {
+                            let v = volume.borrow();
+                            log(format!("global vol -> media"));
+                            e.media.pm_media().set_volume(v.0 + v.1);
+                        })));
+                    },
+                    None => {
+                        media_session.set_metadata(None);
+                        store.set(None);
+                    },
+                }
                 if !*playing.borrow() {
                     // Stop previous
                     if let Some(i) = playing_i.get_old() {
@@ -409,38 +439,8 @@ pub fn state_new(pc: &mut ProcessingContext) -> (PlaylistState, rooting::ScopeVa
                             }
                         })));
                     } else {
-                        let vol = state.0.volume.borrow();
-                        e.media.pm_media().set_volume(vol.0 + vol.1);
-                        e.media.pm_play(pc, &state);
+                        e.media.pm_play();
                     }
-                }
-                match state.0.playing_i.get() {
-                    Some(i) => {
-                        let e = state.0.playlist.borrow().get(i).cloned().unwrap();
-                        media_session.set_metadata(Some(&{
-                            let m = MediaMetadata::new().unwrap();
-                            if let Some(name) = &e.name {
-                                m.set_title(name);
-                            }
-                            if let Some(album) = &e.album {
-                                m.set_album(album);
-                            }
-                            if let Some(artist) = &e.artist {
-                                m.set_artist(artist);
-                            }
-                            if let Some(cover) = &e.cover_url {
-                                let arr = js_sys::Array::new();
-                                let e = js_sys::Object::new();
-                                js_sys::Reflect::set(&e, &JsValue::from("src"), &JsValue::from(cover)).unwrap();
-                                arr.push(e.dyn_ref().unwrap());
-                                m.set_artwork(&arr.dyn_into().unwrap());
-                            }
-                            m
-                        }));
-                    },
-                    None => {
-                        media_session.set_metadata(None);
-                    },
                 }
             }
         ),
@@ -481,7 +481,6 @@ pub fn playlist_set_link(pc: &mut ProcessingContext, state: &PlaylistState, id: 
     state.0.share.set(pc, Some((id.to_string(), Ws::new(format!("main/{}", id), {
         let state = state.clone();
         let bg = Cell::new(None);
-        let eg = pc.eg();
         move |_, msg| {
             match msg {
                 WsS2C::Play(play_at) => {
@@ -492,17 +491,10 @@ pub fn playlist_set_link(pc: &mut ProcessingContext, state: &PlaylistState, id: 
                         },
                     };
                     let e = state.0.playlist.borrow().get(i).cloned().unwrap();
-                    let media_el = e.media.pm_media();
                     bg.set(Some(spawn_rooted({
-                        let eg = eg.clone();
-                        let state = state.clone();
                         async move {
                             TimeoutFuture::new((play_at - Utc::now()).num_milliseconds().max(0) as u32).await;
-                            let vol = state.0.volume.borrow();
-                            media_el.set_volume(vol.0 + vol.1);
-                            eg.event(|pc| {
-                                e.media.pm_play(pc, &state);
-                            });
+                            e.media.pm_play();
                         }
                     })));
                 },

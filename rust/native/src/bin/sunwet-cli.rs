@@ -97,7 +97,7 @@ pub mod args {
     };
     use shared::model::{
         cli::CliCommit,
-        ViewDef,
+        View as ViewDef,
     };
 
     pub struct JsonKv {

@@ -110,7 +110,8 @@ pub enum QueryDefParameter {
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub struct ViewDef {
+pub struct View {
+    pub name: String,
     pub parameters: Vec<(String, QueryDefParameter)>,
     pub def: ViewPartList,
 }
@@ -119,7 +120,7 @@ pub struct ViewDef {
 #[serde(rename_all = "snake_case")]
 pub struct ViewEnsure {
     pub id: String,
-    pub def: ViewDef,
+    pub def: View,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -142,8 +143,8 @@ pub struct UploadFinishResp {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct FileGenerated {
+    pub mime_type: String,
     pub name: String,
-    pub mime: String,
 }
 
 #[derive(Serialize, Deserialize)]

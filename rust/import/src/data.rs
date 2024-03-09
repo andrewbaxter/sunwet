@@ -79,26 +79,26 @@ pub fn pred_is() -> String {
     return format!("{PREFIX_SUNWET1}/is");
 }
 
-pub fn root_albumset_id() -> CliNode {
-    return CliNode::Id(format!("{PREFIX_SUNWET1}/albumset"));
+pub fn root_albumset_value() -> CliNode {
+    return CliNode::Value(serde_json::Value::String(format!("{PREFIX_SUNWET1}/albumset")));
 }
 
-pub fn root_album_id() -> CliNode {
-    return CliNode::Id(format!("{PREFIX_SUNWET1}/album"));
+pub fn root_album_value() -> CliNode {
+    return CliNode::Value(serde_json::Value::String(format!("{PREFIX_SUNWET1}/album")));
 }
 
-pub fn root_track_id() -> CliNode {
-    return CliNode::Id(format!("{PREFIX_SUNWET1}/track"));
+pub fn root_track_value() -> CliNode {
+    return CliNode::Value(serde_json::Value::String(format!("{PREFIX_SUNWET1}/track")));
 }
 
-pub fn root_artist_id() -> CliNode {
-    return CliNode::Id(format!("{PREFIX_SUNWET1}/artist"));
+pub fn root_artist_value() -> CliNode {
+    return CliNode::Value(serde_json::Value::String(format!("{PREFIX_SUNWET1}/artist")));
 }
 
-pub fn root_audio_id() -> CliNode {
-    return CliNode::Id(format!("{PREFIX_SUNWET1}/audio"));
+pub fn root_audio_value() -> CliNode {
+    return CliNode::Value(serde_json::Value::String(format!("{PREFIX_SUNWET1}/audio")));
 }
 
-pub fn root_video_id() -> CliNode {
-    return CliNode::Id(format!("{PREFIX_SUNWET1}/video"));
+pub fn root_video_value() -> CliNode {
+    return CliNode::Value(serde_json::Value::String(format!("{PREFIX_SUNWET1}/video")));
 }

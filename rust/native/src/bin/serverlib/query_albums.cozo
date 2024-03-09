@@ -1,0 +1,32 @@
+{
+    container[id, container_id, container_dist] := 
+        *triple{subject:id @'NOW'}, 
+        container_id = id,
+        container_dist = 0
+    container[id, container_id, container_dist] := 
+        *triple{subject:container_id, predicate:"sunwet/1/element", object:id @'NOW'}, 
+        container_dist = 1
+    container[id, c2_id, c2_dist] :=
+        container[id, c1_id, c1_dist],
+        *triple{subject:c2_id, predicate:"sunwet/1/element", object:c1_id @'NOW'},
+        c2_dist = c1_dist + 1
+
+    dummy_preds[p] <- [["sunwet/1/name"], ["sunwet/1/artist"], ["sunwet/1/cover"]]
+
+    nearest_val_1[root_id, pred, val] :=
+        *triple{subject:root_id @'NOW'} or root_id = null,
+        dummy_preds[pred],
+        val = [null, 99999]
+    nearest_val_1[root_id, pred, val] := 
+        container[root_id, container_id, container_dist],
+        *triple{subject:container_id, predicate:pred, object:val0 @'NOW'},
+        val = [val0, container_dist]
+    nearest_val_2[id, pred, min_cost(val)] := nearest_val_1[id, pred, val]
+    nearest_val[id, pred, val] := nearest_val_2[id, pred, val_], val = first(val_)
+
+    ?[album_id, album, artist, cover] := 
+        *triple{subject:album_id, predicate:"sunwet/1/is", object:["value", "sunwet/1/album"] @ 'NOW'},
+        nearest_val[album_id, "sunwet/1/name", album],
+        nearest_val[album_id, "sunwet/1/artist", artist_id], nearest_val[artist_id, "sunwet/1/name", artist],
+        nearest_val[album_id, "sunwet/1/cover", cover]
+}

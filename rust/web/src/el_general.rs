@@ -2,7 +2,7 @@ use std::fmt::Display;
 use futures::channel::oneshot::channel;
 use lunk::{
     link,
-    Prim,
+    HistPrim,
     ProcessingContext,
 };
 use rooting::{
@@ -43,6 +43,15 @@ pub static CSS_BUTTON: &'static str = "g_button";
 pub static CSS_BUTTON_ICON: &'static str = "g_button_icon";
 pub static CSS_BUTTON_ICON_TEXT: &'static str = "g_button_icon_text";
 pub static CSS_BUTTON_TEXT: &'static str = "g_button_text";
+pub static CSS_ERROR: &'static str = "g_error";
+
+pub fn el_err_span(text: String) -> El {
+    return el("span").classes(&[CSS_ERROR]).text(&text);
+}
+
+pub fn el_err_block(text: String) -> El {
+    return el("div").classes(&[CSS_ERROR]).text(&text);
+}
 
 pub fn el_hscroll(child: El) -> El {
     return el("div").classes(&["g_hscroll"]).push(child);
@@ -103,7 +112,7 @@ pub fn el_button_icon_switch(
     off_help: &str,
     on_icon: CssIcon,
     on_help: &str,
-    state: &Prim<bool>,
+    state: &HistPrim<bool>,
 ) -> El {
     return el("button")
         .classes(&[CSS_BUTTON, CSS_BUTTON_ICON])
@@ -138,7 +147,7 @@ pub fn el_button_icon_switch_auto(
     off_help: &str,
     on_icon: CssIcon,
     on_help: &str,
-    state: &Prim<bool>,
+    state: &HistPrim<bool>,
 ) -> El {
     return el_button_icon_switch(pc, off_icon, off_help, on_icon, on_help, state).on("click", {
         let eg = pc.eg();
@@ -190,14 +199,21 @@ pub fn el_async() -> El {
     return el("div").classes(&["g_async"]);
 }
 
-pub fn el_modal(pc: &mut ProcessingContext, title: &str, body: impl Fn(&mut ProcessingContext, WeakEl) -> El) -> El {
-    let root = el_stack();
-    root.ref_extend(
-        vec![
-            el("div").classes(&["s_modal_bg"]),
-            el_vbox()
-                .classes(&["s_modal"])
-                .extend(vec![el_hbox().extend(vec![el("h1").text(title), el_button_icon(pc, ICON_CLOSE, "Close", {
+pub fn el_modal(
+    pc: &mut ProcessingContext,
+    title: &str,
+    body: impl Fn(&mut ProcessingContext, WeakEl) -> Vec<El>,
+) -> El {
+    let root = el_stack().classes(&["g_modal"]);
+    root.ref_extend(vec![
+        //. .
+        el("div").classes(&["modal_bg"]),
+        el_vbox().classes(&["modal_content"]).extend(vec![
+            //. .
+            el_hbox().classes(&["modal_title"]).extend(vec![
+                //. .
+                el("h1").text(title),
+                el_button_icon(pc, ICON_CLOSE, "Close", {
                     let out = root.weak();
                     move |_pc| {
                         let Some(out) = out.upgrade() else {
@@ -205,9 +221,11 @@ pub fn el_modal(pc: &mut ProcessingContext, title: &str, body: impl Fn(&mut Proc
                         };
                         out.ref_replace(vec![]);
                     }
-                })]), body(pc, root.weak())])
-        ],
-    );
+                })
+            ]),
+            el_vbox().classes(&["modal_body"]).extend(body(pc, root.weak()))
+        ])
+    ]);
     root
 }
 

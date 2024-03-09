@@ -11,17 +11,19 @@ use gloo::{
 use lunk::{
     link,
     EventGraph,
-    Prim,
+    HistPrim,
     ProcessingContext,
 };
 use rooting::{
     set_root,
     spawn_rooted,
+    El,
 };
 use shared::{
     bb,
     model::{
         C2SReq,
+        View,
     },
 };
 use wasm_bindgen::{
@@ -31,6 +33,7 @@ use web::{
     async_::bg_val,
     el_general::{
         el_async,
+        el_button_icon,
         el_button_icon_switch_auto,
         el_group,
         el_hbox,
@@ -38,6 +41,7 @@ use web::{
         el_vbox,
         log,
         CSS_GROW,
+        ICON_CLOSE,
         ICON_MENU,
         ICON_NOMENU,
     },
@@ -62,7 +66,7 @@ fn main() {
     let eg = EventGraph::new();
     eg.event(|pc| {
         let origin = window().location().origin().unwrap_throw();
-        let show_sidebar = Prim::new(pc, false);
+        let show_sidebar = HistPrim::new(pc, false);
         let mobile_vert_title_group = el_group().classes(&["s_vert_title"]);
         let title_group = el_group().classes(&["s_title"]);
         let body_group = el_group().classes(&["s_body"]);
@@ -70,7 +74,7 @@ fn main() {
         let views = bg_val({
             let origin = origin.clone();
             async move {
-                match req_post_json::<HashMap<String, state::View>>(&origin, C2SReq::ViewsList).await {
+                match req_post_json::<HashMap<String, View>>(&origin, C2SReq::ViewsList).await {
                     Ok(q) => return Rc::new(RefCell::new(q)),
                     Err(e) => {
                         log(format!("Error retrieving stored views: {:?}", e));
@@ -151,46 +155,88 @@ fn main() {
                     ),
                 body_group
             ])
-        ]).own(|e| (playlist_root, link!(
-            //. .
-            (pc = pc),
-            (show_sidebar = show_sidebar.clone()),
-            (),
-            (root = e.weak(), sidebar_group = sidebar_group.weak(), state = state.clone()) {
-                let root = root.upgrade()?;
-                root.ref_modify_classes(&[("sidebar", *show_sidebar.borrow())]);
-                root.ref_modify_classes(&[("no_sidebar", !*show_sidebar.borrow())]);
-                let sidebar_group = sidebar_group.upgrade()?;
-                if *show_sidebar.borrow() {
-                    sidebar_group.ref_push(
-                        el_vbox().classes(&["s_sidebar", CSS_GROW]).push(el_async().own(|e| spawn_rooted({
+        ]).own(|e| (
+            playlist_root,
+            link!(
+                //. .
+                (pc = pc),
+                (show_sidebar = show_sidebar.clone()),
+                (),
+                (root = e.weak(), sidebar_group = sidebar_group.weak(), state = state.clone()) {
+                    let root = root.upgrade()?;
+                    root.ref_modify_classes(&[("sidebar", *show_sidebar.borrow())]);
+                    root.ref_modify_classes(&[("no_sidebar", !*show_sidebar.borrow())]);
+                    let sidebar_group = sidebar_group.upgrade()?;
+                    if *show_sidebar.borrow() {
+                        sidebar_group.ref_push(
+                            el_vbox().classes(&["s_sidebar", CSS_GROW]).push(el_async().own(|e| spawn_rooted({
+                                let state = state.clone();
+                                let eg = pc.eg();
+                                let placeholder = e.weak();
+                                async move {
+                                    let views = state.views.get().await;
+                                    let Some(placeholder) = placeholder.upgrade() else {
+                                        return;
+                                    };
+                                    eg.event(|pc| {
+                                        for (view_id, view) in &*views.borrow() {
+                                            placeholder.ref_replace(
+                                                vec![el_ministate_button(pc, &state, &view.name, Ministate::View {
+                                                    id: view_id.clone(),
+                                                    title: view.name.clone(),
+                                                    pos: None,
+                                                })],
+                                            );
+                                        }
+                                    });
+                                }
+                            }))),
+                        );
+                    } else {
+                        sidebar_group.ref_clear();
+                    }
+                }
+            ),
+            link!(
+                (pc = pc),
+                (playing_i = state.playlist.0.playing_i.clone(), playing = state.playlist.0.playing.clone()),
+                (),
+                (state = state.clone(), stack = stack.clone(), current = Rc::new(RefCell::new(None as Option<El>))) {
+                    if !playing.get() {
+                        return None;
+                    }
+                    if !(!playing.get_old() || playing_i.get() != playing_i.get_old()) {
+                        return None;
+                    }
+                    let e = state.playlist.0.playlist.borrow().get(playing_i.get().unwrap()).cloned().unwrap();
+                    if !e.media.pm_display() {
+                        return None;
+                    }
+                    if let Some(current) = current.borrow_mut().take() {
+                        current.ref_replace(vec![]);
+                    }
+                    let new_player = el_vbox().classes(&["s_player_modal"]);
+                    new_player.ref_extend(
+                        vec![el_hbox().classes(&["titlebar"]).extend(vec![el_button_icon(pc, ICON_CLOSE, "Close", {
                             let state = state.clone();
-                            let eg = pc.eg();
-                            let placeholder = e.weak();
-                            async move {
-                                let views = state.views.get().await;
-                                let Some(placeholder) = placeholder.upgrade() else {
+                            let current = Rc::downgrade(&current);
+                            move |pc| {
+                                let Some(current) = current.upgrade() else {
                                     return;
                                 };
-                                eg.event(|pc| {
-                                    for (view_id, view) in &*views.borrow() {
-                                        placeholder.ref_replace(
-                                            vec![el_ministate_button(pc, &state, &view.name, Ministate::View {
-                                                id: view_id.clone(),
-                                                title: view.name.clone(),
-                                                pos: None,
-                                            })],
-                                        );
-                                    }
-                                });
+                                if let Some(current) = current.borrow_mut().take() {
+                                    current.ref_replace(vec![]);
+                                }
+                                state.playlist.0.playing.set(pc, false);
                             }
-                        }))),
+                        })]), e.media.pm_el().clone()],
                     );
-                } else {
-                    sidebar_group.ref_clear();
+                    *current.borrow_mut() = Some(new_player.clone());
+                    stack.ref_push(new_player);
+                    _ = e.media.pm_media().request_fullscreen();
                 }
-            }
-        ))));
+            ),
+        )));
         set_root(vec![stack]);
     });
 }

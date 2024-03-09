@@ -188,11 +188,20 @@ pub async fn send_recv_head<
         ea!(method = method, url = url, status = status, headers = headers.dbg_str()),
     );
     if !status.is_success() {
-        let err = loga::err_with("Server returned error response", ea!(status = status));
-        if let Err(e) = recv_body(continue_send, 10 * 1024, Duration::seconds(30)).await {
-            return Err(err.also(e));
+        match recv_body(continue_send, 10 * 1024, Duration::seconds(30)).await {
+            Ok(body) => {
+                return Err(
+                    loga::err_with(
+                        "Server returned error response",
+                        ea!(status = status, body = String::from_utf8_lossy(&body)),
+                    ),
+                );
+            },
+            Err(e) => {
+                let err = loga::err_with("Server returned error response", ea!(status = status));
+                return Err(err.also(e));
+            },
         }
-        return Err(err);
     }
     return Ok((status, headers, continue_send));
 }

@@ -13,7 +13,9 @@ use rooting::{
 };
 use web::el_general::{
     el_button_icon_blank,
+    el_err_block,
     el_icon,
+    CSS_ERROR,
     ICON_TRANSPORT_PAUSE,
     ICON_TRANSPORT_PLAY,
 };
@@ -34,7 +36,7 @@ pub const CSS_TREE_IMAGE: &'static str = "tree_image";
 pub const CSS_TREE_MEDIA_BUTTON: &'static str = "tree_media_button";
 
 pub fn el_image_err(text: String) -> El {
-    return el("img").attr("src", &text);
+    return el_err_block(text).classes(&["image"]);
 }
 
 pub fn el_media_button(pc: &mut ProcessingContext, state: &PlaylistState, entry: usize) -> El {
@@ -65,7 +67,7 @@ pub fn el_media_button(pc: &mut ProcessingContext, state: &PlaylistState, entry:
 }
 
 pub fn el_media_button_err(text: String) -> El {
-    return el("div").classes(&["g_error"]).text(&text);
+    return el("div").classes(&[CSS_ERROR]).text(&text);
 }
 
 pub fn style_tree(type_: &str, depth: usize, align: Align, widget: &El) {
@@ -85,8 +87,4 @@ pub fn style_tree(type_: &str, depth: usize, align: Align, widget: &El) {
             Align::End => "align_end",
         },
     ]);
-}
-
-pub fn el_err(text: String) -> El {
-    return el("span").classes(&["g_error"]).text(&text);
 }

@@ -600,9 +600,9 @@ checksum = "b5e6163cb8c49088c2c36f57875e58ccd8c87c7427f7fbd50ea6710b2f3f2e8f"
 
 [[package]]
 name = "lunk"
-version = "0.1.3"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74d1516e2fb743335ccbc525ff31b017f590d215812d3a193cef1b6a49ed078e"
+checksum = "46a00959b20a8e7aed86e15469df8375f3c9af510faf63aa67321694a6470eb0"
 dependencies = [
  "paste",
 ]
