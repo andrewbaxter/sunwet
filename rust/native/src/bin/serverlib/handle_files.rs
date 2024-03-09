@@ -291,7 +291,7 @@ pub async fn handle_finish_upload(
                                 break;
                             };
                             match mimetype.as_str() {
-                                "video/x-matroska" | "video/mp4" => { },
+                                "video/x-matroska" | "video/mp4" | "video/webm" => { },
                                 _ => {
                                     break;
                                 },
@@ -378,62 +378,64 @@ pub async fn handle_finish_upload(
                             }
 
                             // Webm
-                            let webm_tmp = tempdir()?;
-                            let webm_dest = generated_path(&state.generated_dir, &hash, "video/webm", "")?;
-                            if let Some(p) = webm_dest.parent() {
-                                create_dir_all(&p)
-                                    .await
-                                    .context_with(
-                                        "Failed to create parent directories for generated webm file",
-                                        ea!(path = webm_dest.display()),
-                                    )?;
-                            }
-                            let pass1_res =
-                                Command::new("ffmpeg")
-                                    .stdin(Stdio::null())
-                                    .arg("-i")
-                                    .arg(&source)
-                                    .args(&["-b:v", "0"])
-                                    .args(&["-crf", "30"])
-                                    .args(&["-pass", "1"])
-                                    .arg("-passlogfile")
-                                    .arg(&webm_tmp.path().join("passlog"))
-                                    .arg("-an")
-                                    .args(&["-f", "webm"])
-                                    .args(&["-y", "/dev/null"])
-                                    .output()
-                                    .await
-                                    .context("Error starting webm conversion pass 1")?;
-                            if !pass1_res.status.success() {
-                                return Err(
-                                    loga::err_with(
-                                        "Generating webm, pass 1 failed",
-                                        ea!(output = pass1_res.pretty_dbg_str()),
-                                    ),
-                                );
-                            }
-                            let pass2_res =
-                                Command::new("ffmpeg")
-                                    .stdin(Stdio::null())
-                                    .arg("-i")
-                                    .arg(&source)
-                                    .args(&["-b:v", "0"])
-                                    .args(&["-crf", "30"])
-                                    .args(&["-pass", "2"])
-                                    .arg("-passlogfile")
-                                    .arg(&webm_tmp.path().join("passlog"))
-                                    .args(&["-f", "webm"])
-                                    .arg(webm_dest)
-                                    .output()
-                                    .await
-                                    .context("Error starting webm conversion pass 1")?;
-                            if !pass2_res.status.success() {
-                                return Err(
-                                    loga::err_with(
-                                        "Generating webm, pass 2 failed",
-                                        ea!(output = pass2_res.pretty_dbg_str()),
-                                    ),
-                                );
+                            if mimetype.as_str() != "video/webm" {
+                                let webm_tmp = tempdir()?;
+                                let webm_dest = generated_path(&state.generated_dir, &hash, "video/webm", "")?;
+                                if let Some(p) = webm_dest.parent() {
+                                    create_dir_all(&p)
+                                        .await
+                                        .context_with(
+                                            "Failed to create parent directories for generated webm file",
+                                            ea!(path = webm_dest.display()),
+                                        )?;
+                                }
+                                let pass1_res =
+                                    Command::new("ffmpeg")
+                                        .stdin(Stdio::null())
+                                        .arg("-i")
+                                        .arg(&source)
+                                        .args(&["-b:v", "0"])
+                                        .args(&["-crf", "30"])
+                                        .args(&["-pass", "1"])
+                                        .arg("-passlogfile")
+                                        .arg(&webm_tmp.path().join("passlog"))
+                                        .arg("-an")
+                                        .args(&["-f", "webm"])
+                                        .args(&["-y", "/dev/null"])
+                                        .output()
+                                        .await
+                                        .context("Error starting webm conversion pass 1")?;
+                                if !pass1_res.status.success() {
+                                    return Err(
+                                        loga::err_with(
+                                            "Generating webm, pass 1 failed",
+                                            ea!(output = pass1_res.pretty_dbg_str()),
+                                        ),
+                                    );
+                                }
+                                let pass2_res =
+                                    Command::new("ffmpeg")
+                                        .stdin(Stdio::null())
+                                        .arg("-i")
+                                        .arg(&source)
+                                        .args(&["-b:v", "0"])
+                                        .args(&["-crf", "30"])
+                                        .args(&["-pass", "2"])
+                                        .arg("-passlogfile")
+                                        .arg(&webm_tmp.path().join("passlog"))
+                                        .args(&["-f", "webm"])
+                                        .arg(webm_dest)
+                                        .output()
+                                        .await
+                                        .context("Error starting webm conversion pass 1")?;
+                                if !pass2_res.status.success() {
+                                    return Err(
+                                        loga::err_with(
+                                            "Generating webm, pass 2 failed",
+                                            ea!(output = pass2_res.pretty_dbg_str()),
+                                        ),
+                                    );
+                                }
                             }
                         }
 
