@@ -43,6 +43,8 @@ fn main() {
             .index("zXIMPRLIR", "triple_index_obj_pred_subj", &[&object, &predicate, &subject])
             .unique()
             .build(&mut latest_version);
+        t.index("zBZVX51AR", "triple_index_pred_subj", &[&predicate, &subject]).unique().build(&mut latest_version);
+        t.index("zTVLKA6GQ", "triple_index_pred_obj", &[&predicate, &object]).unique().build(&mut latest_version);
         queries.push(
             new_insert(
                 &t,
@@ -51,7 +53,9 @@ fn main() {
                     set_field("predicate", &predicate),
                     set_field("object", &object)
                 ],
-            ).build_query("triple_insert", QueryResCount::None),
+            )
+                .on_conflict(good_ormning::sqlite::query::insert::InsertConflict::DoNothing)
+                .build_query("triple_insert", QueryResCount::None),
         );
     }
     good_ormning::sqlite::generate(&root.join("src/db.rs"), vec![
