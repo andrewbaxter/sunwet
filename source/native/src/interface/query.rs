@@ -12,19 +12,19 @@ pub enum MoveDirection {
 pub struct StepMove {
     pub dir: MoveDirection,
     pub predicate: String,
+    pub first: bool,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub struct StepRecurse {
     pub chain: Vec<Step>,
+    pub first: bool,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub enum Step {
     Move(StepMove),
-    Recurse0(StepRecurse),
-    Recurse1(StepRecurse),
-    First,
+    Recurse(StepRecurse),
 }
 
 pub struct Chain {

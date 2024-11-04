@@ -78,8 +78,8 @@ fn main() {
         let predicate = t.field(&mut latest_version, "zSZVNBP0E", "predicate", field_str().build());
         let object = t.field(&mut latest_version, "zII52SWQB", "object", FieldType::with(&node_type));
         let event_stamp =
-            t.field(&mut latest_version, "zK21ECBE5", "event_stamp", field_fixed_offset_time_ms().build());
-        let event_exist = t.field(&mut latest_version, "z0ZOJM2UT", "event_exist", field_bool().build());
+            t.field(&mut latest_version, "zK21ECBE5", "timestamp", field_fixed_offset_time_ms().build());
+        let event_exist = t.field(&mut latest_version, "z0ZOJM2UT", "exists", field_bool().build());
         let iam_target = t.field(&mut latest_version, "zFN1MRJMO", "iam_target", field_i64().build());
         t.constraint(
             &mut latest_version,
