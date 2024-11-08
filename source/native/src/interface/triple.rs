@@ -250,6 +250,6 @@ impl GoodOrmningCustomString<Node> for Node {
     }
 
     fn from_sql(value: String) -> Result<Node, String> {
-        return serde_json::from_str(&value).map_err(|e| e.to_string())?;
+        return Ok(serde_json::from_str::<Node>(&value).map_err(|e| e.to_string())?);
     }
 }

@@ -27,6 +27,8 @@ use {
     std::collections::HashMap,
 };
 
+pub const IAM_TARGET_ADMIN_ONLY: i64 = 0;
+
 struct QueryBuildState {
     parameters: HashMap<String, Node>,
     // # Immutable
@@ -229,13 +231,6 @@ fn build_step(
                     ),
                 );
                 sql_sel.group_by_col(local_col_primary_end.clone());
-                sql_sel.order_by(
-                    sea_query::ColumnRef::TableColumn(
-                        local_ident_table_primary.clone(),
-                        query_state.ident_col_timestamp.clone(),
-                    ),
-                    sea_query::Order::Desc,
-                );
 
                 // Only consider elements with perm to view
                 { }
@@ -274,12 +269,6 @@ fn build_step(
                     out_col_start = local_col_primary_start.clone();
                 }
 
-                // Trim
-                if step.first && step.filter.is_none() {
-                    // (If filtering, apply limit during that step)
-                    sql_sel.limit(1);
-                }
-
                 // Assemble
                 sql_sel.column(out_col_start);
                 sql_sel.column(local_col_primary_end.clone());
@@ -289,11 +278,23 @@ fn build_step(
                         query_state.ident_col_exists.clone(),
                     ),
                 );
+                sql_sel.expr(
+                    // Unnamed, unused
+                    sea_query::Expr::max(
+                        sea_query::Expr::col(
+                            sea_query::ColumnRef::TableColumn(
+                                local_ident_table_primary.clone(),
+                                query_state.ident_col_timestamp.clone(),
+                            ),
+                        ),
+                    ),
+                );
                 let mut sql_cte = sea_query::CommonTableExpression::new();
                 sql_cte.table_name(ident_cte.clone());
                 sql_cte.column(query_state.ident_col_start.clone());
                 sql_cte.column(query_state.ident_col_end.clone());
                 sql_cte.column(query_state.ident_col_exists.clone());
+                sql_cte.column(SeaRc::new(Alias::new("unused_timestamp")));
                 sql_cte.query(sql_sel);
                 query_state.ctes.push(sql_cte);
                 out = BuildStepRes {
@@ -320,6 +321,12 @@ fn build_step(
                         ),
                     ).into(),
                 );
+
+                // Trim
+                if step.first && step.filter.is_none() {
+                    // (If filtering, apply limit during that step)
+                    sql_sel.limit(1);
+                }
 
                 // Assemble
                 let mut sql_cte = sea_query::CommonTableExpression::new();
@@ -607,8 +614,29 @@ fn build_chain(
     }
 
     // Process children
+    let child_prev_subchain_seg;
+    {
+        let ident_table_root = SeaRc::new(Alias::new(format!("chain_child_prev{}", query_state.global_unique)));
+        query_state.global_unique += 1;
+        let mut sql_sel = sea_query::Query::select();
+        sql_sel.from(primary_subchain.ident_table.clone());
+        sql_sel.column(primary_subchain.col_end.clone());
+        sql_sel.column(primary_subchain.col_end.clone());
+        let mut sql_cte = sea_query::CommonTableExpression::new();
+        sql_cte.table_name(ident_table_root.clone());
+        sql_cte.query(sql_sel);
+        sql_cte.column(query_state.ident_col_start.clone());
+        sql_cte.column(query_state.ident_col_end.clone());
+        query_state.ctes.push(sql_cte);
+        child_prev_subchain_seg = Some(BuildStepRes {
+            ident_table: ident_table_root,
+            col_start: query_state.ident_col_start.clone(),
+            col_end: query_state.ident_col_end.clone(),
+            plural: false,
+        });
+    }
     for child in chain.children {
-        let child_chain = build_chain(query_state, Some(primary_subchain.clone()), child)?;
+        let child_chain = build_chain(query_state, child_prev_subchain_seg.clone(), child)?;
         sql_sel.join(
             sea_query::JoinType::LeftJoin,
             child_chain.cte,

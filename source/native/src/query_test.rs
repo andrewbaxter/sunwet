@@ -21,10 +21,16 @@ use {
             },
             triple::Node,
         },
-        query::build_query,
+        query::{
+            build_query,
+            IAM_TARGET_ADMIN_ONLY,
+        },
     },
-    chrono::Utc,
-    rusqlite::types::FromSql,
+    chrono::{
+        Duration,
+        TimeZone,
+        Utc,
+    },
     std::{
         collections::HashMap,
         io::Write,
@@ -60,9 +66,7 @@ fn n() -> Node {
 
 fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, ResVal)]], query: Query) {
     let (query, query_values) = build_query(query, HashMap::new()).unwrap();
-    let mut db = rusqlite::Connection::open("./test.sqlite3").unwrap();
-
-    //. let mut db = rusqlite::Connection::open_in_memory().unwrap();
+    let mut db = rusqlite::Connection::open_in_memory().unwrap();
     db::migrate(&mut db).unwrap();
     db::singleton_init(&db, &IamConfig {
         targets: vec![],
@@ -146,129 +150,6 @@ fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, ResVal)]], query: 
     pretty_assertions::assert_eq!(want, got);
 }
 
-fn query_albums() -> Query {
-    return Query {
-        chain: Chain {
-            subchain: Subchain {
-                root: Some(Value::Literal(Node::Id("sunwet/1/album".to_string()))),
-                steps: vec![Step::Move(StepMove {
-                    dir: MoveDirection::Up,
-                    predicate: "sunwet/1/is".to_string(),
-                    first: false,
-                    filter: None,
-                })],
-            },
-            select: Some("id".to_string()),
-            children: vec![
-                //. .
-                Chain {
-                    subchain: Subchain {
-                        root: None,
-                        steps: vec![
-                            //. .
-                            Step::Recurse(StepRecurse {
-                                subchain: Subchain {
-                                    root: None,
-                                    steps: vec![Step::Move(StepMove {
-                                        dir: MoveDirection::Up,
-                                        predicate: "sunwet/1/element".to_string(),
-                                        first: false,
-                                        filter: None,
-                                    })],
-                                },
-                                first: false,
-                            }),
-                            Step::Move(StepMove {
-                                dir: MoveDirection::Down,
-                                predicate: "sunwet/1/name".to_string(),
-                                first: true,
-                                filter: None,
-                            })
-                        ],
-                    },
-                    select: Some("name".to_string()),
-                    children: Default::default(),
-                },
-                Chain {
-                    subchain: Subchain {
-                        root: None,
-                        steps: vec![
-                            //. .
-                            Step::Recurse(StepRecurse {
-                                subchain: Subchain {
-                                    root: None,
-                                    steps: vec![Step::Move(StepMove {
-                                        dir: MoveDirection::Up,
-                                        predicate: "sunwet/1/element".to_string(),
-                                        first: false,
-                                        filter: None,
-                                    })],
-                                },
-                                first: false,
-                            }),
-                            Step::Move(StepMove {
-                                dir: MoveDirection::Down,
-                                predicate: "sunwet/1/artist".to_string(),
-                                first: true,
-                                filter: None,
-                            }),
-                            Step::Recurse(StepRecurse {
-                                subchain: Subchain {
-                                    root: None,
-                                    steps: vec![Step::Move(StepMove {
-                                        dir: MoveDirection::Up,
-                                        predicate: "sunwet/1/element".to_string(),
-                                        first: false,
-                                        filter: None,
-                                    })],
-                                },
-                                first: false,
-                            }),
-                            Step::Move(StepMove {
-                                dir: MoveDirection::Down,
-                                predicate: "sunwet/1/name".to_string(),
-                                first: true,
-                                filter: None,
-                            })
-                        ],
-                    },
-                    select: Some("artist".to_string()),
-                    children: Default::default(),
-                },
-                Chain {
-                    subchain: Subchain {
-                        root: None,
-                        steps: vec![
-                            //. .
-                            Step::Recurse(StepRecurse {
-                                subchain: Subchain {
-                                    root: None,
-                                    steps: vec![Step::Move(StepMove {
-                                        dir: MoveDirection::Up,
-                                        predicate: "sunwet/1/element".to_string(),
-                                        first: false,
-                                        filter: None,
-                                    })],
-                                },
-                                first: false,
-                            }),
-                            Step::Move(StepMove {
-                                dir: MoveDirection::Down,
-                                predicate: "sunwet/1/cover".to_string(),
-                                first: true,
-                                filter: None,
-                            })
-                        ],
-                    },
-                    select: Some("cover".to_string()),
-                    children: Default::default(),
-                }
-            ],
-        },
-        sort: vec![],
-    };
-}
-
 #[test]
 fn test_base() {
     execute(
@@ -286,7 +167,126 @@ fn test_base() {
                 ("cover", ResVal::Scalar(n())),
             ],
         ],
-        query_albums(),
+        Query {
+            chain: Chain {
+                subchain: Subchain {
+                    root: Some(Value::Literal(Node::Id("sunwet/1/album".to_string()))),
+                    steps: vec![Step::Move(StepMove {
+                        dir: MoveDirection::Up,
+                        predicate: "sunwet/1/is".to_string(),
+                        first: false,
+                        filter: None,
+                    })],
+                },
+                select: Some("id".to_string()),
+                children: vec![
+                    //. .
+                    Chain {
+                        subchain: Subchain {
+                            root: None,
+                            steps: vec![
+                                //. .
+                                Step::Recurse(StepRecurse {
+                                    subchain: Subchain {
+                                        root: None,
+                                        steps: vec![Step::Move(StepMove {
+                                            dir: MoveDirection::Up,
+                                            predicate: "sunwet/1/element".to_string(),
+                                            first: false,
+                                            filter: None,
+                                        })],
+                                    },
+                                    first: false,
+                                }),
+                                Step::Move(StepMove {
+                                    dir: MoveDirection::Down,
+                                    predicate: "sunwet/1/name".to_string(),
+                                    first: true,
+                                    filter: None,
+                                })
+                            ],
+                        },
+                        select: Some("name".to_string()),
+                        children: Default::default(),
+                    },
+                    Chain {
+                        subchain: Subchain {
+                            root: None,
+                            steps: vec![
+                                //. .
+                                Step::Recurse(StepRecurse {
+                                    subchain: Subchain {
+                                        root: None,
+                                        steps: vec![Step::Move(StepMove {
+                                            dir: MoveDirection::Up,
+                                            predicate: "sunwet/1/element".to_string(),
+                                            first: false,
+                                            filter: None,
+                                        })],
+                                    },
+                                    first: false,
+                                }),
+                                Step::Move(StepMove {
+                                    dir: MoveDirection::Down,
+                                    predicate: "sunwet/1/artist".to_string(),
+                                    first: true,
+                                    filter: None,
+                                }),
+                                Step::Recurse(StepRecurse {
+                                    subchain: Subchain {
+                                        root: None,
+                                        steps: vec![Step::Move(StepMove {
+                                            dir: MoveDirection::Up,
+                                            predicate: "sunwet/1/element".to_string(),
+                                            first: false,
+                                            filter: None,
+                                        })],
+                                    },
+                                    first: false,
+                                }),
+                                Step::Move(StepMove {
+                                    dir: MoveDirection::Down,
+                                    predicate: "sunwet/1/name".to_string(),
+                                    first: true,
+                                    filter: None,
+                                })
+                            ],
+                        },
+                        select: Some("artist".to_string()),
+                        children: Default::default(),
+                    },
+                    Chain {
+                        subchain: Subchain {
+                            root: None,
+                            steps: vec![
+                                //. .
+                                Step::Recurse(StepRecurse {
+                                    subchain: Subchain {
+                                        root: None,
+                                        steps: vec![Step::Move(StepMove {
+                                            dir: MoveDirection::Up,
+                                            predicate: "sunwet/1/element".to_string(),
+                                            first: false,
+                                            filter: None,
+                                        })],
+                                    },
+                                    first: false,
+                                }),
+                                Step::Move(StepMove {
+                                    dir: MoveDirection::Down,
+                                    predicate: "sunwet/1/cover".to_string(),
+                                    first: true,
+                                    filter: None,
+                                })
+                            ],
+                        },
+                        select: Some("cover".to_string()),
+                        children: Default::default(),
+                    }
+                ],
+            },
+            sort: vec![],
+        },
     );
 }
 
@@ -478,4 +478,57 @@ fn test_chain_union() {
             sort: vec![],
         },
     );
+}
+
+#[test]
+fn test_gc() {
+    let mut db = rusqlite::Connection::open_in_memory().unwrap();
+    db::migrate(&mut db).unwrap();
+    db::singleton_init(&db, &IamConfig {
+        targets: vec![],
+        access: vec![],
+        roles: vec![],
+        members: vec![],
+    }).unwrap();
+    let stamp1 = chrono::Local.with_ymd_and_hms(2014, 10, 1, 1, 1, 1).unwrap().into();
+    let stamp2 = chrono::Local.with_ymd_and_hms(2014, 11, 1, 1, 1, 1).unwrap().into();
+    let stamp3 = chrono::Local.with_ymd_and_hms(2014, 12, 1, 1, 1, 1).unwrap().into();
+
+    // Newest is after epoch
+    db::triple_insert(&db, &s("a"), "b", &s("c"), stamp1, true, IAM_TARGET_ADMIN_ONLY).unwrap();
+    db::triple_insert(&db, &s("a"), "b", &s("c"), stamp2, false, IAM_TARGET_ADMIN_ONLY).unwrap();
+    db::triple_insert(&db, &s("a"), "b", &s("c"), stamp3, true, IAM_TARGET_ADMIN_ONLY).unwrap();
+
+    // Newest is before epoch, but exists
+    db::triple_insert(&db, &s("d"), "e", &s("f"), stamp1, false, IAM_TARGET_ADMIN_ONLY).unwrap();
+    db::triple_insert(&db, &s("d"), "e", &s("f"), stamp2, true, IAM_TARGET_ADMIN_ONLY).unwrap();
+
+    // Newest is before epoch, but doesn't exist
+    db::triple_insert(&db, &s("g"), "h", &s("i"), stamp1, true, IAM_TARGET_ADMIN_ONLY).unwrap();
+    db::triple_insert(&db, &s("g"), "h", &s("i"), stamp1, false, IAM_TARGET_ADMIN_ONLY).unwrap();
+
+    // Gc
+    db::triple_gc_deleted(&db, stamp2 + Duration::seconds(1)).unwrap();
+    let want = vec![
+        //. .
+        format!("{:?}", (s("a"), "b".to_string(), s("c"), stamp3, true, IAM_TARGET_ADMIN_ONLY)),
+        format!("{:?}", (s("d"), "e".to_string(), s("f"), stamp2, true, IAM_TARGET_ADMIN_ONLY))
+    ];
+    let mut have =
+        db::triple_get_all(&db)
+            .unwrap()
+            .into_iter()
+            .map(|r| format!("{:?}", (r.subject, r.predicate, r.object, r.timestamp, r.exists, r.iam_target)))
+            .collect::<Vec<_>>();
+    have.sort();
+    pretty_assertions::assert_eq!(want, have);
+    db::triple_gc_deleted(&db, stamp2 + Duration::seconds(1)).unwrap();
+    let mut have =
+        db::triple_get_all(&db)
+            .unwrap()
+            .into_iter()
+            .map(|r| format!("{:?}", (r.subject, r.predicate, r.object, r.timestamp, r.exists, r.iam_target)))
+            .collect::<Vec<_>>();
+    have.sort();
+    pretty_assertions::assert_eq!(want, have);
 }

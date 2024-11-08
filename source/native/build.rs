@@ -3,17 +3,26 @@ use {
         new_delete,
         new_insert,
         new_select,
+        new_select_body,
         new_update,
         query::{
             expr::{
                 BinOp,
+                Binding,
                 Expr,
             },
             helpers::{
-                eq_field,
+                expr_and,
+                expr_field_eq,
+                expr_field_lt,
+                fn_max,
                 set_field,
             },
             insert::InsertConflict,
+            utils::{
+                CteBuilder,
+                With,
+            },
         },
         schema::{
             constraint::{
@@ -22,10 +31,10 @@ use {
             },
             field::{
                 field_bool,
-                field_fixed_offset_time_ms,
                 field_i32,
                 field_i64,
                 field_str,
+                field_utctime_ms,
                 FieldType,
             },
         },
@@ -65,20 +74,44 @@ fn main() {
                 .build_query("singleton_init", QueryResCount::One),
         );
         queries.push(new_update(&t, vec![set_field("iam_config", &iam_config)]).where_(Expr::BinOp {
-            left: Box::new(Expr::Field(unique.clone())),
+            left: Box::new(Expr::Binding(Binding::field(&unique))),
             op: BinOp::Equals,
             right: Box::new(Expr::LitI32(0)),
         }).build_query("singleton_iam_config_set", QueryResCount::None));
     }
 
+    // Commits
+    let commit_table;
+    let commit_stamp;
+    {
+        let t = latest_version.table("z1YCS4PD2", "commit");
+        let event_stamp = t.field(&mut latest_version, "zNKHCTSZK", "timestamp", field_utctime_ms().build());
+        t.constraint(
+            &mut latest_version,
+            "zN5R3XY01",
+            "commit_timestamp",
+            PrimaryKey(PrimaryKeyDef { fields: vec![event_stamp.clone()] }),
+        );
+        let desc = t.field(&mut latest_version, "z7K4EDCAB", "description", field_str().build());
+        queries.push(
+            new_insert(
+                &t,
+                vec![set_field("stamp", &event_stamp), set_field("desc", &desc)],
+            ).build_query("commit_insert", QueryResCount::None),
+        );
+        commit_table = t;
+        commit_stamp = event_stamp;
+    }
+
     // Triple
+    let triple_table;
+    let triple_event_stamp;
     {
         let t = latest_version.table("zQLEK3CT0", "triple");
         let subject = t.field(&mut latest_version, "zLQI9HQUQ", "subject", FieldType::with(&node_type));
         let predicate = t.field(&mut latest_version, "zSZVNBP0E", "predicate", field_str().build());
         let object = t.field(&mut latest_version, "zII52SWQB", "object", FieldType::with(&node_type));
-        let event_stamp =
-            t.field(&mut latest_version, "zK21ECBE5", "timestamp", field_fixed_offset_time_ms().build());
+        let event_stamp = t.field(&mut latest_version, "zK21ECBE5", "timestamp", field_utctime_ms().build());
         let event_exist = t.field(&mut latest_version, "z0ZOJM2UT", "exists", field_bool().build());
         let iam_target = t.field(&mut latest_version, "zFN1MRJMO", "iam_target", field_i64().build());
         t.constraint(
@@ -118,7 +151,104 @@ fn main() {
                 .on_conflict(InsertConflict::DoUpdate(vec![set_field("exist", &event_exist)]))
                 .build_query("triple_insert", QueryResCount::None),
         );
+        queries.push(
+            new_select(&t)
+                .return_field(&subject)
+                .return_field(&predicate)
+                .return_field(&object)
+                .return_field(&event_stamp)
+                .return_field(&event_exist)
+                .return_field(&iam_target)
+                .build_query("triple_get_all", QueryResCount::Many),
+        );
+        queries.push({
+            let mut current =
+                CteBuilder::new(
+                    "current",
+                    new_select_body(&t)
+                        .group(vec![Expr::field(&subject), Expr::field(&predicate), Expr::field(&object)])
+                        .return_field(&subject)
+                        .return_field(&predicate)
+                        .return_field(&object)
+                        .return_named("timestamp", fn_max(Expr::field(&event_stamp)))
+                        .build(),
+                );
+            let current_subject = current.field("subject", subject.type_.type_.clone());
+            let current_predicate = current.field("predicate", predicate.type_.type_.clone());
+            let current_object = current.field("object", object.type_.type_.clone());
+            let current_stamp = current.field("event_stamp", event_stamp.type_.type_.clone());
+            let (current_table, current_cte) = current.build();
+            new_delete(&t).with(With {
+                recursive: false,
+                ctes: vec![current_cte],
+            }).where_(expr_and(vec![
+                //. .
+                expr_field_lt("epoch", &event_stamp),
+                Expr::BinOp {
+                    left: Box::new(Expr::BinOp {
+                        left: Box::new(Expr::Binding(Binding::field(&event_exist))),
+                        op: BinOp::Equals,
+                        right: Box::new(Expr::LitBool(false)),
+                    }),
+                    op: BinOp::Or,
+                    right: Box::new(Expr::Exists {
+                        not: true,
+                        body: Box::new(
+                            new_select_body(&current_table).return_named("x", Expr::LitI32(1)).where_(expr_and(vec![
+                                //. .
+                                Expr::BinOp {
+                                    left: Box::new(Expr::Binding(Binding::field(&subject))),
+                                    op: BinOp::Equals,
+                                    right: Box::new(Expr::Binding(Binding::field(&current_subject))),
+                                },
+                                Expr::BinOp {
+                                    left: Box::new(Expr::Binding(Binding::field(&predicate))),
+                                    op: BinOp::Equals,
+                                    right: Box::new(Expr::Binding(Binding::field(&current_predicate))),
+                                },
+                                Expr::BinOp {
+                                    left: Box::new(Expr::Binding(Binding::field(&object))),
+                                    op: BinOp::Equals,
+                                    right: Box::new(Expr::Binding(Binding::field(&current_object))),
+                                },
+                                Expr::BinOp {
+                                    left: Box::new(Expr::Binding(Binding::field(&event_stamp))),
+                                    op: BinOp::Equals,
+                                    right: Box::new(Expr::Binding(Binding::field(&current_stamp))),
+                                }
+                            ])).build(),
+                        ),
+                        body_junctions: vec![],
+                    }),
+                }
+            ])).build_query("triple_gc_deleted", QueryResCount::None)
+        });
+        triple_table = t;
+        triple_event_stamp = event_stamp;
     }
+    queries.push({
+        let mut active_commits =
+            CteBuilder::new(
+                "active_commits",
+                new_select_body(&triple_table).distinct().return_field(&triple_event_stamp).build(),
+            );
+        let active_commits_stamp = active_commits.field("stamp", triple_event_stamp.type_.type_.clone());
+        let (table_active_commits, cte_active) = active_commits.build();
+        new_delete(&commit_table).with(With {
+            recursive: false,
+            ctes: vec![cte_active],
+        }).where_(Expr::Exists {
+            not: true,
+            body: Box::new(
+                new_select_body(&table_active_commits).return_named("x", Expr::LitI32(1)).where_(Expr::BinOp {
+                    left: Box::new(Expr::field(&commit_stamp)),
+                    op: BinOp::Equals,
+                    right: Box::new(Expr::field(&active_commits_stamp)),
+                }).build(),
+            ),
+            body_junctions: vec![],
+        }).build_query("commit_gc", QueryResCount::None)
+    });
 
     // Metadata
     {
@@ -141,17 +271,25 @@ fn main() {
                 .build_query("meta_insert", QueryResCount::None),
         );
         queries.push(
-            new_delete(&t).where_(eq_field("node", &node)).build_query("meta_delete", QueryResCount::None),
+            new_delete(&t).where_(expr_field_eq("node", &node)).build_query("meta_delete", QueryResCount::None),
         );
         queries.push(
             new_select(&t)
-                .where_(eq_field("node", &node))
+                .where_(expr_field_eq("node", &node))
                 .return_fields(&[&mimetype, &fulltext])
                 .build_query("meta_get", QueryResCount::MaybeOne),
         );
     }
-    good_ormning::sqlite::generate(&root.join("src/db.rs"), vec![
+    match good_ormning::sqlite::generate(&root.join("src/db.rs"), vec![
         // Versions
         (0usize, latest_version)
-    ], queries).unwrap();
+    ], queries) {
+        Ok(_) => { },
+        Err(e) => {
+            for e in e {
+                eprintln!(" - {}", e);
+            }
+            panic!("Generate failed.");
+        },
+    };
 }

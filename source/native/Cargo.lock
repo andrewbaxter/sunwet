@@ -314,11 +314,10 @@ dependencies = [
 [[package]]
 name = "good-ormning"
 version = "0.1.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee7c0a8339d7ae4e4cb60a58c33f4f68e05c8ea0c9674ad5914bb3c5834fc493"
 dependencies = [
  "chrono",
  "enum_dispatch",
+ "flowcontrol",
  "genemichaels-lib",
  "hex",
  "proc-macro2",
@@ -332,8 +331,6 @@ dependencies = [
 [[package]]
 name = "good-ormning-runtime"
 version = "0.1.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7515ed19727d475d42bcc3928bae4755444f309f68c9e96732208ee0bb3eab3"
 dependencies = [
  "rusqlite",
 ]

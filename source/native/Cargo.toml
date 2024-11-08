@@ -4,22 +4,22 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-chrono = "0.4.38"
-flowcontrol = "0.2.2"
-good-ormning-runtime = { version = "0.1", features = ["sqlite"] }
-loga = "0.5.2"
+chrono = "0.4"
+flowcontrol = "0.2"
+good-ormning-runtime = { version = "0.2", features = ["sqlite"] }
+loga = "0.5"
 rusqlite = "0.32"
 sea-query = { version = "0.32", default-features = false, features = [
     "backend-sqlite",
-], path = "/home/andrew/temp/soft/fork-sea-query" }
+], git = "https://github.com/andrewbaxter/fork-sea-query", rev = "6a63c0039c433b5da94c453046dbbe5d8aca1a6d" }
 sea-query-rusqlite = { version = "0.7", features = [
     "with-json",
-], path = "/home/andrew/temp/soft/fork-sea-query/sea-query-rusqlite" }
+], git = "https://github.com/andrewbaxter/fork-sea-query", rev = "6a63c0039c433b5da94c453046dbbe5d8aca1a6d" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 [build-dependencies]
-good-ormning = { version = "0.1", features = ["sqlite", "chrono"] }
+good-ormning = { version = "0.2", features = ["sqlite", "chrono"] }
 
 [dev-dependencies]
-pretty_assertions = "1.4.1"
+pretty_assertions = "1"
