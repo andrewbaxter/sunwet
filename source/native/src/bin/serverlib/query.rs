@@ -1,18 +1,12 @@
 use {
-    crate::interface::{
-        query::{
-            Chain,
-            FilterExpr,
-            FilterExprComparisonType,
-            JunctionType,
-            MoveDirection,
-            Query,
-            Step,
-            Subchain,
-            Value,
+    super::{
+        access::{
+            Identity,
+            NonAdminAccess,
         },
-        triple::Node,
+        dbutil::tx,
     },
+    deadpool_sqlite::Pool,
     loga::{
         ea,
         ResultContext,
@@ -24,12 +18,35 @@ use {
         SeaRc,
     },
     sea_query_rusqlite::RusqliteBinder,
+    shared::interface::{
+        iam::{
+            IamUserGroupId,
+        },
+        query::{
+            Chain,
+            FilterChainComparisonOperator,
+            FilterExpr,
+            FilterExprExistsType,
+            JunctionType,
+            MoveDirection,
+            Query,
+            Step,
+            Subchain,
+            Value,
+        },
+        triple::Node,
+    },
     std::collections::HashMap,
 };
 
-pub const IAM_TARGET_ADMIN_ONLY: i64 = 0;
+#[derive(PartialEq, Eq, PartialOrd, Debug, Clone)]
+pub enum QueryResVal {
+    Scalar(Node),
+    Array(Vec<Node>),
+}
 
 struct QueryBuildState {
+    identity: Identity,
     parameters: HashMap<String, Node>,
     // # Immutable
     ident_table_primary: sea_query::DynIden,
@@ -41,6 +58,7 @@ struct QueryBuildState {
     ident_col_object: sea_query::DynIden,
     ident_col_timestamp: sea_query::DynIden,
     ident_col_exists: sea_query::DynIden,
+    ident_col_iam_target: sea_query::DynIden,
     triple_table: sea_query::TableRef,
     func_json_extract: sea_query::FunctionCall,
     // # Mutable
@@ -122,15 +140,16 @@ impl std::hash::Hash for BuildStepRes {
 }
 
 fn build_filter(
+    access: &HashMap<IamUserGroupId, NonAdminAccess>,
     query_state: &mut QueryBuildState,
     parent_end_col: &ColumnRef,
     previous: BuildStepRes,
     expr: &FilterExpr,
 ) -> Result<sea_query::SimpleExpr, loga::Error> {
     match expr {
-        FilterExpr::Comparison(expr) => {
+        FilterExpr::Exists(expr) => {
             let mut sql_sel = sea_query::Query::select();
-            let subchain = build_subchain(query_state, Some(previous), &expr.subchain)?;
+            let subchain = build_subchain(access, query_state, Some(previous), &expr.subchain)?;
             sql_sel.from(sea_query::TableRef::Table(subchain.ident_table.clone()));
             sql_sel.expr(sea_query::Expr::val(1));
             sql_sel.and_where(
@@ -142,29 +161,31 @@ fn build_filter(
                 sea_query::Expr::col(sea_query::ColumnRef::TableColumn(subchain.ident_table, subchain.col_end));
             let primary_type = query_state.func_json_extract.clone().arg(primary_end_col.clone()).arg("$.t");
             let primary_value = query_state.func_json_extract.clone().arg(primary_end_col.clone()).arg("$.v");
-            let (expr_type, expr_value) = build_split_value(query_state, &expr.value)?;
-            sql_sel.and_where(primary_type.eq(expr_type));
-            sql_sel.and_where(match expr.operator {
-                crate::interface::query::FilterChainComparisonOperator::Eq => primary_value.eq(expr_value),
-                crate::interface::query::FilterChainComparisonOperator::Lt => primary_value.lt(expr_value),
-                crate::interface::query::FilterChainComparisonOperator::Gt => primary_value.gt(expr_value),
-                crate::interface::query::FilterChainComparisonOperator::Lte => primary_value.lte(expr_value),
-                crate::interface::query::FilterChainComparisonOperator::Gte => primary_value.gte(expr_value),
-            });
+            if let Some((filter_op, filter_value)) = &expr.filter {
+                let (expr_type, expr_value) = build_split_value(query_state, &filter_value)?;
+                sql_sel.and_where(primary_type.eq(expr_type));
+                sql_sel.and_where(match filter_op {
+                    FilterChainComparisonOperator::Eq => primary_value.eq(expr_value),
+                    FilterChainComparisonOperator::Lt => primary_value.lt(expr_value),
+                    FilterChainComparisonOperator::Gt => primary_value.gt(expr_value),
+                    FilterChainComparisonOperator::Lte => primary_value.lte(expr_value),
+                    FilterChainComparisonOperator::Gte => primary_value.gte(expr_value),
+                });
+            }
             let sql_expr = sea_query::Expr::exists(sql_sel);
             match expr.type_ {
-                FilterExprComparisonType::Exists => {
+                FilterExprExistsType::Exists => {
                     return Ok(sql_expr);
                 },
-                FilterExprComparisonType::DoesntExist => {
+                FilterExprExistsType::DoesntExist => {
                     return Ok(sql_expr.not());
                 },
             }
         },
         FilterExpr::Junction(expr) => {
-            let mut out = build_filter(query_state, parent_end_col, previous.clone(), &expr.subexprs[0])?;
+            let mut out = build_filter(access, query_state, parent_end_col, previous.clone(), &expr.subexprs[0])?;
             for subexpr in &expr.subexprs[1..] {
-                let next = build_filter(query_state, parent_end_col, previous.clone(), &subexpr)?;
+                let next = build_filter(access, query_state, parent_end_col, previous.clone(), &subexpr)?;
                 match expr.type_ {
                     JunctionType::And => {
                         out = out.and(next);
@@ -180,6 +201,7 @@ fn build_filter(
 }
 
 fn build_step(
+    access: &HashMap<IamUserGroupId, NonAdminAccess>,
     query_state: &mut QueryBuildState,
     previous: Option<BuildStepRes>,
     step: &Step,
@@ -233,7 +255,23 @@ fn build_step(
                 sql_sel.group_by_col(local_col_primary_end.clone());
 
                 // Only consider elements with perm to view
-                { }
+                match &query_state.identity {
+                    Identity::Admin => { },
+                    Identity::NonAdmin(group_ids) => {
+                        let mut targets = vec![];
+                        for group in group_ids {
+                            if let Some(group) = access.get(group) {
+                                targets.extend(group.read.iter().map(|x| x.0));
+                            }
+                        }
+                        sql_sel.and_where(
+                            ColumnRef::TableColumn(
+                                local_ident_table_primary.clone(),
+                                query_state.ident_col_iam_target.clone(),
+                            ).is_in(targets),
+                        );
+                    },
+                }
 
                 // Movement
                 sql_sel.and_where(
@@ -355,7 +393,7 @@ fn build_step(
                 let col_end =
                     sea_query::ColumnRef::TableColumn(local_ident_table_primary.clone(), out.col_end.clone());
                 sql_sel.column(col_end.clone());
-                sql_sel.and_where(build_filter(query_state, &col_end, BuildStepRes {
+                sql_sel.and_where(build_filter(access, query_state, &col_end, BuildStepRes {
                     ident_table: out.ident_table,
                     col_start: out.col_end.clone(),
                     col_end: out.col_end,
@@ -411,7 +449,7 @@ fn build_step(
                             query_state.ident_col_start.clone(),
                         ),
                     );
-                    let subchain = build_subchain(query_state, None, &step.subchain)?;
+                    let subchain = build_subchain(access, query_state, None, &step.subchain)?;
                     let local_ident_table_primary = query_state.ident_table_primary.clone();
                     sql_sel.join_as(
                         sea_query::JoinType::InnerJoin,
@@ -479,7 +517,7 @@ fn build_step(
             let ident_col_end = query_state.ident_col_end.clone();
             let mut build_subchain = |subchain: &Subchain| -> Result<sea_query::SelectStatement, loga::Error> {
                 let mut sql_sel = sea_query::Query::select();
-                let subchain = build_subchain(query_state, previous.clone(), subchain)?;
+                let subchain = build_subchain(access, query_state, previous.clone(), subchain)?;
                 sql_sel.from(sea_query::TableRef::Table(subchain.ident_table.clone()));
                 sql_sel.column(sea_query::ColumnRef::TableColumn(subchain.ident_table.clone(), subchain.col_start));
                 sql_sel.column(sea_query::ColumnRef::TableColumn(subchain.ident_table, subchain.col_end));
@@ -549,6 +587,7 @@ fn build_value(query_state: &mut QueryBuildState, param: &Value) -> Result<sea_q
 // Produces (sequence of) CTEs from steps, returning the last CTE. CTE has start
 // and end fields only.
 fn build_subchain(
+    access: &HashMap<IamUserGroupId, NonAdminAccess>,
     query_state: &mut QueryBuildState,
     mut prev_subchain_seg: Option<BuildStepRes>,
     subchain: &Subchain,
@@ -579,15 +618,16 @@ fn build_subchain(
             prev_subchain_seg = Some(root_res);
         }
     }
-    let mut prev_subchain_seg = build_step(query_state, prev_subchain_seg, &subchain.steps[0])?;
+    let mut prev_subchain_seg = build_step(access, query_state, prev_subchain_seg, &subchain.steps[0])?;
     for step in &subchain.steps[1..] {
-        prev_subchain_seg = build_step(query_state, Some(prev_subchain_seg), step)?;
+        prev_subchain_seg = build_step(access, query_state, Some(prev_subchain_seg), step)?;
     }
     return Ok(prev_subchain_seg);
 }
 
 /// Produces CTE with `_` selects, no aggregation.
 fn build_chain(
+    access: &HashMap<IamUserGroupId, NonAdminAccess>,
     query_state: &mut QueryBuildState,
     prev_subchain_seg: Option<BuildStepRes>,
     chain: Chain,
@@ -595,7 +635,7 @@ fn build_chain(
     let cte_name = format!("chain{}", query_state.global_unique);
     query_state.global_unique += 1;
     let mut sql_sel = sea_query::Query::select();
-    let primary_subchain = build_subchain(query_state, prev_subchain_seg, &chain.subchain)?;
+    let primary_subchain = build_subchain(access, query_state, prev_subchain_seg, &chain.subchain)?;
     sql_sel.from(sea_query::TableRef::Table(primary_subchain.ident_table.clone()));
     let global_col_primary_start =
         sea_query::ColumnRef::TableColumn(primary_subchain.ident_table.clone(), primary_subchain.col_start.clone());
@@ -636,7 +676,7 @@ fn build_chain(
         });
     }
     for child in chain.children {
-        let child_chain = build_chain(query_state, child_prev_subchain_seg.clone(), child)?;
+        let child_chain = build_chain(access, query_state, child_prev_subchain_seg.clone(), child)?;
         sql_sel.join(
             sea_query::JoinType::LeftJoin,
             child_chain.cte,
@@ -671,10 +711,13 @@ fn build_chain(
 }
 
 pub fn build_query(
+    access: &HashMap<IamUserGroupId, NonAdminAccess>,
+    identity: Identity,
     q: Query,
     parameters: HashMap<String, Node>,
 ) -> Result<(String, sea_query_rusqlite::RusqliteValues), loga::Error> {
     let mut query_state = QueryBuildState {
+        identity: identity,
         parameters: parameters,
         ident_table_primary: SeaRc::new(Alias::new("primary")),
         ident_table_prev: SeaRc::new(Alias::new("prev")),
@@ -685,6 +728,7 @@ pub fn build_query(
         ident_col_object: SeaRc::new(Alias::new("object")),
         ident_col_timestamp: SeaRc::new(Alias::new("timestamp")),
         ident_col_exists: SeaRc::new(Alias::new("exists")),
+        ident_col_iam_target: SeaRc::new(Alias::new("iam_target")),
         triple_table: sea_query::TableRef::Table(SeaRc::new(Alias::new("triple"))),
         func_json_extract: sea_query::Func::cust(SeaRc::new(Alias::new("json_extract"))),
         global_unique: Default::default(),
@@ -692,7 +736,7 @@ pub fn build_query(
         reuse_roots: Default::default(),
         reuse_steps: Default::default(),
     };
-    let cte = build_chain(&mut query_state, None, q.chain)?;
+    let cte = build_chain(access, &mut query_state, None, q.chain)?;
     let mut sel_root = sea_query::Query::select();
     sel_root.from(cte.cte);
     for (name, plural) in cte.selects {
@@ -717,4 +761,57 @@ pub fn build_query(
         sel.cte(cte);
     }
     return Ok(sel.build_rusqlite(sea_query::SqliteQueryBuilder));
+}
+
+pub fn execute_sql_query(
+    db: &rusqlite::Connection,
+    sql_query: String,
+    sql_parameters: sea_query_rusqlite::RusqliteValues,
+) -> Result<Vec<HashMap<String, QueryResVal>>, loga::Error> {
+    let mut s = db.prepare(&sql_query)?;
+    let column_names = s.column_names().into_iter().map(|k| k.to_string()).collect::<Vec<_>>();
+    let mut sql_rows = s.query(&*sql_parameters.as_params()).unwrap();
+    let mut out = vec![];
+    loop {
+        let Some(got_row) = sql_rows.next().unwrap() else {
+            break;
+        };
+        let mut got_row1 = HashMap::new();
+        for (i, name) in column_names.iter().enumerate() {
+            let value: QueryResVal;
+            match got_row.get::<usize, Option<String>>(i).unwrap() {
+                Some(v) => {
+                    let json_value = serde_json::from_str::<serde_json::Value>(&v).unwrap();
+                    if let serde_json::Value::Array(arr) = json_value {
+                        let mut elements = vec![];
+                        for v in arr {
+                            elements.push(serde_json::from_value::<Node>(v).unwrap());
+                        }
+                        value = QueryResVal::Array(elements);
+                    } else {
+                        value = QueryResVal::Scalar(serde_json::from_value(json_value).unwrap());
+                    };
+                },
+                None => {
+                    value = QueryResVal::Scalar(Node::Value(serde_json::Value::Null));
+                },
+            }
+            got_row1.insert(name.to_string(), value);
+        }
+        out.push(got_row1);
+    }
+    return Ok(out);
+}
+
+pub async fn execute_query(
+    access: &HashMap<IamUserGroupId, NonAdminAccess>,
+    db: &Pool,
+    identity: Identity,
+    query: Query,
+    parameters: HashMap<String, Node>,
+) -> Result<Vec<HashMap<String, QueryResVal>>, loga::Error> {
+    let (sql_query, sql_parameters) = build_query(access, identity, query, parameters)?;
+    return Ok(tx(&db, move |txn| {
+        return Ok(execute_sql_query(txn, sql_query, sql_parameters)?);
+    }).await?);
 }

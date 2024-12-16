@@ -4,9 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-chrono = "0.4"
+shared = { path = "../shared" }
+aargvark = { version = "0.6", features = ["serde_json"] }
+chrono = { version = "0.4", features = ["serde"] }
 flowcontrol = "0.2"
 good-ormning-runtime = { version = "0.2", features = ["sqlite"] }
+http = "1"
+http-body-util = "0.1"
+htwrap = "0.10"
+hyper = "1"
+hyper-tungstenite = "0.15"
+hyper-util = "0.1"
 loga = "0.5"
 rusqlite = "0.32"
 sea-query = { version = "0.32", default-features = false, features = [
@@ -17,6 +25,27 @@ sea-query-rusqlite = { version = "0.7", features = [
 ], git = "https://github.com/andrewbaxter/fork-sea-query", rev = "6a63c0039c433b5da94c453046dbbe5d8aca1a6d" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+tokio = { version = "1", features = ["process"] }
+tokio-stream = "0.1"
+taskmanager = "0.6"
+deadpool-sqlite = "0.9"
+futures = "0.3"
+http-body = "1"
+sha2 = "0.10"
+tempfile = "3"
+tokio-util = "0.7"
+urlencoding = "2"
+hex = "0.4"
+rust-embed = { version = "8.5.0", features = ["mime-guess"] }
+async-walkdir = "2"
+openidconnect = { version = "3", default-features = false }
+moka = { version = "0.12", features = ["future"] }
+cookie = { version = "0.18" }
+serde_urlencoded = "0.7"
+platform-info = "2"
+rand = "0.8"
+oauth2 = { version = "4", default-features = false }
+fdap = { version = "*", path = "../../../openfdap/source/fdap" }
 
 [build-dependencies]
 good-ormning = { version = "0.2", features = ["sqlite", "chrono"] }

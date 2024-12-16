@@ -4,7 +4,6 @@ use {
         new_insert,
         new_select,
         new_select_body,
-        new_update,
         query::{
             expr::{
                 BinOp,
@@ -14,11 +13,13 @@ use {
             helpers::{
                 expr_and,
                 expr_field_eq,
+                expr_field_gte,
                 expr_field_lt,
                 fn_max,
                 set_field,
             },
             insert::InsertConflict,
+            select_body::Order,
             utils::{
                 CteBuilder,
                 With,
@@ -31,7 +32,6 @@ use {
             },
             field::{
                 field_bool,
-                field_i32,
                 field_i64,
                 field_str,
                 field_utctime_ms,
@@ -53,59 +53,13 @@ fn main() {
     let root = PathBuf::from(&env::var("CARGO_MANIFEST_DIR").unwrap());
     let mut latest_version = Version::default();
     let mut queries = vec![];
-    let node_type = type_str().custom("crate::interface::triple::Node").build();
-    let iam_config_type = type_str().custom("crate::interface::iam::IamConfig").build();
-
-    // Global
-    {
-        let t = latest_version.table("zS7B13HD5", "singleton");
-        let unique = t.field(&mut latest_version, "z0YQ7NWRC", "unique", field_i32().build());
-        let iam_config = t.field(&mut latest_version, "zM7F6WA5F", "iam_config", FieldType::with(&iam_config_type));
-        t.constraint(
-            &mut latest_version,
-            "z118L67XL",
-            "singleton_unique",
-            PrimaryKey(PrimaryKeyDef { fields: vec![unique.clone()] }),
-        );
-        queries.push(
-            new_insert(&t, vec![(unique.clone(), Expr::LitI32(0)), set_field("iam_config", &iam_config)])
-                .on_conflict(InsertConflict::DoUpdate(vec![(unique.clone(), Expr::LitI32(0))]))
-                .return_fields(&[&iam_config])
-                .build_query("singleton_init", QueryResCount::One),
-        );
-        queries.push(new_update(&t, vec![set_field("iam_config", &iam_config)]).where_(Expr::BinOp {
-            left: Box::new(Expr::Binding(Binding::field(&unique))),
-            op: BinOp::Equals,
-            right: Box::new(Expr::LitI32(0)),
-        }).build_query("singleton_iam_config_set", QueryResCount::None));
-    }
-
-    // Commits
-    let commit_table;
-    let commit_stamp;
-    {
-        let t = latest_version.table("z1YCS4PD2", "commit");
-        let event_stamp = t.field(&mut latest_version, "zNKHCTSZK", "timestamp", field_utctime_ms().build());
-        t.constraint(
-            &mut latest_version,
-            "zN5R3XY01",
-            "commit_timestamp",
-            PrimaryKey(PrimaryKeyDef { fields: vec![event_stamp.clone()] }),
-        );
-        let desc = t.field(&mut latest_version, "z7K4EDCAB", "description", field_str().build());
-        queries.push(
-            new_insert(
-                &t,
-                vec![set_field("stamp", &event_stamp), set_field("desc", &desc)],
-            ).build_query("commit_insert", QueryResCount::None),
-        );
-        commit_table = t;
-        commit_stamp = event_stamp;
-    }
+    let node_type = type_str().custom("native::interface::triple::DbNode").build();
 
     // Triple
     let triple_table;
     let triple_event_stamp;
+    let triple_subject;
+    let triple_object;
     {
         let t = latest_version.table("zQLEK3CT0", "triple");
         let subject = t.field(&mut latest_version, "zLQI9HQUQ", "subject", FieldType::with(&node_type));
@@ -159,7 +113,43 @@ fn main() {
                 .return_field(&event_stamp)
                 .return_field(&event_exist)
                 .return_field(&iam_target)
-                .build_query("triple_get_all", QueryResCount::Many),
+                .where_(
+                    expr_and(
+                        vec![
+                            expr_field_eq("subject", &subject),
+                            expr_field_eq("predicate", &predicate),
+                            expr_field_eq("object", &object)
+                        ],
+                    ),
+                )
+                .limit(Expr::LitI32(1))
+                .order(Expr::field(&event_stamp), Order::Desc)
+                .build_query("triple_get", QueryResCount::MaybeOne),
+        );
+        queries.push(
+            new_select(&t)
+                .return_field(&subject)
+                .return_field(&predicate)
+                .return_field(&object)
+                .return_field(&event_stamp)
+                .return_field(&event_exist)
+                .return_field(&iam_target)
+                .build_query("triple_list_all", QueryResCount::Many),
+        );
+        queries.push(
+            new_select(&t)
+                .return_field(&subject)
+                .return_field(&predicate)
+                .return_field(&object)
+                .return_field(&event_stamp)
+                .return_field(&event_exist)
+                .return_field(&iam_target)
+                .where_(
+                    expr_and(
+                        vec![expr_field_gte("start_incl", &event_stamp), expr_field_lt("end_excl", &event_stamp)],
+                    ),
+                )
+                .build_query("triple_list_between", QueryResCount::Many),
         );
         queries.push({
             let mut current =
@@ -225,30 +215,62 @@ fn main() {
         });
         triple_table = t;
         triple_event_stamp = event_stamp;
+        triple_subject = subject;
+        triple_object = object;
     }
-    queries.push({
-        let mut active_commits =
-            CteBuilder::new(
-                "active_commits",
-                new_select_body(&triple_table).distinct().return_field(&triple_event_stamp).build(),
-            );
-        let active_commits_stamp = active_commits.field("stamp", triple_event_stamp.type_.type_.clone());
-        let (table_active_commits, cte_active) = active_commits.build();
-        new_delete(&commit_table).with(With {
-            recursive: false,
-            ctes: vec![cte_active],
-        }).where_(Expr::Exists {
-            not: true,
-            body: Box::new(
-                new_select_body(&table_active_commits).return_named("x", Expr::LitI32(1)).where_(Expr::BinOp {
-                    left: Box::new(Expr::field(&commit_stamp)),
-                    op: BinOp::Equals,
-                    right: Box::new(Expr::field(&active_commits_stamp)),
-                }).build(),
-            ),
-            body_junctions: vec![],
-        }).build_query("commit_gc", QueryResCount::None)
-    });
+
+    // Commits
+    {
+        let t = latest_version.table("z1YCS4PD2", "commit");
+        let event_stamp = t.field(&mut latest_version, "zNKHCTSZK", "timestamp", field_utctime_ms().build());
+        t.constraint(
+            &mut latest_version,
+            "zN5R3XY01",
+            "commit_timestamp",
+            PrimaryKey(PrimaryKeyDef { fields: vec![event_stamp.clone()] }),
+        );
+        let desc = t.field(&mut latest_version, "z7K4EDCAB", "description", field_str().build());
+        queries.push(
+            new_insert(
+                &t,
+                vec![set_field("stamp", &event_stamp), set_field("desc", &desc)],
+            ).build_query("commit_insert", QueryResCount::None),
+        );
+        queries.push(
+            new_select(&t)
+                .return_field(&event_stamp)
+                .return_field(&desc)
+                .where_(
+                    expr_and(
+                        vec![expr_field_gte("start_incl", &event_stamp), expr_field_lt("end_excl", &event_stamp)],
+                    ),
+                )
+                .build_query("commit_list_between", QueryResCount::Many),
+        );
+        queries.push({
+            let mut active_commits =
+                CteBuilder::new(
+                    "active_commits",
+                    new_select_body(&triple_table).distinct().return_field(&triple_event_stamp).build(),
+                );
+            let active_commits_stamp = active_commits.field("stamp", triple_event_stamp.type_.type_.clone());
+            let (table_active_commits, cte_active) = active_commits.build();
+            new_delete(&t).with(With {
+                recursive: false,
+                ctes: vec![cte_active],
+            }).where_(Expr::Exists {
+                not: true,
+                body: Box::new(
+                    new_select_body(&table_active_commits).return_named("x", Expr::LitI32(1)).where_(Expr::BinOp {
+                        left: Box::new(Expr::field(&event_stamp)),
+                        op: BinOp::Equals,
+                        right: Box::new(Expr::field(&active_commits_stamp)),
+                    }).build(),
+                ),
+                body_junctions: vec![],
+            }).build_query("commit_gc", QueryResCount::None)
+        });
+    }
 
     // Metadata
     {
@@ -279,8 +301,27 @@ fn main() {
                 .return_fields(&[&mimetype, &fulltext])
                 .build_query("meta_get", QueryResCount::MaybeOne),
         );
+        queries.push(new_delete(&t).where_(Expr::Exists {
+            not: true,
+            body: Box::new(new_select_body(&triple_table).return_named("x", Expr::LitI32(1)).where_(Expr::BinOp {
+                left: Box::new(Expr::BinOp {
+                    left: Box::new(Expr::field(&node)),
+                    op: BinOp::Equals,
+                    right: Box::new(Expr::field(&triple_subject)),
+                }),
+                op: BinOp::Or,
+                right: Box::new(Expr::BinOp {
+                    left: Box::new(Expr::field(&node)),
+                    op: BinOp::Equals,
+                    right: Box::new(Expr::field(&triple_object)),
+                }),
+            }).build()),
+            body_junctions: vec![],
+        }).build_query("meta_gc", QueryResCount::None));
     }
-    match good_ormning::sqlite::generate(&root.join("src/db.rs"), vec![
+
+    // Generate
+    match good_ormning::sqlite::generate(&root.join("src/bin/serverlib/db.rs"), vec![
         // Versions
         (0usize, latest_version)
     ], queries) {

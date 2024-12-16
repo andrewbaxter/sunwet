@@ -1,3 +1,2 @@
-pub mod iam;
+pub mod config;
 pub mod triple;
-pub mod query;
