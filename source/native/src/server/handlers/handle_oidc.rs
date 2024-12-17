@@ -1,5 +1,8 @@
 use {
-    super::state::State,
+    crate::{
+        cap_fn,
+        interface::config::OidcConfig,
+    },
     cookie::CookieBuilder,
     flowcontrol::shed,
     http::{
@@ -33,10 +36,6 @@ use {
         ResultContext,
     },
     moka::future::Cache,
-    native::{
-        cap_fn,
-        interface::config::identity::IdentityOidc,
-    },
     oauth2::{
         basic::{
             BasicErrorResponseType,
@@ -84,7 +83,6 @@ use {
     },
     serde::Deserialize,
     shared::interface::iam::{
-        IdentityId,
         UserIdentityId,
     },
     std::{
@@ -182,18 +180,18 @@ pub struct OidcState {
         StandardErrorResponse<RevocationErrorResponseType>,
     >,
     pre_sessions: Cache<String, Arc<OidcPreSession>>,
-    sessions: Cache<String, IdentityId>,
+    sessions: Cache<String, UserIdentityId>,
 }
 
-pub async fn new_state(state: &State, base_url: &Uri, identity: IdentityOidc) -> Result<OidcState, loga::Error> {
-    let log = state.log.fork(ea!(subsystem = "oidc"));
+pub async fn new_state(log: &Log, base_url: &Uri, oidc_config: OidcConfig) -> Result<OidcState, loga::Error> {
+    let log = log.fork(ea!(subsystem = "oidc"));
     let client =
         CoreClient::from_provider_metadata(
-            CoreProviderMetadata::discover_async(IssuerUrl::new(identity.oid_provider_url)?, cap_fn!((r)(log) {
+            CoreProviderMetadata::discover_async(IssuerUrl::new(oidc_config.provider_url)?, cap_fn!((r)(log) {
                 return oidc_http_client(&log, r).await.map_err(|e| std::io::Error::other(e.to_string()));
             })).await?,
-            ClientId::new(identity.oid_client_id.clone()),
-            identity.oid_client_secret.as_ref().map(|s| ClientSecret::new(s.clone())),
+            ClientId::new(oidc_config.client_id.clone()),
+            oidc_config.client_secret.as_ref().map(|s| ClientSecret::new(s.clone())),
         ).set_redirect_uri(RedirectUrl::new(base_url.join("oidc").to_string())?);
     return Ok(OidcState {
         log: log,
@@ -229,11 +227,12 @@ pub async fn handle_oidc(
             log.log_with(loga::DEBUG, "Missing pre-session state for state", ea!(state = params.state));
             break;
         };
+        let pkce_verifier = pre_session_state.pkce_verifier.lock().unwrap().take().unwrap();
         let token_response =
             state
                 .client
                 .exchange_code(AuthorizationCode::new(params.code))
-                .set_pkce_verifier(pre_session_state.pkce_verifier.lock().unwrap().take().unwrap())
+                .set_pkce_verifier(pkce_verifier)
                 .request_async(cap_fn!((r)(log) {
                     return oidc_http_client(&log, r).await.map_err(|e| std::io::Error::other(e.to_string()));
                 }))
@@ -264,7 +263,7 @@ pub async fn handle_oidc(
             }
         }
         let session_cookie = Alphanumeric.sample_string(&mut rand::thread_rng(), 32);
-        state.sessions.insert(session_cookie.clone(), IdentityId::User(claims.subject().to_string()));
+        state.sessions.insert(session_cookie.clone(), UserIdentityId(claims.subject().to_string()));
         return Ok(
             http::Response::builder()
                 .status(http::StatusCode::TEMPORARY_REDIRECT)

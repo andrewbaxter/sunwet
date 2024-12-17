@@ -4,10 +4,12 @@ use {
         new_insert,
         new_select,
         new_select_body,
+        new_update,
         query::{
             expr::{
                 BinOp,
                 Binding,
+                ComputeType,
                 Expr,
             },
             helpers::{
@@ -19,7 +21,11 @@ use {
                 set_field,
             },
             insert::InsertConflict,
-            select_body::Order,
+            select_body::{
+                Order,
+                SelectJunction,
+                SelectJunctionOperator,
+            },
             utils::{
                 CteBuilder,
                 With,
@@ -32,13 +38,14 @@ use {
             },
             field::{
                 field_bool,
-                field_i64,
                 field_str,
                 field_utctime_ms,
                 FieldType,
             },
         },
-        types::type_str,
+        types::{
+            type_str,
+        },
         QueryResCount,
         Version,
     },
@@ -53,13 +60,17 @@ fn main() {
     let root = PathBuf::from(&env::var("CARGO_MANIFEST_DIR").unwrap());
     let mut latest_version = Version::default();
     let mut queries = vec![];
-    let node_type = type_str().custom("native::interface::triple::DbNode").build();
+    let node_type = type_str().custom("crate::interface::triple::DbNode").build();
+    let node_array_type = type_str().custom("crate::interface::triple::DbNode").array().build();
+    let iam_target_id_type = type_str().custom("crate::interface::triple::DbIamTargetId").build();
+    let iam_target_ids_type = type_str().custom("crate::interface::triple::DbIamTargetIds").build();
 
     // Triple
     let triple_table;
     let triple_event_stamp;
     let triple_subject;
     let triple_object;
+    let triple_iam_target;
     {
         let t = latest_version.table("zQLEK3CT0", "triple");
         let subject = t.field(&mut latest_version, "zLQI9HQUQ", "subject", FieldType::with(&node_type));
@@ -67,7 +78,8 @@ fn main() {
         let object = t.field(&mut latest_version, "zII52SWQB", "object", FieldType::with(&node_type));
         let event_stamp = t.field(&mut latest_version, "zK21ECBE5", "timestamp", field_utctime_ms().build());
         let event_exist = t.field(&mut latest_version, "z0ZOJM2UT", "exists", field_bool().build());
-        let iam_target = t.field(&mut latest_version, "zFN1MRJMO", "iam_target", field_i64().build());
+        let iam_target =
+            t.field(&mut latest_version, "zFN1MRJMO", "iam_target", FieldType::with(&iam_target_id_type));
         t.constraint(
             &mut latest_version,
             "z1T10QI43",
@@ -217,6 +229,7 @@ fn main() {
         triple_event_stamp = event_stamp;
         triple_subject = subject;
         triple_object = object;
+        triple_iam_target = iam_target;
     }
 
     // Commits
@@ -276,6 +289,8 @@ fn main() {
     {
         let t = latest_version.table("z7B1CHM4F", "meta");
         let node = t.field(&mut latest_version, "zLQI9HQUQ", "node", FieldType::with(&node_type));
+        let iam_targets =
+            t.field(&mut latest_version, "zGGBBHDDL", "iam_targets", FieldType::with(&iam_target_ids_type));
         let mimetype = t.field(&mut latest_version, "zSZVNBP0E", "mimetype", field_str().build());
         let fulltext = t.field(&mut latest_version, "zPI3TKEA8", "fulltext", field_str().build());
         t.constraint(
@@ -287,7 +302,12 @@ fn main() {
         queries.push(
             new_insert(
                 &t,
-                vec![set_field("node", &node), set_field("mimetype", &mimetype), set_field("fulltext", &fulltext)],
+                vec![
+                    set_field("node", &node),
+                    set_field("mimetype", &mimetype),
+                    set_field("fulltext", &fulltext),
+                    set_field("iam_target_ids", &iam_targets)
+                ],
             )
                 .on_conflict(InsertConflict::DoNothing)
                 .build_query("meta_insert", QueryResCount::None),
@@ -298,9 +318,73 @@ fn main() {
         queries.push(
             new_select(&t)
                 .where_(expr_field_eq("node", &node))
-                .return_fields(&[&mimetype, &fulltext])
-                .build_query("meta_get", QueryResCount::MaybeOne),
+                .return_fields(&[&mimetype, &fulltext, &iam_targets])
+                .build_query_named_res("meta_get", QueryResCount::MaybeOne, "Metadata"),
         );
+        queries.push(new_select(&t).where_(Expr::BinOp {
+            left: Box::new(Expr::field(&node)),
+            op: BinOp::In,
+            right: Box::new(Expr::Param {
+                name: "nodes".to_string(),
+                type_: node_array_type.clone(),
+            }),
+        }).return_field(&node).build_query("meta_filter_existing", QueryResCount::Many));
+        queries.push({
+            let mut cte1 = CteBuilder::new("cte1", new_select_body(&triple_table).where_(Expr::BinOp {
+                left: Box::new(Expr::field(&triple_subject)),
+                op: BinOp::In,
+                right: Box::new(Expr::Param {
+                    name: "node".to_string(),
+                    type_: node_array_type.clone(),
+                }),
+            }).return_fields(&[&triple_subject, &triple_iam_target]).build());
+            let cte1_node = cte1.field("node", node_type.clone());
+            let cte1_iam_target = cte1.field("iam_target", iam_target_id_type.clone());
+            cte1.body_junction(SelectJunction {
+                op: SelectJunctionOperator::Union,
+                body: new_select_body(&triple_table).where_(Expr::BinOp {
+                    left: Box::new(Expr::field(&triple_object)),
+                    op: BinOp::In,
+                    right: Box::new(Expr::Param {
+                        name: "node".to_string(),
+                        type_: node_array_type.clone(),
+                    }),
+                }).return_fields(&[&triple_object, &triple_iam_target]).build(),
+            });
+            let (cte1_table, cte1) = cte1.build();
+            let mut cte2 =
+                CteBuilder::new(
+                    "cte2",
+                    new_select_body(&cte1_table)
+                        .group(vec![Expr::field(&cte1_node)])
+                        .return_field(&cte1_node)
+                        .return_named("iam_targets", Expr::Cast(Box::new(Expr::Call {
+                            func: "json_group_array".to_string(),
+                            args: vec![Expr::field(&cte1_iam_target)],
+                            compute_type: ComputeType::new(|ctx, path, args| {
+                                let Some(_) = args.get(0).unwrap().assert_scalar(&mut ctx.errs, path) else {
+                                    return None;
+                                };
+                                return Some(type_str().build());
+                            }),
+                        }), iam_target_ids_type.clone()))
+                        .build(),
+                );
+            let cte2_node = cte2.field("node", node_type.clone());
+            let cte2_iam_targets = cte2.field("iam_targets", iam_target_ids_type.clone());
+            let (cte2_table, cte2) = cte2.build();
+            new_update(&t, vec![(iam_targets.clone(), Expr::Select {
+                body: Box::new(new_select_body(&cte2_table).where_(Expr::BinOp {
+                    left: Box::new(Expr::field(&cte2_node)),
+                    op: BinOp::Equals,
+                    right: Box::new(Expr::field(&node)),
+                }).return_field(&cte2_iam_targets).build()),
+                body_junctions: vec![],
+            })]).with(With {
+                recursive: false,
+                ctes: vec![cte1, cte2],
+            }).build_query("meta_update_iam_targets", QueryResCount::None)
+        });
         queries.push(new_delete(&t).where_(Expr::Exists {
             not: true,
             body: Box::new(new_select_body(&triple_table).return_named("x", Expr::LitI32(1)).where_(Expr::BinOp {
@@ -321,7 +405,7 @@ fn main() {
     }
 
     // Generate
-    match good_ormning::sqlite::generate(&root.join("src/bin/serverlib/db.rs"), vec![
+    match good_ormning::sqlite::generate(&root.join("src/server/db.rs"), vec![
         // Versions
         (0usize, latest_version)
     ], queries) {

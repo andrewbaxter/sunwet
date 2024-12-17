@@ -6,6 +6,8 @@ use tokio::{
 };
 
 pub mod interface;
+pub mod client;
+pub mod server;
 
 /// Explicitly capturing async closure - clones elements in the second parens into
 /// the closure. Anything else will be moved.

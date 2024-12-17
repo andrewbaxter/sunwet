@@ -90,7 +90,7 @@ pub enum FormField {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct Form {
-    pub iam_target: IamTargetId,
+    pub allow_target: Option<IamTargetId>,
     pub id: String,
     pub name: String,
     pub fields: Vec<FormField>,

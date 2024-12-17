@@ -17,7 +17,6 @@ use {
             WidgetNest,
             WidgetTextLine,
         },
-        iam::IAM_TARGET_WORLD_RO,
         query::{
             Chain,
             FilterChainComparisonOperator,
@@ -340,114 +339,113 @@ pub fn default_query_album_tracks() -> Query {
         sort: vec![],
     };
 }
-
-pub fn default_view_albums() -> View {
-    return View {
-        iam_target: IAM_TARGET_WORLD_RO,
-        id: "albums".to_string(),
-        name: "Albums".to_string(),
-        parameters: vec![],
-        def: ViewPartList {
-            data: QueryOrField::Query(default_query_albums()),
-            key_field: ALBUMS_RECORD_KEY_ID.to_string(),
-            layout: Layout::Individual(LayoutIndividual {
-                orientation: Orientation::DownRight,
-                align: Align::Start,
-                x_scroll: false,
-                item: WidgetNest {
-                    orientation: Orientation::RightDown,
-                    align: Align::Start,
-                    children: vec![
-                        //. .
-                        Widget::Image(WidgetImage {
-                            data: FieldOrLiteral::Field(ALBUMS_RECORD_KEY_COVER.to_string()),
-                            width: "5cm".to_string(),
-                            height: "".to_string(),
-                            align: Align::Start,
-                        }),
-                        Widget::Nest(WidgetNest {
-                            orientation: Orientation::DownRight,
-                            align: Align::Start,
-                            children: vec![
-                                //. .
-                                Widget::TextLine(WidgetTextLine {
-                                    data: FieldOrLiteral::Field(ALBUMS_RECORD_KEY_NAME.to_string()),
-                                    prefix: "".to_string(),
-                                    suffix: "".to_string(),
-                                    size: "14pt".to_string(),
-                                    size_mode: LineSizeMode::Ellipsize,
-                                    size_max: "".to_string(),
-                                    orientation: Orientation::RightDown,
-                                    align: Align::Start,
-                                }),
-                                Widget::Sublist(ViewPartList {
-                                    data: QueryOrField::Query(default_query_album_tracks()),
-                                    key_field: TRACKS_RECORD_KEY_ID.to_string(),
-                                    layout: Layout::Table(LayoutTable {
-                                        orientation: Orientation::DownRight,
-                                        align: Align::Start,
-                                        x_scroll: true,
-                                        columns: vec![
-                                            //. .
-                                            Widget::MediaButton(WidgetMediaButton {
-                                                field: TRACKS_RECORD_KEY_FILE.to_string(),
-                                                media_field: FieldOrLiteral::Field(
-                                                    TRACKS_RECORD_KEY_MEDIA.to_string(),
-                                                ),
-                                                name_field: TRACKS_RECORD_KEY_NAME.to_string(),
-                                                album_field: ALBUMS_RECORD_KEY_NAME.to_string(),
-                                                artist_field: TRACKS_RECORD_KEY_ARTIST_NAME.to_string(),
-                                                thumbnail_field: ALBUMS_RECORD_KEY_COVER.to_string(),
-                                                align: Align::Start,
-                                            }),
-                                            Widget::TextLine(WidgetTextLine {
-                                                data: FieldOrLiteral::Field(TRACKS_RECORD_KEY_INDEX.to_string()),
-                                                prefix: "".to_string(),
-                                                suffix: ".".to_string(),
-                                                size: "12pt".to_string(),
-                                                size_mode: LineSizeMode::Wrap,
-                                                size_max: "".to_string(),
-                                                orientation: Orientation::DownRight,
-                                                align: Align::End,
-                                            }),
-                                            Widget::TextLine(WidgetTextLine {
-                                                data: FieldOrLiteral::Field(TRACKS_RECORD_KEY_ARTIST_NAME.to_string()),
-                                                prefix: "".to_string(),
-                                                suffix: "".to_string(),
-                                                size: "12pt".to_string(),
-                                                size_mode: LineSizeMode::Wrap,
-                                                size_max: "5cm".to_string(),
-                                                orientation: Orientation::DownRight,
-                                                align: Align::Start,
-                                            }),
-                                            Widget::TextLine(WidgetTextLine {
-                                                data: FieldOrLiteral::Literal(" - ".to_string()),
-                                                prefix: "".to_string(),
-                                                suffix: "".to_string(),
-                                                size: "12pt".to_string(),
-                                                size_max: "".to_string(),
-                                                size_mode: LineSizeMode::Wrap,
-                                                orientation: Orientation::DownRight,
-                                                align: Align::Start,
-                                            }),
-                                            Widget::TextLine(WidgetTextLine {
-                                                data: FieldOrLiteral::Field(TRACKS_RECORD_KEY_NAME.to_string()),
-                                                prefix: "".to_string(),
-                                                suffix: "".to_string(),
-                                                size: "12pt".to_string(),
-                                                size_max: "5cm".to_string(),
-                                                size_mode: LineSizeMode::Wrap,
-                                                orientation: Orientation::DownRight,
-                                                align: Align::Start,
-                                            })
-                                        ],
-                                    }),
-                                })
-                            ],
-                        })
-                    ],
-                },
-            }),
-        },
-    };
-}
+//. pub fn default_view_albums() -> View {
+//.     return View {
+//.         allow_target: IAM_TARGET_WORLD_RO,
+//.         id: "albums".to_string(),
+//.         name: "Albums".to_string(),
+//.         parameters: vec![],
+//.         def: ViewPartList {
+//.             data: QueryOrField::Query(default_query_albums()),
+//.             key_field: ALBUMS_RECORD_KEY_ID.to_string(),
+//.             layout: Layout::Individual(LayoutIndividual {
+//.                 orientation: Orientation::DownRight,
+//.                 align: Align::Start,
+//.                 x_scroll: false,
+//.                 item: WidgetNest {
+//.                     orientation: Orientation::RightDown,
+//.                     align: Align::Start,
+//.                     children: vec![
+//.                         //. .
+//.                         Widget::Image(WidgetImage {
+//.                             data: FieldOrLiteral::Field(ALBUMS_RECORD_KEY_COVER.to_string()),
+//.                             width: "5cm".to_string(),
+//.                             height: "".to_string(),
+//.                             align: Align::Start,
+//.                         }),
+//.                         Widget::Nest(WidgetNest {
+//.                             orientation: Orientation::DownRight,
+//.                             align: Align::Start,
+//.                             children: vec![
+//.                                 //. .
+//.                                 Widget::TextLine(WidgetTextLine {
+//.                                     data: FieldOrLiteral::Field(ALBUMS_RECORD_KEY_NAME.to_string()),
+//.                                     prefix: "".to_string(),
+//.                                     suffix: "".to_string(),
+//.                                     size: "14pt".to_string(),
+//.                                     size_mode: LineSizeMode::Ellipsize,
+//.                                     size_max: "".to_string(),
+//.                                     orientation: Orientation::RightDown,
+//.                                     align: Align::Start,
+//.                                 }),
+//.                                 Widget::Sublist(ViewPartList {
+//.                                     data: QueryOrField::Query(default_query_album_tracks()),
+//.                                     key_field: TRACKS_RECORD_KEY_ID.to_string(),
+//.                                     layout: Layout::Table(LayoutTable {
+//.                                         orientation: Orientation::DownRight,
+//.                                         align: Align::Start,
+//.                                         x_scroll: true,
+//.                                         columns: vec![
+//.                                             //. .
+//.                                             Widget::MediaButton(WidgetMediaButton {
+//.                                                 field: TRACKS_RECORD_KEY_FILE.to_string(),
+//.                                                 media_field: FieldOrLiteral::Field(
+//.                                                     TRACKS_RECORD_KEY_MEDIA.to_string(),
+//.                                                 ),
+//.                                                 name_field: TRACKS_RECORD_KEY_NAME.to_string(),
+//.                                                 album_field: ALBUMS_RECORD_KEY_NAME.to_string(),
+//.                                                 artist_field: TRACKS_RECORD_KEY_ARTIST_NAME.to_string(),
+//.                                                 thumbnail_field: ALBUMS_RECORD_KEY_COVER.to_string(),
+//.                                                 align: Align::Start,
+//.                                             }),
+//.                                             Widget::TextLine(WidgetTextLine {
+//.                                                 data: FieldOrLiteral::Field(TRACKS_RECORD_KEY_INDEX.to_string()),
+//.                                                 prefix: "".to_string(),
+//.                                                 suffix: ".".to_string(),
+//.                                                 size: "12pt".to_string(),
+//.                                                 size_mode: LineSizeMode::Wrap,
+//.                                                 size_max: "".to_string(),
+//.                                                 orientation: Orientation::DownRight,
+//.                                                 align: Align::End,
+//.                                             }),
+//.                                             Widget::TextLine(WidgetTextLine {
+//.                                                 data: FieldOrLiteral::Field(TRACKS_RECORD_KEY_ARTIST_NAME.to_string()),
+//.                                                 prefix: "".to_string(),
+//.                                                 suffix: "".to_string(),
+//.                                                 size: "12pt".to_string(),
+//.                                                 size_mode: LineSizeMode::Wrap,
+//.                                                 size_max: "5cm".to_string(),
+//.                                                 orientation: Orientation::DownRight,
+//.                                                 align: Align::Start,
+//.                                             }),
+//.                                             Widget::TextLine(WidgetTextLine {
+//.                                                 data: FieldOrLiteral::Literal(" - ".to_string()),
+//.                                                 prefix: "".to_string(),
+//.                                                 suffix: "".to_string(),
+//.                                                 size: "12pt".to_string(),
+//.                                                 size_max: "".to_string(),
+//.                                                 size_mode: LineSizeMode::Wrap,
+//.                                                 orientation: Orientation::DownRight,
+//.                                                 align: Align::Start,
+//.                                             }),
+//.                                             Widget::TextLine(WidgetTextLine {
+//.                                                 data: FieldOrLiteral::Field(TRACKS_RECORD_KEY_NAME.to_string()),
+//.                                                 prefix: "".to_string(),
+//.                                                 suffix: "".to_string(),
+//.                                                 size: "12pt".to_string(),
+//.                                                 size_max: "5cm".to_string(),
+//.                                                 size_mode: LineSizeMode::Wrap,
+//.                                                 orientation: Orientation::DownRight,
+//.                                                 align: Align::Start,
+//.                                             })
+//.                                         ],
+//.                                     }),
+//.                                 })
+//.                             ],
+//.                         })
+//.                     ],
+//.                 },
+//.             }),
+//.         },
+//.     };
+//. }

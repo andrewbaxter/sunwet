@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+chrono = { version = "0.4", features = ["serde"] }
 shared = { path = "../shared" }
 aargvark = { version = "0.6", features = ["serde_json"] }
-chrono = { version = "0.4", features = ["serde"] }
 flowcontrol = "0.2"
-good-ormning-runtime = { version = "0.2", features = ["sqlite"] }
+good-ormning-runtime = { version = "0.3", features = ["sqlite"] }
 http = "1"
 http-body-util = "0.1"
 htwrap = "0.10"
@@ -16,7 +16,7 @@ hyper = "1"
 hyper-tungstenite = "0.15"
 hyper-util = "0.1"
 loga = "0.5"
-rusqlite = "0.32"
+rusqlite = { version = "0.32", features = ["array", "bundled"] }
 sea-query = { version = "0.32", default-features = false, features = [
     "backend-sqlite",
 ], git = "https://github.com/andrewbaxter/fork-sea-query", rev = "6a63c0039c433b5da94c453046dbbe5d8aca1a6d" }
@@ -46,9 +46,10 @@ platform-info = "2"
 rand = "0.8"
 oauth2 = { version = "4", default-features = false }
 fdap = { version = "*", path = "../../../openfdap/source/fdap" }
+mime_guess = "2.0.5"
 
 [build-dependencies]
-good-ormning = { version = "0.2", features = ["sqlite", "chrono"] }
+good-ormning = { version = "0.3", features = ["sqlite", "chrono"] }
 
 [dev-dependencies]
 pretty_assertions = "1"

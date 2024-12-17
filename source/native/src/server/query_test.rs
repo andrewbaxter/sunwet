@@ -1,5 +1,4 @@
 #![cfg(test)]
-
 use {
     super::defaultviews::{
         default_query_albums,
@@ -9,23 +8,25 @@ use {
         PREDICATE_IS,
         PREDICATE_NAME,
     },
-    crate::{
+    crate::server::{
+        access::ReadRestriction,
         db,
         query::{
             build_query,
-            QueryAccess,
-            QueryResVal,
+            execute_sql_query,
         },
-        serverlib::query::execute_sql_query,
     },
     chrono::{
         Duration,
         TimeZone,
         Utc,
     },
-    native::interface::triple::DbNode,
+    crate::interface::triple::{
+        DbIamTargetId,
+        DbNode,
+    },
     shared::interface::{
-        iam::IAM_TARGET_ADMIN,
+        iam::IamTargetId,
         query::{
             Chain,
             FilterChainComparisonOperator,
@@ -43,6 +44,7 @@ use {
             Value,
         },
         triple::Node,
+        wire::QueryResVal,
     },
     std::{
         collections::HashMap,
@@ -72,7 +74,7 @@ fn n() -> Node {
 }
 
 fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, QueryResVal)]], query: Query) {
-    let (query, query_values) = build_query(QueryAccess::Admin, query, HashMap::new()).unwrap();
+    let (query, query_values) = build_query(ReadRestriction::None, query, HashMap::new()).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
     db::migrate(&mut db).unwrap();
     for (s, p, o) in triples {
@@ -83,7 +85,7 @@ fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, QueryResVal)]], qu
             &DbNode((*o).clone()),
             Utc::now().into(),
             true,
-            0,
+            &DbIamTargetId(IamTargetId(0)),
         ).unwrap();
     }
     {
@@ -343,24 +345,80 @@ fn test_gc() {
     let stamp3 = chrono::Local.with_ymd_and_hms(2014, 12, 1, 1, 1, 1).unwrap().into();
 
     // Newest is after epoch
-    db::triple_insert(&db, &DbNode(s("a")), "b", &DbNode(s("c")), stamp1, true, IAM_TARGET_ADMIN.0).unwrap();
-    db::triple_insert(&db, &DbNode(s("a")), "b", &DbNode(s("c")), stamp2, false, IAM_TARGET_ADMIN.0).unwrap();
-    db::triple_insert(&db, &DbNode(s("a")), "b", &DbNode(s("c")), stamp3, true, IAM_TARGET_ADMIN.0).unwrap();
+    db::triple_insert(
+        &db,
+        &DbNode(s("a")),
+        "b",
+        &DbNode(s("c")),
+        stamp1,
+        true,
+        &DbIamTargetId(IamTargetId(0)),
+    ).unwrap();
+    db::triple_insert(
+        &db,
+        &DbNode(s("a")),
+        "b",
+        &DbNode(s("c")),
+        stamp2,
+        false,
+        &DbIamTargetId(IamTargetId(0)),
+    ).unwrap();
+    db::triple_insert(
+        &db,
+        &DbNode(s("a")),
+        "b",
+        &DbNode(s("c")),
+        stamp3,
+        true,
+        &DbIamTargetId(IamTargetId(0)),
+    ).unwrap();
 
     // Newest is before epoch, but exists
-    db::triple_insert(&db, &DbNode(s("d")), "e", &DbNode(s("f")), stamp1, false, IAM_TARGET_ADMIN.0).unwrap();
-    db::triple_insert(&db, &DbNode(s("d")), "e", &DbNode(s("f")), stamp2, true, IAM_TARGET_ADMIN.0).unwrap();
+    db::triple_insert(
+        &db,
+        &DbNode(s("d")),
+        "e",
+        &DbNode(s("f")),
+        stamp1,
+        false,
+        &DbIamTargetId(IamTargetId(0)),
+    ).unwrap();
+    db::triple_insert(
+        &db,
+        &DbNode(s("d")),
+        "e",
+        &DbNode(s("f")),
+        stamp2,
+        true,
+        &DbIamTargetId(IamTargetId(0)),
+    ).unwrap();
 
     // Newest is before epoch, but doesn't exist
-    db::triple_insert(&db, &DbNode(s("g")), "h", &DbNode(s("i")), stamp1, true, IAM_TARGET_ADMIN.0).unwrap();
-    db::triple_insert(&db, &DbNode(s("g")), "h", &DbNode(s("i")), stamp1, false, IAM_TARGET_ADMIN.0).unwrap();
+    db::triple_insert(
+        &db,
+        &DbNode(s("g")),
+        "h",
+        &DbNode(s("i")),
+        stamp1,
+        true,
+        &DbIamTargetId(IamTargetId(0)),
+    ).unwrap();
+    db::triple_insert(
+        &db,
+        &DbNode(s("g")),
+        "h",
+        &DbNode(s("i")),
+        stamp1,
+        false,
+        &DbIamTargetId(IamTargetId(0)),
+    ).unwrap();
 
     // Gc
     db::triple_gc_deleted(&db, stamp2 + Duration::seconds(1)).unwrap();
     let want = vec![
         //. .
-        format!("{:?}", (s("a"), "b".to_string(), s("c"), stamp3, true, IAM_TARGET_ADMIN.0)),
-        format!("{:?}", (s("d"), "e".to_string(), s("f"), stamp2, true, IAM_TARGET_ADMIN.0))
+        format!("{:?}", (s("a"), "b".to_string(), s("c"), stamp3, true, 0)),
+        format!("{:?}", (s("d"), "e".to_string(), s("f"), stamp2, true, 0))
     ];
     let mut have =
         db::triple_list_all(&db)

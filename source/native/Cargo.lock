@@ -927,9 +927,9 @@ checksum = "2c5f6c2c942da57e2aaaa84b8a521489486f14e75e7fa91dab70aba913975f98"
 
 [[package]]
 name = "flowcontrol"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e18cda47a9c6910827bf1f5f825decb3777be16324ccf4e4295eb3d09caa156"
+checksum = "f4cc425651fa300abc1ade77c945b5c06fb9cfb1b713ac2f03197c186ac25b7b"
 
 [[package]]
 name = "fnv"
@@ -1118,9 +1118,9 @@ checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
 
 [[package]]
 name = "good-ormning"
-version = "0.2.0"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "627d414af1132bd61781d57104cb7468a34e82c64a796f2977c4fd26b54860a3"
+checksum = "82d17e05b4147c54005056e20bb26bca9eaed12dec764a57dc4308efdc9c0eec"
 dependencies = [
  "chrono",
  "enum_dispatch",
@@ -1137,9 +1137,9 @@ dependencies = [
 
 [[package]]
 name = "good-ormning-runtime"
-version = "0.2.0"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0eea38186636a1131ee44e3bc2be16be699fe584ce354eddf7aa78c67ad10eb"
+checksum = "a9d410968e8d7bfab7f6ba1017b2d5dbc8dc85a7ffdeba792d230d2a6f111bf0"
 dependencies = [
  "rusqlite",
 ]
@@ -1777,6 +1777,7 @@ version = "0.30.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2e99fb7a497b1e3339bc746195567ed8d3e24945ecd636e3619d20b9de9e9149"
 dependencies = [
+ "cc",
  "pkg-config",
  "vcpkg",
 ]
@@ -1952,6 +1953,7 @@ dependencies = [
  "hyper-tungstenite",
  "hyper-util",
  "loga",
+ "mime_guess",
  "moka",
  "oauth2",
  "openidconnect",

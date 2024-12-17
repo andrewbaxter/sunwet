@@ -1,13 +1,29 @@
 use {
-    super::{
-        db,
-        dbutil::tx,
-        filesutil::{
-            file_path,
-            generated_path,
-            staged_file_path,
+    crate::{
+        interface::triple::{
+            DbIamTargetId,
+            DbIamTargetIds,
+            DbNode,
         },
-        state::State,
+        server::{
+            access::{
+                can_read,
+                CanRead,
+                Identity,
+            },
+            db::{
+                self,
+                Metadata,
+            },
+            dbutil::tx,
+            filesutil::{
+                file_path,
+                generated_path,
+                hash_file_sha256,
+                staged_file_path,
+            },
+            state::State,
+        },
     },
     chrono::Utc,
     flowcontrol::shed,
@@ -21,7 +37,12 @@ use {
         responses::{
             body_empty,
             response_200_json,
+            response_401,
             response_404,
+        },
+        viserr::{
+            ResultVisErr,
+            VisErr,
         },
     },
     hyper::body::{
@@ -33,39 +54,30 @@ use {
         DebugDisplay,
         ResultContext,
     },
-    native::{
-        interface::triple::DbNode,
-    },
     serde::Deserialize,
-    sha2::{
-        Digest,
-        Sha256,
-    },
     shared::interface::{
         triple::{
             FileHash,
             Node,
         },
         wire::{
-            CommitReq,
-            CommitResp,
             FileUrlQuery,
-            UploadFinishResp,
+            ReqCommit,
+            RespCommit,
+            RespUploadFinish,
             HEADER_OFFSET,
         },
     },
     std::{
         collections::{
             HashMap,
+            HashSet,
         },
         io::{
             self,
-            Write,
         },
-        pin::Pin,
         process::Stdio,
         sync::Arc,
-        task::Poll,
     },
     tempfile::tempdir,
     tokio::{
@@ -75,16 +87,14 @@ use {
             File,
         },
         io::{
-            copy,
             AsyncSeekExt,
-            AsyncWrite,
             AsyncWriteExt,
         },
         process::Command,
     },
 };
 
-async fn get_mimetype(state: &Arc<State>, hash: &FileHash) -> Result<Option<String>, loga::Error> {
+async fn get_meta(state: &Arc<State>, hash: &FileHash) -> Result<Option<db::Metadata>, loga::Error> {
     let state = state.clone();
     let hash = hash.clone();
     let Some(meta) = tx(&state.db, move |txn| {
@@ -92,13 +102,10 @@ async fn get_mimetype(state: &Arc<State>, hash: &FileHash) -> Result<Option<Stri
     }).await? else {
         return Ok(None);
     };
-    return Ok(Some(meta.mimetype));
+    return Ok(Some(meta));
 }
 
-pub async fn handle_commit(
-    state: Arc<State>,
-    c: CommitReq,
-) -> Result<Response<BoxBody<Bytes, std::io::Error>>, loga::Error> {
+pub async fn handle_commit(state: Arc<State>, c: ReqCommit) -> Result<RespCommit, loga::Error> {
     for info in &c.files {
         if file_path(&state.files_dir, &info.hash)?.exists() {
             continue;
@@ -115,8 +122,9 @@ pub async fn handle_commit(
         let mut incomplete = vec![];
         for info in c.files {
             incomplete.push(info.hash.clone());
-            db::meta_insert(txn, &DbNode(Node::File(info.hash)), &info.mimetype, "")?;
+            db::meta_insert(txn, &DbNode(Node::File(info.hash)), &info.mimetype, "", &DbIamTargetIds(vec![]))?;
         }
+        let mut referenced_files = HashSet::new();
         for t in c.remove {
             if let Some(t) =
                 db::triple_get(txn, &DbNode(t.subject.clone()), &t.predicate, &DbNode(t.object.clone()))? {
@@ -126,6 +134,12 @@ pub async fn handle_commit(
             } else {
                 continue;
             }
+            if let Node::File(n) = &t.subject {
+                referenced_files.insert(n.clone());
+            }
+            if let Node::File(n) = &t.object {
+                referenced_files.insert(n.clone());
+            }
             db::triple_insert(
                 txn,
                 &DbNode(t.subject),
@@ -133,7 +147,7 @@ pub async fn handle_commit(
                 &DbNode(t.object),
                 stamp,
                 false,
-                t.iam_target.0,
+                &DbIamTargetId(t.iam_target),
             );
         }
         for t in c.add {
@@ -143,6 +157,12 @@ pub async fn handle_commit(
                     continue;
                 }
             }
+            if let Node::File(n) = &t.subject {
+                referenced_files.insert(n.clone());
+            }
+            if let Node::File(n) = &t.object {
+                referenced_files.insert(n.clone());
+            }
             db::triple_insert(
                 txn,
                 &DbNode(t.subject),
@@ -150,18 +170,17 @@ pub async fn handle_commit(
                 &DbNode(t.object),
                 stamp,
                 true,
-                t.iam_target.0,
+                &DbIamTargetId(t.iam_target),
             );
         }
+        let referenced_nodes = referenced_files.into_iter().map(|x| DbNode(Node::File(x))).collect::<Vec<_>>();
+        db::meta_update_iam_targets(txn, referenced_nodes.iter().collect())?;
         return Ok(incomplete);
     }).await?;
-    return Ok(response_200_json(CommitResp { incomplete: incomplete }));
+    return Ok(RespCommit { incomplete: incomplete });
 }
 
-pub async fn handle_finish_upload(
-    state: Arc<State>,
-    hash: FileHash,
-) -> Result<Response<BoxBody<Bytes, std::io::Error>>, loga::Error> {
+pub async fn handle_finish_upload(state: Arc<State>, hash: FileHash) -> Result<RespUploadFinish, loga::Error> {
     let done;
     if file_path(&state.files_dir, &hash)?.exists() {
         done = true;
@@ -175,60 +194,22 @@ pub async fn handle_finish_upload(
                         let source = staged_file_path(&state.stage_dir, &hash)?;
 
                         // Validate hash
-                        let mut got_file = File::open(&source).await.context("Failed to open staged uploaded file")?;
-                        match &hash {
-                            FileHash::Sha256(hash) => {
-                                struct HashAsyncWriter {
-                                    hash: Sha256,
-                                }
-
-                                impl AsyncWrite for HashAsyncWriter {
-                                    fn poll_write(
-                                        mut self: Pin<&mut HashAsyncWriter>,
-                                        _cx: &mut std::task::Context<'_>,
-                                        buf: &[u8],
-                                    ) -> Poll<Result<usize, std::io::Error>> {
-                                        return Poll::Ready(self.as_mut().hash.write_all(buf).map(|_| buf.len()));
-                                    }
-
-                                    fn poll_flush(
-                                        self: Pin<&mut HashAsyncWriter>,
-                                        _cx: &mut std::task::Context<'_>,
-                                    ) -> Poll<Result<(), std::io::Error>> {
-                                        return Poll::Ready(Ok(()));
-                                    }
-
-                                    fn poll_shutdown(
-                                        self: Pin<&mut HashAsyncWriter>,
-                                        _cx: &mut std::task::Context<'_>,
-                                    ) -> Poll<Result<(), std::io::Error>> {
-                                        return Poll::Ready(Ok(()));
-                                    }
-                                }
-
-                                let mut got_hash = HashAsyncWriter { hash: Sha256::new() };
-                                copy(&mut got_file, &mut got_hash)
-                                    .await
-                                    .context("Failed to read staged uploaded file")?;
-                                let got_hash = hex::encode(&got_hash.hash.finalize());
-                                if &got_hash != hash {
-                                    drop(got_file);
-                                    return Err(
-                                        loga::err_with(
-                                            "Uploaded file hash mismatch",
-                                            ea!(want_hash = hash, got_hash = got_hash),
-                                        ),
-                                    );
-                                }
-                            },
+                        let got_hash = hash_file_sha256(&state.log, &source).await.context("Failed to hash staged uploaded file")?;
+                        if got_hash != hash {
+                            return Err(
+                                loga::err_with(
+                                    "Uploaded file hash mismatch",
+                                    ea!(want_hash = hash, got_hash = got_hash),
+                                ),
+                            );
                         }
 
                         // Pre-generate web files for video
                         shed!{
-                            let Some(mimetype) = get_mimetype(&state, &hash).await? else {
+                            let Some(meta) = get_meta(&state, &hash).await? else {
                                 break;
                             };
-                            match mimetype.as_str() {
+                            match meta.mimetype.as_str() {
                                 "video/x-matroska" | "video/mp4" | "video/webm" => { },
                                 _ => {
                                     break;
@@ -285,7 +266,7 @@ pub async fn handle_finish_upload(
                                 let Some(lang) = stream.tags.get("language") else {
                                     continue;
                                 };
-                                let subtitle_dest = generated_path(&state.generated_dir, &hash, "text/vtt", &lang)?;
+                                let subtitle_dest = generated_path(&state.cache_dir, &hash, "text/vtt", &lang)?;
                                 if let Some(p) = subtitle_dest.parent() {
                                     create_dir_all(&p)
                                         .await
@@ -316,9 +297,9 @@ pub async fn handle_finish_upload(
                             }
 
                             // Webm
-                            if mimetype.as_str() != "video/webm" {
+                            if meta.mimetype.as_str() != "video/webm" {
                                 let webm_tmp = tempdir()?;
-                                let webm_dest = generated_path(&state.generated_dir, &hash, "video/webm", "")?;
+                                let webm_dest = generated_path(&state.cache_dir, &hash, "video/webm", "")?;
                                 if let Some(p) = webm_dest.parent() {
                                     create_dir_all(&p)
                                         .await
@@ -405,24 +386,50 @@ pub async fn handle_finish_upload(
             });
         }
     }
-    return Ok(response_200_json(UploadFinishResp { done: done }));
+    return Ok(RespUploadFinish { done: done });
+}
+
+async fn can_read_file(
+    state: &State,
+    identity: &Identity,
+    file: &FileHash,
+    meta: &Metadata,
+) -> Result<Option<Response<BoxBody<Bytes, std::io::Error>>>, VisErr<loga::Error>> {
+    match can_read(&state, &identity).await.err_internal()? {
+        CanRead::All => {
+            return Ok(None);
+        },
+        CanRead::Restricted(targets) => {
+            for have_target in &meta.iam_targets.0 {
+                if targets.contains(have_target) {
+                    return Ok(None);
+                }
+            }
+        },
+        CanRead::No => {
+            if state.link_public_files.lock().unwrap().contains(&file) {
+                return Ok(None);
+            }
+        },
+    }
+    return Ok(Some(response_401()));
 }
 
 pub async fn handle_file_head(
     state: Arc<State>,
-    head: http::request::Parts,
+    identity: &Identity,
     file: FileHash,
-) -> Result<Response<BoxBody<Bytes, std::io::Error>>, loga::Error> {
-    if let Some(resp) = check_file_auth(&state, &head, &file) {
-        return Ok(resp);
-    }
-    let Some(mimetype) = get_mimetype(&state, &file).await? else {
+) -> Result<Response<BoxBody<Bytes, std::io::Error>>, VisErr<loga::Error>> {
+    let Some(meta) = get_meta(&state, &file).await.err_internal()? else {
         return Ok(response_404());
     };
+    if let Some(r) = can_read_file(&state, identity, &file, &meta).await? {
+        return Ok(r);
+    }
     return Ok(
         Response::builder()
             .status(200)
-            .header("Content-Type", mimetype.as_str())
+            .header("Content-Type", meta.mimetype.as_str())
             .header("Accept-Ranges", "bytes")
             .body(body_empty())
             .unwrap(),
@@ -431,39 +438,43 @@ pub async fn handle_file_head(
 
 pub async fn handle_file_get(
     state: Arc<State>,
+    identity: &Identity,
     head: http::request::Parts,
     file: FileHash,
-) -> Result<Response<BoxBody<Bytes, std::io::Error>>, loga::Error> {
-    if let Some(resp) = check_file_auth(&state, &head, &file) {
-        return Ok(resp);
+) -> Result<Response<BoxBody<Bytes, std::io::Error>>, VisErr<loga::Error>> {
+    let Some(meta) = get_meta(&state, &file).await.err_internal()? else {
+        return Ok(response_404());
+    };
+    if let Some(r) = can_read_file(&state, identity, &file, &meta).await? {
+        return Ok(r);
     }
     let query;
     if let Some(q) = head.uri.query() {
         query =
             serde_json::from_str::<FileUrlQuery>(
-                &urlencoding::decode(&q).context("Error url-decoding query")?,
-            ).context("Error parsing query string")?;
+                &urlencoding::decode(&q).context("Error url-decoding query").err_external()?,
+            )
+                .context("Error parsing query string")
+                .err_external()?;
     } else {
         query = FileUrlQuery { generated: None };
     }
-    let Some(main_mimetype) = get_mimetype(&state, &file).await? else {
-        return Ok(response_404());
-    };
     let mimetype;
     let local_path;
     if let Some(generated) = query.generated {
-        if generated.mime_type == main_mimetype && generated.name == "" {
-            mimetype = main_mimetype;
-            local_path = file_path(&state.files_dir, &file)?;
+        if generated.mime_type == meta.mimetype && generated.name == "" {
+            mimetype = meta.mimetype;
+            local_path = file_path(&state.files_dir, &file).err_internal()?;
         } else {
-            local_path = generated_path(&state.generated_dir, &file, &generated.mime_type, &generated.name)?;
+            local_path =
+                generated_path(&state.cache_dir, &file, &generated.mime_type, &generated.name).err_internal()?;
             mimetype = generated.mime_type;
         }
     } else {
-        mimetype = main_mimetype;
-        local_path = file_path(&state.files_dir, &file)?;
+        mimetype = meta.mimetype;
+        local_path = file_path(&state.files_dir, &file).err_internal()?;
     }
-    return Ok(htserve::responses::response_file(&head.headers, &mimetype, &local_path).await?);
+    return Ok(htserve::responses::response_file(&head.headers, &mimetype, &local_path).await.err_internal()?);
 }
 
 pub async fn handle_file_post(
@@ -472,9 +483,6 @@ pub async fn handle_file_post(
     file: FileHash,
     body: Incoming,
 ) -> Result<Response<BoxBody<Bytes, std::io::Error>>, loga::Error> {
-    if let Some(resp) = check_auth(&state, &head) {
-        return Ok(resp);
-    }
     let offset = async {
         Ok(
             head

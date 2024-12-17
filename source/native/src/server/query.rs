@@ -1,9 +1,6 @@
 use {
     super::{
-        access::{
-            Identity,
-            NonAdminAccess,
-        },
+        access::ReadRestriction,
         dbutil::tx,
     },
     deadpool_sqlite::Pool,
@@ -19,9 +16,6 @@ use {
     },
     sea_query_rusqlite::RusqliteBinder,
     shared::interface::{
-        iam::{
-            IamUserGroupId,
-        },
         query::{
             Chain,
             FilterChainComparisonOperator,
@@ -35,18 +29,13 @@ use {
             Value,
         },
         triple::Node,
+        wire::QueryResVal,
     },
     std::collections::HashMap,
 };
 
-#[derive(PartialEq, Eq, PartialOrd, Debug, Clone)]
-pub enum QueryResVal {
-    Scalar(Node),
-    Array(Vec<Node>),
-}
-
 struct QueryBuildState {
-    identity: Identity,
+    read_restriction: ReadRestriction,
     parameters: HashMap<String, Node>,
     // # Immutable
     ident_table_primary: sea_query::DynIden,
@@ -140,7 +129,6 @@ impl std::hash::Hash for BuildStepRes {
 }
 
 fn build_filter(
-    access: &HashMap<IamUserGroupId, NonAdminAccess>,
     query_state: &mut QueryBuildState,
     parent_end_col: &ColumnRef,
     previous: BuildStepRes,
@@ -149,7 +137,7 @@ fn build_filter(
     match expr {
         FilterExpr::Exists(expr) => {
             let mut sql_sel = sea_query::Query::select();
-            let subchain = build_subchain(access, query_state, Some(previous), &expr.subchain)?;
+            let subchain = build_subchain(query_state, Some(previous), &expr.subchain)?;
             sql_sel.from(sea_query::TableRef::Table(subchain.ident_table.clone()));
             sql_sel.expr(sea_query::Expr::val(1));
             sql_sel.and_where(
@@ -183,9 +171,9 @@ fn build_filter(
             }
         },
         FilterExpr::Junction(expr) => {
-            let mut out = build_filter(access, query_state, parent_end_col, previous.clone(), &expr.subexprs[0])?;
+            let mut out = build_filter(query_state, parent_end_col, previous.clone(), &expr.subexprs[0])?;
             for subexpr in &expr.subexprs[1..] {
-                let next = build_filter(access, query_state, parent_end_col, previous.clone(), &subexpr)?;
+                let next = build_filter(query_state, parent_end_col, previous.clone(), &subexpr)?;
                 match expr.type_ {
                     JunctionType::And => {
                         out = out.and(next);
@@ -201,7 +189,6 @@ fn build_filter(
 }
 
 fn build_step(
-    access: &HashMap<IamUserGroupId, NonAdminAccess>,
     query_state: &mut QueryBuildState,
     previous: Option<BuildStepRes>,
     step: &Step,
@@ -255,22 +242,13 @@ fn build_step(
                 sql_sel.group_by_col(local_col_primary_end.clone());
 
                 // Only consider elements with perm to view
-                match &query_state.identity {
-                    Identity::Admin => { },
-                    Identity::NonAdmin(group_ids) => {
-                        let mut targets = vec![];
-                        for group in group_ids {
-                            if let Some(group) = access.get(group) {
-                                targets.extend(group.read.iter().map(|x| x.0));
-                            }
-                        }
-                        sql_sel.and_where(
-                            ColumnRef::TableColumn(
-                                local_ident_table_primary.clone(),
-                                query_state.ident_col_iam_target.clone(),
-                            ).is_in(targets),
-                        );
-                    },
+                if let ReadRestriction::Some(targets) = &query_state.read_restriction {
+                    sql_sel.and_where(
+                        ColumnRef::TableColumn(
+                            local_ident_table_primary.clone(),
+                            query_state.ident_col_iam_target.clone(),
+                        ).is_in(targets.iter().map(|x| x.0)),
+                    );
                 }
 
                 // Movement
@@ -393,7 +371,7 @@ fn build_step(
                 let col_end =
                     sea_query::ColumnRef::TableColumn(local_ident_table_primary.clone(), out.col_end.clone());
                 sql_sel.column(col_end.clone());
-                sql_sel.and_where(build_filter(access, query_state, &col_end, BuildStepRes {
+                sql_sel.and_where(build_filter(query_state, &col_end, BuildStepRes {
                     ident_table: out.ident_table,
                     col_start: out.col_end.clone(),
                     col_end: out.col_end,
@@ -449,7 +427,7 @@ fn build_step(
                             query_state.ident_col_start.clone(),
                         ),
                     );
-                    let subchain = build_subchain(access, query_state, None, &step.subchain)?;
+                    let subchain = build_subchain(query_state, None, &step.subchain)?;
                     let local_ident_table_primary = query_state.ident_table_primary.clone();
                     sql_sel.join_as(
                         sea_query::JoinType::InnerJoin,
@@ -517,7 +495,7 @@ fn build_step(
             let ident_col_end = query_state.ident_col_end.clone();
             let mut build_subchain = |subchain: &Subchain| -> Result<sea_query::SelectStatement, loga::Error> {
                 let mut sql_sel = sea_query::Query::select();
-                let subchain = build_subchain(access, query_state, previous.clone(), subchain)?;
+                let subchain = build_subchain(query_state, previous.clone(), subchain)?;
                 sql_sel.from(sea_query::TableRef::Table(subchain.ident_table.clone()));
                 sql_sel.column(sea_query::ColumnRef::TableColumn(subchain.ident_table.clone(), subchain.col_start));
                 sql_sel.column(sea_query::ColumnRef::TableColumn(subchain.ident_table, subchain.col_end));
@@ -587,7 +565,6 @@ fn build_value(query_state: &mut QueryBuildState, param: &Value) -> Result<sea_q
 // Produces (sequence of) CTEs from steps, returning the last CTE. CTE has start
 // and end fields only.
 fn build_subchain(
-    access: &HashMap<IamUserGroupId, NonAdminAccess>,
     query_state: &mut QueryBuildState,
     mut prev_subchain_seg: Option<BuildStepRes>,
     subchain: &Subchain,
@@ -618,16 +595,15 @@ fn build_subchain(
             prev_subchain_seg = Some(root_res);
         }
     }
-    let mut prev_subchain_seg = build_step(access, query_state, prev_subchain_seg, &subchain.steps[0])?;
+    let mut prev_subchain_seg = build_step(query_state, prev_subchain_seg, &subchain.steps[0])?;
     for step in &subchain.steps[1..] {
-        prev_subchain_seg = build_step(access, query_state, Some(prev_subchain_seg), step)?;
+        prev_subchain_seg = build_step(query_state, Some(prev_subchain_seg), step)?;
     }
     return Ok(prev_subchain_seg);
 }
 
 /// Produces CTE with `_` selects, no aggregation.
 fn build_chain(
-    access: &HashMap<IamUserGroupId, NonAdminAccess>,
     query_state: &mut QueryBuildState,
     prev_subchain_seg: Option<BuildStepRes>,
     chain: Chain,
@@ -635,7 +611,7 @@ fn build_chain(
     let cte_name = format!("chain{}", query_state.global_unique);
     query_state.global_unique += 1;
     let mut sql_sel = sea_query::Query::select();
-    let primary_subchain = build_subchain(access, query_state, prev_subchain_seg, &chain.subchain)?;
+    let primary_subchain = build_subchain(query_state, prev_subchain_seg, &chain.subchain)?;
     sql_sel.from(sea_query::TableRef::Table(primary_subchain.ident_table.clone()));
     let global_col_primary_start =
         sea_query::ColumnRef::TableColumn(primary_subchain.ident_table.clone(), primary_subchain.col_start.clone());
@@ -676,7 +652,7 @@ fn build_chain(
         });
     }
     for child in chain.children {
-        let child_chain = build_chain(access, query_state, child_prev_subchain_seg.clone(), child)?;
+        let child_chain = build_chain(query_state, child_prev_subchain_seg.clone(), child)?;
         sql_sel.join(
             sea_query::JoinType::LeftJoin,
             child_chain.cte,
@@ -711,13 +687,12 @@ fn build_chain(
 }
 
 pub fn build_query(
-    access: &HashMap<IamUserGroupId, NonAdminAccess>,
-    identity: Identity,
+    read_restriction: ReadRestriction,
     q: Query,
     parameters: HashMap<String, Node>,
 ) -> Result<(String, sea_query_rusqlite::RusqliteValues), loga::Error> {
     let mut query_state = QueryBuildState {
-        identity: identity,
+        read_restriction: read_restriction,
         parameters: parameters,
         ident_table_primary: SeaRc::new(Alias::new("primary")),
         ident_table_prev: SeaRc::new(Alias::new("prev")),
@@ -736,7 +711,7 @@ pub fn build_query(
         reuse_roots: Default::default(),
         reuse_steps: Default::default(),
     };
-    let cte = build_chain(access, &mut query_state, None, q.chain)?;
+    let cte = build_chain(&mut query_state, None, q.chain)?;
     let mut sel_root = sea_query::Query::select();
     sel_root.from(cte.cte);
     for (name, plural) in cte.selects {
@@ -804,13 +779,12 @@ pub fn execute_sql_query(
 }
 
 pub async fn execute_query(
-    access: &HashMap<IamUserGroupId, NonAdminAccess>,
     db: &Pool,
-    identity: Identity,
+    read_restriction: ReadRestriction,
     query: Query,
     parameters: HashMap<String, Node>,
 ) -> Result<Vec<HashMap<String, QueryResVal>>, loga::Error> {
-    let (sql_query, sql_parameters) = build_query(access, identity, query, parameters)?;
+    let (sql_query, sql_parameters) = build_query(read_restriction, query, parameters)?;
     return Ok(tx(&db, move |txn| {
         return Ok(execute_sql_query(txn, sql_query, sql_parameters)?);
     }).await?);

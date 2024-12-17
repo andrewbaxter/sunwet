@@ -1,7 +1,10 @@
 use {
-    super::state::{
-        State,
-        WsState,
+    crate::{
+        server::state::{
+            State,
+            WsState,
+        },
+        spawn_scoped,
     },
     chrono::Utc,
     flowcontrol::{
@@ -23,7 +26,6 @@ use {
         ErrContext,
         ResultContext,
     },
-    native::spawn_scoped,
     shared::interface::wire::link::{
         WsC2S,
         WsL2S,
@@ -83,45 +85,67 @@ pub fn handle_ws_main(state: Arc<State>, websocket: HyperWebsocket) {
                                             &m,
                                         ).context("Error parsing message json")? {
                                             WsC2S::Prepare(prepare) => {
-                                                let (main_ready_tx, main_ready_rx) = oneshot::channel();
                                                 let Some(main) = state.link_main.lock().unwrap().clone() else {
                                                     continue;
                                                 };
+
+                                                // Make referenced files temporarily public
+                                                {
+                                                    let mut link_public = state.link_public_files.lock().unwrap();
+                                                    link_public.clear();
+                                                    match &prepare.media {
+                                                        shared::interface::wire::link::PrepareMedia::Audio(m) => {
+                                                            link_public.insert(m.audio.clone());
+                                                            link_public.insert(m.cover.clone());
+                                                        },
+                                                        shared::interface::wire::link::PrepareMedia::Video(m) => {
+                                                            link_public.insert(m.clone());
+                                                        },
+                                                        shared::interface::wire::link::PrepareMedia::Image(m) => {
+                                                            link_public.insert(m.clone());
+                                                        },
+                                                    }
+                                                }
+
+                                                // .
+                                                let links = state.link_links.lock().unwrap().values().cloned().collect::<Vec<_>>();
+
+                                                // Start waiting for ready reports
+                                                let (main_ready_tx, main_ready_rx) = oneshot::channel();
                                                 *main.ready.lock().unwrap() = Some(main_ready_tx);
                                                 let mut link_readies = vec![];
-                                                let links =
-                                                    state
-                                                        .link_links
-                                                        .lock()
-                                                        .unwrap()
-                                                        .values()
-                                                        .cloned()
-                                                        .collect::<Vec<_>>();
                                                 for link in &links {
-                                                    let link = link.clone();
                                                     let (ready_tx, ready_rx) = oneshot::channel();
                                                     *link.ready.lock().unwrap() = Some(ready_tx);
-                                                    _ = link.send.send(WsS2L::Prepare(prepare.clone())).await;
                                                     link_readies.push(ready_rx);
                                                 }
-                                                *state.link_bg.lock().unwrap() = Some(spawn_scoped(async move {
-                                                    let mut delays = vec![];
-                                                    if let Ok(delay) = main_ready_rx.await {
-                                                        delays.push(delay);
-                                                    }
-                                                    for ready in link_readies {
-                                                        if let Ok(delay) = ready.await {
+                                                *state.link_bg.lock().unwrap() = Some(spawn_scoped({
+                                                    let links = links.clone();
+                                                    async move {
+                                                        let mut delays = vec![];
+                                                        if let Ok(delay) = main_ready_rx.await {
                                                             delays.push(delay);
                                                         }
-                                                    }
-                                                    delays.sort();
-                                                    let delay = delays.last().unwrap();
-                                                    let start_at = Utc::now() + *delay * 5;
-                                                    _ = main.send.send(WsS2C::Play(start_at)).await;
-                                                    for link in links {
-                                                        _ = link.send.send(WsS2L::Play(start_at)).await;
+                                                        for ready in link_readies {
+                                                            if let Ok(delay) = ready.await {
+                                                                delays.push(delay);
+                                                            }
+                                                        }
+
+                                                        // All readies received, trigger start
+                                                        let delay = delays.into_iter().max().unwrap();
+                                                        let start_at = Utc::now() + delay * 5;
+                                                        _ = main.send.send(WsS2C::Play(start_at)).await;
+                                                        for link in links {
+                                                            _ = link.send.send(WsS2L::Play(start_at)).await;
+                                                        }
                                                     }
                                                 }));
+
+                                                // Forward prepare data
+                                                for link in links {
+                                                    _ = link.send.send(WsS2L::Prepare(prepare.clone())).await;
+                                                }
                                             },
                                             WsC2S::Ready(sent_at) => {
                                                 shed!{

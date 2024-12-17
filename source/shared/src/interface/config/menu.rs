@@ -13,7 +13,9 @@ use {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct MenuItemSection {
-    pub iam_target: IamTargetId,
+    /// Restrict which users can see this menu section - if missing, only admins can
+    /// see it.
+    pub allow_target: Option<IamTargetId>,
     pub name: String,
     pub children: Vec<MenuItem>,
 }

@@ -1,4 +1,5 @@
 use {
+    crate::interface::triple::FileHash,
     chrono::{
         DateTime,
         Utc,
@@ -12,16 +13,16 @@ use {
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct PrepareAudio {
-    pub cover_url: String,
-    pub audio_url: String,
+    pub cover: FileHash,
+    pub audio: FileHash,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum PrepareMedia {
     Audio(PrepareAudio),
-    Video(String),
-    Image(String),
+    Video(FileHash),
+    Image(FileHash),
 }
 
 #[derive(Serialize, Deserialize, Clone)]

@@ -226,7 +226,7 @@ pub enum QueryDefParameter {
 #[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct View {
-    pub iam_target: IamTargetId,
+    pub allow_target: Option<IamTargetId>,
     pub id: String,
     pub name: String,
     pub parameters: Vec<(String, QueryDefParameter)>,
