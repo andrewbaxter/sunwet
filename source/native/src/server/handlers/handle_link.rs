@@ -96,7 +96,9 @@ pub fn handle_ws_main(state: Arc<State>, websocket: HyperWebsocket) {
                                                     match &prepare.media {
                                                         shared::interface::wire::link::PrepareMedia::Audio(m) => {
                                                             link_public.insert(m.audio.clone());
-                                                            link_public.insert(m.cover.clone());
+                                                            if let Some(cover) = &m.cover {
+                                                                link_public.insert(cover.clone());
+                                                            }
                                                         },
                                                         shared::interface::wire::link::PrepareMedia::Video(m) => {
                                                             link_public.insert(m.clone());

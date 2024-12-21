@@ -4,6 +4,7 @@ use {
         Deserialize,
         Serialize,
     },
+    std::hash::Hash,
 };
 
 const HASH_PREFIX_SHA256: &'static str = "sha256";
@@ -46,11 +47,49 @@ impl std::str::FromStr for FileHash {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Node {
     Id(String),
     File(FileHash),
     Value(serde_json::Value),
+}
+
+fn hash_value<H: std::hash::Hasher>(s: &serde_json::Value, state: &mut H) {
+    core::mem::discriminant(s).hash(state);
+    match s {
+        serde_json::Value::Null => { },
+        serde_json::Value::Bool(s) => {
+            s.hash(state);
+        },
+        serde_json::Value::Number(n) => {
+            n.to_string().hash(state);
+        },
+        serde_json::Value::String(s) => {
+            s.hash(state);
+        },
+        serde_json::Value::Array(s) => {
+            for v in s {
+                hash_value(v, state);
+            }
+        },
+        serde_json::Value::Object(s) => {
+            for (k, v) in s {
+                k.hash(state);
+                hash_value(v, state);
+            }
+        },
+    }
+}
+
+impl Hash for Node {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        core::mem::discriminant(self).hash(state);
+        match self {
+            Node::Id(s) => s.hash(state),
+            Node::File(s) => s.hash(state),
+            Node::Value(s) => hash_value(s, state),
+        }
+    }
 }
 
 impl PartialOrd for Node {

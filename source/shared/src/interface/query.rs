@@ -126,6 +126,10 @@ pub enum QuerySortDir {
     Desc,
 }
 
+/// Right now, all fields are turned into a single top level record - this is
+/// useful for recursion which could otherwise lead to large nested objects when a
+/// flat list is desired.  A new `nest` step may be introduced later to create
+/// intermediate records (as `QueryResType::Record`).
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct Query {

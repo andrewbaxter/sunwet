@@ -8,22 +8,24 @@ use {
         PREDICATE_IS,
         PREDICATE_NAME,
     },
-    crate::server::{
-        access::ReadRestriction,
-        db,
-        query::{
-            build_query,
-            execute_sql_query,
+    crate::{
+        interface::triple::{
+            DbIamTargetId,
+            DbNode,
+        },
+        server::{
+            access::ReadRestriction,
+            db,
+            query::{
+                build_query,
+                execute_sql_query,
+            },
         },
     },
     chrono::{
         Duration,
         TimeZone,
         Utc,
-    },
-    crate::interface::triple::{
-        DbIamTargetId,
-        DbNode,
     },
     shared::interface::{
         iam::IamTargetId,
@@ -47,7 +49,10 @@ use {
         wire::QueryResVal,
     },
     std::{
-        collections::HashMap,
+        collections::{
+            BTreeMap,
+            HashMap,
+        },
         io::Write,
         path::PathBuf,
         process::{
@@ -120,10 +125,16 @@ fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, QueryResVal)]], qu
     }
     let got = execute_sql_query(&db, query, query_values).unwrap();
     let want =
-        want
-            .into_iter()
-            .map(|m| m.into_iter().map(|(k, v)| (k.to_string(), v.clone())).collect::<HashMap<_, _>>())
-            .collect::<Vec<_>>();
+        QueryResVal::Array(
+            want
+                .into_iter()
+                .map(
+                    |m| QueryResVal::Record(
+                        m.into_iter().map(|(k, v)| (k.to_string(), v.clone())).collect::<BTreeMap<_, _>>(),
+                    ),
+                )
+                .collect::<Vec<_>>(),
+        );
     pretty_assertions::assert_eq!(want, got);
 }
 

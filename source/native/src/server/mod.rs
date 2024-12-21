@@ -271,7 +271,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                             records: query::execute_query(
                                                 &state.db,
                                                 read_restriction,
-                                                req.q,
+                                                req.query,
                                                 req.parameters,
                                             )
                                                 .await

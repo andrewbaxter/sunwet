@@ -174,12 +174,12 @@ pub struct WidgetImage {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct WidgetMediaButton {
     pub field: String,
-    /// The media type (ex `sunwet/1/video`, `/audio`)
+    /// The media type (ex `sunwet/1/video`, `sunwet/1/audio`)
     pub media_field: FieldOrLiteral,
-    pub name_field: String,
-    pub album_field: String,
-    pub artist_field: String,
-    pub thumbnail_field: String,
+    pub name_field: Option<String>,
+    pub album_field: Option<String>,
+    pub artist_field: Option<String>,
+    pub cover_field: Option<String>,
     pub align: Align,
 }
 

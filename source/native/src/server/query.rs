@@ -11,8 +11,10 @@ use {
     sea_query::{
         Alias,
         ColumnRef,
+        Expr,
         ExprTrait,
         SeaRc,
+        SimpleExpr,
     },
     sea_query_rusqlite::RusqliteBinder,
     shared::interface::{
@@ -31,7 +33,10 @@ use {
         triple::Node,
         wire::QueryResVal,
     },
-    std::collections::HashMap,
+    std::collections::{
+        BTreeMap,
+        HashMap,
+    },
 };
 
 struct QueryBuildState {
@@ -715,16 +720,30 @@ pub fn build_query(
     let mut sel_root = sea_query::Query::select();
     sel_root.from(cte.cte);
     for (name, plural) in cte.selects {
-        let expr =
-            sea_query::ColumnRef::TableColumn(cte.cte_name.clone(), SeaRc::new(Alias::new(format!("_{}", name))));
+        let expr = sql_fn("json_object", vec![
+            //. .
+            Expr::value("scalar"),
+            sea_query::ColumnRef::TableColumn(
+                cte.cte_name.clone(),
+                SeaRc::new(Alias::new(format!("_{}", name))),
+            ).into()
+        ]);
         let ident_name = SeaRc::new(Alias::new(name));
+
+        fn sql_fn(name: &str, args: Vec<SimpleExpr>) -> SimpleExpr {
+            let mut f = sea_query::Func::cust(SeaRc::new(Alias::new(name)));
+            for arg in args {
+                f = f.arg(arg);
+            }
+            return sea_query::SimpleExpr::FunctionCall(f).into();
+        }
+
         if plural {
-            sel_root.expr_as(
-                sea_query::SimpleExpr::FunctionCall(
-                    sea_query::Func::cust(SeaRc::new(Alias::new("json_group_array"))).arg(expr),
-                ),
-                ident_name,
-            );
+            sel_root.expr_as(sql_fn("json_object", vec![
+                //. .
+                Expr::value("array"),
+                sql_fn("json_group_array", vec![expr])
+            ]), ident_name);
         } else {
             sel_root.expr_as(expr, ident_name);
         }
@@ -742,7 +761,7 @@ pub fn execute_sql_query(
     db: &rusqlite::Connection,
     sql_query: String,
     sql_parameters: sea_query_rusqlite::RusqliteValues,
-) -> Result<Vec<HashMap<String, QueryResVal>>, loga::Error> {
+) -> Result<QueryResVal, loga::Error> {
     let mut s = db.prepare(&sql_query)?;
     let column_names = s.column_names().into_iter().map(|k| k.to_string()).collect::<Vec<_>>();
     let mut sql_rows = s.query(&*sql_parameters.as_params()).unwrap();
@@ -751,21 +770,12 @@ pub fn execute_sql_query(
         let Some(got_row) = sql_rows.next().unwrap() else {
             break;
         };
-        let mut got_row1 = HashMap::new();
+        let mut got_row1 = BTreeMap::new();
         for (i, name) in column_names.iter().enumerate() {
             let value: QueryResVal;
             match got_row.get::<usize, Option<String>>(i).unwrap() {
                 Some(v) => {
-                    let json_value = serde_json::from_str::<serde_json::Value>(&v).unwrap();
-                    if let serde_json::Value::Array(arr) = json_value {
-                        let mut elements = vec![];
-                        for v in arr {
-                            elements.push(serde_json::from_value::<Node>(v).unwrap());
-                        }
-                        value = QueryResVal::Array(elements);
-                    } else {
-                        value = QueryResVal::Scalar(serde_json::from_value(json_value).unwrap());
-                    };
+                    value = serde_json::from_str::<QueryResVal>(&v).unwrap();
                 },
                 None => {
                     value = QueryResVal::Scalar(Node::Value(serde_json::Value::Null));
@@ -773,9 +783,9 @@ pub fn execute_sql_query(
             }
             got_row1.insert(name.to_string(), value);
         }
-        out.push(got_row1);
+        out.push(QueryResVal::Record(got_row1));
     }
-    return Ok(out);
+    return Ok(QueryResVal::Array(out));
 }
 
 pub async fn execute_query(
@@ -783,7 +793,7 @@ pub async fn execute_query(
     read_restriction: ReadRestriction,
     query: Query,
     parameters: HashMap<String, Node>,
-) -> Result<Vec<HashMap<String, QueryResVal>>, loga::Error> {
+) -> Result<QueryResVal, loga::Error> {
     let (sql_query, sql_parameters) = build_query(read_restriction, query, parameters)?;
     return Ok(tx(&db, move |txn| {
         return Ok(execute_sql_query(txn, sql_query, sql_parameters)?);

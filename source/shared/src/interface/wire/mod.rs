@@ -19,7 +19,10 @@ use {
         Deserialize,
         Serialize,
     },
-    std::collections::HashMap,
+    std::collections::{
+        BTreeMap,
+        HashMap,
+    },
 };
 
 pub mod link;
@@ -28,6 +31,22 @@ pub const HEADER_OFFSET: &'static str = "x-file-offset";
 
 pub trait C2SReqTrait: Serialize + DeserializeOwned + Into<C2SReq> {
     type Resp: Serialize + DeserializeOwned;
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum Resp<T> {
+    Ok(T),
+    Err(String),
+}
+
+impl<T> Resp<T> {
+    pub fn into_std(self) -> Result<T, String> {
+        match self {
+            Resp::Ok(v) => return Result::Ok(v),
+            Resp::Err(v) => return Result::Err(v),
+        }
+    }
 }
 
 // # Commit
@@ -97,7 +116,7 @@ impl C2SReqTrait for ReqUploadFinish {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqQuery {
-    pub q: Query,
+    pub query: Query,
     pub parameters: HashMap<String, Node>,
 }
 
@@ -105,13 +124,14 @@ pub struct ReqQuery {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum QueryResVal {
     Scalar(Node),
-    Array(Vec<Node>),
+    Array(Vec<QueryResVal>),
+    Record(BTreeMap<String, QueryResVal>),
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct RespQuery {
-    pub records: Vec<HashMap<String, QueryResVal>>,
+    pub records: QueryResVal,
 }
 
 impl Into<C2SReq> for ReqQuery {
@@ -122,6 +142,30 @@ impl Into<C2SReq> for ReqQuery {
 
 impl C2SReqTrait for ReqQuery {
     type Resp = RespQuery;
+}
+
+// # Get triples from
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct ReqGetTriplesAround {
+    pub node: Node,
+}
+
+impl Into<C2SReq> for ReqGetTriplesAround {
+    fn into(self) -> C2SReq {
+        return C2SReq::GetTriplesAround(self);
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct RespGetTriplesAround {
+    pub incoming: Vec<Triple>,
+    pub outgoing: Vec<Triple>,
+}
+
+impl C2SReqTrait for ReqGetTriplesAround {
+    type Resp = RespGetTriplesAround;
 }
 
 // # History
@@ -173,6 +217,7 @@ pub enum C2SReq {
     Commit(ReqCommit),
     UploadFinish(ReqUploadFinish),
     Query(ReqQuery),
+    GetTriplesAround(ReqGetTriplesAround),
     History(ReqHistory),
     GetMenu(ReqGetMenu),
 }

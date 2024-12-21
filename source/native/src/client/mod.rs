@@ -90,7 +90,7 @@ pub struct QueryCommand {
 pub async fn handle_query(c: QueryCommand) -> Result<(), loga::Error> {
     let log = Log::new_root(loga::INFO);
     let res = req::req_simple(&log, ReqQuery {
-        q: c.query.value,
+        query: c.query.value,
         parameters: c.parameters.into_iter().map(|(k, v)| (k, v.0)).collect(),
     }).await?;
     println!("{}", serde_json::to_string_pretty(&res).unwrap());
@@ -98,6 +98,7 @@ pub async fn handle_query(c: QueryCommand) -> Result<(), loga::Error> {
 }
 
 struct StrDatetime(DateTime<Utc>);
+
 
 impl AargvarkFromStr for StrDatetime {
     fn from_str(s: &str) -> Result<Self, String> {
