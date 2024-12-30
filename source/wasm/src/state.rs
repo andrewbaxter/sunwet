@@ -12,7 +12,14 @@ use {
             BuildPlaylistPos,
         },
     },
-    crate::playlist::PlaylistState,
+    crate::{
+        async_::BgVal,
+        el_general::{
+            CSS_BUTTON,
+            CSS_BUTTON_ICON_TEXT,
+        },
+        playlist::PlaylistState,
+    },
     lunk::ProcessingContext,
     rooting::{
         el,
@@ -25,16 +32,8 @@ use {
         view::View,
     },
     std::{
-        cell::RefCell,
         collections::HashMap,
         rc::Rc,
-    },
-    web::{
-        async_::BgVal,
-        el_general::{
-            CSS_BUTTON,
-            CSS_BUTTON_ICON_TEXT,
-        },
     },
 };
 
@@ -46,7 +45,7 @@ pub struct Menu {
 }
 
 pub struct State_ {
-    pub origin: String,
+    pub base_url: String,
     pub playlist: PlaylistState,
     pub menu: BgVal<Result<Rc<Menu>, String>>,
     pub stack: WeakEl,

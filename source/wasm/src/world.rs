@@ -13,9 +13,9 @@ use {
     wasm_bindgen::UnwrapThrowExt,
 };
 
-pub async fn req_post_json<T: C2SReqTrait>(origin: &str, req: T) -> Result<T::Resp, String> {
+pub async fn req_post_json<T: C2SReqTrait>(base_url: &str, req: T) -> Result<T::Resp, String> {
     let req =
-        Request::post(&format!("{}/api", origin))
+        Request::post(&format!("{}/api", base_url))
             .header("Content-type", "application/json")
             .body(serde_json::to_string(&C2SReq::from(req.into())).unwrap_throw());
     let resp = match req.send().await {

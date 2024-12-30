@@ -1,6 +1,6 @@
 use {
-    std::fmt::Display,
     futures::channel::oneshot::channel,
+    gloo::events::EventListener,
     lunk::{
         link,
         HistPrim,
@@ -11,12 +11,16 @@ use {
         El,
         WeakEl,
     },
-    wasm_bindgen::JsValue,
+    std::fmt::Display,
+    wasm_bindgen::{
+        JsValue,
+        JsCast,
+    },
     web_sys::{
         Event,
         EventTarget,
+        HtmlElement,
     },
-    gloo::events::EventListener,
 };
 
 #[derive(Clone, Copy)]
@@ -41,36 +45,56 @@ pub static ICON_VOLUME: CssIcon = CssIcon("\u{e050}");
 pub static ICON_SHARE: CssIcon = CssIcon("\u{e80d}");
 pub static ICON_NOSHARE: CssIcon = CssIcon("\u{f6cb}");
 pub static ICON_CLOSE: CssIcon = CssIcon("\u{e5cd}");
-pub static CSS_GROW: &'static str = "grow";
+pub static CSS_S_TITLE: &'static str = "s_title";
+pub static CSS_S_BODY: &'static str = "s_body";
+pub static CSS_S_ROOT: &'static str = "s_root";
+pub static CSS_S_MENU: &'static str = "s_menu";
+pub static CSS_S_VIEW: &'static str = "s_view";
+pub static CSS_VBOX: &'static str = "g_vbox";
+pub static CSS_HBOX: &'static str = "g_hbox";
+pub static CSS_SPACER: &'static str = "g_space";
+pub static CSS_HSCROLL: &'static str = "g_hscroll";
+pub static CSS_GROUP: &'static str = "g_group";
+pub static CSS_STACK: &'static str = "g_icon";
+pub static CSS_ICON: &'static str = "g_stack";
+pub static CSS_MODAL: &'static str = "g_modal";
+pub static CSS_MODAL_BG: &'static str = "modal_bg";
+pub static CSS_MODAL_CONTENT: &'static str = "modal_content";
+pub static CSS_MODAL_TITLE: &'static str = "modal_title";
+pub static CSS_MODAL_BODY: &'static str = "modal_body";
+pub static CSS_STATE_GROW: &'static str = "grow";
 pub static CSS_BUTTON: &'static str = "g_button";
 pub static CSS_BUTTON_ICON: &'static str = "g_button_icon";
 pub static CSS_BUTTON_ICON_TEXT: &'static str = "g_button_icon_text";
 pub static CSS_BUTTON_TEXT: &'static str = "g_button_text";
+pub static CSS_STATE_PRESSED: &'static str = "pressed";
 pub static CSS_FORM_BUTTONBOX: &'static str = "g_form_buttonbox";
 pub static CSS_ERROR: &'static str = "g_error";
+pub static CSS_STATE_INVALID: &'static str = "invalid";
+pub static CSS_STATE_DELETED: &'static str = "deleted";
 
-pub fn el_err_span(text: String) -> El {
-    return el("span").classes(&[CSS_ERROR]).text(&text);
+pub fn el_err_span(text: impl AsRef<str>) -> El {
+    return el("span").classes(&[CSS_ERROR]).text(text.as_ref());
 }
 
-pub fn el_err_block(text: String) -> El {
-    return el("div").classes(&[CSS_ERROR]).text(&text);
+pub fn el_err_block(text: impl AsRef<str>) -> El {
+    return el("div").classes(&[CSS_ERROR]).text(text.as_ref());
 }
 
 pub fn el_hscroll(child: El) -> El {
-    return el("div").classes(&["g_hscroll"]).push(child);
+    return el("div").classes(&[CSS_HSCROLL]).push(child);
 }
 
 pub fn el_group() -> El {
-    return el("div").classes(&["g_group"]);
+    return el("div").classes(&[CSS_GROUP]);
 }
 
 pub fn el_stack() -> El {
-    return el("div").classes(&["g_stack"]);
+    return el("div").classes(&[CSS_STACK]);
 }
 
 pub fn el_icon(icon: CssIcon) -> El {
-    return el("div").classes(&["g_icon"]).text(icon.0);
+    return el("div").classes(&[CSS_ICON]).text(icon.0);
 }
 
 pub fn el_button_text(
@@ -96,9 +120,21 @@ pub fn el_button_icon_blank(
 
 pub fn el_button_icon(
     pc: &mut ProcessingContext,
-    icon: CssIcon,
+    icon: El,
     help: &str,
     mut f: impl 'static + FnMut(&mut ProcessingContext) -> (),
+) -> El {
+    return el("button").classes(&[CSS_BUTTON, CSS_BUTTON_ICON]).push(icon).attr("title", help).on("click", {
+        let eg = pc.eg();
+        move |_| eg.event(|pc| f(pc))
+    });
+}
+
+pub fn el_button_icon_toggle_auto(
+    pc: &mut ProcessingContext,
+    icon: CssIcon,
+    help: &str,
+    state: &HistPrim<bool>,
 ) -> El {
     return el("button")
         .classes(&[CSS_BUTTON, CSS_BUTTON_ICON])
@@ -106,7 +142,19 @@ pub fn el_button_icon(
         .attr("title", help)
         .on("click", {
             let eg = pc.eg();
-            move |_| eg.event(|pc| f(pc))
+            let state = state.clone();
+            move |ev| eg.event(|pc| {
+                let new_state = !state.get();
+                state.set(pc, new_state);
+                ev
+                    .target()
+                    .unwrap()
+                    .dyn_into::<HtmlElement>()
+                    .unwrap()
+                    .class_list()
+                    .toggle_with_force(&CSS_STATE_PRESSED, new_state)
+                    .unwrap();
+            })
         });
 }
 
@@ -180,11 +228,15 @@ pub fn el_button_icon_text(
 }
 
 pub fn el_hbox() -> El {
-    return el("div").classes(&["g_hbox"]);
+    return el("div").classes(&[CSS_HBOX]);
 }
 
 pub fn el_vbox() -> El {
-    return el("div").classes(&["g_vbox"]);
+    return el("div").classes(&[CSS_VBOX]);
+}
+
+pub fn el_spacer() -> El {
+    return el("div").classes(&[CSS_SPACER]);
 }
 
 pub fn log(x: impl Display) {
@@ -213,16 +265,16 @@ pub fn el_modal(
     title: &str,
     body: impl Fn(&mut ProcessingContext, WeakEl) -> Vec<El>,
 ) -> El {
-    let root = el_stack().classes(&["g_modal"]);
+    let root = el_stack().classes(&[CSS_MODAL]);
     root.ref_extend(vec![
         //. .
-        el("div").classes(&["modal_bg"]),
-        el_vbox().classes(&["modal_content"]).extend(vec![
+        el("div").classes(&[CSS_MODAL_BG]),
+        el_vbox().classes(&[CSS_MODAL_CONTENT]).extend(vec![
             //. .
-            el_hbox().classes(&["modal_title"]).extend(vec![
+            el_hbox().classes(&[CSS_MODAL_TITLE]).extend(vec![
                 //. .
                 el("h1").text(title),
-                el_button_icon(pc, ICON_CLOSE, "Close", {
+                el_button_icon(pc, el_icon(ICON_CLOSE), "Close", {
                     let out = root.weak();
                     move |_pc| {
                         let Some(out) = out.upgrade() else {
@@ -232,7 +284,7 @@ pub fn el_modal(
                     }
                 })
             ]),
-            el_vbox().classes(&["modal_body"]).extend(body(pc, root.weak()))
+            el_vbox().classes(&[CSS_MODAL_BODY]).extend(body(pc, root.weak()))
         ])
     ]);
     root

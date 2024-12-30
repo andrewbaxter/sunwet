@@ -13,7 +13,7 @@ use {
     },
     shared::interface::config::view::Align,
     std::cell::Cell,
-    web::el_general::{
+    crate::el_general::{
         el_button_icon_blank,
         el_err_block,
         el_icon,

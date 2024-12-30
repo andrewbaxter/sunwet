@@ -40,7 +40,7 @@ use {
         rc::Rc,
     },
     wasm_bindgen::JsCast,
-    web::{
+    crate::{
         el_general::{
             el_async,
             el_button_icon_text,
@@ -57,14 +57,15 @@ use {
     web_sys::HtmlInputElement,
 };
 
-pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, form_title: String, form_id: String) {
+pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, form_title: &str, form_id: &str) {
     let draft_id = format!("form-draft-{}", form_id);
-    outer_state.page_title.upgrade().unwrap().ref_text(&form_title);
+    outer_state.page_title.upgrade().unwrap().ref_text(form_title);
     outer_state.page_body.upgrade().unwrap().ref_push(el_async().own(|async_el| {
         let async_el = async_el.weak();
         let eg = pc.eg();
         let outer_state = outer_state.clone();
-        let form_id = form_id.clone();
+        let form_id = form_id.to_string();
+        let form_title = form_title.to_string();
         spawn_rooted(async move {
             let menu = match outer_state.menu.get().await {
                 Ok(m) => m,
@@ -132,7 +133,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                             fs.update(&id, if let Ok(v) = serde_json::from_str(&value) {
                                 v
                             } else {
-                                QueryResVal::Scalar(Node::Value(serde_json::Value::String(value)))
+                                QueryResVal::Scalar(Node(serde_json::Value::String(value)))
                             });
                         }
                     });
@@ -168,7 +169,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                         },
                         FormField::Text(field) => {
                             fn make_v(v: String) -> QueryResVal {
-                                return QueryResVal::Scalar(Node::Value(serde_json::Value::String(v)));
+                                return QueryResVal::Scalar(Node(serde_json::Value::String(v)));
                             }
 
                             let input =
@@ -197,7 +198,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                             }
                             input.ref_attr(
                                 "value",
-                                &if let Some(QueryResVal::Scalar(Node::Value(serde_json::Value::String(v)))) =
+                                &if let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
                                     fs.0.data.borrow().get(&field.form_id) {
                                     v.clone()
                                 } else {
@@ -211,7 +212,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                         FormField::Number(field) => {
                             fn make_v(value: String) -> QueryResVal {
                                 return QueryResVal::Scalar(
-                                    Node::Value(if let Ok(v) = serde_json::from_str::<serde_json::Number>(&value) {
+                                    Node(if let Ok(v) = serde_json::from_str::<serde_json::Number>(&value) {
                                         serde_json::Value::Number(v)
                                     } else {
                                         serde_json::Value::String(value)
@@ -234,7 +235,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                             }
                             input.ref_attr(
                                 "value",
-                                &if let Some(QueryResVal::Scalar(Node::Value(serde_json::Value::Number(v)))) =
+                                &if let Some(QueryResVal::Scalar(Node(serde_json::Value::Number(v)))) =
                                     fs.0.data.borrow().get(&field.form_id) {
                                     v.to_string()
                                 } else {
@@ -247,7 +248,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                         },
                         FormField::Bool(field) => {
                             fn make_v(value: bool) -> QueryResVal {
-                                return QueryResVal::Scalar(Node::Value(serde_json::Value::Bool(value)));
+                                return QueryResVal::Scalar(Node(serde_json::Value::Bool(value)));
                             }
 
                             let input = el("input").attr("type", "checkbox").on("change", {
@@ -262,7 +263,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                     );
                                 }
                             });
-                            if let Some(QueryResVal::Scalar(Node::Value(serde_json::Value::Bool(v)))) =
+                            if let Some(QueryResVal::Scalar(Node(serde_json::Value::Bool(v)))) =
                                 fs.0.data.borrow().get(&field.form_id) {
                                 if *v {
                                     input.ref_attr("checked", "checked");
@@ -271,7 +272,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                 input.ref_attr("checked", "checked");
                             }
                             let initial =
-                                if let Some(QueryResVal::Scalar(Node::Value(serde_json::Value::Bool(v)))) =
+                                if let Some(QueryResVal::Scalar(Node(serde_json::Value::Bool(v)))) =
                                     fs.0.data.borrow().get(&field.form_id) {
                                     *v
                                 } else {
@@ -286,7 +287,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                         },
                         FormField::Date(field) => {
                             fn make_v(v: String) -> QueryResVal {
-                                return QueryResVal::Scalar(Node::Value(serde_json::Value::String(v)));
+                                return QueryResVal::Scalar(Node(serde_json::Value::String(v)));
                             }
 
                             let input =
@@ -297,7 +298,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                         let id = field.form_id.clone();
                                         let fs = fs.clone();
                                         move |ev| {
-                                            fs.update(&id, QueryResVal::Scalar(Node::Value(serde_json::Value::String(
+                                            fs.update(&id, QueryResVal::Scalar(Node(serde_json::Value::String(
                                                 //. .
                                                 ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap().value(),
                                             ))));
@@ -305,7 +306,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                     });
                             input.ref_attr(
                                 "value",
-                                &if let Some(QueryResVal::Scalar(Node::Value(serde_json::Value::String(v)))) =
+                                &if let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
                                     fs.0.data.borrow().get(&field.form_id) {
                                     v.clone()
                                 } else {
@@ -318,7 +319,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                         },
                         FormField::Time(field) => {
                             fn make_v(v: String) -> QueryResVal {
-                                return QueryResVal::Scalar(Node::Value(serde_json::Value::String(v)));
+                                return QueryResVal::Scalar(Node(serde_json::Value::String(v)));
                             }
 
                             let input =
@@ -329,7 +330,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                         let id = field.form_id.clone();
                                         let fs = fs.clone();
                                         move |ev| {
-                                            fs.update(&id, QueryResVal::Scalar(Node::Value(serde_json::Value::String(
+                                            fs.update(&id, QueryResVal::Scalar(Node(serde_json::Value::String(
                                                 //. .
                                                 ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap().value(),
                                             ))));
@@ -337,7 +338,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                     });
                             input.ref_attr(
                                 "value",
-                                &if let Some(QueryResVal::Scalar(Node::Value(serde_json::Value::String(v)))) =
+                                &if let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
                                     fs.0.data.borrow().get(&field.form_id) {
                                     v.clone()
                                 } else {
@@ -350,7 +351,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                         },
                         FormField::Datetime(field) => {
                             fn make_v(v: String) -> QueryResVal {
-                                return QueryResVal::Scalar(Node::Value(serde_json::Value::String(v)));
+                                return QueryResVal::Scalar(Node(serde_json::Value::String(v)));
                             }
 
                             const CHRONO_FORMAT: &str = "%Y-%m-%dT%H:%M";
@@ -367,7 +368,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                             fs.update(
                                                 &id,
                                                 QueryResVal::Scalar(
-                                                    Node::Value(
+                                                    Node(
                                                         serde_json::Value::String(
                                                             if let Some(v) =
                                                                 NaiveDateTime::parse_from_str(&value, CHRONO_FORMAT)
@@ -390,7 +391,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                     });
                             input.ref_attr(
                                 "value",
-                                &if let Some(QueryResVal::Scalar(Node::Value(serde_json::Value::String(v)))) =
+                                &if let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
                                     fs.0.data.borrow().get(&field.form_id) {
                                     v.clone()
                                 } else {
@@ -403,7 +404,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                         },
                         FormField::Color(field) => {
                             fn make_v(v: String) -> QueryResVal {
-                                return QueryResVal::Scalar(Node::Value(serde_json::Value::String(v)));
+                                return QueryResVal::Scalar(Node(serde_json::Value::String(v)));
                             }
 
                             let input = el("input").attr("type", "color").on("change", {
@@ -416,7 +417,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                             });
                             input.ref_attr(
                                 "value",
-                                &if let Some(QueryResVal::Scalar(Node::Value(serde_json::Value::String(v)))) =
+                                &if let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
                                     fs.0.data.borrow().get(&field.form_id) {
                                     v.clone()
                                 } else if let Some(initial) = &field.initial {
@@ -453,7 +454,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                         let field = field.clone();
                                         async move {
                                             match async {
-                                                let res = req_post_json(&outer_state.origin, ReqQuery {
+                                                let res = req_post_json(&outer_state.base_url, ReqQuery {
                                                     query: field.query.clone(),
                                                     parameters: HashMap::new(),
                                                 }).await?;
@@ -479,7 +480,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                                     let name;
                                                     if let Some(name1) = choice.remove("name") {
                                                         if let QueryResVal::Scalar(
-                                                            Node::Value(serde_json::Value::String(name1)),
+                                                            Node(serde_json::Value::String(name1)),
                                                         ) =
                                                             name1 {
                                                             name = name1;
@@ -576,9 +577,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                         let predicate;
                                         match &triple.predicate {
                                             InputOrInlineText::Input(field) => {
-                                                let Some(
-                                                    QueryResVal::Scalar(Node::Value(serde_json::Value::String(v))),
-                                                ) =
+                                                let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
                                                     data.get(field) else {
                                                         return Err(
                                                             format!(
@@ -608,13 +607,12 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                                     subject: subj.clone(),
                                                     predicate: predicate.clone(),
                                                     object: obj.clone(),
-                                                    iam_target: triple.iam_target,
                                                 });
                                             }
                                         }
                                     }
                                     drop(data);
-                                    world::req_post_json(&outer_state.origin, ReqCommit {
+                                    world::req_post_json(&outer_state.base_url, ReqCommit {
                                         add: add,
                                         remove: vec![],
                                         files: vec![],
@@ -624,12 +622,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                     Ok(_) => {
                                         LocalStorage::delete(&fs.0.draft_id);
                                         eg.event(
-                                            |pc| build_page_form_by_id(
-                                                pc,
-                                                &outer_state,
-                                                form_title,
-                                                fs.0.form.id.clone(),
-                                            ),
+                                            |pc| build_page_form_by_id(pc, &outer_state, &form_title, &fs.0.form.id),
                                         );
                                         return;
                                     },

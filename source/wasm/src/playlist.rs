@@ -5,7 +5,15 @@ use {
         PlaylistEntryPath,
         PlaylistPos,
     },
-    crate::mainlib::ministate::record_replace_ministate,
+    crate::{
+        el_general::{
+            async_event,
+            log,
+        },
+        ministate::record_replace_ministate,
+        websocket::Ws,
+        world::file_url,
+    },
     chrono::{
         DateTime,
         Utc,
@@ -58,14 +66,6 @@ use {
         closure::Closure,
         JsCast,
         JsValue,
-    },
-    web::{
-        el_general::{
-            async_event,
-            log,
-        },
-        websocket::Ws,
-        world::file_url,
     },
     web_sys::{
         HtmlMediaElement,
@@ -389,11 +389,11 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
         playlist: RefCell::new(vec![]),
         playing: HistPrim::new(pc, false),
         playing_i: HistPrim::new(pc, None),
-        playing_time: Prim::new(pc, 0.),
-        playing_max_time: Prim::new(pc, None),
-        volume: Prim::new(pc, (0.5, 0.5)),
+        playing_time: Prim::new(0.),
+        playing_max_time: Prim::new(None),
+        volume: Prim::new((0.5, 0.5)),
         volume_debounce: Rc::new(Cell::new(Utc::now())),
-        share: Prim::new(pc, None),
+        share: Prim::new(None),
     }));
     let media_session = window().navigator().media_session();
 

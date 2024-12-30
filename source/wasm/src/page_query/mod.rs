@@ -22,6 +22,37 @@ use {
         },
     },
     crate::{
+        constants::LINK_HASH_PREFIX,
+        el_general::{
+            el_async,
+            el_audio,
+            el_button_icon,
+            el_button_icon_switch,
+            el_button_icon_text,
+            el_err_block,
+            el_err_span,
+            el_hbox,
+            el_hscroll,
+            el_icon,
+            el_modal,
+            el_stack,
+            el_vbox,
+            el_video,
+            log,
+            CSS_STATE_GROW,
+            ICON_NOSHARE,
+            ICON_SHARE,
+            ICON_TRANSPORT_NEXT,
+            ICON_TRANSPORT_PAUSE,
+            ICON_TRANSPORT_PLAY,
+            ICON_TRANSPORT_PREVIOUS,
+            ICON_VOLUME,
+        },
+        ont::{
+            ROOT_AUDIO_VALUE,
+            ROOT_IMAGE_VALUE,
+            ROOT_VIDEO_VALUE,
+        },
         playlist::{
             playlist_clear,
             playlist_len,
@@ -35,6 +66,13 @@ use {
             VideoPlaylistMedia,
         },
         state::State,
+        util::OptString,
+        websocket::Ws,
+        world::{
+            file_url,
+            generated_file_url,
+            req_post_json,
+        },
     },
     chrono::{
         Duration,
@@ -42,6 +80,7 @@ use {
     },
     flowcontrol::{
         shed,
+        superif,
     },
     gloo::{
         timers::future::TimeoutFuture,
@@ -74,6 +113,7 @@ use {
             WidgetNest,
         },
         triple::{
+            FileHash,
             Node,
         },
         wire::{
@@ -92,44 +132,6 @@ use {
     },
     uuid::Uuid,
     wasm_bindgen::JsCast,
-    web::{
-        constants::{
-            ROOT_AUDIO_VALUE,
-            ROOT_IMAGE_VALUE,
-            ROOT_VIDEO_VALUE,
-        },
-        el_general::{
-            el_async,
-            el_audio,
-            el_button_icon,
-            el_button_icon_switch,
-            el_button_icon_text,
-            el_err_block,
-            el_err_span,
-            el_hbox,
-            el_hscroll,
-            el_modal,
-            el_stack,
-            el_vbox,
-            el_video,
-            log,
-            CSS_GROW,
-            ICON_NOSHARE,
-            ICON_SHARE,
-            ICON_TRANSPORT_NEXT,
-            ICON_TRANSPORT_PAUSE,
-            ICON_TRANSPORT_PLAY,
-            ICON_TRANSPORT_PREVIOUS,
-            ICON_VOLUME,
-        },
-        util::OptString,
-        websocket::Ws,
-        world::{
-            file_url,
-            generated_file_url,
-            req_post_json,
-        },
-    },
     web_sys::{
         DomParser,
         Element,
@@ -143,23 +145,17 @@ use {
 
 pub mod elements;
 
-fn node_type(v: &Node) -> &'static str {
-    match v {
-        Node::Id(_) => "id",
-        Node::File(_) => "file",
-        Node::Value(_) => "json value",
-    }
-}
-
-fn json_value_type(v: &serde_json::Value) -> &'static str {
-    match v {
-        serde_json::Value::Null => "null",
-        serde_json::Value::Bool(_) => "bool",
-        serde_json::Value::Number(_) => "number",
-        serde_json::Value::String(_) => "string",
-        serde_json::Value::Array(_) => "array",
-        serde_json::Value::Object(_) => "object",
-    }
+fn query_res_as_file(r: &QueryResVal) -> Result<FileHash, String> {
+    let QueryResVal::Scalar(Node(serde_json::Value::String(n))) = r else {
+        return Err(format!("Field contents wasn't a string: {:?}", r));
+    };
+    let f = match FileHash::from_str(&n) {
+        Ok(f) => f,
+        Err(_) => {
+            return Err(format!("Field contents wasn't a valid file hash string: {:?}", r));
+        },
+    };
+    return Ok(f);
 }
 
 pub fn build_widget_query(
@@ -211,7 +207,7 @@ pub fn build_widget_query(
                         };
                         parameters.insert(k.clone(), n.clone());
                     }
-                    let res = req_post_json(&state.origin, ReqQuery {
+                    let res = req_post_json(&state.base_url, ReqQuery {
                         query: query.clone(),
                         parameters: parameters,
                     }).await;
@@ -288,9 +284,7 @@ fn build_widget(
                         QueryResVal::Array(v) => serde_json::to_string(v).unwrap(),
                         QueryResVal::Record(v) => serde_json::to_string(v).unwrap(),
                         QueryResVal::Scalar(v) => match v {
-                            Node::Id(v) => v.to_string(),
-                            Node::File(v) => v.to_string(),
-                            Node::Value(v) => match v {
+                            Node(v) => match v {
                                 serde_json::Value::Null => "-".to_string(),
                                 serde_json::Value::Bool(v) => match v {
                                     true => "yes".to_string(),
@@ -333,10 +327,17 @@ fn build_widget(
                     let Some(v) = data.get(field) else {
                         return el_image_err(format!("Missing field {}", field));
                     };
-                    let QueryResVal::Scalar(Node::File(n)) = v else {
+                    superif!({
+                        let QueryResVal::Scalar(Node(serde_json::Value::String(n))) = v else {
+                            break 'bad;
+                        };
+                        let Ok(n) = FileHash::from_str(&n) else {
+                            break 'bad;
+                        };
+                        url = file_url(&state.base_url, &n);
+                    } 'bad {
                         return el_image_err(format!("Field contents wasn't file node: {:?}", v));
-                    };
-                    url = file_url(&state.origin, &n);
+                    });
                 },
                 FieldOrLiteral::Literal(data) => {
                     url = data.clone();
@@ -365,7 +366,7 @@ fn build_widget(
                     let Some(v) = data.get(field) else {
                         return el_image_err(format!("Missing field media {}", d.field));
                     };
-                    if let QueryResVal::Scalar(Node::Value(serde_json::Value::String(m))) = v {
+                    if let QueryResVal::Scalar(Node(serde_json::Value::String(m))) = v {
                         media_type = m.clone();
                     } else {
                         return el_image_err("Media field value not string".to_string());
@@ -438,13 +439,13 @@ fn build_widget(
             match media_type.as_str() {
                 ROOT_AUDIO_VALUE => {
                     let source;
-                    let QueryResVal::Scalar(Node::File(n)) = v else {
+                    let Ok(n) = query_res_as_file(v) else {
                         return el_media_button_err(
                             format!("Field contents wasn't string value node or string: {:?}", v),
                         );
                     };
                     source = n;
-                    media = el_audio(&file_url(&state.origin, &source)).attr("controls", "true");
+                    media = el_audio(&file_url(&state.base_url, &source)).attr("controls", "true");
                     setup_media_element(pc, i, &media);
                     playlist_push(&state.playlist, Rc::new(PlaylistEntry {
                         name: shed!{
@@ -454,7 +455,7 @@ fn build_widget(
                             let Some(v) = data.get(v) else {
                                 break None;
                             };
-                            let QueryResVal::Scalar(Node::Value(serde_json::Value::String(v))) = v else {
+                            let QueryResVal::Scalar(Node(serde_json::Value::String(v))) = v else {
                                 break None;
                             };
                             Some(v.clone())
@@ -466,7 +467,7 @@ fn build_widget(
                             let Some(v) = data.get(v) else {
                                 break None;
                             };
-                            let QueryResVal::Scalar(Node::Value(serde_json::Value::String(v))) = v else {
+                            let QueryResVal::Scalar(Node(serde_json::Value::String(v))) = v else {
                                 break None;
                             };
                             Some(v.clone())
@@ -478,7 +479,7 @@ fn build_widget(
                             let Some(v) = data.get(v) else {
                                 break None;
                             };
-                            let QueryResVal::Scalar(Node::Value(serde_json::Value::String(v))) = v else {
+                            let QueryResVal::Scalar(Node(serde_json::Value::String(v))) = v else {
                                 break None;
                             };
                             Some(v.clone())
@@ -490,7 +491,7 @@ fn build_widget(
                             let Some(v) = data.get(v) else {
                                 break None;
                             };
-                            let QueryResVal::Scalar(Node::File(v)) = v else {
+                            let Ok(v) = query_res_as_file(v) else {
                                 break None;
                             };
                             Some(v.clone())
@@ -508,7 +509,7 @@ fn build_widget(
                 ROOT_VIDEO_VALUE => {
                     let mut sub_tracks = vec![];
                     let source;
-                    let QueryResVal::Scalar(Node::File(n)) = v else {
+                    let Ok(n) = query_res_as_file(v) else {
                         return el_media_button_err(
                             format!("Field contents wasn't string value node or string: {:?}", v),
                         );
@@ -516,7 +517,7 @@ fn build_widget(
                     source = n;
                     for lang in window().navigator().languages() {
                         let lang = lang.as_string().unwrap();
-                        sub_tracks.push((generated_file_url(&state.origin, &source, &format!("webvtt_{}", {
+                        sub_tracks.push((generated_file_url(&state.base_url, &source, &format!("webvtt_{}", {
                             let lang = if let Some((lang, _)) = lang.split_once("-") {
                                 lang
                             } else {
@@ -534,7 +535,7 @@ fn build_widget(
                     }
                     media =
                         el_video(
-                            &generated_file_url(&state.origin, &source, "", "video/webm"),
+                            &generated_file_url(&state.base_url, &source, "", "video/webm"),
                         ).attr("controls", "true");
                     setup_media_element(pc, i, &media);
                     for (i, (url, lang)) in sub_tracks.iter().enumerate() {
@@ -549,7 +550,7 @@ fn build_widget(
                             let Some(field) = &d.name_field else {
                                 break None;
                             };
-                            let Some(QueryResVal::Scalar(Node::Value(serde_json::Value::String(v)))) =
+                            let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
                                 data.get(field) else {
                                     break None;
                                 };
@@ -559,7 +560,7 @@ fn build_widget(
                             let Some(field) = &d.album_field else {
                                 break None;
                             };
-                            let Some(QueryResVal::Scalar(Node::Value(serde_json::Value::String(v)))) =
+                            let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
                                 data.get(field) else {
                                     break None;
                                 };
@@ -569,7 +570,7 @@ fn build_widget(
                             let Some(field) = &d.artist_field else {
                                 break None;
                             };
-                            let Some(QueryResVal::Scalar(Node::Value(serde_json::Value::String(v)))) =
+                            let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
                                 data.get(field) else {
                                     break None;
                                 };
@@ -579,7 +580,10 @@ fn build_widget(
                             let Some(field) = &d.cover_field else {
                                 break None;
                             };
-                            let Some(QueryResVal::Scalar(Node::File(v))) = data.get(field) else {
+                            let Some(v) = data.get(field) else {
+                                break None;
+                            };
+                            let Ok(v) = query_res_as_file(v) else {
                                 break None;
                             };
                             Some(v.clone())
@@ -596,19 +600,19 @@ fn build_widget(
                 },
                 ROOT_IMAGE_VALUE => {
                     let source;
-                    let QueryResVal::Scalar(Node::File(n)) = v else {
+                    let Ok(n) = query_res_as_file(v) else {
                         return el_media_button_err(
                             format!("Field contents wasn't string value node or string: {:?}", v),
                         );
                     };
                     source = n;
-                    media = el("img").attr("src", &file_url(&state.origin, &source)).attr("loading", "lazy");
+                    media = el("img").attr("src", &file_url(&state.base_url, &source)).attr("loading", "lazy");
                     playlist_push(&state.playlist, Rc::new(PlaylistEntry {
                         name: shed!{
                             let Some(field) = &d.name_field else {
                                 break None;
                             };
-                            let Some(QueryResVal::Scalar(Node::Value(serde_json::Value::String(v)))) =
+                            let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
                                 data.get(field) else {
                                     break None;
                                 };
@@ -618,7 +622,7 @@ fn build_widget(
                             let Some(field) = &d.album_field else {
                                 break None;
                             };
-                            let Some(QueryResVal::Scalar(Node::Value(serde_json::Value::String(v)))) =
+                            let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
                                 data.get(field) else {
                                     break None;
                                 };
@@ -628,7 +632,7 @@ fn build_widget(
                             let Some(field) = &d.artist_field else {
                                 break None;
                             };
-                            let Some(QueryResVal::Scalar(Node::Value(serde_json::Value::String(v)))) =
+                            let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
                                 data.get(field) else {
                                     break None;
                                 };
@@ -638,7 +642,10 @@ fn build_widget(
                             let Some(field) = &d.cover_field else {
                                 break None;
                             };
-                            let Some(QueryResVal::Scalar(Node::File(v))) = data.get(field) else {
+                            let Some(v) = data.get(field) else {
+                                break None;
+                            };
+                            let Ok(v) = query_res_as_file(v) else {
                                 break None;
                             };
                             Some(v.clone())
@@ -917,14 +924,14 @@ pub fn build_page_view(
                     restore_playlist_pos,
                 ),
             );
-    let hover_time = Prim::new(pc, None);
+    let hover_time = Prim::new(None);
     state.page_body.upgrade().unwrap().ref_clear().ref_extend(vec![
         //. .
         el("div").classes(&["s_transport"]).extend(vec![
             //. .
             el_hbox().classes(&["left"]).extend(vec![
                 //. .
-                el_button_icon(pc, ICON_SHARE, "Share stream", {
+                el_button_icon(pc, el_icon(ICON_SHARE), "Share stream", {
                     let state = state.clone();
                     move |pc| {
                         let Some(stack) = state.stack.upgrade() else {
@@ -948,7 +955,7 @@ pub fn build_page_view(
                                 id
                             },
                         };
-                        let link = format!("https://{}/link#{}", window().location().host().unwrap(), sess_id);
+                        let link = format!("{}#{}{}", state.base_url, LINK_HASH_PREFIX, sess_id);
                         stack.ref_push(el_modal(pc, "Share", |pc, root| {
                             return vec![
                                 //. .
@@ -987,9 +994,9 @@ pub fn build_page_view(
                     e.ref_modify_classes(&[("on", share.borrow().is_some())]);
                 }))
             ]),
-            el_hbox().classes(&["middle", CSS_GROW]).extend(vec![
+            el_hbox().classes(&["middle", CSS_STATE_GROW]).extend(vec![
                 //. .
-                el_button_icon(pc, ICON_TRANSPORT_PREVIOUS, "Previous", {
+                el_button_icon(pc, el_icon(ICON_TRANSPORT_PREVIOUS), "Previous", {
                     let state = state.clone();
                     move |pc| {
                         playlist_previous(pc, &state.playlist, None);
@@ -1068,7 +1075,7 @@ pub fn build_page_view(
                         playlist_seek(pc, &state.playlist, time);
                     })
                 }),
-                el_button_icon(pc, ICON_TRANSPORT_NEXT, "Next", {
+                el_button_icon(pc, el_icon(ICON_TRANSPORT_NEXT), "Next", {
                     let state = state.clone();
                     move |pc| {
                         playlist_next(pc, &state.playlist, None);
@@ -1091,7 +1098,7 @@ pub fn build_page_view(
             ]),
             el_hbox().classes(&["right"]).extend(vec![
                 //. .
-                el_button_icon(pc, ICON_VOLUME, "Set volume", {
+                el_button_icon(pc, el_icon(ICON_VOLUME), "Set volume", {
                     let state = state.clone();
                     move |pc| {
                         let Some(stack) = state.stack.upgrade() else {
@@ -1227,7 +1234,7 @@ pub fn build_page_view(
                                 .borrow_mut()
                                 .insert(
                                     k.clone(),
-                                    QueryResVal::Scalar(Node::Value(serde_json::Value::String("".to_string()))),
+                                    QueryResVal::Scalar(Node(serde_json::Value::String("".to_string()))),
                                 );
                             el("input").attr("type", "text").on("input", {
                                 let eg = pc.eg();
@@ -1239,7 +1246,7 @@ pub fn build_page_view(
                                         .borrow_mut()
                                         .insert(
                                             k.clone(),
-                                            QueryResVal::Scalar(Node::Value(serde_json::Value::String(e.value()))),
+                                            QueryResVal::Scalar(Node(serde_json::Value::String(e.value()))),
                                         );
                                     delay_rebuild.call(pc);
                                 })
@@ -1252,7 +1259,7 @@ pub fn build_page_view(
                                 .insert(
                                     k.clone(),
                                     QueryResVal::Scalar(
-                                        Node::Value(serde_json::Value::Number(serde_json::Number::from(0))),
+                                        Node(serde_json::Value::Number(serde_json::Number::from(0))),
                                     ),
                                 );
                             el("input").attr("type", "number").on("input", {
@@ -1267,7 +1274,7 @@ pub fn build_page_view(
                                             .borrow_mut()
                                             .insert(
                                                 k.clone(),
-                                                QueryResVal::Scalar(Node::Value(serde_json::Value::Number(n))),
+                                                QueryResVal::Scalar(Node(serde_json::Value::Number(n))),
                                             );
                                         delay_rebuild.call(pc);
                                     }
@@ -1278,10 +1285,7 @@ pub fn build_page_view(
                             delay_rebuild
                                 .parameter_values
                                 .borrow_mut()
-                                .insert(
-                                    k.clone(),
-                                    QueryResVal::Scalar(Node::Value(serde_json::Value::Bool(false))),
-                                );
+                                .insert(k.clone(), QueryResVal::Scalar(Node(serde_json::Value::Bool(false))));
                             el("input").attr("type", "checkbox").on("input", {
                                 let eg = pc.eg();
                                 let delay_rebuild = delay_rebuild.clone();
@@ -1292,7 +1296,7 @@ pub fn build_page_view(
                                         .borrow_mut()
                                         .insert(
                                             k.clone(),
-                                            QueryResVal::Scalar(Node::Value(serde_json::Value::Bool(e.checked()))),
+                                            QueryResVal::Scalar(Node(serde_json::Value::Bool(e.checked()))),
                                         );
                                     delay_rebuild.call(pc);
                                 })
@@ -1304,9 +1308,7 @@ pub fn build_page_view(
                                 .borrow_mut()
                                 .insert(
                                     k.clone(),
-                                    QueryResVal::Scalar(
-                                        Node::Value(serde_json::Value::String(Utc::now().to_rfc3339())),
-                                    ),
+                                    QueryResVal::Scalar(Node(serde_json::Value::String(Utc::now().to_rfc3339()))),
                                 );
                             el("input").attr("type", "datetime-local").on("input", {
                                 let eg = pc.eg();
@@ -1318,7 +1320,7 @@ pub fn build_page_view(
                                         .borrow_mut()
                                         .insert(
                                             k.clone(),
-                                            QueryResVal::Scalar(Node::Value(serde_json::Value::String(e.value()))),
+                                            QueryResVal::Scalar(Node(serde_json::Value::String(e.value()))),
                                         );
                                     delay_rebuild.call(pc);
                                 })

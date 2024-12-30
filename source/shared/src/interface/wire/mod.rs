@@ -56,7 +56,6 @@ pub struct Triple {
     pub subject: Node,
     pub predicate: String,
     pub object: Node,
-    pub iam_target: IamTargetId,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
