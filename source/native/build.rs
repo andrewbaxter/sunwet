@@ -70,7 +70,6 @@ fn main() {
     let triple_event_stamp;
     let triple_subject;
     let triple_object;
-    let triple_iam_target;
     {
         let t = latest_version.table("zQLEK3CT0", "triple");
         let subject = t.field(&mut latest_version, "zLQI9HQUQ", "subject", FieldType::with(&node_type));
@@ -78,8 +77,6 @@ fn main() {
         let object = t.field(&mut latest_version, "zII52SWQB", "object", FieldType::with(&node_type));
         let event_stamp = t.field(&mut latest_version, "zK21ECBE5", "timestamp", field_utctime_ms().build());
         let event_exist = t.field(&mut latest_version, "z0ZOJM2UT", "exists", field_bool().build());
-        let iam_target =
-            t.field(&mut latest_version, "zFN1MRJMO", "iam_target", FieldType::with(&iam_target_id_type));
         t.constraint(
             &mut latest_version,
             "z1T10QI43",
@@ -110,8 +107,7 @@ fn main() {
                     set_field("predicate", &predicate),
                     set_field("object", &object),
                     set_field("stamp", &event_stamp),
-                    set_field("exist", &event_exist),
-                    set_field("iam_target", &iam_target)
+                    set_field("exist", &event_exist)
                 ],
             )
                 .on_conflict(InsertConflict::DoUpdate(vec![set_field("exist", &event_exist)]))
@@ -124,7 +120,6 @@ fn main() {
                 .return_field(&object)
                 .return_field(&event_stamp)
                 .return_field(&event_exist)
-                .return_field(&iam_target)
                 .where_(
                     expr_and(
                         vec![
@@ -145,7 +140,6 @@ fn main() {
                 .return_field(&object)
                 .return_field(&event_stamp)
                 .return_field(&event_exist)
-                .return_field(&iam_target)
                 .build_query("triple_list_all", QueryResCount::Many),
         );
         queries.push(
@@ -155,7 +149,6 @@ fn main() {
                 .return_field(&object)
                 .return_field(&event_stamp)
                 .return_field(&event_exist)
-                .return_field(&iam_target)
                 .where_(
                     expr_and(
                         vec![expr_field_gte("start_incl", &event_stamp), expr_field_lt("end_excl", &event_stamp)],
@@ -229,7 +222,6 @@ fn main() {
         triple_event_stamp = event_stamp;
         triple_subject = subject;
         triple_object = object;
-        triple_iam_target = iam_target;
     }
 
     // Commits
@@ -289,8 +281,6 @@ fn main() {
     {
         let t = latest_version.table("z7B1CHM4F", "meta");
         let node = t.field(&mut latest_version, "zLQI9HQUQ", "node", FieldType::with(&node_type));
-        let iam_targets =
-            t.field(&mut latest_version, "zGGBBHDDL", "iam_targets", FieldType::with(&iam_target_ids_type));
         let mimetype = t.field(&mut latest_version, "zSZVNBP0E", "mimetype", field_str().build());
         let fulltext = t.field(&mut latest_version, "zPI3TKEA8", "fulltext", field_str().build());
         t.constraint(
@@ -302,12 +292,7 @@ fn main() {
         queries.push(
             new_insert(
                 &t,
-                vec![
-                    set_field("node", &node),
-                    set_field("mimetype", &mimetype),
-                    set_field("fulltext", &fulltext),
-                    set_field("iam_target_ids", &iam_targets)
-                ],
+                vec![set_field("node", &node), set_field("mimetype", &mimetype), set_field("fulltext", &fulltext)],
             )
                 .on_conflict(InsertConflict::DoNothing)
                 .build_query("meta_insert", QueryResCount::None),
@@ -318,7 +303,7 @@ fn main() {
         queries.push(
             new_select(&t)
                 .where_(expr_field_eq("node", &node))
-                .return_fields(&[&mimetype, &fulltext, &iam_targets])
+                .return_fields(&[&mimetype, &fulltext])
                 .build_query_named_res("meta_get", QueryResCount::MaybeOne, "Metadata"),
         );
         queries.push(new_select(&t).where_(Expr::BinOp {
@@ -329,62 +314,6 @@ fn main() {
                 type_: node_array_type.clone(),
             }),
         }).return_field(&node).build_query("meta_filter_existing", QueryResCount::Many));
-        queries.push({
-            let mut cte1 = CteBuilder::new("cte1", new_select_body(&triple_table).where_(Expr::BinOp {
-                left: Box::new(Expr::field(&triple_subject)),
-                op: BinOp::In,
-                right: Box::new(Expr::Param {
-                    name: "node".to_string(),
-                    type_: node_array_type.clone(),
-                }),
-            }).return_fields(&[&triple_subject, &triple_iam_target]).build());
-            let cte1_node = cte1.field("node", node_type.clone());
-            let cte1_iam_target = cte1.field("iam_target", iam_target_id_type.clone());
-            cte1.body_junction(SelectJunction {
-                op: SelectJunctionOperator::Union,
-                body: new_select_body(&triple_table).where_(Expr::BinOp {
-                    left: Box::new(Expr::field(&triple_object)),
-                    op: BinOp::In,
-                    right: Box::new(Expr::Param {
-                        name: "node".to_string(),
-                        type_: node_array_type.clone(),
-                    }),
-                }).return_fields(&[&triple_object, &triple_iam_target]).build(),
-            });
-            let (cte1_table, cte1) = cte1.build();
-            let mut cte2 =
-                CteBuilder::new(
-                    "cte2",
-                    new_select_body(&cte1_table)
-                        .group(vec![Expr::field(&cte1_node)])
-                        .return_field(&cte1_node)
-                        .return_named("iam_targets", Expr::Cast(Box::new(Expr::Call {
-                            func: "json_group_array".to_string(),
-                            args: vec![Expr::field(&cte1_iam_target)],
-                            compute_type: ComputeType::new(|ctx, path, args| {
-                                let Some(_) = args.get(0).unwrap().assert_scalar(&mut ctx.errs, path) else {
-                                    return None;
-                                };
-                                return Some(type_str().build());
-                            }),
-                        }), iam_target_ids_type.clone()))
-                        .build(),
-                );
-            let cte2_node = cte2.field("node", node_type.clone());
-            let cte2_iam_targets = cte2.field("iam_targets", iam_target_ids_type.clone());
-            let (cte2_table, cte2) = cte2.build();
-            new_update(&t, vec![(iam_targets.clone(), Expr::Select {
-                body: Box::new(new_select_body(&cte2_table).where_(Expr::BinOp {
-                    left: Box::new(Expr::field(&cte2_node)),
-                    op: BinOp::Equals,
-                    right: Box::new(Expr::field(&node)),
-                }).return_field(&cte2_iam_targets).build()),
-                body_junctions: vec![],
-            })]).with(With {
-                recursive: false,
-                ctes: vec![cte1, cte2],
-            }).build_query("meta_update_iam_targets", QueryResCount::None)
-        });
         queries.push(new_delete(&t).where_(Expr::Exists {
             not: true,
             body: Box::new(new_select_body(&triple_table).return_named("x", Expr::LitI32(1)).where_(Expr::BinOp {

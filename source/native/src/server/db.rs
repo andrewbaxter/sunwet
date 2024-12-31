@@ -43,7 +43,7 @@ pub fn migrate(db: &mut rusqlite::Connection) -> Result<(), GoodError> {
             if version < 0i64 {
                 {
                     let query =
-                        "create table \"triple\" ( \"predicate\" text not null , \"subject\" text not null , \"timestamp\" text not null , \"object\" text not null , \"iam_target\" text not null , \"exists\" integer not null , constraint \"triple_pk\" primary key ( \"subject\" , \"predicate\" , \"object\" , \"timestamp\" ) )";
+                        "create table \"triple\" ( \"predicate\" text not null , \"subject\" text not null , \"timestamp\" text not null , \"object\" text not null , \"exists\" integer not null , constraint \"triple_pk\" primary key ( \"subject\" , \"predicate\" , \"object\" , \"timestamp\" ) )";
                     txn.execute(query, ()).to_good_error_query(query)?
                 };
                 {
@@ -63,7 +63,7 @@ pub fn migrate(db: &mut rusqlite::Connection) -> Result<(), GoodError> {
                 };
                 {
                     let query =
-                        "create table \"meta\" ( \"mimetype\" text not null , \"fulltext\" text not null , \"node\" text not null , \"iam_targets\" text not null , constraint \"meta_node\" primary key ( \"node\" ) )";
+                        "create table \"meta\" ( \"mimetype\" text not null , \"fulltext\" text not null , \"node\" text not null , constraint \"meta_node\" primary key ( \"node\" ) )";
                     txn.execute(query, ()).to_good_error_query(query)?
                 };
                 {
@@ -116,10 +116,9 @@ pub fn triple_insert(
     object: &crate::interface::triple::DbNode,
     stamp: chrono::DateTime<chrono::Utc>,
     exist: bool,
-    iam_target: &crate::interface::triple::DbIamTargetId,
 ) -> Result<(), GoodError> {
     let query =
-        "insert into \"triple\" ( \"subject\" , \"predicate\" , \"object\" , \"timestamp\" , \"exists\" , \"iam_target\" ) values ( $1 , $2 , $3 , $4 , $5 , $6 ) on conflict do update set \"exists\" = $5";
+        "insert into \"triple\" ( \"subject\" , \"predicate\" , \"object\" , \"timestamp\" , \"exists\" ) values ( $1 , $2 , $3 , $4 , $5 ) on conflict do update set \"exists\" = $5";
     db
         .execute(
             query,
@@ -136,12 +135,7 @@ pub fn triple_insert(
                     &object,
                 ),
                 stamp.to_rfc3339(),
-                exist,
-                <crate::interface::triple::DbIamTargetId as good_ormning_runtime
-                ::sqlite
-                ::GoodOrmningCustomString<crate::interface::triple::DbIamTargetId>>::to_sql(
-                    &iam_target,
-                )
+                exist
             ],
         )
         .to_good_error_query(query)?;
@@ -154,7 +148,6 @@ pub struct DbRes1 {
     pub object: crate::interface::triple::DbNode,
     pub timestamp: chrono::DateTime<chrono::Utc>,
     pub exists: bool,
-    pub iam_target: crate::interface::triple::DbIamTargetId,
 }
 
 pub fn triple_get(
@@ -164,7 +157,7 @@ pub fn triple_get(
     object: &crate::interface::triple::DbNode,
 ) -> Result<Option<DbRes1>, GoodError> {
     let query =
-        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , \"triple\" . \"timestamp\" , \"triple\" . \"exists\" , \"triple\" . \"iam_target\" from \"triple\" where ( ( \"triple\" . \"subject\" = $1 ) and ( \"triple\" . \"predicate\" = $2 ) and ( \"triple\" . \"object\" = $3 ) ) order by \"triple\" . \"timestamp\" desc limit 1 ";
+        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , \"triple\" . \"timestamp\" , \"triple\" . \"exists\" from \"triple\" where ( ( \"triple\" . \"subject\" = $1 ) and ( \"triple\" . \"predicate\" = $2 ) and ( \"triple\" . \"object\" = $3 ) ) order by \"triple\" . \"timestamp\" desc limit 1 ";
     let mut stmt = db.prepare(query).to_good_error_query(query)?;
     let mut rows =
         stmt
@@ -225,16 +218,6 @@ pub fn triple_get(
                 let x: bool = r.get(4usize).to_good_error(|| format!("Getting result {}", 4usize))?;
                 x
             },
-            iam_target: {
-                let x: String = r.get(5usize).to_good_error(|| format!("Getting result {}", 5usize))?;
-                let x =
-                    <crate::interface::triple::DbIamTargetId as good_ormning_runtime
-                    ::sqlite
-                    ::GoodOrmningCustomString<crate::interface::triple::DbIamTargetId>>::from_sql(
-                        x,
-                    ).to_good_error(|| format!("Parsing result {}", 5usize))?;
-                x
-            },
         }));
     }
     Ok(None)
@@ -243,7 +226,7 @@ pub fn triple_get(
 pub fn triple_list_all(db: &rusqlite::Connection) -> Result<Vec<DbRes1>, GoodError> {
     let mut out = vec![];
     let query =
-        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , \"triple\" . \"timestamp\" , \"triple\" . \"exists\" , \"triple\" . \"iam_target\" from \"triple\" ";
+        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , \"triple\" . \"timestamp\" , \"triple\" . \"exists\" from \"triple\" ";
     let mut stmt = db.prepare(query).to_good_error_query(query)?;
     let mut rows = stmt.query(rusqlite::params![]).to_good_error_query(query)?;
     while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
@@ -286,16 +269,6 @@ pub fn triple_list_all(db: &rusqlite::Connection) -> Result<Vec<DbRes1>, GoodErr
                 let x: bool = r.get(4usize).to_good_error(|| format!("Getting result {}", 4usize))?;
                 x
             },
-            iam_target: {
-                let x: String = r.get(5usize).to_good_error(|| format!("Getting result {}", 5usize))?;
-                let x =
-                    <crate::interface::triple::DbIamTargetId as good_ormning_runtime
-                    ::sqlite
-                    ::GoodOrmningCustomString<crate::interface::triple::DbIamTargetId>>::from_sql(
-                        x,
-                    ).to_good_error(|| format!("Parsing result {}", 5usize))?;
-                x
-            },
         });
     }
     Ok(out)
@@ -308,7 +281,7 @@ pub fn triple_list_between(
 ) -> Result<Vec<DbRes1>, GoodError> {
     let mut out = vec![];
     let query =
-        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , \"triple\" . \"timestamp\" , \"triple\" . \"exists\" , \"triple\" . \"iam_target\" from \"triple\" where ( ( \"triple\" . \"timestamp\" >= $1 ) and ( \"triple\" . \"timestamp\" < $2 ) ) ";
+        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , \"triple\" . \"timestamp\" , \"triple\" . \"exists\" from \"triple\" where ( ( \"triple\" . \"timestamp\" >= $1 ) and ( \"triple\" . \"timestamp\" < $2 ) ) ";
     let mut stmt = db.prepare(query).to_good_error_query(query)?;
     let mut rows =
         stmt.query(rusqlite::params![start_incl.to_rfc3339(), end_excl.to_rfc3339()]).to_good_error_query(query)?;
@@ -350,16 +323,6 @@ pub fn triple_list_between(
             },
             exists: {
                 let x: bool = r.get(4usize).to_good_error(|| format!("Getting result {}", 4usize))?;
-                x
-            },
-            iam_target: {
-                let x: String = r.get(5usize).to_good_error(|| format!("Getting result {}", 5usize))?;
-                let x =
-                    <crate::interface::triple::DbIamTargetId as good_ormning_runtime
-                    ::sqlite
-                    ::GoodOrmningCustomString<crate::interface::triple::DbIamTargetId>>::from_sql(
-                        x,
-                    ).to_good_error(|| format!("Parsing result {}", 5usize))?;
                 x
             },
         });
@@ -433,10 +396,9 @@ pub fn meta_insert(
     node: &crate::interface::triple::DbNode,
     mimetype: &str,
     fulltext: &str,
-    iam_target_ids: &crate::interface::triple::DbIamTargetIds,
 ) -> Result<(), GoodError> {
     let query =
-        "insert into \"meta\" ( \"node\" , \"mimetype\" , \"fulltext\" , \"iam_targets\" ) values ( $1 , $2 , $3 , $4 ) on conflict do nothing";
+        "insert into \"meta\" ( \"node\" , \"mimetype\" , \"fulltext\" ) values ( $1 , $2 , $3 ) on conflict do nothing";
     db
         .execute(
             query,
@@ -447,12 +409,7 @@ pub fn meta_insert(
                     &node,
                 ),
                 mimetype,
-                fulltext,
-                <crate::interface::triple::DbIamTargetIds as good_ormning_runtime
-                ::sqlite
-                ::GoodOrmningCustomString<crate::interface::triple::DbIamTargetIds>>::to_sql(
-                    &iam_target_ids,
-                )
+                fulltext
             ],
         )
         .to_good_error_query(query)?;
@@ -479,7 +436,6 @@ pub fn meta_delete(db: &rusqlite::Connection, node: &crate::interface::triple::D
 pub struct Metadata {
     pub mimetype: String,
     pub fulltext: String,
-    pub iam_targets: crate::interface::triple::DbIamTargetIds,
 }
 
 pub fn meta_get(
@@ -487,7 +443,7 @@ pub fn meta_get(
     node: &crate::interface::triple::DbNode,
 ) -> Result<Option<Metadata>, GoodError> {
     let query =
-        "select \"meta\" . \"mimetype\" , \"meta\" . \"fulltext\" , \"meta\" . \"iam_targets\" from \"meta\" where ( \"meta\" . \"node\" = $1 ) ";
+        "select \"meta\" . \"mimetype\" , \"meta\" . \"fulltext\" from \"meta\" where ( \"meta\" . \"node\" = $1 ) ";
     let mut stmt = db.prepare(query).to_good_error_query(query)?;
     let mut rows =
         stmt
@@ -510,16 +466,6 @@ pub fn meta_get(
             },
             fulltext: {
                 let x: String = r.get(1usize).to_good_error(|| format!("Getting result {}", 1usize))?;
-                x
-            },
-            iam_targets: {
-                let x: String = r.get(2usize).to_good_error(|| format!("Getting result {}", 2usize))?;
-                let x =
-                    <crate::interface::triple::DbIamTargetIds as good_ormning_runtime
-                    ::sqlite
-                    ::GoodOrmningCustomString<crate::interface::triple::DbIamTargetIds>>::from_sql(
-                        x,
-                    ).to_good_error(|| format!("Parsing result {}", 2usize))?;
                 x
             },
         }));
@@ -568,36 +514,6 @@ pub fn meta_filter_existing(
         });
     }
     Ok(out)
-}
-
-pub fn meta_update_iam_targets(
-    db: &rusqlite::Connection,
-    node: Vec<&crate::interface::triple::DbNode>,
-) -> Result<(), GoodError> {
-    let query =
-        "with cte1 ( node , iam_target ) as ( select \"triple\" . \"subject\" , \"triple\" . \"iam_target\" from \"triple\" where ( \"triple\" . \"subject\" in rarray($1) ) union ) , cte2 ( node , iam_targets ) as ( select \"cte1\" . \"node\" , json_group_array ( \"cte1\" . \"iam_target\" ) as \"iam_targets\" from \"cte1\" group by \"cte1\" . \"node\" ) update \"meta\" set \"iam_targets\" = select \"cte2\" . \"iam_targets\" from \"cte2\" where ( \"cte2\" . \"node\" = \"meta\" . \"node\" ) ";
-    db
-        .execute(
-            query,
-            rusqlite::params![
-                std::rc::Rc::new(
-                    node
-                        .into_iter()
-                        .map(
-                            |node| rusqlite::types::Value::from(
-                                <crate::interface::triple::DbNode as good_ormning_runtime
-                                ::sqlite
-                                ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
-                                    &node,
-                                ),
-                            ),
-                        )
-                        .collect::<Vec<_>>(),
-                )
-            ],
-        )
-        .to_good_error_query(query)?;
-    Ok(())
 }
 
 pub fn meta_gc(db: &rusqlite::Connection) -> Result<(), GoodError> {

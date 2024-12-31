@@ -64,8 +64,6 @@ use {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CliNode {
-    Id(String),
-    File(FileHash),
     Value(serde_json::Value),
     Upload(PathBuf),
 }
@@ -76,7 +74,6 @@ pub struct CliTriple {
     pub subject: CliNode,
     pub predicate: String,
     pub object: CliNode,
-    pub iam_target: i64,
 }
 
 #[derive(Serialize, Deserialize)]

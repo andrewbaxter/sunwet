@@ -122,9 +122,8 @@ pub async fn handle_commit(state: Arc<State>, c: ReqCommit) -> Result<RespCommit
         let mut incomplete = vec![];
         for info in c.files {
             incomplete.push(info.hash.clone());
-            db::meta_insert(txn, &DbNode(Node::File(info.hash)), &info.mimetype, "", &DbIamTargetIds(vec![]))?;
+            db::meta_insert(txn, &DbNode(Node::File(info.hash)), &info.mimetype, "")?;
         }
-        let mut referenced_files = HashSet::new();
         for t in c.remove {
             if let Some(t) =
                 db::triple_get(txn, &DbNode(t.subject.clone()), &t.predicate, &DbNode(t.object.clone()))? {
@@ -134,21 +133,7 @@ pub async fn handle_commit(state: Arc<State>, c: ReqCommit) -> Result<RespCommit
             } else {
                 continue;
             }
-            if let Node::File(n) = &t.subject {
-                referenced_files.insert(n.clone());
-            }
-            if let Node::File(n) = &t.object {
-                referenced_files.insert(n.clone());
-            }
-            db::triple_insert(
-                txn,
-                &DbNode(t.subject),
-                &t.predicate,
-                &DbNode(t.object),
-                stamp,
-                false,
-                &DbIamTargetId(t.iam_target),
-            );
+            db::triple_insert(txn, &DbNode(t.subject), &t.predicate, &DbNode(t.object), stamp, false);
         }
         for t in c.add {
             if let Some(t) =
@@ -157,24 +142,8 @@ pub async fn handle_commit(state: Arc<State>, c: ReqCommit) -> Result<RespCommit
                     continue;
                 }
             }
-            if let Node::File(n) = &t.subject {
-                referenced_files.insert(n.clone());
-            }
-            if let Node::File(n) = &t.object {
-                referenced_files.insert(n.clone());
-            }
-            db::triple_insert(
-                txn,
-                &DbNode(t.subject),
-                &t.predicate,
-                &DbNode(t.object),
-                stamp,
-                true,
-                &DbIamTargetId(t.iam_target),
-            );
+            db::triple_insert(txn, &DbNode(t.subject), &t.predicate, &DbNode(t.object), stamp, true);
         }
-        let referenced_nodes = referenced_files.into_iter().map(|x| DbNode(Node::File(x))).collect::<Vec<_>>();
-        db::meta_update_iam_targets(txn, referenced_nodes.iter().collect())?;
         return Ok(incomplete);
     }).await?;
     return Ok(RespCommit { incomplete: incomplete });
@@ -387,32 +356,6 @@ pub async fn handle_finish_upload(state: Arc<State>, hash: FileHash) -> Result<R
         }
     }
     return Ok(RespUploadFinish { done: done });
-}
-
-async fn can_read_file(
-    state: &State,
-    identity: &Identity,
-    file: &FileHash,
-    meta: &Metadata,
-) -> Result<Option<Response<BoxBody<Bytes, std::io::Error>>>, VisErr<loga::Error>> {
-    match can_read(&state, &identity).await.err_internal()? {
-        CanRead::All => {
-            return Ok(None);
-        },
-        CanRead::Restricted(targets) => {
-            for have_target in &meta.iam_targets.0 {
-                if targets.contains(have_target) {
-                    return Ok(None);
-                }
-            }
-        },
-        CanRead::No => {
-            if state.link_public_files.lock().unwrap().contains(&file) {
-                return Ok(None);
-            }
-        },
-    }
-    return Ok(Some(response_401()));
 }
 
 pub async fn handle_file_head(
