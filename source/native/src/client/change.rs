@@ -26,7 +26,6 @@ use {
         Serialize,
     },
     shared::interface::{
-        iam::IamTargetId,
         triple::{
             FileHash,
             Node,
@@ -64,6 +63,7 @@ use {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CliNode {
+    File(FileHash),
     Value(serde_json::Value),
     Upload(PathBuf),
 }
@@ -107,7 +107,6 @@ pub async fn handle_change(c: ChangeCommand) -> Result<(), loga::Error> {
         n: CliNode,
     ) -> Result<Node, loga::Error> {
         match n {
-            CliNode::Id(v) => return Ok(Node::Id(v)),
             CliNode::File(v) => return Ok(Node::File(v)),
             CliNode::Value(v) => return Ok(Node::Value(v)),
             CliNode::Upload(v) => {
@@ -160,7 +159,6 @@ pub async fn handle_change(c: ChangeCommand) -> Result<(), loga::Error> {
             subject: s,
             predicate: t.predicate,
             object: o,
-            iam_target: IamTargetId(t.iam_target),
         });
     }
     for (i, t) in c.0.value.remove.into_iter().enumerate() {
@@ -176,7 +174,6 @@ pub async fn handle_change(c: ChangeCommand) -> Result<(), loga::Error> {
             subject: s,
             predicate: t.predicate,
             object: o,
-            iam_target: IamTargetId(t.iam_target),
         });
     }
 

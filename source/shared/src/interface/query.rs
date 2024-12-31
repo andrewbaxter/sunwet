@@ -29,8 +29,9 @@ pub enum FilterExprExistsType {
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub enum FilterChainComparisonOperator {
+pub enum FilterSuffixSimpleOperator {
     Eq,
+    Neq,
     Lt,
     Gt,
     Lte,
@@ -39,10 +40,30 @@ pub enum FilterChainComparisonOperator {
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash, Clone, Debug)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct FilterSuffixSimple {
+    pub op: FilterSuffixSimpleOperator,
+    pub value: Value,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash, Clone, Debug)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct FilterSuffixLike {
+    pub value: String,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash, Clone, Debug)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum FilterSuffix {
+    Simple(FilterSuffixSimple),
+    Like(FilterSuffixLike),
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash, Clone, Debug)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FilterExprExists {
     pub type_: FilterExprExistsType,
-    pub subchain: Subchain,
-    pub filter: Option<(FilterChainComparisonOperator, Value)>,
+    pub subchain: ChainBody,
+    pub suffix: Option<FilterSuffix>,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash, Clone, Debug)]
@@ -85,7 +106,7 @@ pub struct StepMove {
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash, Clone, Debug)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct StepRecurse {
-    pub subchain: Subchain,
+    pub subchain: ChainBody,
     pub first: bool,
 }
 
@@ -93,7 +114,7 @@ pub struct StepRecurse {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct StepJunction {
     pub type_: JunctionType,
-    pub subchains: Vec<Subchain>,
+    pub subchains: Vec<ChainBody>,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash, Clone, Debug)]
@@ -106,20 +127,27 @@ pub enum Step {
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash, Clone, Debug)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct Subchain {
-    pub root: Option<Value>,
+pub enum ChainRoot {
+    Value(Value),
+    Search(String),
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash, Clone, Debug)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct ChainBody {
+    pub root: Option<ChainRoot>,
     pub steps: Vec<Step>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct Chain {
+    pub body: ChainBody,
     pub select: Option<String>,
-    pub subchain: Subchain,
-    pub children: Vec<Chain>,
+    pub subchains: Vec<Chain>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum QuerySortDir {
     Asc,
@@ -130,7 +158,7 @@ pub enum QuerySortDir {
 /// useful for recursion which could otherwise lead to large nested objects when a
 /// flat list is desired.  A new `nest` step may be introduced later to create
 /// intermediate records (as `QueryResType::Record`).
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct Query {
     pub chain: Chain,

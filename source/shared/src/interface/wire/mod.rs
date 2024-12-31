@@ -4,7 +4,6 @@ use {
         query::Query,
     },
     crate::interface::{
-        iam::IamTargetId,
         triple::{
             FileHash,
             Node,
@@ -90,6 +89,24 @@ impl C2SReqTrait for ReqCommit {
     type Resp = RespCommit;
 }
 
+// # Form commit
+#[derive(Serialize, Deserialize, Default, Clone)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct ReqFormCommit {
+    pub form: String,
+    pub parameters: HashMap<String, TreeNode>,
+}
+
+impl Into<C2SReq> for ReqFormCommit {
+    fn into(self) -> C2SReq {
+        return C2SReq::FormCommit(self);
+    }
+}
+
+impl C2SReqTrait for ReqFormCommit {
+    type Resp = RespCommit;
+}
+
 // # Upload finish
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
@@ -121,16 +138,16 @@ pub struct ReqQuery {
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Debug, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub enum QueryResVal {
+pub enum TreeNode {
     Scalar(Node),
-    Array(Vec<QueryResVal>),
-    Record(BTreeMap<String, QueryResVal>),
+    Array(Vec<TreeNode>),
+    Record(BTreeMap<String, TreeNode>),
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct RespQuery {
-    pub records: QueryResVal,
+    pub records: TreeNode,
 }
 
 impl Into<C2SReq> for ReqQuery {
@@ -140,6 +157,25 @@ impl Into<C2SReq> for ReqQuery {
 }
 
 impl C2SReqTrait for ReqQuery {
+    type Resp = RespQuery;
+}
+
+// # View query
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct ReqViewQuery {
+    pub view: String,
+    pub query: String,
+    pub parameters: HashMap<String, Node>,
+}
+
+impl Into<C2SReq> for ReqViewQuery {
+    fn into(self) -> C2SReq {
+        return C2SReq::ViewQuery(self);
+    }
+}
+
+impl C2SReqTrait for ReqViewQuery {
     type Resp = RespQuery;
 }
 
@@ -213,9 +249,15 @@ impl C2SReqTrait for ReqGetMenu {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum C2SReq {
+    /// Make changes to the graph
     Commit(ReqCommit),
+    /// Make changes to the graph via a form (uses form permissions)
+    FormCommit(ReqFormCommit),
     UploadFinish(ReqUploadFinish),
+    /// Read from the graph
     Query(ReqQuery),
+    /// Read from the graph via a view (uses view permissions)
+    ViewQuery(ReqViewQuery),
     GetTriplesAround(ReqGetTriplesAround),
     History(ReqHistory),
     GetMenu(ReqGetMenu),

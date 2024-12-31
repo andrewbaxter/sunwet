@@ -2,21 +2,26 @@ use {
     aargvark::{
         traits_impls::AargvarkJson,
         vark,
+        Aargvark,
     },
+    loga::fatal,
     native::{
         client::{
             self,
             QueryCommand,
         },
         interface::config::Config,
+        server,
     },
 };
 
 #[derive(Aargvark)]
 enum Command {
     Query(client::QueryCommand),
-    Change(client::ChangeCommand),
+    CompileQuery(client::CompileQueryCommand),
+    Change(client::change::ChangeCommand),
     History(client::HistoryCommand),
+    GetNode(client::GetNodeCommand),
     RunServer(AargvarkJson<Config>),
 }
 
@@ -31,14 +36,20 @@ async fn main1() -> Result<(), loga::Error> {
         Command::Query(c) => {
             client::handle_query(c).await?;
         },
+        Command::CompileQuery(c) => {
+            client::handle_compile_query(c)?;
+        },
         Command::Change(c) => {
-            client::handle_change(c).await?;
+            client::change::handle_change(c).await?;
         },
         Command::History(c) => {
             client::handle_history(c).await?;
         },
+        Command::GetNode(c) => {
+            client::handle_get_node(c).await?;
+        },
         Command::RunServer(config) => {
-            serverlib::main(config).await?;
+            server::main(config.value).await?;
         },
     }
     return Ok(());
@@ -46,7 +57,7 @@ async fn main1() -> Result<(), loga::Error> {
 
 #[tokio::main]
 async fn main() {
-    match inner().await {
+    match main1().await {
         Ok(_) => { },
         Err(e) => {
             fatal(e);

@@ -1,41 +1,60 @@
 use {
+    good_ormning_runtime::sqlite::GoodOrmningCustomString,
     serde::{
         Deserialize,
         Serialize,
     },
     shared::interface::{
         config::menu::MenuItem,
-        iam::{
-            IamTargetId,
-            UserIdentityId,
-        },
+        iam::UserIdentityId,
     },
     std::{
-        collections::HashMap,
+        collections::{
+            HashMap,
+            HashSet,
+        },
         net::SocketAddr,
         path::PathBuf,
     },
 };
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum PageAccess {
+    View(String),
+    Form(String),
+}
+
+impl GoodOrmningCustomString<PageAccess> for PageAccess {
+    fn to_sql<'a>(value: &'a Self) -> String {
+        return serde_json::to_string(&value).unwrap();
+    }
+
+    fn from_sql(value: String) -> Result<Self, String> {
+        return Ok(serde_json::from_str::<Self>(&value).map_err(|e| e.to_string())?);
+    }
+}
+
 #[derive(Serialize, Deserialize, Default, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct GlobalConfig {
     pub admin_token: Option<String>,
-    pub public_access: Option<Vec<IamTargetId>>,
+    #[serde(default)]
+    pub public_iam_grants: HashSet<PageAccess>,
     pub menu: Vec<MenuItem>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub enum UserAccess {
-    ReadWrite,
-    Read(Vec<IamTargetId>),
+pub enum IamGrants {
+    Admin,
+    Limited(HashSet<PageAccess>),
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct UserConfig {
-    pub access: UserAccess,
+    pub iam_grants: IamGrants,
 }
 
 #[derive(Serialize, Deserialize)]

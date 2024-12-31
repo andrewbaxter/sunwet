@@ -112,13 +112,14 @@ use {
             Widget,
             WidgetNest,
         },
+        query::Query,
         triple::{
             FileHash,
             Node,
         },
         wire::{
-            QueryResVal,
             ReqQuery,
+            TreeNode,
         },
     },
     std::{
@@ -145,31 +146,27 @@ use {
 
 pub mod elements;
 
-fn query_res_as_file(r: &QueryResVal) -> Result<FileHash, String> {
-    let QueryResVal::Scalar(Node(serde_json::Value::String(n))) = r else {
+fn query_res_as_file(r: &TreeNode) -> Result<FileHash, String> {
+    let TreeNode::Scalar(Node::File(n)) = r else {
         return Err(format!("Field contents wasn't a string: {:?}", r));
     };
-    let f = match FileHash::from_str(&n) {
-        Ok(f) => f,
-        Err(_) => {
-            return Err(format!("Field contents wasn't a valid file hash string: {:?}", r));
-        },
-    };
-    return Ok(f);
+    return Ok(n.clone());
 }
 
 pub fn build_widget_query(
     pc: &mut ProcessingContext,
     state: &State,
+    queries: &Rc<BTreeMap<String, Query>>,
     depth: usize,
     def: &ViewPartList,
-    data: &BTreeMap<String, QueryResVal>,
+    data: &BTreeMap<String, TreeNode>,
     build_playlist_pos: &BuildPlaylistPos,
     restore_playlist_pos: &Option<PlaylistPos>,
 ) -> El {
     return el_async().own(|e| spawn_rooted({
         let def = def.clone();
         let source_data = data.clone();
+        let queries = queries.clone();
         let state = state.clone();
         let eg = pc.eg();
         let e = e.weak();
@@ -189,7 +186,7 @@ pub fn build_widget_query(
                         ]);
                         return;
                     };
-                    let QueryResVal::Array(v) = key_value else {
+                    let TreeNode::Array(v) = key_value else {
                         placeholder.ref_replace(vec![
                             //. .
                             el_err_span(format!("Specified field for list is a scalar, not an array"))
@@ -201,12 +198,16 @@ pub fn build_widget_query(
                 QueryOrField::Query(query) => {
                     let mut parameters = HashMap::new();
                     for (k, v) in source_data.iter() {
-                        let QueryResVal::Scalar(n) = v else {
+                        let TreeNode::Scalar(n) = v else {
                             placeholder.ref_push(el_err_span(format!("Parameter for query is not a scalar")));
                             return;
                         };
                         parameters.insert(k.clone(), n.clone());
                     }
+                    let Some(query) = queries.get(query) else {
+                        placeholder.ref_push(el_err_span(format!("No query with id {}", query)));
+                        return;
+                    };
                     let res = req_post_json(&state.base_url, ReqQuery {
                         query: query.clone(),
                         parameters: parameters,
@@ -219,7 +220,7 @@ pub fn build_widget_query(
                             return;
                         },
                     };
-                    let QueryResVal::Array(res) = res.records else {
+                    let TreeNode::Array(res) = res.records else {
                         placeholder.ref_push(el_err_span(format!("Query response is not an array (likely bug)")));
                         return;
                     };
@@ -229,7 +230,17 @@ pub fn build_widget_query(
             eg.event(|pc| {
                 placeholder.ref_replace(vec![
                     //. .
-                    build_layout(pc, &state, depth, &def.layout, &rows, &def.key_field, &build_playlist_pos, &restore_playlist_pos)
+                    build_layout(
+                        pc,
+                        &state,
+                        &queries,
+                        depth,
+                        &def.layout,
+                        &rows,
+                        &def.key_field,
+                        &build_playlist_pos,
+                        &restore_playlist_pos,
+                    )
                 ]);
             });
         }
@@ -263,14 +274,24 @@ impl BuildPlaylistPos {
 fn build_widget(
     pc: &mut ProcessingContext,
     state: &State,
+    queries: &Rc<BTreeMap<String, Query>>,
     depth: usize,
     def: &Widget,
-    data: &BTreeMap<String, QueryResVal>,
+    data: &BTreeMap<String, TreeNode>,
     build_playlist_pos: &BuildPlaylistPos,
     restore_playlist_pos: &Option<PlaylistPos>,
 ) -> El {
     match def {
-        Widget::Nest(d) => return build_nest(pc, state, depth, d, data, build_playlist_pos, restore_playlist_pos),
+        Widget::Nest(d) => return build_nest(
+            pc,
+            state,
+            queries,
+            depth,
+            d,
+            data,
+            build_playlist_pos,
+            restore_playlist_pos,
+        ),
         Widget::TextLine(d) => {
             let text;
             match &d.data {
@@ -281,10 +302,13 @@ fn build_widget(
                         return out;
                     };
                     text = match v {
-                        QueryResVal::Array(v) => serde_json::to_string(v).unwrap(),
-                        QueryResVal::Record(v) => serde_json::to_string(v).unwrap(),
-                        QueryResVal::Scalar(v) => match v {
-                            Node(v) => match v {
+                        TreeNode::Array(v) => serde_json::to_string(v).unwrap(),
+                        TreeNode::Record(v) => serde_json::to_string(v).unwrap(),
+                        TreeNode::Scalar(v) => match v {
+                            Node::File(v) => {
+                                v.to_string()
+                            },
+                            Node::Value(v) => match v {
                                 serde_json::Value::Null => "-".to_string(),
                                 serde_json::Value::Bool(v) => match v {
                                     true => "yes".to_string(),
@@ -328,7 +352,7 @@ fn build_widget(
                         return el_image_err(format!("Missing field {}", field));
                     };
                     superif!({
-                        let QueryResVal::Scalar(Node(serde_json::Value::String(n))) = v else {
+                        let TreeNode::Scalar(Node::Value(serde_json::Value::String(n))) = v else {
                             break 'bad;
                         };
                         let Ok(n) = FileHash::from_str(&n) else {
@@ -366,7 +390,7 @@ fn build_widget(
                     let Some(v) = data.get(field) else {
                         return el_image_err(format!("Missing field media {}", d.field));
                     };
-                    if let QueryResVal::Scalar(Node(serde_json::Value::String(m))) = v {
+                    if let TreeNode::Scalar(Node::Value(serde_json::Value::String(m))) = v {
                         media_type = m.clone();
                     } else {
                         return el_image_err("Media field value not string".to_string());
@@ -455,7 +479,7 @@ fn build_widget(
                             let Some(v) = data.get(v) else {
                                 break None;
                             };
-                            let QueryResVal::Scalar(Node(serde_json::Value::String(v))) = v else {
+                            let TreeNode::Scalar(Node::Value(serde_json::Value::String(v))) = v else {
                                 break None;
                             };
                             Some(v.clone())
@@ -467,7 +491,7 @@ fn build_widget(
                             let Some(v) = data.get(v) else {
                                 break None;
                             };
-                            let QueryResVal::Scalar(Node(serde_json::Value::String(v))) = v else {
+                            let TreeNode::Scalar(Node::Value(serde_json::Value::String(v))) = v else {
                                 break None;
                             };
                             Some(v.clone())
@@ -479,7 +503,7 @@ fn build_widget(
                             let Some(v) = data.get(v) else {
                                 break None;
                             };
-                            let QueryResVal::Scalar(Node(serde_json::Value::String(v))) = v else {
+                            let TreeNode::Scalar(Node::Value(serde_json::Value::String(v))) = v else {
                                 break None;
                             };
                             Some(v.clone())
@@ -550,7 +574,7 @@ fn build_widget(
                             let Some(field) = &d.name_field else {
                                 break None;
                             };
-                            let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
+                            let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(v)))) =
                                 data.get(field) else {
                                     break None;
                                 };
@@ -560,7 +584,7 @@ fn build_widget(
                             let Some(field) = &d.album_field else {
                                 break None;
                             };
-                            let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
+                            let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(v)))) =
                                 data.get(field) else {
                                     break None;
                                 };
@@ -570,7 +594,7 @@ fn build_widget(
                             let Some(field) = &d.artist_field else {
                                 break None;
                             };
-                            let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
+                            let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(v)))) =
                                 data.get(field) else {
                                     break None;
                                 };
@@ -612,7 +636,7 @@ fn build_widget(
                             let Some(field) = &d.name_field else {
                                 break None;
                             };
-                            let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
+                            let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(v)))) =
                                 data.get(field) else {
                                     break None;
                                 };
@@ -622,7 +646,7 @@ fn build_widget(
                             let Some(field) = &d.album_field else {
                                 break None;
                             };
-                            let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
+                            let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(v)))) =
                                 data.get(field) else {
                                     break None;
                                 };
@@ -632,7 +656,7 @@ fn build_widget(
                             let Some(field) = &d.artist_field else {
                                 break None;
                             };
-                            let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
+                            let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(v)))) =
                                 data.get(field) else {
                                     break None;
                                 };
@@ -671,6 +695,7 @@ fn build_widget(
         Widget::Sublist(d) => return build_widget_query(
             pc,
             state,
+            queries,
             depth,
             d,
             data,
@@ -683,16 +708,19 @@ fn build_widget(
 fn build_nest(
     pc: &mut ProcessingContext,
     state: &State,
+    queries: &Rc<BTreeMap<String, Query>>,
     depth: usize,
     def: &WidgetNest,
-    data: &BTreeMap<String, QueryResVal>,
+    data: &BTreeMap<String, TreeNode>,
     build_playlist_pos: &BuildPlaylistPos,
     restore_playlist_pos: &Option<PlaylistPos>,
 ) -> El {
     let out = el("div").classes(&def.orientation.css());
     style_tree(CSS_TREE_NEST, depth, def.align, &out);
     for col_def in &def.children {
-        out.ref_push(build_widget(pc, state, depth + 1, col_def, data, build_playlist_pos, restore_playlist_pos));
+        out.ref_push(
+            build_widget(pc, state, queries, depth + 1, col_def, data, build_playlist_pos, restore_playlist_pos),
+        );
     }
     return out;
 }
@@ -700,9 +728,10 @@ fn build_nest(
 fn build_layout(
     pc: &mut ProcessingContext,
     state: &State,
+    queries: &Rc<BTreeMap<String, Query>>,
     depth: usize,
     def: &Layout,
-    data: &Vec<QueryResVal>,
+    data: &Vec<TreeNode>,
     key: &str,
     build_playlist_pos: &BuildPlaylistPos,
     restore_playlist_pos: &Option<PlaylistPos>,
@@ -713,13 +742,13 @@ fn build_layout(
             style_tree(CSS_TREE_LAYOUT_INDIVIDUAL, depth, d.align, &out);
             out.ref_classes(&d.orientation.css());
             for trans_data in data {
-                let QueryResVal::Record(trans_data) = trans_data else {
+                let TreeNode::Record(trans_data) = trans_data else {
                     let out = el_err_block(format!("Value list contains non-record elements"));
                     style_tree(CSS_TREE_TEXT, depth, d.align, &out);
                     return out;
                 };
                 let key_value = match trans_data.get(key) {
-                    Some(QueryResVal::Scalar(v)) => v,
+                    Some(TreeNode::Scalar(v)) => v,
                     _ => continue,
                 };
                 let subrestore_playlist_pos = shed!{
@@ -745,6 +774,7 @@ fn build_layout(
                     build_nest(
                         pc,
                         state,
+                        queries,
                         depth,
                         &d.item,
                         &trans_data,
@@ -764,13 +794,13 @@ fn build_layout(
             style_tree(CSS_TREE_LAYOUT_TABLE, depth, d.align, &out);
             out.ref_classes(&d.orientation.css());
             for (trans_i, trans_data) in data.iter().enumerate() {
-                let QueryResVal::Record(trans_data) = trans_data else {
+                let TreeNode::Record(trans_data) = trans_data else {
                     let out = el_err_block(format!("Value list contains non-record elements"));
                     style_tree(CSS_TREE_TEXT, depth, d.align, &out);
                     return out;
                 };
                 let key_value = match trans_data.get(key) {
-                    Some(QueryResVal::Scalar(v)) => v,
+                    Some(TreeNode::Scalar(v)) => v,
                     _ => continue,
                 };
                 let subrestore_playlist_pos = shed!{
@@ -819,6 +849,7 @@ fn build_layout(
                         build_widget(
                             pc,
                             state,
+                            queries,
                             depth,
                             &cell_def,
                             &trans_data,
@@ -910,6 +941,7 @@ pub fn build_page_view(
         return Some(max_time * percent);
     }
 
+    let queries = Rc::new(def.queries.clone());
     let body =
         el("div")
             .classes(&["s_list_body"])
@@ -917,8 +949,9 @@ pub fn build_page_view(
                 build_widget_query(
                     pc,
                     &state,
+                    &queries,
                     0,
-                    &def.def,
+                    &def.display,
                     &Default::default(),
                     build_playlist_pos,
                     restore_playlist_pos,
@@ -1180,8 +1213,9 @@ pub fn build_page_view(
                 struct DelayRebuild {
                     bg: Rc<RefCell<Option<ScopeValue>>>,
                     state: State,
+                    queries: Rc<BTreeMap<String, Query>>,
                     def: View,
-                    parameter_values: Rc<RefCell<BTreeMap<String, QueryResVal>>>,
+                    parameter_values: Rc<RefCell<BTreeMap<String, TreeNode>>>,
                     build_playlist_pos: BuildPlaylistPos,
                     body: El,
                 }
@@ -1191,6 +1225,7 @@ pub fn build_page_view(
                         *self.bg.borrow_mut() = Some(spawn_rooted({
                             let eg = pc.eg();
                             let state = self.state.clone();
+                            let queries = self.queries.clone();
                             let def = self.def.clone();
                             let parameter_values = self.parameter_values.clone();
                             let build_playlist_pos = self.build_playlist_pos.clone();
@@ -1204,8 +1239,9 @@ pub fn build_page_view(
                                             build_widget_query(
                                                 pc,
                                                 &state,
+                                                &queries,
                                                 0,
-                                                &def.def,
+                                                &def.display,
                                                 &*parameter_values.borrow(),
                                                 &build_playlist_pos,
                                                 &None,
@@ -1220,6 +1256,7 @@ pub fn build_page_view(
                 let delay_rebuild = DelayRebuild {
                     bg: bg.clone(),
                     state: state.clone(),
+                    queries: queries.clone(),
                     def: def.clone(),
                     parameter_values: Default::default(),
                     build_playlist_pos: build_playlist_pos.clone(),
@@ -1234,7 +1271,7 @@ pub fn build_page_view(
                                 .borrow_mut()
                                 .insert(
                                     k.clone(),
-                                    QueryResVal::Scalar(Node(serde_json::Value::String("".to_string()))),
+                                    TreeNode::Scalar(Node::Value(serde_json::Value::String("".to_string()))),
                                 );
                             el("input").attr("type", "text").on("input", {
                                 let eg = pc.eg();
@@ -1246,7 +1283,7 @@ pub fn build_page_view(
                                         .borrow_mut()
                                         .insert(
                                             k.clone(),
-                                            QueryResVal::Scalar(Node(serde_json::Value::String(e.value()))),
+                                            TreeNode::Scalar(Node::Value(serde_json::Value::String(e.value()))),
                                         );
                                     delay_rebuild.call(pc);
                                 })
@@ -1258,8 +1295,8 @@ pub fn build_page_view(
                                 .borrow_mut()
                                 .insert(
                                     k.clone(),
-                                    QueryResVal::Scalar(
-                                        Node(serde_json::Value::Number(serde_json::Number::from(0))),
+                                    TreeNode::Scalar(
+                                        Node::Value(serde_json::Value::Number(serde_json::Number::from(0))),
                                     ),
                                 );
                             el("input").attr("type", "number").on("input", {
@@ -1274,7 +1311,7 @@ pub fn build_page_view(
                                             .borrow_mut()
                                             .insert(
                                                 k.clone(),
-                                                QueryResVal::Scalar(Node(serde_json::Value::Number(n))),
+                                                TreeNode::Scalar(Node::Value(serde_json::Value::Number(n))),
                                             );
                                         delay_rebuild.call(pc);
                                     }
@@ -1285,7 +1322,7 @@ pub fn build_page_view(
                             delay_rebuild
                                 .parameter_values
                                 .borrow_mut()
-                                .insert(k.clone(), QueryResVal::Scalar(Node(serde_json::Value::Bool(false))));
+                                .insert(k.clone(), TreeNode::Scalar(Node::Value(serde_json::Value::Bool(false))));
                             el("input").attr("type", "checkbox").on("input", {
                                 let eg = pc.eg();
                                 let delay_rebuild = delay_rebuild.clone();
@@ -1296,7 +1333,7 @@ pub fn build_page_view(
                                         .borrow_mut()
                                         .insert(
                                             k.clone(),
-                                            QueryResVal::Scalar(Node(serde_json::Value::Bool(e.checked()))),
+                                            TreeNode::Scalar(Node::Value(serde_json::Value::Bool(e.checked()))),
                                         );
                                     delay_rebuild.call(pc);
                                 })
@@ -1308,7 +1345,9 @@ pub fn build_page_view(
                                 .borrow_mut()
                                 .insert(
                                     k.clone(),
-                                    QueryResVal::Scalar(Node(serde_json::Value::String(Utc::now().to_rfc3339()))),
+                                    TreeNode::Scalar(
+                                        Node::Value(serde_json::Value::String(Utc::now().to_rfc3339())),
+                                    ),
                                 );
                             el("input").attr("type", "datetime-local").on("input", {
                                 let eg = pc.eg();
@@ -1320,7 +1359,7 @@ pub fn build_page_view(
                                         .borrow_mut()
                                         .insert(
                                             k.clone(),
-                                            QueryResVal::Scalar(Node(serde_json::Value::String(e.value()))),
+                                            TreeNode::Scalar(Node::Value(serde_json::Value::String(e.value()))),
                                         );
                                     delay_rebuild.call(pc);
                                 })

@@ -7,7 +7,7 @@ use {
             State,
         },
     },
-    crate::interface::config::UserAccess,
+    crate::interface::config::IamGrants,
     flowcontrol::exenum,
     http::HeaderMap,
     htwrap::htserve::{
@@ -18,7 +18,6 @@ use {
         },
     },
     shared::interface::iam::{
-        IamTargetId,
         UserIdentityId,
     },
 };
@@ -48,65 +47,30 @@ pub async fn identify_requester(
             return Ok(Some(Identity::User(user)));
         }
     }
-    if global_config.config.public_access.is_some() {
+    if !global_config.config.public_iam_grants.is_empty() {
         return Ok(Some(Identity::Public));
     }
     return Ok(None);
 }
 
-pub async fn can_write(state: &State, identity: &Identity) -> Result<bool, loga::Error> {
+pub async fn is_admin(state: &State, identity: &Identity) -> Result<bool, loga::Error> {
     match identity {
         Identity::Admin => {
             return Ok(true);
         },
         Identity::User(u) => {
             let user_config = get_user_config(&state, u).await?;
-            if exenum!(&user_config.access, UserAccess:: ReadWrite =>()).is_some() {
-                return Ok(true);
-            } else {
-                return Ok(false);
+            match &user_config.iam_grants {
+                IamGrants::Admin => {
+                    return Ok(true);
+                },
+                _ => {
+                    return Ok(false);
+                },
             }
         },
         Identity::Public => {
             return Ok(false);
         },
     }
-}
-
-pub enum CanRead {
-    All,
-    Restricted(Vec<IamTargetId>),
-    No,
-}
-
-pub async fn can_read(state: &State, identity: &Identity) -> Result<CanRead, loga::Error> {
-    match identity {
-        Identity::Admin => {
-            return Ok(CanRead::All);
-        },
-        Identity::User(u) => {
-            let user_config = get_user_config(&state, u).await?;
-            match &user_config.access {
-                UserAccess::ReadWrite => {
-                    return Ok(CanRead::All);
-                },
-                UserAccess::Read(targets) => {
-                    return Ok(CanRead::Restricted(targets.clone()));
-                },
-            }
-        },
-        Identity::Public => {
-            let global_config = get_global_config(&state).await?;
-            if let Some(targets) = &global_config.config.public_access {
-                return Ok(CanRead::Restricted(targets.clone()));
-            } else {
-                return Ok(CanRead::No);
-            }
-        },
-    }
-}
-
-pub enum ReadRestriction {
-    None,
-    Some(Vec<IamTargetId>),
 }

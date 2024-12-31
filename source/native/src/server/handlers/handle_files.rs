@@ -1,14 +1,18 @@
 use {
     crate::{
-        interface::triple::{
-            DbIamTargetId,
-            DbIamTargetIds,
-            DbNode,
+        interface::{
+            config::{
+                IamGrants,
+                PageAccess,
+            },
+            triple::{
+                DbFileHash,
+                DbNode,
+            },
         },
         server::{
             access::{
-                can_read,
-                CanRead,
+                is_admin,
                 Identity,
             },
             db::{
@@ -22,7 +26,12 @@ use {
                 hash_file_sha256,
                 staged_file_path,
             },
-            state::State,
+            state::{
+                get_global_config,
+                get_iam_grants,
+                get_user_config,
+                State,
+            },
         },
     },
     chrono::Utc,
@@ -55,23 +64,32 @@ use {
         ResultContext,
     },
     serde::Deserialize,
-    shared::interface::{
-        triple::{
-            FileHash,
-            Node,
-        },
-        wire::{
-            FileUrlQuery,
-            ReqCommit,
-            RespCommit,
-            RespUploadFinish,
-            HEADER_OFFSET,
+    shared::{
+        form::build_form_commit,
+        interface::{
+            triple::{
+                FileHash,
+                Node,
+            },
+            wire::{
+                FileUrlQuery,
+                ReqCommit,
+                ReqFormCommit,
+                RespCommit,
+                RespUploadFinish,
+                HEADER_OFFSET,
+            },
         },
     },
     std::{
         collections::{
             HashMap,
             HashSet,
+        },
+        hash::{
+            DefaultHasher,
+            Hash,
+            Hasher,
         },
         io::{
             self,
@@ -105,7 +123,11 @@ async fn get_meta(state: &Arc<State>, hash: &FileHash) -> Result<Option<db::Meta
     return Ok(Some(meta));
 }
 
-pub async fn handle_commit(state: Arc<State>, c: ReqCommit) -> Result<RespCommit, loga::Error> {
+async fn commit(
+    state: Arc<State>,
+    c: ReqCommit,
+    update_access_reqs: Option<(PageAccess, u64)>,
+) -> Result<RespCommit, loga::Error> {
     for info in &c.files {
         if file_path(&state.files_dir, &info.hash)?.exists() {
             continue;
@@ -118,12 +140,23 @@ pub async fn handle_commit(state: Arc<State>, c: ReqCommit) -> Result<RespCommit
         f.set_len(info.size).await.stack_context(&state.log, "Error preallocating disk space for upload")?;
     }
     let incomplete = tx(&state.db, move |txn| {
-        let stamp = Utc::now();
+        if let Some((page_access, form_version_hash)) = update_access_reqs {
+            db::file_access_clear_nonversion(txn, &page_access, form_version_hash as i64)?;
+            for file in &c.files {
+                db::file_access_insert(
+                    txn,
+                    &DbFileHash(file.hash.clone()),
+                    &page_access,
+                    form_version_hash as i64,
+                )?;
+            }
+        }
         let mut incomplete = vec![];
         for info in c.files {
             incomplete.push(info.hash.clone());
             db::meta_insert(txn, &DbNode(Node::File(info.hash)), &info.mimetype, "")?;
         }
+        let stamp = Utc::now();
         for t in c.remove {
             if let Some(t) =
                 db::triple_get(txn, &DbNode(t.subject.clone()), &t.predicate, &DbNode(t.object.clone()))? {
@@ -149,33 +182,62 @@ pub async fn handle_commit(state: Arc<State>, c: ReqCommit) -> Result<RespCommit
     return Ok(RespCommit { incomplete: incomplete });
 }
 
-pub async fn handle_finish_upload(state: Arc<State>, hash: FileHash) -> Result<RespUploadFinish, loga::Error> {
+pub async fn handle_commit(state: Arc<State>, c: ReqCommit) -> Result<RespCommit, loga::Error> {
+    return Ok(commit(state, c, None).await?);
+}
+
+pub async fn handle_form_commit(state: Arc<State>, c: ReqFormCommit) -> Result<RespCommit, VisErr<loga::Error>> {
+    let global_config = get_global_config(&state).await.err_internal()?;
+    let Some(form) = global_config.forms.get(&c.form) else {
+        return Err(loga::err_with("No known form with id", ea!(id = c.form))).err_external();
+    };
+    let mut form_hash = DefaultHasher::new();
+    form.hash(&mut form_hash);
+    return Ok(
+        commit(
+            state,
+            build_form_commit(form, &c.parameters).map_err(loga::err).err_external()?,
+            Some((PageAccess::Form(c.form), form_hash.finish())),
+        )
+            .await
+            .err_internal()?,
+    );
+}
+
+pub async fn handle_finish_upload(
+    state: Arc<State>,
+    identity: &Identity,
+    file: FileHash,
+) -> Result<Option<RespUploadFinish>, loga::Error> {
+    if !can_access_file(&state, identity, &file).await? {
+        return Ok(None);
+    }
     let done;
-    if file_path(&state.files_dir, &hash)?.exists() {
+    if file_path(&state.files_dir, &file)?.exists() {
         done = true;
     } else {
         done = false;
-        if state.finishing_uploads.lock().unwrap().insert(hash.clone()) {
-            state.tm.task(format!("Finish upload ({})", hash.to_string()), {
+        if state.finishing_uploads.lock().unwrap().insert(file.clone()) {
+            state.tm.task(format!("Finish upload ({})", file.to_string()), {
                 let state = state.clone();
                 async move {
                     match async {
-                        let source = staged_file_path(&state.stage_dir, &hash)?;
+                        let source = staged_file_path(&state.stage_dir, &file)?;
 
                         // Validate hash
                         let got_hash = hash_file_sha256(&state.log, &source).await.context("Failed to hash staged uploaded file")?;
-                        if got_hash != hash {
+                        if got_hash != file {
                             return Err(
                                 loga::err_with(
                                     "Uploaded file hash mismatch",
-                                    ea!(want_hash = hash, got_hash = got_hash),
+                                    ea!(want_hash = file, got_hash = got_hash),
                                 ),
                             );
                         }
 
                         // Pre-generate web files for video
                         shed!{
-                            let Some(meta) = get_meta(&state, &hash).await? else {
+                            let Some(meta) = get_meta(&state, &file).await? else {
                                 break;
                             };
                             match meta.mimetype.as_str() {
@@ -235,7 +297,7 @@ pub async fn handle_finish_upload(state: Arc<State>, hash: FileHash) -> Result<R
                                 let Some(lang) = stream.tags.get("language") else {
                                     continue;
                                 };
-                                let subtitle_dest = generated_path(&state.cache_dir, &hash, "text/vtt", &lang)?;
+                                let subtitle_dest = generated_path(&state.cache_dir, &file, "text/vtt", &lang)?;
                                 if let Some(p) = subtitle_dest.parent() {
                                     create_dir_all(&p)
                                         .await
@@ -268,7 +330,7 @@ pub async fn handle_finish_upload(state: Arc<State>, hash: FileHash) -> Result<R
                             // Webm
                             if meta.mimetype.as_str() != "video/webm" {
                                 let webm_tmp = tempdir()?;
-                                let webm_dest = generated_path(&state.cache_dir, &hash, "video/webm", "")?;
+                                let webm_dest = generated_path(&state.cache_dir, &file, "video/webm", "")?;
                                 if let Some(p) = webm_dest.parent() {
                                     create_dir_all(&p)
                                         .await
@@ -328,7 +390,7 @@ pub async fn handle_finish_upload(state: Arc<State>, hash: FileHash) -> Result<R
                         }
 
                         // Place file
-                        let dest = file_path(&state.files_dir, &hash)?;
+                        let dest = file_path(&state.files_dir, &file)?;
                         if let Some(p) = dest.parent() {
                             create_dir_all(&p)
                                 .await
@@ -346,16 +408,40 @@ pub async fn handle_finish_upload(state: Arc<State>, hash: FileHash) -> Result<R
                                 .log
                                 .log_err(
                                     loga::WARN,
-                                    e.context_with("Error finishing upload", ea!(hash = hash.to_string())),
+                                    e.context_with("Error finishing upload", ea!(hash = file.to_string())),
                                 );
                         },
                     }
-                    state.finishing_uploads.lock().unwrap().remove(&hash);
+                    state.finishing_uploads.lock().unwrap().remove(&file);
                 }
             });
         }
     }
-    return Ok(RespUploadFinish { done: done });
+    return Ok(Some(RespUploadFinish { done: done }));
+}
+
+async fn get_file_page_reqs(state: &State, file: &FileHash) -> Result<HashSet<PageAccess>, loga::Error> {
+    let file = DbFileHash(file.clone());
+    let access = tx(&state.db, move |txn| Ok(db::file_access_get(txn, &file)?)).await?;
+    return Ok(access.into_iter().collect());
+}
+
+async fn can_access_file(state: &State, identity: &Identity, file: &FileHash) -> Result<bool, loga::Error> {
+    match get_iam_grants(state, identity).await? {
+        IamGrants::Admin => return Ok(true),
+        IamGrants::Limited(grants) => {
+            let page_reqs = get_file_page_reqs(state, file).await?;
+            for grant in grants {
+                if page_reqs.contains(&grant) {
+                    return Ok(true);
+                }
+            }
+        },
+    }
+    if state.link_public_files.lock().unwrap().contains(&file) {
+        return Ok(true);
+    }
+    return Ok(false);
 }
 
 pub async fn handle_file_head(
@@ -366,8 +452,8 @@ pub async fn handle_file_head(
     let Some(meta) = get_meta(&state, &file).await.err_internal()? else {
         return Ok(response_404());
     };
-    if let Some(r) = can_read_file(&state, identity, &file, &meta).await? {
-        return Ok(r);
+    if !can_access_file(&state, identity, &file).await.err_internal()? {
+        return Ok(response_401());
     }
     return Ok(
         Response::builder()
@@ -388,8 +474,8 @@ pub async fn handle_file_get(
     let Some(meta) = get_meta(&state, &file).await.err_internal()? else {
         return Ok(response_404());
     };
-    if let Some(r) = can_read_file(&state, identity, &file, &meta).await? {
-        return Ok(r);
+    if !can_access_file(&state, identity, &file).await.err_internal()? {
+        return Ok(response_401());
     }
     let query;
     if let Some(q) = head.uri.query() {
@@ -422,10 +508,14 @@ pub async fn handle_file_get(
 
 pub async fn handle_file_post(
     state: Arc<State>,
+    identity: &Identity,
     head: http::request::Parts,
     file: FileHash,
     body: Incoming,
 ) -> Result<Response<BoxBody<Bytes, std::io::Error>>, loga::Error> {
+    if !can_access_file(&state, identity, &file).await? {
+        return Ok(response_401());
+    }
     let offset = async {
         Ok(
             head

@@ -19,16 +19,18 @@ use {
         },
         query::{
             Chain,
-            FilterChainComparisonOperator,
+            ChainBody,
+            ChainRoot,
             FilterExpr,
             FilterExprExists,
             FilterExprExistsType,
+            FilterSuffixSimple,
+            FilterSuffixSimpleOperator,
             MoveDirection,
             Query,
             Step,
             StepMove,
             StepRecurse,
-            Subchain,
             Value,
         },
         triple::Node,
@@ -36,11 +38,11 @@ use {
 };
 
 pub fn node_is_album() -> Node {
-    return Node::Id("sunwet/1/album".to_string());
+    return Node::Value(serde_json::Value::String("sunwet/1/album".to_string()));
 }
 
 pub fn node_is_track() -> Node {
-    return Node::Id("sunwet/1/track".to_string());
+    return Node::Value(serde_json::Value::String("sunwet/1/track".to_string()));
 }
 
 pub const PREDICATE_IS: &str = "sunwet/1/is";
@@ -68,8 +70,8 @@ pub const TRACKS_RECORD_KEY_ARTIST_NAME: &str = "artist_name";
 pub fn default_query_albums() -> Query {
     return Query {
         chain: Chain {
-            subchain: Subchain {
-                root: Some(Value::Literal(node_is_album())),
+            body: ChainBody {
+                root: Some(ChainRoot::Value(Value::Literal(node_is_album()))),
                 steps: vec![Step::Move(StepMove {
                     dir: MoveDirection::Up,
                     predicate: PREDICATE_IS.to_string(),
@@ -78,16 +80,16 @@ pub fn default_query_albums() -> Query {
                 })],
             },
             select: Some(ALBUMS_RECORD_KEY_ID.to_string()),
-            children: vec![
+            subchains: vec![
                 //. .
                 Chain {
                     select: Some(ALBUMS_RECORD_KEY_NAME.to_string()),
-                    subchain: Subchain {
+                    body: ChainBody {
                         root: None,
                         steps: vec![
                             //. .
                             Step::Recurse(StepRecurse {
-                                subchain: Subchain {
+                                subchain: ChainBody {
                                     root: None,
                                     steps: vec![Step::Move(StepMove {
                                         dir: MoveDirection::Up,
@@ -106,15 +108,15 @@ pub fn default_query_albums() -> Query {
                             })
                         ],
                     },
-                    children: Default::default(),
+                    subchains: Default::default(),
                 },
                 Chain {
-                    subchain: Subchain {
+                    body: ChainBody {
                         root: None,
                         steps: vec![
                             //. .
                             Step::Recurse(StepRecurse {
-                                subchain: Subchain {
+                                subchain: ChainBody {
                                     root: None,
                                     steps: vec![Step::Move(StepMove {
                                         dir: MoveDirection::Up,
@@ -134,14 +136,14 @@ pub fn default_query_albums() -> Query {
                         ],
                     },
                     select: Some(ALBUMS_RECORD_KEY_ARTIST_ID.to_string()),
-                    children: vec![Chain {
+                    subchains: vec![Chain {
                         select: Some(ALBUMS_RECORD_KEY_ARTIST_NAME.to_string()),
-                        subchain: Subchain {
+                        body: ChainBody {
                             root: None,
                             steps: vec![
                                 //. .
                                 Step::Recurse(StepRecurse {
-                                    subchain: Subchain {
+                                    subchain: ChainBody {
                                         root: None,
                                         steps: vec![Step::Move(StepMove {
                                             dir: MoveDirection::Up,
@@ -160,17 +162,17 @@ pub fn default_query_albums() -> Query {
                                 })
                             ],
                         },
-                        children: Default::default(),
+                        subchains: Default::default(),
                     }],
                 },
                 Chain {
                     select: Some(ALBUMS_RECORD_KEY_COVER.to_string()),
-                    subchain: Subchain {
+                    body: ChainBody {
                         root: None,
                         steps: vec![
                             //. .
                             Step::Recurse(StepRecurse {
-                                subchain: Subchain {
+                                subchain: ChainBody {
                                     root: None,
                                     steps: vec![Step::Move(StepMove {
                                         dir: MoveDirection::Up,
@@ -189,7 +191,7 @@ pub fn default_query_albums() -> Query {
                             })
                         ],
                     },
-                    children: Default::default(),
+                    subchains: Default::default(),
                 }
             ],
         },
@@ -200,15 +202,15 @@ pub fn default_query_albums() -> Query {
 pub fn default_query_album_tracks() -> Query {
     return Query {
         chain: Chain {
-            subchain: Subchain {
-                root: Some(Value::Parameter(TRACKS_PARAM_ALBUM.to_string())),
+            body: ChainBody {
+                root: Some(ChainRoot::Value(Value::Parameter(TRACKS_PARAM_ALBUM.to_string()))),
                 steps: vec![Step::Move(StepMove {
                     dir: MoveDirection::Down,
                     predicate: PREDICATE_ELEMENT.to_string(),
                     first: false,
                     filter: Some(FilterExpr::Exists(FilterExprExists {
                         type_: FilterExprExistsType::Exists,
-                        subchain: Subchain {
+                        subchain: ChainBody {
                             root: None,
                             steps: vec![Step::Move(StepMove {
                                 dir: MoveDirection::Down,
@@ -217,16 +219,19 @@ pub fn default_query_album_tracks() -> Query {
                                 first: false,
                             })],
                         },
-                        filter: Some((FilterChainComparisonOperator::Eq, Value::Literal(node_is_track()))),
+                        suffix: Some(shared::interface::query::FilterSuffix::Simple(FilterSuffixSimple {
+                            op: FilterSuffixSimpleOperator::Eq,
+                            value: Value::Literal(node_is_track()),
+                        })),
                     })),
                 })],
             },
             select: Some(TRACKS_RECORD_KEY_ID.to_string()),
-            children: vec![
+            subchains: vec![
                 //. .
                 Chain {
                     select: Some(ALBUMS_RECORD_KEY_NAME.to_string()),
-                    subchain: Subchain {
+                    body: ChainBody {
                         root: None,
                         steps: vec![
                             //. .
@@ -238,16 +243,16 @@ pub fn default_query_album_tracks() -> Query {
                             })
                         ],
                     },
-                    children: Default::default(),
+                    subchains: Default::default(),
                 },
                 Chain {
                     select: Some(TRACKS_RECORD_KEY_ARTIST_ID.to_string()),
-                    subchain: Subchain {
+                    body: ChainBody {
                         root: None,
                         steps: vec![
                             //. .
                             Step::Recurse(StepRecurse {
-                                subchain: Subchain {
+                                subchain: ChainBody {
                                     root: None,
                                     steps: vec![Step::Move(StepMove {
                                         dir: MoveDirection::Up,
@@ -266,14 +271,14 @@ pub fn default_query_album_tracks() -> Query {
                             })
                         ],
                     },
-                    children: vec![Chain {
+                    subchains: vec![Chain {
                         select: Some(TRACKS_RECORD_KEY_ARTIST_NAME.to_string()),
-                        subchain: Subchain {
+                        body: ChainBody {
                             root: None,
                             steps: vec![
                                 //. .
                                 Step::Recurse(StepRecurse {
-                                    subchain: Subchain {
+                                    subchain: ChainBody {
                                         root: None,
                                         steps: vec![Step::Move(StepMove {
                                             dir: MoveDirection::Up,
@@ -292,12 +297,12 @@ pub fn default_query_album_tracks() -> Query {
                                 })
                             ],
                         },
-                        children: Default::default(),
+                        subchains: Default::default(),
                     }],
                 },
                 Chain {
                     select: Some(TRACKS_RECORD_KEY_INDEX.to_string()),
-                    subchain: Subchain {
+                    body: ChainBody {
                         root: None,
                         steps: vec![Step::Move(StepMove {
                             dir: MoveDirection::Down,
@@ -306,11 +311,11 @@ pub fn default_query_album_tracks() -> Query {
                             filter: None,
                         })],
                     },
-                    children: Default::default(),
+                    subchains: Default::default(),
                 },
                 Chain {
                     select: Some(TRACKS_RECORD_KEY_FILE.to_string()),
-                    subchain: Subchain {
+                    body: ChainBody {
                         root: None,
                         steps: vec![Step::Move(StepMove {
                             dir: MoveDirection::Down,
@@ -319,11 +324,11 @@ pub fn default_query_album_tracks() -> Query {
                             filter: None,
                         })],
                     },
-                    children: Default::default(),
+                    subchains: Default::default(),
                 },
                 Chain {
                     select: Some(TRACKS_RECORD_KEY_MEDIA.to_string()),
-                    subchain: Subchain {
+                    body: ChainBody {
                         root: None,
                         steps: vec![Step::Move(StepMove {
                             dir: MoveDirection::Down,
@@ -332,7 +337,7 @@ pub fn default_query_album_tracks() -> Query {
                             filter: None,
                         })],
                     },
-                    children: Default::default(),
+                    subchains: Default::default(),
                 }
             ],
         },

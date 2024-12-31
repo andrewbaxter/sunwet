@@ -63,6 +63,11 @@ pub fn migrate(db: &mut rusqlite::Connection) -> Result<(), GoodError> {
                 };
                 {
                     let query =
+                        "create table \"file_access\" ( \"page_version_hash\" integer not null , \"page\" text not null , \"file\" text not null , constraint \"meta_node\" primary key ( \"file\" , \"page\" , \"page_version_hash\" ) )";
+                    txn.execute(query, ()).to_good_error_query(query)?
+                };
+                {
+                    let query =
                         "create table \"meta\" ( \"mimetype\" text not null , \"fulltext\" text not null , \"node\" text not null , constraint \"meta_node\" primary key ( \"node\" ) )";
                     txn.execute(query, ()).to_good_error_query(query)?
                 };
@@ -221,6 +226,136 @@ pub fn triple_get(
         }));
     }
     Ok(None)
+}
+
+pub fn triple_list_from(
+    db: &rusqlite::Connection,
+    subject: &crate::interface::triple::DbNode,
+) -> Result<Vec<DbRes1>, GoodError> {
+    let mut out = vec![];
+    let query =
+        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , \"triple\" . \"timestamp\" , \"triple\" . \"exists\" from \"triple\" where ( ( \"triple\" . \"subject\" = $1 ) ) ";
+    let mut stmt = db.prepare(query).to_good_error_query(query)?;
+    let mut rows =
+        stmt
+            .query(
+                rusqlite::params![
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
+                        &subject,
+                    )
+                ],
+            )
+            .to_good_error_query(query)?;
+    while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
+        out.push(DbRes1 {
+            subject: {
+                let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
+                let x =
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::from_sql(
+                        x,
+                    ).to_good_error(|| format!("Parsing result {}", 0usize))?;
+                x
+            },
+            predicate: {
+                let x: String = r.get(1usize).to_good_error(|| format!("Getting result {}", 1usize))?;
+                x
+            },
+            object: {
+                let x: String = r.get(2usize).to_good_error(|| format!("Getting result {}", 2usize))?;
+                let x =
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::from_sql(
+                        x,
+                    ).to_good_error(|| format!("Parsing result {}", 2usize))?;
+                x
+            },
+            timestamp: {
+                let x: String = r.get(3usize).to_good_error(|| format!("Getting result {}", 3usize))?;
+                let x =
+                    chrono::DateTime::<chrono::Utc>::from(
+                        chrono::DateTime::<chrono::FixedOffset>::parse_from_rfc3339(
+                            &x,
+                        ).to_good_error(|| format!("Getting result {}", 3usize))?,
+                    );
+                x
+            },
+            exists: {
+                let x: bool = r.get(4usize).to_good_error(|| format!("Getting result {}", 4usize))?;
+                x
+            },
+        });
+    }
+    Ok(out)
+}
+
+pub fn triple_list_to(
+    db: &rusqlite::Connection,
+    object: &crate::interface::triple::DbNode,
+) -> Result<Vec<DbRes1>, GoodError> {
+    let mut out = vec![];
+    let query =
+        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , \"triple\" . \"timestamp\" , \"triple\" . \"exists\" from \"triple\" where ( ( \"triple\" . \"object\" = $1 ) ) ";
+    let mut stmt = db.prepare(query).to_good_error_query(query)?;
+    let mut rows =
+        stmt
+            .query(
+                rusqlite::params![
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
+                        &object,
+                    )
+                ],
+            )
+            .to_good_error_query(query)?;
+    while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
+        out.push(DbRes1 {
+            subject: {
+                let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
+                let x =
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::from_sql(
+                        x,
+                    ).to_good_error(|| format!("Parsing result {}", 0usize))?;
+                x
+            },
+            predicate: {
+                let x: String = r.get(1usize).to_good_error(|| format!("Getting result {}", 1usize))?;
+                x
+            },
+            object: {
+                let x: String = r.get(2usize).to_good_error(|| format!("Getting result {}", 2usize))?;
+                let x =
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::from_sql(
+                        x,
+                    ).to_good_error(|| format!("Parsing result {}", 2usize))?;
+                x
+            },
+            timestamp: {
+                let x: String = r.get(3usize).to_good_error(|| format!("Getting result {}", 3usize))?;
+                let x =
+                    chrono::DateTime::<chrono::Utc>::from(
+                        chrono::DateTime::<chrono::FixedOffset>::parse_from_rfc3339(
+                            &x,
+                        ).to_good_error(|| format!("Getting result {}", 3usize))?,
+                    );
+                x
+            },
+            exists: {
+                let x: bool = r.get(4usize).to_good_error(|| format!("Getting result {}", 4usize))?;
+                x
+            },
+        });
+    }
+    Ok(out)
 }
 
 pub fn triple_list_all(db: &rusqlite::Connection) -> Result<Vec<DbRes1>, GoodError> {
@@ -521,4 +656,90 @@ pub fn meta_gc(db: &rusqlite::Connection) -> Result<(), GoodError> {
         "delete from \"meta\" where not exists ( select 1 as \"x\" from \"triple\" where ( ( \"meta\" . \"node\" = \"triple\" . \"subject\" ) or ( \"meta\" . \"node\" = \"triple\" . \"object\" ) )  )";
     db.execute(query, rusqlite::params![]).to_good_error_query(query)?;
     Ok(())
+}
+
+pub fn file_access_insert(
+    db: &rusqlite::Connection,
+    file: &crate::interface::triple::DbFileHash,
+    page: &crate::interface::config::PageAccess,
+    page_version_hash: i64,
+) -> Result<(), GoodError> {
+    let query =
+        "insert into \"file_access\" ( \"file\" , \"page\" , \"page_version_hash\" ) values ( $1 , $2 , $3 ) on conflict do nothing";
+    db
+        .execute(
+            query,
+            rusqlite::params![
+                <crate::interface::triple::DbFileHash as good_ormning_runtime
+                ::sqlite
+                ::GoodOrmningCustomString<crate::interface::triple::DbFileHash>>::to_sql(
+                    &file,
+                ),
+                <crate::interface::config::PageAccess as good_ormning_runtime
+                ::sqlite
+                ::GoodOrmningCustomString<crate::interface::config::PageAccess>>::to_sql(
+                    &page,
+                ),
+                page_version_hash
+            ],
+        )
+        .to_good_error_query(query)?;
+    Ok(())
+}
+
+pub fn file_access_clear_nonversion(
+    db: &rusqlite::Connection,
+    access: &crate::interface::config::PageAccess,
+    version_hash: i64,
+) -> Result<(), GoodError> {
+    let query =
+        "delete from \"file_access\" where ( ( \"file_access\" . \"page\" = $1 ) and ( \"file_access\" . \"page_version_hash\" = $2 ) )";
+    db
+        .execute(
+            query,
+            rusqlite::params![
+                <crate::interface::config::PageAccess as good_ormning_runtime
+                ::sqlite
+                ::GoodOrmningCustomString<crate::interface::config::PageAccess>>::to_sql(
+                    &access,
+                ),
+                version_hash
+            ],
+        )
+        .to_good_error_query(query)?;
+    Ok(())
+}
+
+pub fn file_access_get(
+    db: &rusqlite::Connection,
+    file: &crate::interface::triple::DbFileHash,
+) -> Result<Vec<crate::interface::config::PageAccess>, GoodError> {
+    let mut out = vec![];
+    let query = "select \"file_access\" . \"page\" from \"file_access\" where ( \"file_access\" . \"file\" = $1 ) ";
+    let mut stmt = db.prepare(query).to_good_error_query(query)?;
+    let mut rows =
+        stmt
+            .query(
+                rusqlite::params![
+                    <crate::interface::triple::DbFileHash as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbFileHash>>::to_sql(
+                        &file,
+                    )
+                ],
+            )
+            .to_good_error_query(query)?;
+    while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
+        out.push({
+            let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
+            let x =
+                <crate::interface::config::PageAccess as good_ormning_runtime
+                ::sqlite
+                ::GoodOrmningCustomString<crate::interface::config::PageAccess>>::from_sql(
+                    x,
+                ).to_good_error(|| format!("Parsing result {}", 0usize))?;
+            x
+        });
+    }
+    Ok(out)
 }

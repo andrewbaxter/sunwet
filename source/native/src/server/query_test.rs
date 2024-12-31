@@ -9,12 +9,8 @@ use {
         PREDICATE_NAME,
     },
     crate::{
-        interface::triple::{
-            DbIamTargetId,
-            DbNode,
-        },
+        interface::triple::DbNode,
         server::{
-            access::ReadRestriction,
             db,
             query::{
                 build_query,
@@ -28,13 +24,15 @@ use {
         Utc,
     },
     shared::interface::{
-        iam::IamTargetId,
         query::{
             Chain,
-            FilterChainComparisonOperator,
+            ChainBody,
+            ChainRoot,
             FilterExpr,
             FilterExprExists,
             FilterExprExistsType,
+            FilterSuffixSimple,
+            FilterSuffixSimpleOperator,
             JunctionType,
             MoveDirection,
             Query,
@@ -42,11 +40,10 @@ use {
             StepJunction,
             StepMove,
             StepRecurse,
-            Subchain,
             Value,
         },
         triple::Node,
-        wire::QueryResVal,
+        wire::TreeNode,
     },
     std::{
         collections::{
@@ -62,10 +59,6 @@ use {
     },
 };
 
-fn id(value: impl AsRef<str>) -> Node {
-    return Node::Id(value.as_ref().to_string());
-}
-
 fn s(value: impl AsRef<str>) -> Node {
     return Node::Value(serde_json::Value::String(value.as_ref().to_string()));
 }
@@ -78,20 +71,12 @@ fn n() -> Node {
     return Node::Value(serde_json::Value::Null);
 }
 
-fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, QueryResVal)]], query: Query) {
-    let (query, query_values) = build_query(ReadRestriction::None, query, HashMap::new()).unwrap();
+fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, TreeNode)]], query: Query) {
+    let (query, query_values) = build_query(query, HashMap::new()).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
     db::migrate(&mut db).unwrap();
     for (s, p, o) in triples {
-        db::triple_insert(
-            &db,
-            &DbNode((*s).clone()),
-            p,
-            &DbNode((*o).clone()),
-            Utc::now().into(),
-            true,
-            &DbIamTargetId(IamTargetId(0)),
-        ).unwrap();
+        db::triple_insert(&db, &DbNode((*s).clone()), p, &DbNode((*o).clone()), Utc::now().into(), true).unwrap();
     }
     {
         let prettier_root = PathBuf::from("/home/andrew/temp/soft/node/node_modules/");
@@ -125,11 +110,11 @@ fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, QueryResVal)]], qu
     }
     let got = execute_sql_query(&db, query, query_values).unwrap();
     let want =
-        QueryResVal::Array(
+        TreeNode::Array(
             want
                 .into_iter()
                 .map(
-                    |m| QueryResVal::Record(
+                    |m| TreeNode::Record(
                         m.into_iter().map(|(k, v)| (k.to_string(), v.clone())).collect::<BTreeMap<_, _>>(),
                     ),
                 )
@@ -142,17 +127,17 @@ fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, QueryResVal)]], qu
 fn test_base() {
     execute(
         &[
-            (&id("a"), PREDICATE_IS, &node_is_album()),
-            (&id("a"), PREDICATE_NAME, &s("a_name")),
-            (&id("a"), PREDICATE_CREATOR, &id("a_a")),
-            (&id("a_a"), PREDICATE_NAME, &s("a_a_name")),
+            (&s("a"), PREDICATE_IS, &node_is_album()),
+            (&s("a"), PREDICATE_NAME, &s("a_name")),
+            (&s("a"), PREDICATE_CREATOR, &s("a_a")),
+            (&s("a_a"), PREDICATE_NAME, &s("a_a_name")),
         ],
         &[
             &[
-                ("id", QueryResVal::Scalar(id("a"))),
-                ("name", QueryResVal::Scalar(s("a_name"))),
-                ("artist", QueryResVal::Scalar(s("a_a_name"))),
-                ("cover", QueryResVal::Scalar(n())),
+                ("id", TreeNode::Scalar(s("a"))),
+                ("name", TreeNode::Scalar(s("a_name"))),
+                ("artist", TreeNode::Scalar(s("a_a_name"))),
+                ("cover", TreeNode::Scalar(n())),
             ],
         ],
         default_query_albums(),
@@ -163,17 +148,17 @@ fn test_base() {
 fn test_recurse() {
     execute(
         &[
-            (&id("a"), PREDICATE_IS, &node_is_album()),
-            (&id("a"), PREDICATE_NAME, &s("a_name")),
-            (&id("b"), PREDICATE_IS, &node_is_album()),
-            (&id("b_p"), PREDICATE_ELEMENT, &id("b")),
-            (&id("b_p"), PREDICATE_NAME, &s("b_name")),
+            (&s("a"), PREDICATE_IS, &node_is_album()),
+            (&s("a"), PREDICATE_NAME, &s("a_name")),
+            (&s("b"), PREDICATE_IS, &node_is_album()),
+            (&s("b_p"), PREDICATE_ELEMENT, &s("b")),
+            (&s("b_p"), PREDICATE_NAME, &s("b_name")),
         ],
-        &[&[("name", QueryResVal::Scalar(s("a_name")))], &[("name", QueryResVal::Scalar(s("b_name")))]],
+        &[&[("name", TreeNode::Scalar(s("a_name")))], &[("name", TreeNode::Scalar(s("b_name")))]],
         Query {
             chain: Chain {
-                subchain: Subchain {
-                    root: Some(Value::Literal(node_is_album())),
+                body: ChainBody {
+                    root: Some(ChainRoot::Value(Value::Literal(node_is_album()))),
                     steps: vec![
                         //. .
                         Step::Move(StepMove {
@@ -183,7 +168,7 @@ fn test_recurse() {
                             first: false,
                         }),
                         Step::Recurse(StepRecurse {
-                            subchain: Subchain {
+                            subchain: ChainBody {
                                 root: None,
                                 steps: vec![Step::Move(StepMove {
                                     dir: MoveDirection::Up,
@@ -203,7 +188,7 @@ fn test_recurse() {
                     ],
                 },
                 select: Some("name".to_string()),
-                children: vec![],
+                subchains: vec![],
             },
             sort: vec![],
         },
@@ -214,16 +199,16 @@ fn test_recurse() {
 fn test_filter_eq() {
     execute(
         &[
-            (&id("a"), PREDICATE_IS, &id("sunwet/1/album")),
-            (&id("a"), PREDICATE_NAME, &s("a_name")),
-            (&id("b"), PREDICATE_IS, &id("sunwet/1/album")),
-            (&id("b"), PREDICATE_NAME, &s("b_name")),
+            (&s("a"), PREDICATE_IS, &s("sunwet/1/album")),
+            (&s("a"), PREDICATE_NAME, &s("a_name")),
+            (&s("b"), PREDICATE_IS, &s("sunwet/1/album")),
+            (&s("b"), PREDICATE_NAME, &s("b_name")),
         ],
-        &[&[("id", QueryResVal::Scalar(id("a")))]],
+        &[&[("id", TreeNode::Scalar(s("a")))]],
         Query {
             chain: Chain {
-                subchain: Subchain {
-                    root: Some(Value::Literal(id("sunwet/1/album"))),
+                body: ChainBody {
+                    root: Some(ChainRoot::Value(Value::Literal(node_is_album()))),
                     steps: vec![
                         //. .
                         Step::Move(StepMove {
@@ -231,7 +216,7 @@ fn test_filter_eq() {
                             predicate: PREDICATE_IS.to_string(),
                             filter: Some(FilterExpr::Exists(FilterExprExists {
                                 type_: FilterExprExistsType::Exists,
-                                subchain: Subchain {
+                                subchain: ChainBody {
                                     root: None,
                                     steps: vec![Step::Move(StepMove {
                                         dir: MoveDirection::Down,
@@ -240,14 +225,17 @@ fn test_filter_eq() {
                                         first: false,
                                     })],
                                 },
-                                filter: Some((FilterChainComparisonOperator::Eq, Value::Literal(s("a_name")))),
+                                suffix: Some(shared::interface::query::FilterSuffix::Simple(FilterSuffixSimple {
+                                    op: FilterSuffixSimpleOperator::Eq,
+                                    value: Value::Literal(s("a_name")),
+                                })),
                             })),
                             first: false,
                         })
                     ],
                 },
                 select: Some("id".to_string()),
-                children: vec![],
+                subchains: vec![],
             },
             sort: vec![],
         },
@@ -258,16 +246,16 @@ fn test_filter_eq() {
 fn test_filter_lt() {
     execute(
         &[
-            (&id("a"), PREDICATE_IS, &node_is_album()),
-            (&id("a"), "sunwet/1/q", &i(12)),
-            (&id("b"), PREDICATE_IS, &node_is_album()),
-            (&id("b"), "sunwet/1/q", &i(47)),
+            (&s("a"), PREDICATE_IS, &node_is_album()),
+            (&s("a"), "sunwet/1/q", &i(12)),
+            (&s("b"), PREDICATE_IS, &node_is_album()),
+            (&s("b"), "sunwet/1/q", &i(47)),
         ],
-        &[&[("id", QueryResVal::Scalar(id("b")))]],
+        &[&[("id", TreeNode::Scalar(s("b")))]],
         Query {
             chain: Chain {
-                subchain: Subchain {
-                    root: Some(Value::Literal(node_is_album())),
+                body: ChainBody {
+                    root: Some(ChainRoot::Value(Value::Literal(node_is_album()))),
                     steps: vec![
                         //. .
                         Step::Move(StepMove {
@@ -275,7 +263,7 @@ fn test_filter_lt() {
                             predicate: PREDICATE_IS.to_string(),
                             filter: Some(FilterExpr::Exists(FilterExprExists {
                                 type_: FilterExprExistsType::Exists,
-                                subchain: Subchain {
+                                subchain: ChainBody {
                                     root: None,
                                     steps: vec![Step::Move(StepMove {
                                         dir: MoveDirection::Down,
@@ -284,14 +272,17 @@ fn test_filter_lt() {
                                         first: false,
                                     })],
                                 },
-                                filter: Some((FilterChainComparisonOperator::Gte, Value::Literal(i(30)))),
+                                suffix: Some(shared::interface::query::FilterSuffix::Simple(FilterSuffixSimple {
+                                    op: FilterSuffixSimpleOperator::Gte,
+                                    value: Value::Literal(i(30)),
+                                })),
                             })),
                             first: false,
                         })
                     ],
                 },
                 select: Some("id".to_string()),
-                children: vec![],
+                subchains: vec![],
             },
             sort: vec![],
         },
@@ -302,45 +293,49 @@ fn test_filter_lt() {
 fn test_chain_union() {
     execute(
         &[
-            (&id("a"), PREDICATE_IS, &node_is_album()),
-            (&id("b"), PREDICATE_IS, &id("sunwet/1/dog")),
-            (&id("d"), PREDICATE_IS, &id("sunwet/1/what")),
+            (&s("a"), PREDICATE_IS, &node_is_album()),
+            (&s("b"), PREDICATE_IS, &s("sunwet/1/dog")),
+            (&s("d"), PREDICATE_IS, &s("sunwet/1/what")),
         ],
         &[
             //. .
-            &[("id", QueryResVal::Scalar(id("b")))],
-            &[("id", QueryResVal::Scalar(id("d")))],
+            &[("id", TreeNode::Scalar(s("b")))],
+            &[("id", TreeNode::Scalar(s("d")))],
         ],
         Query {
             chain: Chain {
-                subchain: Subchain {
+                body: ChainBody {
                     root: None,
                     steps: vec![
                         //. .
                         Step::Junction(StepJunction {
                             type_: JunctionType::Or,
-                            subchains: vec![Subchain {
-                                root: Some(Value::Literal(id("sunwet/1/dog"))),
-                                steps: vec![Step::Move(StepMove {
-                                    dir: MoveDirection::Up,
-                                    predicate: PREDICATE_IS.to_string(),
-                                    filter: None,
-                                    first: false,
-                                })],
-                            }, Subchain {
-                                root: Some(Value::Literal(id("sunwet/1/what"))),
-                                steps: vec![Step::Move(StepMove {
-                                    dir: MoveDirection::Up,
-                                    predicate: PREDICATE_IS.to_string(),
-                                    filter: None,
-                                    first: false,
-                                })],
-                            }],
+                            subchains: vec![
+                                //. .
+                                ChainBody {
+                                    root: Some(ChainRoot::Value(Value::Literal(s("sunwet/1/dog")))),
+                                    steps: vec![Step::Move(StepMove {
+                                        dir: MoveDirection::Up,
+                                        predicate: PREDICATE_IS.to_string(),
+                                        filter: None,
+                                        first: false,
+                                    })],
+                                },
+                                ChainBody {
+                                    root: Some(ChainRoot::Value(Value::Literal(s("sunwet/1/what")))),
+                                    steps: vec![Step::Move(StepMove {
+                                        dir: MoveDirection::Up,
+                                        predicate: PREDICATE_IS.to_string(),
+                                        filter: None,
+                                        first: false,
+                                    })],
+                                }
+                            ],
                         })
                     ],
                 },
                 select: Some("id".to_string()),
-                children: vec![],
+                subchains: vec![],
             },
             sort: vec![],
         },
@@ -356,73 +351,17 @@ fn test_gc() {
     let stamp3 = chrono::Local.with_ymd_and_hms(2014, 12, 1, 1, 1, 1).unwrap().into();
 
     // Newest is after epoch
-    db::triple_insert(
-        &db,
-        &DbNode(s("a")),
-        "b",
-        &DbNode(s("c")),
-        stamp1,
-        true,
-        &DbIamTargetId(IamTargetId(0)),
-    ).unwrap();
-    db::triple_insert(
-        &db,
-        &DbNode(s("a")),
-        "b",
-        &DbNode(s("c")),
-        stamp2,
-        false,
-        &DbIamTargetId(IamTargetId(0)),
-    ).unwrap();
-    db::triple_insert(
-        &db,
-        &DbNode(s("a")),
-        "b",
-        &DbNode(s("c")),
-        stamp3,
-        true,
-        &DbIamTargetId(IamTargetId(0)),
-    ).unwrap();
+    db::triple_insert(&db, &DbNode(s("a")), "b", &DbNode(s("c")), stamp1, true).unwrap();
+    db::triple_insert(&db, &DbNode(s("a")), "b", &DbNode(s("c")), stamp2, false).unwrap();
+    db::triple_insert(&db, &DbNode(s("a")), "b", &DbNode(s("c")), stamp3, true).unwrap();
 
     // Newest is before epoch, but exists
-    db::triple_insert(
-        &db,
-        &DbNode(s("d")),
-        "e",
-        &DbNode(s("f")),
-        stamp1,
-        false,
-        &DbIamTargetId(IamTargetId(0)),
-    ).unwrap();
-    db::triple_insert(
-        &db,
-        &DbNode(s("d")),
-        "e",
-        &DbNode(s("f")),
-        stamp2,
-        true,
-        &DbIamTargetId(IamTargetId(0)),
-    ).unwrap();
+    db::triple_insert(&db, &DbNode(s("d")), "e", &DbNode(s("f")), stamp1, false).unwrap();
+    db::triple_insert(&db, &DbNode(s("d")), "e", &DbNode(s("f")), stamp2, true).unwrap();
 
     // Newest is before epoch, but doesn't exist
-    db::triple_insert(
-        &db,
-        &DbNode(s("g")),
-        "h",
-        &DbNode(s("i")),
-        stamp1,
-        true,
-        &DbIamTargetId(IamTargetId(0)),
-    ).unwrap();
-    db::triple_insert(
-        &db,
-        &DbNode(s("g")),
-        "h",
-        &DbNode(s("i")),
-        stamp1,
-        false,
-        &DbIamTargetId(IamTargetId(0)),
-    ).unwrap();
+    db::triple_insert(&db, &DbNode(s("g")), "h", &DbNode(s("i")), stamp1, true).unwrap();
+    db::triple_insert(&db, &DbNode(s("g")), "h", &DbNode(s("i")), stamp1, false).unwrap();
 
     // Gc
     db::triple_gc_deleted(&db, stamp2 + Duration::seconds(1)).unwrap();
@@ -435,7 +374,7 @@ fn test_gc() {
         db::triple_list_all(&db)
             .unwrap()
             .into_iter()
-            .map(|r| format!("{:?}", (r.subject, r.predicate, r.object, r.timestamp, r.exists, r.iam_target)))
+            .map(|r| format!("{:?}", (r.subject, r.predicate, r.object, r.timestamp, r.exists)))
             .collect::<Vec<_>>();
     have.sort();
     pretty_assertions::assert_eq!(want, have);
@@ -444,7 +383,7 @@ fn test_gc() {
         db::triple_list_all(&db)
             .unwrap()
             .into_iter()
-            .map(|r| format!("{:?}", (r.subject, r.predicate, r.object, r.timestamp, r.exists, r.iam_target)))
+            .map(|r| format!("{:?}", (r.subject, r.predicate, r.object, r.timestamp, r.exists)))
             .collect::<Vec<_>>();
     have.sort();
     pretty_assertions::assert_eq!(want, have);

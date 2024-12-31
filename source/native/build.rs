@@ -38,19 +38,23 @@ use {
             },
             field::{
                 field_bool,
+                field_i64,
                 field_str,
                 field_utctime_ms,
                 FieldType,
             },
         },
-        types::{
-            type_str,
-        },
+        types::type_str,
         QueryResCount,
         Version,
     },
     std::{
         env,
+        hash::{
+            DefaultHasher,
+            Hash,
+            Hasher,
+        },
         path::PathBuf,
     },
 };
@@ -62,8 +66,8 @@ fn main() {
     let mut queries = vec![];
     let node_type = type_str().custom("crate::interface::triple::DbNode").build();
     let node_array_type = type_str().custom("crate::interface::triple::DbNode").array().build();
-    let iam_target_id_type = type_str().custom("crate::interface::triple::DbIamTargetId").build();
-    let iam_target_ids_type = type_str().custom("crate::interface::triple::DbIamTargetIds").build();
+    let filehash_type = type_str().custom("crate::interface::triple::DbFileHash").build();
+    let file_access_type = type_str().custom("crate::interface::config::PageAccess").build();
 
     // Triple
     let triple_table;
@@ -132,6 +136,26 @@ fn main() {
                 .limit(Expr::LitI32(1))
                 .order(Expr::field(&event_stamp), Order::Desc)
                 .build_query("triple_get", QueryResCount::MaybeOne),
+        );
+        queries.push(
+            new_select(&t)
+                .return_field(&subject)
+                .return_field(&predicate)
+                .return_field(&object)
+                .return_field(&event_stamp)
+                .return_field(&event_exist)
+                .where_(expr_and(vec![expr_field_eq("subject", &subject)]))
+                .build_query("triple_list_from", QueryResCount::Many),
+        );
+        queries.push(
+            new_select(&t)
+                .return_field(&subject)
+                .return_field(&predicate)
+                .return_field(&object)
+                .return_field(&event_stamp)
+                .return_field(&event_exist)
+                .where_(expr_and(vec![expr_field_eq("object", &object)]))
+                .build_query("triple_list_to", QueryResCount::Many),
         );
         queries.push(
             new_select(&t)
@@ -333,6 +357,46 @@ fn main() {
         }).build_query("meta_gc", QueryResCount::None));
     }
 
+    // File access
+    {
+        let t = latest_version.table("zFFF18JKY", "file_access");
+        let file = t.field(&mut latest_version, "zLQI9HQUQ", "file", FieldType::with(&filehash_type));
+        let page = t.field(&mut latest_version, "zSZVNBP0E", "page", FieldType::with(&file_access_type));
+        let page_version_hash = t.field(&mut latest_version, "zWZT5PZHR", "page_version_hash", field_i64().build());
+        t.constraint(
+            &mut latest_version,
+            "zCW5WMK7U",
+            "meta_node",
+            PrimaryKey(PrimaryKeyDef { fields: vec![file.clone(), page.clone(), page_version_hash.clone()] }),
+        );
+        queries.push(
+            new_insert(
+                &t,
+                vec![
+                    set_field("file", &file),
+                    set_field("page", &page),
+                    set_field("page_version_hash", &page_version_hash)
+                ],
+            )
+                .on_conflict(InsertConflict::DoNothing)
+                .build_query("file_access_insert", QueryResCount::None),
+        );
+        queries.push(new_delete(&t).where_(expr_and(vec![expr_field_eq("access", &page), Expr::BinOp {
+            left: Box::new(Expr::Binding(Binding::field(&page_version_hash))),
+            op: BinOp::Equals,
+            right: Box::new(Expr::Param {
+                name: "version_hash".into(),
+                type_: page_version_hash.type_.type_.clone(),
+            }),
+        }])).build_query("file_access_clear_nonversion", QueryResCount::None));
+        queries.push(
+            new_select(&t)
+                .where_(expr_field_eq("file", &file))
+                .return_field(&page)
+                .build_query("file_access_get", QueryResCount::Many),
+        );
+    }
+
     // Generate
     match good_ormning::sqlite::generate(&root.join("src/server/db.rs"), vec![
         // Versions
@@ -346,4 +410,15 @@ fn main() {
             panic!("Generate failed.");
         },
     };
+
+    // Query parser
+    let path = root.join("src/client/query_parser.rustemo");
+    println!("cargo:rerun-if-changed={}", path.to_str().unwrap());
+    rustemo_compiler::Settings::new()
+        .builder_type(rustemo_compiler::BuilderType::Default)
+        .actions(true)
+        .fancy_regex(true)
+        //. .parser_algo(rustemo_compiler::ParserAlgo::GLR)
+        .process_grammar(&path)
+        .unwrap();
 }

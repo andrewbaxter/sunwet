@@ -5,6 +5,7 @@ use {
             HelpPatternElement,
         },
         traits_impls::{
+            AargvarkFile,
             AargvarkFromStr,
             AargvarkJson,
         },
@@ -16,14 +17,37 @@ use {
         NaiveDateTime,
         Utc,
     },
-    loga::Log,
+    loga::{
+        Log,
+        ResultContext,
+    },
+    query::compile_query,
     shared::interface::{
-        query::Query,
+        query::{
+            Chain,
+            ChainBody,
+            ChainRoot,
+            FilterExpr,
+            FilterExprExists,
+            FilterExprExistsType,
+            FilterExprJunction,
+            FilterSuffixSimpleOperator,
+            JunctionType,
+            MoveDirection,
+            Query,
+            QuerySortDir,
+            Step,
+            StepJunction,
+            StepMove,
+            StepRecurse,
+            Value,
+        },
         triple::{
             FileHash,
             Node,
         },
         wire::{
+            ReqGetTriplesAround,
             ReqHistory,
             ReqQuery,
         },
@@ -36,8 +60,10 @@ use {
 
 pub mod req;
 pub mod change;
+pub mod query;
+pub mod query_test;
 
-struct StrNode(Node);
+pub struct StrNode(pub Node);
 
 impl AargvarkFromStr for StrNode {
     fn from_str(s: &str) -> Result<Self, String> {
@@ -45,9 +71,6 @@ impl AargvarkFromStr for StrNode {
             return Err(format!("Invalid node format: [{}]", s));
         };
         match k {
-            "i" => {
-                return Ok(StrNode(Node::Id(v.to_string())));
-            },
             "f" => {
                 return Ok(StrNode(Node::File(
                     //. .
@@ -71,7 +94,6 @@ impl AargvarkFromStr for StrNode {
             vec![
                 HelpPatternElement::Variant(
                     vec![
-                        HelpPattern(vec![HelpPatternElement::Type("i=ID".to_string())]),
                         HelpPattern(vec![HelpPatternElement::Type("f=FILEHASH".to_string())]),
                         HelpPattern(vec![HelpPatternElement::Type("v=JSON".to_string())])
                     ],
@@ -97,8 +119,32 @@ pub async fn handle_query(c: QueryCommand) -> Result<(), loga::Error> {
     return Ok(());
 }
 
-struct StrDatetime(DateTime<Utc>);
+#[derive(Aargvark)]
+pub struct CompileQueryCommand {
+    query: Option<String>,
+    file: Option<AargvarkFile>,
+}
 
+pub fn handle_compile_query(c: CompileQueryCommand) -> Result<(), loga::Error> {
+    let query;
+    if let Some(q) = c.query {
+        query = q;
+        if c.file.is_some() {
+            return Err(
+                loga::err("A query was both specified on the command line and via file, you can only do one"),
+            );
+        }
+    } else if let Some(q_file) = c.file {
+        query = String::from_utf8(q_file.value).context("Query was not valid utf-8")?;
+    } else {
+        return Err(loga::err("Must specify a query, either on the command line or as a file"));
+    }
+    let out = compile_query(query)?;
+    println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    return Ok(());
+}
+
+pub struct StrDatetime(pub DateTime<Utc>);
 
 impl AargvarkFromStr for StrDatetime {
     fn from_str(s: &str) -> Result<Self, String> {
@@ -139,6 +185,18 @@ pub async fn handle_history(c: HistoryCommand) -> Result<(), loga::Error> {
         start_incl: c.start.unwrap_or(StrDatetime(DateTime::<Utc>::MIN_UTC)).0,
         end_excl: c.end.unwrap_or(StrDatetime(DateTime::<Utc>::MAX_UTC)).0,
     }).await?;
+    println!("{}", serde_json::to_string_pretty(&res).unwrap());
+    return Ok(());
+}
+
+#[derive(Aargvark)]
+pub struct GetNodeCommand {
+    pub node: StrNode,
+}
+
+pub async fn handle_get_node(c: GetNodeCommand) -> Result<(), loga::Error> {
+    let log = Log::new_root(loga::INFO);
+    let res = req::req_simple(&log, ReqGetTriplesAround { node: c.node.0 }).await?;
     println!("{}", serde_json::to_string_pretty(&res).unwrap());
     return Ok(());
 }

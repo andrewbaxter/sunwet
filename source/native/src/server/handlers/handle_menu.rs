@@ -1,62 +1,58 @@
 use {
-    crate::server::state::State,
-    crate::server::state::get_global_config,
-    shared::interface::{
-        config::menu::{
-            MenuItem,
-            MenuItemSection,
+    crate::{
+        interface::config::{
+            IamGrants,
+            PageAccess,
         },
-        iam::IamTargetId,
+        server::{
+            access::Identity,
+            state::{
+                get_global_config,
+                get_iam_grants,
+                State,
+            },
+        },
+    },
+    shared::interface::config::menu::{
+        MenuItem,
+        MenuItemSection,
     },
     std::sync::Arc,
 };
 
-pub async fn handle_get_menu(
-    state: Arc<State>,
-    view_restriction: Option<Vec<IamTargetId>>,
-) -> Result<Vec<MenuItem>, loga::Error> {
-    fn restricted(view_restriction: &Option<Vec<IamTargetId>>, allow_target: &Option<IamTargetId>) -> bool {
-        if let Some(allow_target) = allow_target {
-            // Allows non-admin
-            if let Some(targets) = view_restriction.as_ref() {
-                if !targets.contains(allow_target) {
-                    return true;
-                }
-            }
-            return false;
-        } else {
-            // Requires admin
-            if view_restriction.is_some() {
-                // Restricted - not admin
-                return true;
-            }
-            return false;
-        }
-    }
-
-    fn compile_visible_menu(view_restriction: &Option<Vec<IamTargetId>>, items: &[MenuItem]) -> Vec<MenuItem> {
+pub async fn handle_get_menu(state: Arc<State>, identity: &Identity) -> Result<Vec<MenuItem>, loga::Error> {
+    fn compile_visible_menu(iam_grants: &IamGrants, items: &[MenuItem]) -> Vec<MenuItem> {
         let mut out = vec![];
         for item in items {
             match item {
                 MenuItem::Section(i) => {
-                    if restricted(view_restriction, &i.allow_target) {
-                        continue;
+                    let children = compile_visible_menu(iam_grants, &i.children);
+                    if !children.is_empty() {
+                        out.push(MenuItem::Section(MenuItemSection {
+                            name: i.name.clone(),
+                            children: children,
+                        }));
                     }
-                    out.push(MenuItem::Section(MenuItemSection {
-                        allow_target: i.allow_target,
-                        name: i.name.clone(),
-                        children: compile_visible_menu(view_restriction, &i.children),
-                    }));
                 },
                 MenuItem::View(i) => {
-                    if restricted(view_restriction, &i.allow_target) {
-                        continue;
+                    match iam_grants {
+                        IamGrants::Admin => { },
+                        IamGrants::Limited(grants) => {
+                            if !grants.contains(&PageAccess::View(i.id.clone())) {
+                                continue;
+                            }
+                        },
                     }
                     out.push(item.clone());
                 },
                 MenuItem::Form(i) => {
-                    if restricted(view_restriction, &i.allow_target) {
-                        continue;
+                    match iam_grants {
+                        IamGrants::Admin => { },
+                        IamGrants::Limited(grants) => {
+                            if !grants.contains(&PageAccess::Form(i.id.clone())) {
+                                continue;
+                            }
+                        },
                     }
                     out.push(item.clone());
                 },
@@ -65,6 +61,7 @@ pub async fn handle_get_menu(
         return out;
     }
 
+    let iam_grants = get_iam_grants(&state, identity).await?;
     let global_config = get_global_config(&state).await?;
-    return Ok(compile_visible_menu(&view_restriction, &global_config.config.menu));
+    return Ok(compile_visible_menu(&iam_grants, &global_config.config.menu));
 }

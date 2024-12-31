@@ -1,5 +1,19 @@
 use {
     super::state::State,
+    crate::{
+        el_general::{
+            el_async,
+            el_button_icon_text,
+            el_err_block,
+            el_err_span,
+            CSS_FORM_BUTTONBOX,
+            ICON_SAVE,
+        },
+        world::{
+            self,
+            req_post_json,
+        },
+    },
     chrono::{
         Local,
         LocalResult,
@@ -28,9 +42,9 @@ use {
         },
         triple::Node,
         wire::{
-            QueryResVal,
             ReqCommit,
             ReqQuery,
+            TreeNode,
             Triple,
         },
     },
@@ -40,20 +54,6 @@ use {
         rc::Rc,
     },
     wasm_bindgen::JsCast,
-    crate::{
-        el_general::{
-            el_async,
-            el_button_icon_text,
-            el_err_block,
-            el_err_span,
-            CSS_FORM_BUTTONBOX,
-            ICON_SAVE,
-        },
-        world::{
-            self,
-            req_post_json,
-        },
-    },
     web_sys::HtmlInputElement,
 };
 
@@ -90,7 +90,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                 struct FormState_ {
                     draft_id: String,
                     form: Form,
-                    data: RefCell<HashMap<String, QueryResVal>>,
+                    data: RefCell<HashMap<String, TreeNode>>,
                     draft_debounce: RefCell<Option<Timeout>>,
                 }
 
@@ -98,7 +98,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                 struct FormState(Rc<FormState_>);
 
                 impl FormState {
-                    fn update(&self, field: &str, value: QueryResVal) {
+                    fn update(&self, field: &str, value: TreeNode) {
                         self.0.data.borrow_mut().insert(field.to_string(), value);
                         *self.0.draft_debounce.borrow_mut() = Some(Timeout::new(200, {
                             let s = self.clone();
@@ -123,7 +123,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                     fs: &FormState,
                     field_id: &str,
                     field_label: &str,
-                    choices: &Vec<(String, QueryResVal)>,
+                    choices: &Vec<(String, TreeNode)>,
                 ) -> Result<El, String> {
                     let input = el("select").on("change", {
                         let id = field_id.to_string();
@@ -133,7 +133,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                             fs.update(&id, if let Ok(v) = serde_json::from_str(&value) {
                                 v
                             } else {
-                                QueryResVal::Scalar(Node(serde_json::Value::String(value)))
+                                TreeNode::Scalar(Node::Value(serde_json::Value::String(value)))
                             });
                         }
                     });
@@ -168,8 +168,8 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                             out.push(el("p").text(&field.text));
                         },
                         FormField::Text(field) => {
-                            fn make_v(v: String) -> QueryResVal {
-                                return QueryResVal::Scalar(Node(serde_json::Value::String(v)));
+                            fn make_v(v: String) -> TreeNode {
+                                return TreeNode::Scalar(Node::Value(serde_json::Value::String(v)));
                             }
 
                             let input =
@@ -198,7 +198,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                             }
                             input.ref_attr(
                                 "value",
-                                &if let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
+                                &if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(v)))) =
                                     fs.0.data.borrow().get(&field.form_id) {
                                     v.clone()
                                 } else {
@@ -210,9 +210,9 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                             out.push(el("label").push(el("span").text(&field.label)).push(input.clone()));
                         },
                         FormField::Number(field) => {
-                            fn make_v(value: String) -> QueryResVal {
-                                return QueryResVal::Scalar(
-                                    Node(if let Ok(v) = serde_json::from_str::<serde_json::Number>(&value) {
+                            fn make_v(value: String) -> TreeNode {
+                                return TreeNode::Scalar(
+                                    Node::Value(if let Ok(v) = serde_json::from_str::<serde_json::Number>(&value) {
                                         serde_json::Value::Number(v)
                                     } else {
                                         serde_json::Value::String(value)
@@ -235,7 +235,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                             }
                             input.ref_attr(
                                 "value",
-                                &if let Some(QueryResVal::Scalar(Node(serde_json::Value::Number(v)))) =
+                                &if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::Number(v)))) =
                                     fs.0.data.borrow().get(&field.form_id) {
                                     v.to_string()
                                 } else {
@@ -247,8 +247,8 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                             out.push(el("label").push(el("span").text(&field.label)).push(input.clone()));
                         },
                         FormField::Bool(field) => {
-                            fn make_v(value: bool) -> QueryResVal {
-                                return QueryResVal::Scalar(Node(serde_json::Value::Bool(value)));
+                            fn make_v(value: bool) -> TreeNode {
+                                return TreeNode::Scalar(Node::Value(serde_json::Value::Bool(value)));
                             }
 
                             let input = el("input").attr("type", "checkbox").on("change", {
@@ -263,7 +263,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                     );
                                 }
                             });
-                            if let Some(QueryResVal::Scalar(Node(serde_json::Value::Bool(v)))) =
+                            if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::Bool(v)))) =
                                 fs.0.data.borrow().get(&field.form_id) {
                                 if *v {
                                     input.ref_attr("checked", "checked");
@@ -272,7 +272,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                 input.ref_attr("checked", "checked");
                             }
                             let initial =
-                                if let Some(QueryResVal::Scalar(Node(serde_json::Value::Bool(v)))) =
+                                if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::Bool(v)))) =
                                     fs.0.data.borrow().get(&field.form_id) {
                                     *v
                                 } else {
@@ -286,8 +286,8 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                             out.push(el("label").push(el("span").text(&field.label)).push(input.clone()));
                         },
                         FormField::Date(field) => {
-                            fn make_v(v: String) -> QueryResVal {
-                                return QueryResVal::Scalar(Node(serde_json::Value::String(v)));
+                            fn make_v(v: String) -> TreeNode {
+                                return TreeNode::Scalar(Node::Value(serde_json::Value::String(v)));
                             }
 
                             let input =
@@ -298,7 +298,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                         let id = field.form_id.clone();
                                         let fs = fs.clone();
                                         move |ev| {
-                                            fs.update(&id, QueryResVal::Scalar(Node(serde_json::Value::String(
+                                            fs.update(&id, TreeNode::Scalar(Node::Value(serde_json::Value::String(
                                                 //. .
                                                 ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap().value(),
                                             ))));
@@ -306,7 +306,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                     });
                             input.ref_attr(
                                 "value",
-                                &if let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
+                                &if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(v)))) =
                                     fs.0.data.borrow().get(&field.form_id) {
                                     v.clone()
                                 } else {
@@ -318,8 +318,8 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                             out.push(el("label").push(el("span").text(&field.label)).push(input.clone()));
                         },
                         FormField::Time(field) => {
-                            fn make_v(v: String) -> QueryResVal {
-                                return QueryResVal::Scalar(Node(serde_json::Value::String(v)));
+                            fn make_v(v: String) -> TreeNode {
+                                return TreeNode::Scalar(Node::Value(serde_json::Value::String(v)));
                             }
 
                             let input =
@@ -330,7 +330,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                         let id = field.form_id.clone();
                                         let fs = fs.clone();
                                         move |ev| {
-                                            fs.update(&id, QueryResVal::Scalar(Node(serde_json::Value::String(
+                                            fs.update(&id, TreeNode::Scalar(Node::Value(serde_json::Value::String(
                                                 //. .
                                                 ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap().value(),
                                             ))));
@@ -338,7 +338,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                     });
                             input.ref_attr(
                                 "value",
-                                &if let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
+                                &if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(v)))) =
                                     fs.0.data.borrow().get(&field.form_id) {
                                     v.clone()
                                 } else {
@@ -350,8 +350,8 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                             out.push(el("label").push(el("span").text(&field.label)).push(input.clone()));
                         },
                         FormField::Datetime(field) => {
-                            fn make_v(v: String) -> QueryResVal {
-                                return QueryResVal::Scalar(Node(serde_json::Value::String(v)));
+                            fn make_v(v: String) -> TreeNode {
+                                return TreeNode::Scalar(Node::Value(serde_json::Value::String(v)));
                             }
 
                             const CHRONO_FORMAT: &str = "%Y-%m-%dT%H:%M";
@@ -367,8 +367,8 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                                 ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap().value();
                                             fs.update(
                                                 &id,
-                                                QueryResVal::Scalar(
-                                                    Node(
+                                                TreeNode::Scalar(
+                                                    Node::Value(
                                                         serde_json::Value::String(
                                                             if let Some(v) =
                                                                 NaiveDateTime::parse_from_str(&value, CHRONO_FORMAT)
@@ -391,7 +391,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                     });
                             input.ref_attr(
                                 "value",
-                                &if let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
+                                &if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(v)))) =
                                     fs.0.data.borrow().get(&field.form_id) {
                                     v.clone()
                                 } else {
@@ -403,8 +403,8 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                             out.push(el("label").push(el("span").text(&field.label)).push(input.clone()));
                         },
                         FormField::Color(field) => {
-                            fn make_v(v: String) -> QueryResVal {
-                                return QueryResVal::Scalar(Node(serde_json::Value::String(v)));
+                            fn make_v(v: String) -> TreeNode {
+                                return TreeNode::Scalar(Node::Value(serde_json::Value::String(v)));
                             }
 
                             let input = el("input").attr("type", "color").on("change", {
@@ -417,7 +417,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                             });
                             input.ref_attr(
                                 "value",
-                                &if let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
+                                &if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(v)))) =
                                     fs.0.data.borrow().get(&field.form_id) {
                                     v.clone()
                                 } else if let Some(initial) = &field.initial {
@@ -436,7 +436,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                 field
                                     .choices
                                     .iter()
-                                    .map(|(k, v)| (k.clone(), QueryResVal::Scalar(v.clone())))
+                                    .map(|(k, v)| (k.clone(), TreeNode::Scalar(v.clone())))
                                     .collect::<Vec<_>>();
                             out.push(match build_field_enum(&fs, &field.form_id, &field.label, &choices) {
                                 Ok(e) => e,
@@ -458,14 +458,14 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                                     query: field.query.clone(),
                                                     parameters: HashMap::new(),
                                                 }).await?;
-                                                let QueryResVal::Array(res) = res.records else {
+                                                let TreeNode::Array(res) = res.records else {
                                                     return Err(
                                                         format!("Result is not an array of choices (likely bug)"),
                                                     );
                                                 };
                                                 let mut choices = vec![];
                                                 for choice in res {
-                                                    let QueryResVal::Record(mut choice) = choice else {
+                                                    let TreeNode::Record(mut choice) = choice else {
                                                         return Err(
                                                             format!(
                                                                 "Query result array element is not a record (likely bug)"
@@ -479,8 +479,8 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                                     };
                                                     let name;
                                                     if let Some(name1) = choice.remove("name") {
-                                                        if let QueryResVal::Scalar(
-                                                            Node(serde_json::Value::String(name1)),
+                                                        if let TreeNode::Scalar(
+                                                            Node::Value(serde_json::Value::String(name1)),
                                                         ) =
                                                             name1 {
                                                             name = name1;
@@ -540,16 +540,16 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                     let get_data = |field| {
                                         let v = data.get(field).unwrap();
                                         match v {
-                                            QueryResVal::Scalar(v) => {
+                                            TreeNode::Scalar(v) => {
                                                 return Ok(vec![v.clone()]);
                                             },
-                                            QueryResVal::Array(ns) => {
+                                            TreeNode::Array(ns) => {
                                                 let mut s1 = vec![];
                                                 for v in ns {
-                                                    let QueryResVal::Scalar(v) = v else {
+                                                    let TreeNode::Scalar(v) = v else {
                                                         return Err(
                                                             format!(
-                                                                "Nested QueryResValue field in form data (likely bug)"
+                                                                "Nested TreeNodeue field in form data (likely bug)"
                                                             ),
                                                         );
                                                     };
@@ -557,9 +557,9 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                                 }
                                                 return Ok(s1);
                                             },
-                                            QueryResVal::Record(_) => {
+                                            TreeNode::Record(_) => {
                                                 return Err(
-                                                    format!("Record QueryResValue field in form data (likely bug)"),
+                                                    format!("Record TreeNodeue field in form data (likely bug)"),
                                                 );
                                             },
                                         }
@@ -577,7 +577,9 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                         let predicate;
                                         match &triple.predicate {
                                             InputOrInlineText::Input(field) => {
-                                                let Some(QueryResVal::Scalar(Node(serde_json::Value::String(v)))) =
+                                                let Some(
+                                                    TreeNode::Scalar(Node::Value(serde_json::Value::String(v))),
+                                                ) =
                                                     data.get(field) else {
                                                         return Err(
                                                             format!(

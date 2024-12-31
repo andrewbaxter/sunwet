@@ -1,37 +1,39 @@
 use {
-    super::{
-        access::ReadRestriction,
-        dbutil::tx,
-    },
+    super::dbutil::tx,
     deadpool_sqlite::Pool,
+    flowcontrol::exenum,
     loga::{
         ea,
         ResultContext,
     },
     sea_query::{
+        extension::sqlite::SqliteExpr,
         Alias,
         ColumnRef,
         Expr,
         ExprTrait,
         SeaRc,
         SimpleExpr,
+        TableRef,
     },
     sea_query_rusqlite::RusqliteBinder,
     shared::interface::{
         query::{
             Chain,
-            FilterChainComparisonOperator,
+            ChainBody,
+            ChainRoot,
             FilterExpr,
             FilterExprExistsType,
+            FilterSuffix,
+            FilterSuffixSimpleOperator,
             JunctionType,
             MoveDirection,
             Query,
             Step,
-            Subchain,
             Value,
         },
         triple::Node,
-        wire::QueryResVal,
+        wire::TreeNode,
     },
     std::collections::{
         BTreeMap,
@@ -40,7 +42,6 @@ use {
 };
 
 struct QueryBuildState {
-    read_restriction: ReadRestriction,
     parameters: HashMap<String, Node>,
     // # Immutable
     ident_table_primary: sea_query::DynIden,
@@ -52,7 +53,6 @@ struct QueryBuildState {
     ident_col_object: sea_query::DynIden,
     ident_col_timestamp: sea_query::DynIden,
     ident_col_exists: sea_query::DynIden,
-    ident_col_iam_target: sea_query::DynIden,
     triple_table: sea_query::TableRef,
     func_json_extract: sea_query::FunctionCall,
     // # Mutable
@@ -154,16 +154,24 @@ fn build_filter(
                 sea_query::Expr::col(sea_query::ColumnRef::TableColumn(subchain.ident_table, subchain.col_end));
             let primary_type = query_state.func_json_extract.clone().arg(primary_end_col.clone()).arg("$.t");
             let primary_value = query_state.func_json_extract.clone().arg(primary_end_col.clone()).arg("$.v");
-            if let Some((filter_op, filter_value)) = &expr.filter {
-                let (expr_type, expr_value) = build_split_value(query_state, &filter_value)?;
-                sql_sel.and_where(primary_type.eq(expr_type));
-                sql_sel.and_where(match filter_op {
-                    FilterChainComparisonOperator::Eq => primary_value.eq(expr_value),
-                    FilterChainComparisonOperator::Lt => primary_value.lt(expr_value),
-                    FilterChainComparisonOperator::Gt => primary_value.gt(expr_value),
-                    FilterChainComparisonOperator::Lte => primary_value.lte(expr_value),
-                    FilterChainComparisonOperator::Gte => primary_value.gte(expr_value),
-                });
+            if let Some(filter_suffix) = &expr.suffix {
+                match filter_suffix {
+                    FilterSuffix::Simple(filter_suffix) => {
+                        let (expr_type, expr_value) = build_split_value(query_state, &filter_suffix.value)?;
+                        sql_sel.and_where(primary_type.eq(expr_type));
+                        sql_sel.and_where(match filter_suffix.op {
+                            FilterSuffixSimpleOperator::Eq => primary_value.eq(expr_value),
+                            FilterSuffixSimpleOperator::Neq => primary_value.eq(expr_value).not(),
+                            FilterSuffixSimpleOperator::Lt => primary_value.lt(expr_value),
+                            FilterSuffixSimpleOperator::Gt => primary_value.gt(expr_value),
+                            FilterSuffixSimpleOperator::Lte => primary_value.lte(expr_value),
+                            FilterSuffixSimpleOperator::Gte => primary_value.gte(expr_value),
+                        });
+                    },
+                    FilterSuffix::Like(filter_suffix) => {
+                        sql_sel.and_where(primary_value.like(&filter_suffix.value));
+                    },
+                }
             }
             let sql_expr = sea_query::Expr::exists(sql_sel);
             match expr.type_ {
@@ -245,16 +253,6 @@ fn build_step(
                     ),
                 );
                 sql_sel.group_by_col(local_col_primary_end.clone());
-
-                // Only consider elements with perm to view
-                if let ReadRestriction::Some(targets) = &query_state.read_restriction {
-                    sql_sel.and_where(
-                        ColumnRef::TableColumn(
-                            local_ident_table_primary.clone(),
-                            query_state.ident_col_iam_target.clone(),
-                        ).is_in(targets.iter().map(|x| x.0)),
-                    );
-                }
 
                 // Movement
                 sql_sel.and_where(
@@ -498,7 +496,7 @@ fn build_step(
             let global_ident_table_cte = SeaRc::new(Alias::new(seg_name));
             let ident_col_start = query_state.ident_col_start.clone();
             let ident_col_end = query_state.ident_col_end.clone();
-            let mut build_subchain = |subchain: &Subchain| -> Result<sea_query::SelectStatement, loga::Error> {
+            let mut build_subchain = |subchain: &ChainBody| -> Result<sea_query::SelectStatement, loga::Error> {
                 let mut sql_sel = sea_query::Query::select();
                 let subchain = build_subchain(query_state, previous.clone(), subchain)?;
                 sql_sel.from(sea_query::TableRef::Table(subchain.ident_table.clone()));
@@ -548,12 +546,8 @@ fn build_split_value(
     query_state: &mut QueryBuildState,
     param: &Value,
 ) -> Result<(sea_query::Value, sea_query::FunctionCall), loga::Error> {
-    let serde_json::Value::Object(mut j) = build_value_json(query_state, param)? else {
-        unreachable!()
-    };
-    let serde_json::Value::String(type_) = j.remove("t").unwrap() else {
-        unreachable!();
-    };
+    let mut j = exenum!(build_value_json(query_state, param)?, serde_json:: Value:: Object(j) => j).unwrap();
+    let type_ = exenum!(j.remove("t").unwrap(), serde_json:: Value:: String(type_) => type_).unwrap();
     let value =
         query_state
             .func_json_extract
@@ -572,33 +566,81 @@ fn build_value(query_state: &mut QueryBuildState, param: &Value) -> Result<sea_q
 fn build_subchain(
     query_state: &mut QueryBuildState,
     mut prev_subchain_seg: Option<BuildStepRes>,
-    subchain: &Subchain,
+    subchain: &ChainBody,
 ) -> Result<BuildStepRes, loga::Error> {
     if let Some(root) = &subchain.root {
-        if let Some(root_res) = query_state.reuse_roots.get(root) {
-            prev_subchain_seg = Some(root_res.clone());
-        } else {
-            let ident_table_root = SeaRc::new(Alias::new(format!("root{}", query_state.global_unique)));
-            query_state.global_unique += 1;
-            let mut sql_sel = sea_query::Query::select();
-            let root_expr = build_value(query_state, root)?;
-            sql_sel.expr(root_expr.clone());
-            sql_sel.expr(root_expr.clone());
-            let mut sql_cte = sea_query::CommonTableExpression::new();
-            sql_cte.table_name(ident_table_root.clone());
-            sql_cte.query(sql_sel);
-            sql_cte.column(query_state.ident_col_start.clone());
-            sql_cte.column(query_state.ident_col_end.clone());
-            query_state.ctes.push(sql_cte);
-            let root_res = BuildStepRes {
-                ident_table: ident_table_root,
-                col_start: query_state.ident_col_start.clone(),
-                col_end: query_state.ident_col_end.clone(),
-                plural: false,
-            };
-            query_state.reuse_roots.insert(root.clone(), root_res.clone());
-            prev_subchain_seg = Some(root_res);
+        let new_root_seg;
+        match root {
+            ChainRoot::Value(root) => {
+                if let Some(root_res) = query_state.reuse_roots.get(root) {
+                    new_root_seg = root_res.clone();
+                } else {
+                    let ident_table_root = SeaRc::new(Alias::new(format!("root{}", query_state.global_unique)));
+                    query_state.global_unique += 1;
+                    let mut sql_sel = sea_query::Query::select();
+                    let root_expr = build_value(query_state, root)?;
+                    sql_sel.expr(root_expr.clone());
+                    sql_sel.expr(root_expr.clone());
+                    let mut sql_cte = sea_query::CommonTableExpression::new();
+                    sql_cte.table_name(ident_table_root.clone());
+                    sql_cte.query(sql_sel);
+                    sql_cte.column(query_state.ident_col_start.clone());
+                    sql_cte.column(query_state.ident_col_end.clone());
+                    query_state.ctes.push(sql_cte);
+                    let root_res = BuildStepRes {
+                        ident_table: ident_table_root,
+                        col_start: query_state.ident_col_start.clone(),
+                        col_end: query_state.ident_col_end.clone(),
+                        plural: false,
+                    };
+                    query_state.reuse_roots.insert(root.clone(), root_res.clone());
+                    new_root_seg = root_res;
+                }
+            },
+            ChainRoot::Search(root) => {
+                let ident_table_root = SeaRc::new(Alias::new(format!("root{}", query_state.global_unique)));
+                query_state.global_unique += 1;
+                let mut sql_cte = sea_query::CommonTableExpression::new();
+                sql_cte.table_name(ident_table_root.clone());
+                sql_cte.query({
+                    let ident_meta = SeaRc::new(Alias::new("meta"));
+                    let ident_meta_fts = SeaRc::new(Alias::new("meta_fts"));
+                    let ident_rowid = SeaRc::new(Alias::new("rowid"));
+                    let ident_fulltext = SeaRc::new(Alias::new("fulltext"));
+                    let ident_node = SeaRc::new(Alias::new("node"));
+                    let mut sql_sel = sea_query::Query::select();
+                    sql_sel.from(TableRef::Table(ident_meta.clone()));
+                    let node_expr =
+                        Expr::col(sea_query::ColumnRef::TableColumn(ident_meta.clone(), ident_node.clone()));
+                    sql_sel.expr(node_expr.clone());
+                    sql_sel.expr(node_expr.clone());
+                    sql_sel.and_where(
+                        Expr::col(ColumnRef::TableColumn(ident_meta.clone(), ident_rowid.clone())).in_subquery({
+                            let mut sql_sel = sea_query::Query::select();
+                            sql_sel.from(TableRef::Table(ident_meta_fts.clone()));
+                            sql_sel.and_where(
+                                Expr::col(
+                                    ColumnRef::TableColumn(ident_meta_fts.clone(), ident_fulltext.clone()),
+                                ).matches(root),
+                            );
+                            sql_sel
+                        }),
+                    );
+                    sql_sel
+                });
+                sql_cte.column(query_state.ident_col_start.clone());
+                sql_cte.column(query_state.ident_col_end.clone());
+                query_state.ctes.push(sql_cte);
+                let root_res = BuildStepRes {
+                    ident_table: ident_table_root,
+                    col_start: query_state.ident_col_start.clone(),
+                    col_end: query_state.ident_col_end.clone(),
+                    plural: false,
+                };
+                new_root_seg = root_res;
+            },
         }
+        prev_subchain_seg = Some(new_root_seg);
     }
     let mut prev_subchain_seg = build_step(query_state, prev_subchain_seg, &subchain.steps[0])?;
     for step in &subchain.steps[1..] {
@@ -616,7 +658,7 @@ fn build_chain(
     let cte_name = format!("chain{}", query_state.global_unique);
     query_state.global_unique += 1;
     let mut sql_sel = sea_query::Query::select();
-    let primary_subchain = build_subchain(query_state, prev_subchain_seg, &chain.subchain)?;
+    let primary_subchain = build_subchain(query_state, prev_subchain_seg, &chain.body)?;
     sql_sel.from(sea_query::TableRef::Table(primary_subchain.ident_table.clone()));
     let global_col_primary_start =
         sea_query::ColumnRef::TableColumn(primary_subchain.ident_table.clone(), primary_subchain.col_start.clone());
@@ -656,7 +698,7 @@ fn build_chain(
             plural: false,
         });
     }
-    for child in chain.children {
+    for child in chain.subchains {
         let child_chain = build_chain(query_state, child_prev_subchain_seg.clone(), child)?;
         sql_sel.join(
             sea_query::JoinType::LeftJoin,
@@ -692,12 +734,10 @@ fn build_chain(
 }
 
 pub fn build_query(
-    read_restriction: ReadRestriction,
     q: Query,
     parameters: HashMap<String, Node>,
 ) -> Result<(String, sea_query_rusqlite::RusqliteValues), loga::Error> {
     let mut query_state = QueryBuildState {
-        read_restriction: read_restriction,
         parameters: parameters,
         ident_table_primary: SeaRc::new(Alias::new("primary")),
         ident_table_prev: SeaRc::new(Alias::new("prev")),
@@ -708,7 +748,6 @@ pub fn build_query(
         ident_col_object: SeaRc::new(Alias::new("object")),
         ident_col_timestamp: SeaRc::new(Alias::new("timestamp")),
         ident_col_exists: SeaRc::new(Alias::new("exists")),
-        ident_col_iam_target: SeaRc::new(Alias::new("iam_target")),
         triple_table: sea_query::TableRef::Table(SeaRc::new(Alias::new("triple"))),
         func_json_extract: sea_query::Func::cust(SeaRc::new(Alias::new("json_extract"))),
         global_unique: Default::default(),
@@ -761,7 +800,7 @@ pub fn execute_sql_query(
     db: &rusqlite::Connection,
     sql_query: String,
     sql_parameters: sea_query_rusqlite::RusqliteValues,
-) -> Result<QueryResVal, loga::Error> {
+) -> Result<TreeNode, loga::Error> {
     let mut s = db.prepare(&sql_query)?;
     let column_names = s.column_names().into_iter().map(|k| k.to_string()).collect::<Vec<_>>();
     let mut sql_rows = s.query(&*sql_parameters.as_params()).unwrap();
@@ -772,29 +811,28 @@ pub fn execute_sql_query(
         };
         let mut got_row1 = BTreeMap::new();
         for (i, name) in column_names.iter().enumerate() {
-            let value: QueryResVal;
+            let value: TreeNode;
             match got_row.get::<usize, Option<String>>(i).unwrap() {
                 Some(v) => {
-                    value = serde_json::from_str::<QueryResVal>(&v).unwrap();
+                    value = serde_json::from_str::<TreeNode>(&v).unwrap();
                 },
                 None => {
-                    value = QueryResVal::Scalar(Node::Value(serde_json::Value::Null));
+                    value = TreeNode::Scalar(Node::Value(serde_json::Value::Null));
                 },
             }
             got_row1.insert(name.to_string(), value);
         }
-        out.push(QueryResVal::Record(got_row1));
+        out.push(TreeNode::Record(got_row1));
     }
-    return Ok(QueryResVal::Array(out));
+    return Ok(TreeNode::Array(out));
 }
 
 pub async fn execute_query(
     db: &Pool,
-    read_restriction: ReadRestriction,
     query: Query,
     parameters: HashMap<String, Node>,
-) -> Result<QueryResVal, loga::Error> {
-    let (sql_query, sql_parameters) = build_query(read_restriction, query, parameters)?;
+) -> Result<TreeNode, loga::Error> {
+    let (sql_query, sql_parameters) = build_query(query, parameters)?;
     return Ok(tx(&db, move |txn| {
         return Ok(execute_sql_query(txn, sql_query, sql_parameters)?);
     }).await?);

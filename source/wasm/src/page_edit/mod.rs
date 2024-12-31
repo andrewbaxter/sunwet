@@ -41,7 +41,10 @@ use {
         El,
     },
     shared::interface::{
-        triple::Node,
+        triple::{
+            FileHash,
+            Node,
+        },
         wire::{
             ReqCommit,
             ReqGetTriplesAround,
@@ -51,6 +54,7 @@ use {
     std::{
         cell::RefCell,
         rc::Rc,
+        str::FromStr,
     },
     wasm_bindgen::JsCast,
     web_sys::{
@@ -65,6 +69,7 @@ enum NodeEditType {
     Num,
     Bool,
     Json,
+    File,
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -82,11 +87,25 @@ struct NodeState {
 impl NodeState {
     fn as_node(&self) -> Node {
         match (&*self.type_.borrow(), &*self.value.borrow()) {
+            (NodeEditType::File, NodeEditValue::String(v)) => {
+                if let Ok(v) = FileHash::from_str(&v) {
+                    return Node::File(v);
+                } else {
+                    return Node::Value(serde_json::Value::String(v.clone()));
+                }
+            },
+            (NodeEditType::File, NodeEditValue::Bool(v)) => {
+                return Node::Value(serde_json::Value::String(if *v {
+                    "true"
+                } else {
+                    "false"
+                }.to_string()));
+            },
             (NodeEditType::Str, NodeEditValue::String(v)) => {
-                return Node(serde_json::Value::String(v.clone()));
+                return Node::Value(serde_json::Value::String(v.clone()));
             },
             (NodeEditType::Str, NodeEditValue::Bool(v)) => {
-                return Node(serde_json::Value::String(if *v {
+                return Node::Value(serde_json::Value::String(if *v {
                     "true"
                 } else {
                     "false"
@@ -94,51 +113,56 @@ impl NodeState {
             },
             (NodeEditType::Num, NodeEditValue::String(v)) => {
                 if let Ok(n) = serde_json::from_str::<serde_json::Number>(&v) {
-                    return Node(serde_json::Value::Number(n));
+                    return Node::Value(serde_json::Value::Number(n));
                 } else {
-                    return Node(serde_json::Value::String(v.clone()));
+                    return Node::Value(serde_json::Value::String(v.clone()));
                 }
             },
             (NodeEditType::Num, NodeEditValue::Bool(v)) => {
-                return Node(serde_json::Value::String(if *v {
+                return Node::Value(serde_json::Value::String(if *v {
                     "true"
                 } else {
                     "false"
                 }.to_string()));
             },
             (NodeEditType::Bool, NodeEditValue::String(v)) => {
-                return Node(serde_json::Value::String(v.clone()));
+                return Node::Value(serde_json::Value::String(v.clone()));
             },
             (NodeEditType::Bool, NodeEditValue::Bool(v)) => {
-                return Node(serde_json::Value::Bool(*v));
+                return Node::Value(serde_json::Value::Bool(*v));
             },
             (NodeEditType::Json, NodeEditValue::String(v)) => {
                 if let Ok(v) = serde_json::from_str::<serde_json::Value>(&v) {
-                    return Node(v);
+                    return Node::Value(v);
                 } else {
-                    return Node(serde_json::Value::String(v.clone()));
+                    return Node::Value(serde_json::Value::String(v.clone()));
                 }
             },
             (NodeEditType::Json, NodeEditValue::Bool(v)) => {
-                return Node(serde_json::Value::Bool(*v));
+                return Node::Value(serde_json::Value::Bool(*v));
             },
         }
     }
 }
 
 fn node_to_type_value(node: &Node) -> (NodeEditType, NodeEditValue) {
-    match &node.0 {
-        serde_json::Value::Bool(v) => {
-            return (NodeEditType::Bool, NodeEditValue::Bool(*v));
+    match node {
+        Node::File(v) => {
+            return (NodeEditType::File, NodeEditValue::String(v.to_string()));
         },
-        serde_json::Value::Number(v) => {
-            return (NodeEditType::Num, NodeEditValue::String(v.to_string()));
-        },
-        serde_json::Value::String(v) => {
-            return (NodeEditType::Str, NodeEditValue::String(v.clone()));
-        },
-        _ => {
-            return (NodeEditType::Json, NodeEditValue::String(serde_json::to_string_pretty(&node.0).unwrap()));
+        Node::Value(v) => match v {
+            serde_json::Value::Bool(v) => {
+                return (NodeEditType::Bool, NodeEditValue::Bool(*v));
+            },
+            serde_json::Value::Number(v) => {
+                return (NodeEditType::Num, NodeEditValue::String(v.to_string()));
+            },
+            serde_json::Value::String(v) => {
+                return (NodeEditType::Str, NodeEditValue::String(v.clone()));
+            },
+            _ => {
+                return (NodeEditType::Json, NodeEditValue::String(serde_json::to_string_pretty(v).unwrap()));
+            },
         },
     }
 }
@@ -210,6 +234,9 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> BuildEditNod
     const OPT_VAL_JSON: &str = "val_json";
     let opt_val_json = el("option").attr("value", OPT_VAL_JSON).text("Value - JSON");
     type_select.ref_push(opt_val_json.clone());
+    const OPT_VAL_FILE: &str = "file";
+    let opt_val_file = el("option").attr("value", OPT_VAL_FILE).text("File");
+    type_select.ref_push(opt_val_file.clone());
     match &*node.type_.borrow() {
         NodeEditType::Bool => {
             opt_val_bool.attr("selected", "selected");
@@ -222,6 +249,9 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> BuildEditNod
         },
         NodeEditType::Json => {
             opt_val_json.attr("selected", "selected");
+        },
+        NodeEditType::File => {
+            opt_val_file.attr("selected", "selected");
         },
     }
     let input_el = el_async();
@@ -264,7 +294,7 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> BuildEditNod
                 let convert_str_node_value = |pc: &mut ProcessingContext| {
                     match &*node_type.borrow() {
                         NodeEditType::Str => {
-                            // nop, leave as invalid string
+                            // nop, leave as maybe invalid string
                         },
                         NodeEditType::Num => {
                             unreachable!();
@@ -288,6 +318,9 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> BuildEditNod
                             } else {
                                 // nop, leave as maybe valid json string (ok if number, invalid otherwise)
                             }
+                        },
+                        NodeEditType::File => {
+                            // nop, leave as maybe invalid string
                         },
                     }
                 };
@@ -411,6 +444,16 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> BuildEditNod
                             NodeEditType::Json => {
                                 unreachable!();
                             },
+                            NodeEditType::File => {
+                                node_value.set(
+                                    pc,
+                                    NodeEditValue::String(
+                                        serde_json::to_string_pretty(
+                                            exenum!(&*node_value.borrow(), NodeEditValue:: String(v) => v).unwrap(),
+                                        ).unwrap(),
+                                    ),
+                                );
+                            },
                         }
                         new_input =
                             build_text_input(
@@ -418,6 +461,10 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> BuildEditNod
                                 "text",
                                 |x| serde_json::from_str::<serde_json::Value>(x).is_ok(),
                             );
+                    },
+                    NodeEditType::File => {
+                        convert_str_node_value(pc);
+                        new_input = build_text_input(pc, "text", |v| FileHash::from_str(&v).is_ok());
                     },
                 }
                 if let Some(input_el) = input_el.borrow().upgrade() {
@@ -540,9 +587,9 @@ pub fn build_page_edit(pc: &mut ProcessingContext, outer_state: &State, edit_tit
                         let incoming_triples_box = incoming_triples_box.clone();
                         move |pc| {
                             let triple = new_triple_state(pc, &Triple {
-                                subject: Node(serde_json::Value::String("".to_string())),
+                                subject: Node::Value(serde_json::Value::String("".to_string())),
                                 predicate: "".to_string(),
-                                object: Node(serde_json::Value::String("".to_string())),
+                                object: Node::Value(serde_json::Value::String("".to_string())),
                             }, true);
                             incoming_triples_box.ref_push(build_edit_triple(pc, &triple));
                             triple_states.borrow_mut().push(triple);
@@ -606,9 +653,9 @@ pub fn build_page_edit(pc: &mut ProcessingContext, outer_state: &State, edit_tit
                         let outgoing_triples_box = outgoing_triples_box.clone();
                         move |pc| {
                             let triple = new_triple_state(pc, &Triple {
-                                subject: Node(serde_json::Value::String("".to_string())),
+                                subject: Node::Value(serde_json::Value::String("".to_string())),
                                 predicate: "".to_string(),
-                                object: Node(serde_json::Value::String("".to_string())),
+                                object: Node::Value(serde_json::Value::String("".to_string())),
                             }, false);
                             outgoing_triples_box.ref_push(build_edit_triple(pc, &triple));
                             triple_states.borrow_mut().push(triple);

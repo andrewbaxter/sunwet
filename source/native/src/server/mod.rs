@@ -1,17 +1,22 @@
 use {
     crate::{
         cap_fn,
-        interface::config::{
-            Config,
-            MaybeFdap,
+        interface::{
+            config::{
+                Config,
+                IamGrants,
+                MaybeFdap,
+                PageAccess,
+            },
+            triple::{
+                DbFileHash,
+                DbNode,
+            },
         },
     },
     access::{
-        can_read,
-        can_write,
         identify_requester,
-        CanRead,
-        ReadRestriction,
+        is_admin,
     },
     chrono::DateTime,
     dbutil::tx,
@@ -24,6 +29,7 @@ use {
             handle_file_head,
             handle_file_post,
             handle_finish_upload,
+            handle_form_commit,
         },
         handle_gc::handle_gc,
         handle_link::{
@@ -75,15 +81,23 @@ use {
     },
     moka::future::Cache,
     shared::interface::{
-        triple::FileHash,
+        triple::{
+            FileHash,
+            Node,
+        },
         wire::{
             C2SReq,
+            TreeNode,
+            RespGetTriplesAround,
             RespHistoryCommit,
             RespQuery,
             Triple,
         },
     },
     state::{
+        gather_pages,
+        get_global_config,
+        get_iam_grants,
         FdapGlobalState,
         FdapState,
         FdapUsersState,
@@ -98,6 +112,11 @@ use {
             BTreeMap,
             HashMap,
             HashSet,
+        },
+        hash::{
+            DefaultHasher,
+            Hash,
+            Hasher,
         },
         str::FromStr,
         sync::{
@@ -185,7 +204,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                         return handle_static::handle_static(path_iter).await;
                     },
                     "api" => {
-                        let Some(ident) = identify_requester(&state, &head.headers).await? else {
+                        let Some(identity) = identify_requester(&state, &head.headers).await? else {
                             return Ok(response_401());
                         };
                         let req =
@@ -227,11 +246,17 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
 
                             impl ReqResp for shared::interface::wire::ReqCommit { }
 
+                            impl ReqResp for shared::interface::wire::ReqFormCommit { }
+
                             impl ReqResp for shared::interface::wire::ReqGetMenu { }
 
                             impl ReqResp for shared::interface::wire::ReqQuery { }
 
+                            impl ReqResp for shared::interface::wire::ReqViewQuery { }
+
                             impl ReqResp for shared::interface::wire::ReqHistory { }
+
+                            impl ReqResp for shared::interface::wire::ReqGetTriplesAround { }
 
                             impl ReqResp for shared::interface::wire::ReqUploadFinish { }
                         }
@@ -241,46 +266,117 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                         let resp: (resp::RespToken, resp::Resp);
                         match req {
                             C2SReq::Commit(req) => {
-                                if !can_write(&state, &ident).await.err_internal()? {
+                                if !is_admin(&state, &identity).await.err_internal()? {
                                     return Ok(response_401());
                                 }
                                 resp = req.respond()(handle_commit(state, req).await.err_internal()?);
                             },
-                            C2SReq::UploadFinish(req) => {
-                                if !can_write(&state, &ident).await.err_internal()? {
-                                    return Ok(response_401());
+                            C2SReq::FormCommit(req) => {
+                                let responder = req.respond();
+                                match get_iam_grants(&state, &identity).await.err_internal()? {
+                                    IamGrants::Admin => { },
+                                    IamGrants::Limited(grants) => {
+                                        if !grants.contains(&PageAccess::Form(req.form.clone())) {
+                                            return Ok(response_401());
+                                        }
+                                    },
                                 }
-                                resp = req.respond()(handle_finish_upload(state, req.0).await.err_internal()?);
+                                resp = responder(handle_form_commit(state, req).await?);
+                            },
+                            C2SReq::UploadFinish(req) => {
+                                let responder = req.respond();
+                                let Some(res) =
+                                    handle_finish_upload(state, &identity, req.0).await.err_internal()? else {
+                                        return Ok(response_401());
+                                    };
+                                resp = responder(res);
                             },
                             C2SReq::Query(req) => {
-                                let read_restriction;
-                                match can_read(&state, &ident).await.err_internal()? {
-                                    CanRead::All => {
-                                        read_restriction = ReadRestriction::None;
-                                    },
-                                    CanRead::Restricted(targets) => {
-                                        read_restriction = ReadRestriction::Some(targets);
-                                    },
-                                    CanRead::No => {
-                                        return Ok(response_401());
-                                    },
+                                if !is_admin(&state, &identity).await.err_internal()? {
+                                    return Ok(response_401());
                                 }
                                 resp =
                                     req.respond()(
                                         RespQuery {
-                                            records: query::execute_query(
-                                                &state.db,
-                                                read_restriction,
-                                                req.query,
-                                                req.parameters,
-                                            )
+                                            records: query::execute_query(&state.db, req.query, req.parameters)
                                                 .await
                                                 .err_internal()?,
                                         },
                                     );
                             },
+                            C2SReq::ViewQuery(req) => {
+                                let responder = req.respond();
+                                match get_iam_grants(&state, &identity).await.err_internal()? {
+                                    IamGrants::Admin => { },
+                                    IamGrants::Limited(grants) => {
+                                        if !grants.contains(&PageAccess::View(req.view.clone())) {
+                                            return Ok(response_401());
+                                        }
+                                    },
+                                }
+                                let global_config = get_global_config(&state).await.err_internal()?;
+                                let Some(view) = global_config.views.get(&req.view) else {
+                                    return Err(
+                                        loga::err_with("No known view with id", ea!(view = req.view)),
+                                    ).err_external();
+                                };
+                                let Some(query) = view.queries.get(&req.query) else {
+                                    return Err(
+                                        loga::err_with(
+                                            "No known query with id in view",
+                                            ea!(view = req.view, query = req.query),
+                                        ),
+                                    ).err_external();
+                                };
+                                let mut view_hash = DefaultHasher::new();
+                                view.hash(&mut view_hash);
+                                let view_hash = view_hash.finish();
+                                let records =
+                                    query::execute_query(&state.db, query.clone(), req.parameters)
+                                        .await
+                                        .err_internal()?;
+
+                                fn gather_files(files: &mut Vec<FileHash>, r: &TreeNode) {
+                                    match r {
+                                        TreeNode::Scalar(s) => {
+                                            if let Node::File(s) = s {
+                                                files.push(s.clone());
+                                            }
+                                        },
+                                        TreeNode::Array(a) => {
+                                            for v in a {
+                                                gather_files(files, v);
+                                            }
+                                        },
+                                        TreeNode::Record(r) => {
+                                            for v in r.values() {
+                                                gather_files(files, v);
+                                            }
+                                        },
+                                    }
+                                }
+
+                                let mut files = vec![];
+                                gather_files(&mut files, &records);
+                                tx(&state.db, {
+                                    let page_access = PageAccess::View(req.view.clone());
+                                    move |txn| {
+                                        db::file_access_clear_nonversion(txn, &page_access, view_hash as i64)?;
+                                        for file in files {
+                                            db::file_access_insert(
+                                                txn,
+                                                &DbFileHash(file.clone()),
+                                                &page_access,
+                                                view_hash as i64,
+                                            )?;
+                                        }
+                                        return Ok(());
+                                    }
+                                }).await.err_internal()?;
+                                resp = responder(RespQuery { records: records });
+                            },
                             C2SReq::History(req) => {
-                                if !can_write(&state, &ident).await.err_internal()? {
+                                if !is_admin(&state, &identity).await.err_internal()? {
                                     return Ok(response_401());
                                 }
                                 let (commits, triples) = tx(&state.db, move |txn| {
@@ -322,7 +418,6 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                         subject: t.subject.0,
                                         predicate: t.predicate,
                                         object: t.object.0,
-                                        iam_target: t.iam_target.0,
                                     };
                                     if t.exists {
                                         commit.add.push(t1);
@@ -332,27 +427,40 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 }
                                 resp = req.respond()(out.into_values().collect());
                             },
-                            C2SReq::GetMenu(req) => {
-                                let access_restriction;
-                                match can_read(&state, &ident).await.err_internal()? {
-                                    access::CanRead::All => {
-                                        access_restriction = None;
-                                    },
-                                    access::CanRead::Restricted(targets) => {
-                                        access_restriction = Some(targets);
-                                    },
-                                    access::CanRead::No => {
-                                        return Ok(response_401());
-                                    },
+                            C2SReq::GetTriplesAround(req) => {
+                                if !is_admin(&state, &identity).await.err_internal()? {
+                                    return Ok(response_401());
                                 }
-                                resp =
-                                    req.respond()(handle_get_menu(state, access_restriction).await.err_internal()?);
+                                let responder = req.respond();
+                                let (incoming, outgoing) = tx(&state.db, move |txn| {
+                                    return Ok(
+                                        (
+                                            db::triple_list_from(txn, &DbNode(req.node.clone()))?,
+                                            db::triple_list_to(txn, &DbNode(req.node.clone()))?,
+                                        ),
+                                    );
+                                }).await.err_internal()?;
+                                resp = responder(RespGetTriplesAround {
+                                    incoming: incoming.into_iter().map(|x| Triple {
+                                        subject: x.subject.0,
+                                        predicate: x.predicate,
+                                        object: x.object.0,
+                                    }).collect(),
+                                    outgoing: outgoing.into_iter().map(|x| Triple {
+                                        subject: x.subject.0,
+                                        predicate: x.predicate,
+                                        object: x.object.0,
+                                    }).collect(),
+                                });
+                            },
+                            C2SReq::GetMenu(req) => {
+                                resp = req.respond()(handle_get_menu(state, &identity).await.err_internal()?);
                             },
                         }
                         return Ok(resp.1);
                     },
                     "file" => {
-                        let Some(ident) = identify_requester(&state, &head.headers).await? else {
+                        let Some(identity) = identify_requester(&state, &head.headers).await? else {
                             return Ok(response_401());
                         };
                         let hash = path_iter.next().context("Missing file hash in path").err_external()?;
@@ -362,16 +470,13 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 .err_external()?;
                         match head.method {
                             Method::HEAD => {
-                                return handle_file_head(state, &ident, file).await;
+                                return handle_file_head(state, &identity, file).await;
                             },
                             Method::GET => {
-                                return handle_file_get(state, &ident, head, file).await;
+                                return handle_file_get(state, &identity, head, file).await;
                             },
                             Method::POST => {
-                                if !can_write(&state, &ident).await.err_internal()? {
-                                    return Ok(response_401());
-                                }
-                                return handle_file_post(state, head, file, body).await.err_internal();
+                                return handle_file_post(state, &identity, head, file, body).await.err_internal();
                             },
                             _ => return Ok(response_404()),
                         }
@@ -410,7 +515,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
     }
 }
 
-async fn main(config: Config) -> Result<(), loga::Error> {
+pub async fn main(config: Config) -> Result<(), loga::Error> {
     let log = Log::new_root(match config.debug {
         true => loga::DEBUG,
         false => loga::INFO,
@@ -425,7 +530,9 @@ async fn main(config: Config) -> Result<(), loga::Error> {
     let db_path = config.graph_dir.join("db.sqlite3");
     let db = deadpool_sqlite::Config::new(&db_path).create_pool(deadpool_sqlite::Runtime::Tokio1).unwrap();
     db.get().await?.interact(|db| {
-        return db::migrate(db);
+        db::migrate(db);
+        db.execute(include_str!("setup_fts.sql"), ())?;
+        return Ok(()) as Result<_, loga::Error>;
     }).await?.context_with("Migration failed", ea!(action = "db_init", path = db_path.to_string_lossy()))?;
     let tm = taskmanager::TaskManager::new();
 
@@ -484,14 +591,19 @@ async fn main(config: Config) -> Result<(), loga::Error> {
                         cache: Mutex::new(None),
                     })
                 },
-                MaybeFdap::Local(global_config) => GlobalState::Local(Arc::new(GlobalConfig {
-                    config: global_config.clone(),
-                    admin_token: global_config
-                        .admin_token
-                        .as_ref()
-                        .map(|x| x.as_str())
-                        .map(htserve::auth::hash_auth_token),
-                })),
+                MaybeFdap::Local(global_config) => {
+                    let (forms, views) = gather_pages(&global_config);
+                    GlobalState::Local(Arc::new(GlobalConfig {
+                        config: global_config.clone(),
+                        forms: forms,
+                        views: views,
+                        admin_token: global_config
+                            .admin_token
+                            .as_ref()
+                            .map(|x| x.as_str())
+                            .map(htserve::auth::hash_auth_token),
+                    }))
+                },
             };
             let users_state = match &config.user {
                 MaybeFdap::Fdap(subpath) => {
