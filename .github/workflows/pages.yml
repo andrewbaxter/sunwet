@@ -1,0 +1,23 @@
+on:
+  push:
+    branches:
+      - master
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: mkdir -p stage/static
+      - run: cargo run --manifest-path source/native/Cargo.toml --bin generate_jsonschema -- ./stage/web/static/jsonschema
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./stage/web/static
+      - uses: actions/deploy-pages@v4

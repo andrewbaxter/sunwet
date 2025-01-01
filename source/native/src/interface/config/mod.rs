@@ -1,5 +1,6 @@
 use {
     good_ormning_runtime::sqlite::GoodOrmningCustomString,
+    schemars::JsonSchema,
     serde::{
         Deserialize,
         Serialize,
@@ -18,7 +19,7 @@ use {
     },
 };
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum PageAccess {
     View(String),
@@ -35,7 +36,7 @@ impl GoodOrmningCustomString<PageAccess> for PageAccess {
     }
 }
 
-#[derive(Serialize, Deserialize, Default, Clone)]
+#[derive(Serialize, Deserialize, Default, Clone, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct GlobalConfig {
     pub admin_token: Option<String>,
@@ -44,26 +45,26 @@ pub struct GlobalConfig {
     pub menu: Vec<MenuItem>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum IamGrants {
     Admin,
     Limited(HashSet<PageAccess>),
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct UserConfig {
     pub iam_grants: IamGrants,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct UsersConfig {
     pub users: HashMap<UserIdentityId, UserConfig>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum MaybeFdap<T> {
     /// Get the config from FDAP, with this path.
@@ -72,7 +73,7 @@ pub enum MaybeFdap<T> {
     Local(T),
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct OidcConfig {
     pub provider_url: String,
@@ -80,14 +81,14 @@ pub struct OidcConfig {
     pub client_secret: Option<String>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FdapConfig {
     pub url: String,
     pub token: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct Config {
     #[serde(default)]

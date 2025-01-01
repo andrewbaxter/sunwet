@@ -1,4 +1,5 @@
 use {
+    schemars::JsonSchema,
     serde::{
         de,
         Deserialize,
@@ -9,7 +10,7 @@ use {
 
 const HASH_PREFIX_SHA256: &'static str = "sha256";
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum FileHash {
     Sha256(String),
@@ -47,7 +48,7 @@ impl std::str::FromStr for FileHash {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, JsonSchema)]
 pub enum Node {
     File(FileHash),
     Value(serde_json::Value),

@@ -1,5 +1,6 @@
 use {
     crate::interface::query::Query,
+    schemars::JsonSchema,
     serde::{
         Deserialize,
         Serialize,
@@ -40,7 +41,7 @@ impl Direction {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Orientation {
     UpLeft,
@@ -86,7 +87,7 @@ impl Orientation {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Align {
     Start,
@@ -94,7 +95,7 @@ pub enum Align {
     End,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct WidgetNest {
     pub orientation: Orientation,
@@ -102,7 +103,7 @@ pub struct WidgetNest {
     pub children: Vec<Widget>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct LayoutIndividual {
     pub orientation: Orientation,
@@ -111,7 +112,7 @@ pub struct LayoutIndividual {
     pub item: WidgetNest,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct LayoutTable {
     pub orientation: Orientation,
@@ -120,14 +121,14 @@ pub struct LayoutTable {
     pub columns: Vec<Widget>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum LineSizeMode {
     Ellipsize,
     Wrap,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum FieldOrLiteral {
     Field(String),
@@ -143,14 +144,14 @@ pub enum QueryParameter {
     Datetime,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum QueryOrField {
     Field(String),
     Query(QueryId),
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct WidgetTextLine {
     pub data: FieldOrLiteral,
@@ -163,7 +164,7 @@ pub struct WidgetTextLine {
     pub align: Align,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct WidgetImage {
     pub data: FieldOrLiteral,
@@ -172,7 +173,7 @@ pub struct WidgetImage {
     pub align: Align,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct WidgetMediaButton {
     pub field: String,
@@ -185,7 +186,7 @@ pub struct WidgetMediaButton {
     pub align: Align,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ViewPartList {
     /// Where to get the data for the sublist.
@@ -197,7 +198,7 @@ pub struct ViewPartList {
     pub layout: Layout,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Layout {
     /// Each row is layed out with independent sizing.
@@ -206,7 +207,7 @@ pub enum Layout {
     Table(LayoutTable),
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Widget {
     Nest(WidgetNest),
@@ -216,7 +217,7 @@ pub enum Widget {
     Sublist(ViewPartList),
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum QueryDefParameter {
     Text,
@@ -225,7 +226,7 @@ pub enum QueryDefParameter {
     Datetime,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, Hash)]
+#[derive(Clone, Serialize, Deserialize, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct View {
     pub id: String,

@@ -17,7 +17,7 @@ pub async fn handle_static(
     path_iter: Split<'_, char>,
 ) -> Result<Response<BoxBody<Bytes, std::io::Error>>, VisErr<loga::Error>> {
     #[derive(RustEmbed)]
-    #[folder = "$CARGO_MANIFEST_DIR/../../stage/static"]
+    #[folder = "$STATIC_DIR"]
     struct Static;
 
     let mut path = path_iter.collect::<Vec<&str>>();
