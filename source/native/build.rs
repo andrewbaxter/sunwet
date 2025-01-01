@@ -4,12 +4,10 @@ use {
         new_insert,
         new_select,
         new_select_body,
-        new_update,
         query::{
             expr::{
                 BinOp,
                 Binding,
-                ComputeType,
                 Expr,
             },
             helpers::{
@@ -23,8 +21,6 @@ use {
             insert::InsertConflict,
             select_body::{
                 Order,
-                SelectJunction,
-                SelectJunctionOperator,
             },
             utils::{
                 CteBuilder,
@@ -50,11 +46,6 @@ use {
     },
     std::{
         env,
-        hash::{
-            DefaultHasher,
-            Hash,
-            Hasher,
-        },
         path::PathBuf,
     },
 };

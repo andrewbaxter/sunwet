@@ -1,9 +1,5 @@
 use {
     good_ormning_runtime::sqlite::GoodOrmningCustomString,
-    serde::{
-        Deserialize,
-        Serialize,
-    },
     shared::interface::triple::{
         FileHash,
         Node,

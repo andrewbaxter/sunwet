@@ -530,7 +530,7 @@ pub async fn main(config: Config) -> Result<(), loga::Error> {
     let db_path = config.graph_dir.join("db.sqlite3");
     let db = deadpool_sqlite::Config::new(&db_path).create_pool(deadpool_sqlite::Runtime::Tokio1).unwrap();
     db.get().await?.interact(|db| {
-        db::migrate(db);
+        db::migrate(db)?;
         db.execute(include_str!("setup_fts.sql"), ())?;
         return Ok(()) as Result<_, loga::Error>;
     }).await?.context_with("Migration failed", ea!(action = "db_init", path = db_path.to_string_lossy()))?;

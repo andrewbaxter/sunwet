@@ -57,6 +57,68 @@ use {
     web_sys::HtmlInputElement,
 };
 
+struct FormState_ {
+    draft_id: String,
+    form: Form,
+    data: RefCell<HashMap<String, TreeNode>>,
+    draft_debounce: RefCell<Option<Timeout>>,
+}
+
+#[derive(Clone)]
+struct FormState(Rc<FormState_>);
+
+impl FormState {
+    fn update(&self, field: &str, value: TreeNode) {
+        self.0.data.borrow_mut().insert(field.to_string(), value);
+        *self.0.draft_debounce.borrow_mut() = Some(Timeout::new(200, {
+            let s = self.clone();
+            move || {
+                LocalStorage::set(&s.0.draft_id, serde_json::to_string(&*s.0.data.borrow()).unwrap()).unwrap();
+            }
+        }));
+    }
+}
+
+fn build_field_enum(
+    fs: &FormState,
+    field_id: &str,
+    field_label: &str,
+    choices: &Vec<(String, TreeNode)>,
+) -> Result<El, String> {
+    let input = el("select").on("change", {
+        let id = field_id.to_string();
+        let fs = fs.clone();
+        move |ev| {
+            let value = ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap().value();
+            fs.update(&id, if let Ok(v) = serde_json::from_str(&value) {
+                v
+            } else {
+                TreeNode::Scalar(Node::Value(serde_json::Value::String(value)))
+            });
+        }
+    });
+    let draft_value = match fs.0.data.borrow().get(field_id) {
+        Some(x) => x.clone(),
+        None => {
+            let Some((_, first)) = choices.first() else {
+                return Err(format!("Enum field {} has no choices", field_id));
+            };
+            let value = first.clone();
+            fs.0.data.borrow_mut().insert(field_id.to_string(), value.clone());
+            value
+        },
+    };
+    for choice in choices {
+        let value = choice.1.clone();
+        let option = el("option").attr("value", &serde_json::to_string(&value).unwrap());
+        if draft_value == value {
+            option.ref_attr("selected", "selected");
+        }
+        input.ref_push(option.text(&choice.0));
+    }
+    return Ok(el("label").push(el("span").text(field_label)).push(input.clone()));
+}
+
 pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, form_title: &str, form_id: &str) {
     let draft_id = format!("form-draft-{}", form_id);
     outer_state.page_title.upgrade().unwrap().ref_text(form_title);
@@ -86,79 +148,12 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                     return;
                 };
                 let mut out = vec![];
-
-                struct FormState_ {
-                    draft_id: String,
-                    form: Form,
-                    data: RefCell<HashMap<String, TreeNode>>,
-                    draft_debounce: RefCell<Option<Timeout>>,
-                }
-
-                #[derive(Clone)]
-                struct FormState(Rc<FormState_>);
-
-                impl FormState {
-                    fn update(&self, field: &str, value: TreeNode) {
-                        self.0.data.borrow_mut().insert(field.to_string(), value);
-                        *self.0.draft_debounce.borrow_mut() = Some(Timeout::new(200, {
-                            let s = self.clone();
-                            move || {
-                                LocalStorage::set(
-                                    &s.0.draft_id,
-                                    serde_json::to_string(&*s.0.data.borrow()).unwrap(),
-                                ).unwrap();
-                            }
-                        }));
-                    }
-                }
-
                 let fs = FormState(Rc::new(FormState_ {
                     form: form.clone(),
                     data: RefCell::new(LocalStorage::get(&draft_id).unwrap_or_default()),
                     draft_debounce: RefCell::new(None),
                     draft_id: draft_id,
                 }));
-
-                fn build_field_enum(
-                    fs: &FormState,
-                    field_id: &str,
-                    field_label: &str,
-                    choices: &Vec<(String, TreeNode)>,
-                ) -> Result<El, String> {
-                    let input = el("select").on("change", {
-                        let id = field_id.to_string();
-                        let fs = fs.clone();
-                        move |ev| {
-                            let value = ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap().value();
-                            fs.update(&id, if let Ok(v) = serde_json::from_str(&value) {
-                                v
-                            } else {
-                                TreeNode::Scalar(Node::Value(serde_json::Value::String(value)))
-                            });
-                        }
-                    });
-                    let draft_value = match fs.0.data.borrow().get(field_id) {
-                        Some(x) => x.clone(),
-                        None => {
-                            let Some((_, first)) = choices.first() else {
-                                return Err(format!("Enum field {} has no choices", field_id));
-                            };
-                            let value = first.clone();
-                            fs.0.data.borrow_mut().insert(field_id.to_string(), value.clone());
-                            value
-                        },
-                    };
-                    for choice in choices {
-                        let value = choice.1.clone();
-                        let option = el("option").attr("value", &serde_json::to_string(&value).unwrap());
-                        if draft_value == value {
-                            option.ref_attr("selected", "selected");
-                        }
-                        input.ref_push(option.text(&choice.0));
-                    }
-                    return Ok(el("label").push(el("span").text(field_label)).push(input.clone()));
-                }
-
                 for field in &form.fields {
                     match field {
                         FormField::Id(_field) => {

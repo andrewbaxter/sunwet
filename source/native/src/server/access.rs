@@ -8,7 +8,6 @@ use {
         },
     },
     crate::interface::config::IamGrants,
-    flowcontrol::exenum,
     http::HeaderMap,
     htwrap::htserve::{
         self,

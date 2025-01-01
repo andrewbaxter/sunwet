@@ -1,22 +1,5 @@
 use {
     shared::interface::{
-        config::view::{
-            Align,
-            FieldOrLiteral,
-            Layout,
-            LayoutIndividual,
-            LayoutTable,
-            LineSizeMode,
-            Orientation,
-            QueryOrField,
-            View,
-            ViewPartList,
-            Widget,
-            WidgetImage,
-            WidgetMediaButton,
-            WidgetNest,
-            WidgetTextLine,
-        },
         query::{
             Chain,
             ChainBody,

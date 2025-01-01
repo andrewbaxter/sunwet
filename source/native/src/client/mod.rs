@@ -24,23 +24,7 @@ use {
     query::compile_query,
     shared::interface::{
         query::{
-            Chain,
-            ChainBody,
-            ChainRoot,
-            FilterExpr,
-            FilterExprExists,
-            FilterExprExistsType,
-            FilterExprJunction,
-            FilterSuffixSimpleOperator,
-            JunctionType,
-            MoveDirection,
             Query,
-            QuerySortDir,
-            Step,
-            StepJunction,
-            StepMove,
-            StepRecurse,
-            Value,
         },
         triple::{
             FileHash,

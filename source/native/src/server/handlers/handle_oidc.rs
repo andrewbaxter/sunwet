@@ -150,7 +150,6 @@ struct OidcPreSession {
 
 pub struct OidcState {
     log: loga::Log,
-    base_url: Uri,
     client: openidconnect
     ::Client<
         EmptyAdditionalClaims,
@@ -195,7 +194,6 @@ pub async fn new_state(log: &Log, base_url: &Uri, oidc_config: OidcConfig) -> Re
         ).set_redirect_uri(RedirectUrl::new(base_url.join("oidc").to_string())?);
     return Ok(OidcState {
         log: log,
-        base_url: base_url.clone(),
         client: client,
         pre_sessions: Cache::builder().max_capacity(10).time_to_live(Duration::from_secs(60 * 10)).build(),
         sessions: Cache::builder().time_to_idle(Duration::from_secs(60 * 60 * 24 * 7)).build(),
@@ -263,7 +261,7 @@ pub async fn handle_oidc(
             }
         }
         let session_cookie = Alphanumeric.sample_string(&mut rand::thread_rng(), 32);
-        state.sessions.insert(session_cookie.clone(), UserIdentityId(claims.subject().to_string()));
+        state.sessions.insert(session_cookie.clone(), UserIdentityId(claims.subject().to_string())).await;
         return Ok(
             http::Response::builder()
                 .status(http::StatusCode::TEMPORARY_REDIRECT)
@@ -315,7 +313,7 @@ pub async fn handle_oidc(
         original_subpath: params.subpath,
         pkce_verifier: Mutex::new(Some(pkce_verifier)),
         nonce: nonce,
-    }));
+    })).await;
     return Ok(
         http::Response::builder()
             .status(http::StatusCode::TEMPORARY_REDIRECT)

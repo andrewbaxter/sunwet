@@ -84,8 +84,16 @@ struct NodeState {
     value: HistPrim<NodeEditValue>,
 }
 
+fn new_node_state(pc: &mut ProcessingContext, node: &Node) -> NodeState {
+    let (type_, value) = node_to_type_value(node);
+    return NodeState {
+        type_: HistPrim::new(pc, type_),
+        value: HistPrim::new(pc, value),
+    };
+}
+
 impl NodeState {
-    fn as_node(&self) -> Node {
+    fn type_value_to_node(&self) -> Node {
         match (&*self.type_.borrow(), &*self.value.borrow()) {
             (NodeEditType::File, NodeEditValue::String(v)) => {
                 if let Ok(v) = FileHash::from_str(&v) {
@@ -165,14 +173,6 @@ fn node_to_type_value(node: &Node) -> (NodeEditType, NodeEditValue) {
             },
         },
     }
-}
-
-fn new_node_state(pc: &mut ProcessingContext, node: &Node) -> NodeState {
-    let (type_, value) = node_to_type_value(node);
-    return NodeState {
-        type_: HistPrim::new(pc, type_),
-        value: HistPrim::new(pc, value),
-    };
 }
 
 struct BuildEditNodeRes {
@@ -540,14 +540,6 @@ fn build_edit_triple(pc: &mut ProcessingContext, triple: &TripleState) -> El {
     }
 }
 
-fn build_cont_incoming() -> El {
-    return el("div").classes(&["g_edit_row_incoming"]);
-}
-
-fn build_cont_outgoing() -> El {
-    return el("div").classes(&["g_edit_row_outgoing"]);
-}
-
 pub fn build_page_edit(pc: &mut ProcessingContext, outer_state: &State, edit_title: &str, node: &Node) {
     outer_state.page_title.upgrade().unwrap().ref_text(&edit_title);
     outer_state.page_body.upgrade().unwrap().ref_push(el_async().own(|async_el| {
@@ -577,12 +569,11 @@ pub fn build_page_edit(pc: &mut ProcessingContext, outer_state: &State, edit_tit
                     let incoming_triples_box = el_vbox();
                     for t in triples.incoming {
                         let triple = new_triple_state(pc, &t, true);
-                        incoming_triples_box.ref_push(
-                            build_cont_incoming().push(el_vbox().extend(vec![build_edit_triple(pc, &triple)])),
-                        );
+                        incoming_triples_box.ref_push(el_vbox().extend(vec![build_edit_triple(pc, &triple)]));
                         triple_states.borrow_mut().push(triple);
                     }
-                    out.push(build_cont_incoming().push(el_button_icon(pc, el_icon(ICON_ADD), "Add incoming", {
+                    let incoming_box = el_vbox().classes(&["g_edit_incoming"]);
+                    incoming_box.ref_push(el_button_icon(pc, el_icon(ICON_ADD), "Add incoming", {
                         let triple_states = triple_states.clone();
                         let incoming_triples_box = incoming_triples_box.clone();
                         move |pc| {
@@ -594,7 +585,8 @@ pub fn build_page_edit(pc: &mut ProcessingContext, outer_state: &State, edit_tit
                             incoming_triples_box.ref_push(build_edit_triple(pc, &triple));
                             triple_states.borrow_mut().push(triple);
                         }
-                    })));
+                    }));
+                    out.push(incoming_box);
 
                     // Pivot
                     let pivot_state = new_pivot_state(pc, &node);
@@ -648,9 +640,11 @@ pub fn build_page_edit(pc: &mut ProcessingContext, outer_state: &State, edit_tit
                         outgoing_triples_box.ref_push(build_edit_triple(pc, &triple));
                         triple_states.borrow_mut().push(triple);
                     }
-                    out.push(build_cont_outgoing().push(el_button_icon(pc, el_icon(ICON_ADD), "Add outgoing", {
+                    let outgoing_box = el_vbox().classes(&["g_edit_outgoing"]);
+                    outgoing_box.ref_push(outgoing_triples_box.clone());
+                    outgoing_box.ref_push(el_button_icon(pc, el_icon(ICON_ADD), "Add outgoing", {
                         let triple_states = triple_states.clone();
-                        let outgoing_triples_box = outgoing_triples_box.clone();
+                        let outgoing_triples_box = outgoing_triples_box;
                         move |pc| {
                             let triple = new_triple_state(pc, &Triple {
                                 subject: Node::Value(serde_json::Value::String("".to_string())),
@@ -660,7 +654,8 @@ pub fn build_page_edit(pc: &mut ProcessingContext, outer_state: &State, edit_tit
                             outgoing_triples_box.ref_push(build_edit_triple(pc, &triple));
                             triple_states.borrow_mut().push(triple);
                         }
-                    })));
+                    }));
+                    out.push(outgoing_box);
 
                     // Edit form controls
                     let error_el = el_err_block("");
@@ -704,10 +699,10 @@ pub fn build_page_edit(pc: &mut ProcessingContext, outer_state: &State, edit_tit
                                                     });
                                                 }
                                             } else {
-                                                let pivot_node = pivot_state.0.node.as_node();
+                                                let pivot_node = pivot_state.0.node.type_value_to_node();
                                                 let pivot_changed = pivot_node != pivot_state.0.initial;
                                                 for triple in &*RefCell::borrow(&triple_states) {
-                                                    let triple_node = triple.0.node.as_node();
+                                                    let triple_node = triple.0.node.type_value_to_node();
                                                     if !pivot_changed && triple_node == triple.0.initial.1 &&
                                                         triple.0.predicate.borrow().as_str() == &triple.0.initial.0 {
                                                         continue;

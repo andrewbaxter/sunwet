@@ -12,12 +12,10 @@ use {
         },
         server::{
             access::{
-                is_admin,
                 Identity,
             },
             db::{
                 self,
-                Metadata,
             },
             dbutil::tx,
             filesutil::{
@@ -29,7 +27,6 @@ use {
             state::{
                 get_global_config,
                 get_iam_grants,
-                get_user_config,
                 State,
             },
         },
@@ -166,7 +163,7 @@ async fn commit(
             } else {
                 continue;
             }
-            db::triple_insert(txn, &DbNode(t.subject), &t.predicate, &DbNode(t.object), stamp, false);
+            db::triple_insert(txn, &DbNode(t.subject), &t.predicate, &DbNode(t.object), stamp, false)?;
         }
         for t in c.add {
             if let Some(t) =
@@ -175,7 +172,53 @@ async fn commit(
                     continue;
                 }
             }
-            db::triple_insert(txn, &DbNode(t.subject), &t.predicate, &DbNode(t.object), stamp, true);
+
+            fn update_fulltext(txn: &rusqlite::Transaction, node: &Node) -> Result<(), loga::Error> {
+                let mut fulltext = String::new();
+
+                fn gather_value_text(fulltext: &mut String, value: &serde_json::Value) {
+                    match value {
+                        serde_json::Value::Null => {
+                            // nop
+                        },
+                        serde_json::Value::Bool(_) => {
+                            // nop
+                        },
+                        serde_json::Value::Number(_) => {
+                            // nop
+                        },
+                        serde_json::Value::String(v) => {
+                            fulltext.push_str(v);
+                            fulltext.push_str(" ");
+                        },
+                        serde_json::Value::Array(v) => {
+                            for v in v {
+                                gather_value_text(fulltext, v);
+                            }
+                        },
+                        serde_json::Value::Object(v) => {
+                            for (k, v) in v {
+                                fulltext.push_str(k);
+                                fulltext.push_str(" ");
+                                gather_value_text(fulltext, v);
+                            }
+                        },
+                    }
+                }
+
+                match node {
+                    Node::File(_) => {
+                        // nop
+                    },
+                    Node::Value(v) => gather_value_text(&mut fulltext, v),
+                }
+                db::meta_insert(txn, &DbNode(node.clone()), "", &fulltext)?;
+                return Ok(());
+            }
+
+            update_fulltext(txn, &t.subject)?;
+            update_fulltext(txn, &t.object)?;
+            db::triple_insert(txn, &DbNode(t.subject), &t.predicate, &DbNode(t.object), stamp, true)?;
         }
         return Ok(incomplete);
     }).await?;

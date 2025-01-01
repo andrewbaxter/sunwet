@@ -8,7 +8,6 @@ use {
     native::{
         client::{
             self,
-            QueryCommand,
         },
         interface::config::Config,
         server,
