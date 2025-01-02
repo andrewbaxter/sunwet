@@ -2937,8 +2937,9 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "sea-query"
-version = "0.32.0"
-source = "git+https://github.com/andrewbaxter/fork-sea-query?rev=6a63c0039c433b5da94c453046dbbe5d8aca1a6d#6a63c0039c433b5da94c453046dbbe5d8aca1a6d"
+version = "0.32.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "085e94f7d7271c0393ac2d164a39994b1dff1b06bc40cd9a0da04f3d672b0fee"
 dependencies = [
  "inherent",
  "serde_json",
@@ -2947,7 +2948,8 @@ dependencies = [
 [[package]]
 name = "sea-query-rusqlite"
 version = "0.7.0"
-source = "git+https://github.com/andrewbaxter/fork-sea-query?rev=6a63c0039c433b5da94c453046dbbe5d8aca1a6d#6a63c0039c433b5da94c453046dbbe5d8aca1a6d"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3743bbdfb24b1a84cc1a6fbf4b1188e6851f6e00ea20944b44c56bf03a585bb4"
 dependencies = [
  "rusqlite",
  "sea-query",
