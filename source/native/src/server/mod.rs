@@ -572,6 +572,7 @@ pub async fn main(config: Config) -> Result<(), loga::Error> {
                         FdapState {
                             fdap_client: fdap::Client::builder()
                                 .with_base_url(Uri::from_str(&fdap_config.url).context("Invalid fdap url")?)
+                                .with_token(fdap_config.token.clone())
                                 .build()?,
                         },
                     )

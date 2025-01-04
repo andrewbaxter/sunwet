@@ -74,13 +74,13 @@ Some people say organizing things like this requires unrealistic diligence, it's
 
 I agree there's a lot of searches that full text search works great for, but there's also a lot of things it doesn't:
 
-- Nobody searches their music collection using full text search, even if the relevant text is in the track metadata.
+- Nobody searches their music collection using full text search, even if the relevant text is in the track metadata. They find music by categories - genre, artist, purchase date, mood
 
-- You can sometimes find lists of things and relations online via full text search (aka Google) but that's because the internet is full of monkeys producing every possible combination of data, that Google's indexing.
+- You can sometimes find lists of things and relations online via full text search (aka Google) but that's because the internet is full of monkeys producing every possible combination of data that Google's indexing. Local search won't magically produce a list of items you want unless you made the list before hand.
 
 - Wikipedia and many websites are full of graph data. I often go to wikipedia to find "the name of the song on the album that came out after the other album by this artist" where all I can remember is that the artist did a collaboration with this other artist. I find that by looking up the other artist, then following the links.
 
-- Having data organized well makes it easy for software to consume - home assistants, management software (downloaders, viewers) etc. You'd never have tax software generate a tax report by searching for transactions using full text search.
+- Having data organized well makes it easy for software to consume - home assistants, importers, viewers, etc. You'd never have tax software generate a tax report by searching for transactions using full text search.
 
 Also, while some of this data might be added by hand, I'd expect a lot of it to be added using automatic importers, perhaps reading from other databases of well-classified information.
 

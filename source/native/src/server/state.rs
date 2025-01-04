@@ -160,11 +160,17 @@ pub async fn get_global_config(state: &State) -> Result<Arc<GlobalConfig>, loga:
                     }
                 }
             }
-            let Some(json) = f.fdap.fdap_client.get(f.subpath.iter(), 100 * 1024 * 1024).await? else {
-                let config = Arc::new(GlobalConfig::default());
-                *f.cache.lock().unwrap() = Some((Instant::now(), config.clone()));
-                return Ok(config);
-            };
+            let Some(json) =
+                f
+                    .fdap
+                    .fdap_client
+                    .get(f.subpath.iter(), 100 * 1024 * 1024)
+                    .await
+                    .context("Error making request to FDAP server")? else {
+                    let config = Arc::new(GlobalConfig::default());
+                    *f.cache.lock().unwrap() = Some((Instant::now(), config.clone()));
+                    return Ok(config);
+                };
             let config0 =
                 serde_json::from_value::<interface::config::GlobalConfig>(
                     json,
@@ -195,7 +201,10 @@ pub async fn get_user_config(state: &State, user: &UserIdentityId) -> Result<Arc
                         let fdap_subpath = f.user_subpath.clone();
                         async move {
                             let Some(json) =
-                                fdap_client.user_get(&user.0, fdap_subpath.iter(), 100 * 1024 * 1024).await? else {
+                                fdap_client
+                                    .user_get(&user.0, fdap_subpath.iter(), 100 * 1024 * 1024)
+                                    .await
+                                    .context("Error making request to FDAP server")? else {
                                     return Ok(None);
                                 };
                             return Ok(

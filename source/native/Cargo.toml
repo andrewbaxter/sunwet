@@ -46,7 +46,7 @@ serde_urlencoded = "0.7"
 platform-info = "2"
 rand = "0.8"
 oauth2 = { version = "4", default-features = false }
-fdap = { version = "*", path = "../../../openfdap/source/fdap" }
+fdap = { version = "0.1.2" }
 mime_guess = "2"
 rustemo = "0.7"
 schemars = "0.8"

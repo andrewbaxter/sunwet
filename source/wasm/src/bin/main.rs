@@ -118,7 +118,11 @@ fn main() {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
     let eg = EventGraph::new();
     eg.event(|pc| {
-        let base_url = window().location().origin().unwrap_throw();
+        let base_url;
+        {
+            let loc = window().location();
+            base_url = format!("{}{}", loc.origin().unwrap_throw(), loc.pathname().unwrap_throw());
+        }
 
         // Short circuit to link mode
         superif!({

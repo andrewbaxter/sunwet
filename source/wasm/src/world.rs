@@ -15,7 +15,7 @@ use {
 
 pub async fn req_post_json<T: C2SReqTrait>(base_url: &str, req: T) -> Result<T::Resp, String> {
     let req =
-        Request::post(&format!("{}/api", base_url))
+        Request::post(&format!("{}api", base_url))
             .header("Content-type", "application/json")
             .body(serde_json::to_string(&C2SReq::from(req.into())).unwrap_throw());
     let resp = match req.send().await {
@@ -42,12 +42,12 @@ pub async fn req_post_json<T: C2SReqTrait>(base_url: &str, req: T) -> Result<T::
 }
 
 pub fn file_url(origin: &String, hash: &FileHash) -> String {
-    return format!("{}/file/{}", origin, hash.to_string());
+    return format!("{}file/{}", origin, hash.to_string());
 }
 
 pub fn generated_file_url(origin: &String, hash: &FileHash, generation: &str, mime: &str) -> String {
     return format!(
-        "{}/file/{}?{}",
+        "{}file/{}?{}",
         origin,
         hash.to_string(),
         serde_json::to_string(&FileUrlQuery { generated: Some(FileGenerated {

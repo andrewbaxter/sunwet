@@ -14,10 +14,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: mkdir -p stage/static
-      - run: cargo run --manifest-path source/native/Cargo.toml --bin generate_jsonschema -- ./stage/web/static/jsonschema
+      - run: |
+        set -xeu
+        export PAGES_DIR=$(pwd)/stage/pages/static
+        export STATIC_PATH=$(pwd)/stage/static
+        mkdir -p $STATIC_PATH
+        (cd source/native; cargo run --bin generate_jsonschema -- $PAGES_DIR/jsonschema)
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: ./stage/web/static
+          path: ./stage/pages/static
       - uses: actions/deploy-pages@v4
