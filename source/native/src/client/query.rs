@@ -28,10 +28,14 @@ use {
 };
 
 mod query_parser {
+    #![allow(warnings)]
+
     include!(concat!(env!("OUT_DIR"), "/src/client/query_parser.rs"));
 }
 
 mod query_parser_actions {
+    #![allow(warnings)]
+
     include!(concat!(env!("OUT_DIR"), "/src/client/query_parser_actions.rs"));
 }
 

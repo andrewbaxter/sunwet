@@ -3,7 +3,10 @@ use {
         vark,
         Aargvark,
     },
-    native::interface::config::Config,
+    native::interface::{
+        self,
+        config::Config,
+    },
     schemars::schema_for,
     std::{
         fs::{
@@ -22,5 +25,16 @@ struct Args {
 fn main() {
     let args = vark::<Args>();
     create_dir_all(&args.dir).unwrap();
-    write(args.dir.join("config.schema.json"), serde_json::to_vec_pretty(&schema_for!(Config)).unwrap()).unwrap();
+    write(
+        args.dir.join("config.schema.json"),
+        serde_json::to_vec_pretty(&schema_for!(interface::config::Config)).unwrap(),
+    ).unwrap();
+    write(
+        args.dir.join("fdap.schema.json"),
+        serde_json::to_vec_pretty(&schema_for!(interface::config::GlobalConfig)).unwrap(),
+    ).unwrap();
+    write(
+        args.dir.join("fdap_user.schema.json"),
+        serde_json::to_vec_pretty(&schema_for!(interface::config::UserConfig)).unwrap(),
+    ).unwrap();
 }
