@@ -15,11 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-        set -xeu
-        export PAGES_DIR=$(pwd)/stage/pages/static
-        export STATIC_PATH=$(pwd)/stage/static
-        mkdir -p $STATIC_PATH
-        (cd source/native; cargo run --bin generate_jsonschema -- $PAGES_DIR/jsonschema)
+          set -xeu
+          export PAGES_DIR=$(pwd)/stage/pages/static
+          export STATIC_PATH=$(pwd)/stage/static
+          mkdir -p $STATIC_PATH
+          (cd source/native; cargo run --bin generate_jsonschema -- $PAGES_DIR/jsonschema)
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
