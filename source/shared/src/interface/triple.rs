@@ -48,10 +48,20 @@ impl std::str::FromStr for FileHash {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Debug, JsonSchema)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Node {
     File(FileHash),
     Value(serde_json::Value),
+}
+
+impl JsonSchema for Node {
+    fn schema_name() -> String {
+        return "Node".to_string();
+    }
+
+    fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+        return SerdeNode::json_schema(gen);
+    }
 }
 
 fn hash_value<H: std::hash::Hasher>(s: &serde_json::Value, state: &mut H) {
@@ -252,14 +262,14 @@ impl PartialOrd for Node {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 enum SerdeNodeType {
     F,
     V,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 struct SerdeNode {
     t: SerdeNodeType,

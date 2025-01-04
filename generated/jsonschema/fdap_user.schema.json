@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "UserConfig",
+  "type": "object",
+  "required": [
+    "iam_grants"
+  ],
+  "properties": {
+    "iam_grants": {
+      "$ref": "#/definitions/IamGrants"
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "IamGrants": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "admin"
+          ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "limited"
+          ],
+          "properties": {
+            "limited": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/PageAccess"
+              },
+              "uniqueItems": true
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "PageAccess": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "view"
+          ],
+          "properties": {
+            "view": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "form"
+          ],
+          "properties": {
+            "form": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}
