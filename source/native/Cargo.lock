@@ -2121,6 +2121,7 @@ dependencies = [
  "hyper",
  "hyper-tungstenite",
  "hyper-util",
+ "log",
  "loga",
  "mime_guess",
  "moka",

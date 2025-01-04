@@ -50,6 +50,8 @@ fdap = { version = "0.1" }
 mime_guess = "2"
 rustemo = "0.7"
 schemars = "0.8"
+# A dep just to disable resemo logs
+log = { version = "*", features = ["release_max_level_off"] }
 
 [build-dependencies]
 good-ormning = { version = "0.3", features = ["sqlite", "chrono"] }

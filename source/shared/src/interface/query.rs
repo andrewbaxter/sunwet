@@ -64,6 +64,8 @@ pub enum FilterSuffix {
 pub struct FilterExprExists {
     pub type_: FilterExprExistsType,
     pub subchain: ChainBody,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub suffix: Option<FilterSuffix>,
 }
 
@@ -100,7 +102,11 @@ pub enum FilterExpr {
 pub struct StepMove {
     pub dir: MoveDirection,
     pub predicate: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub filter: Option<FilterExpr>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    #[serde(default)]
     pub first: bool,
 }
 
@@ -108,6 +114,8 @@ pub struct StepMove {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct StepRecurse {
     pub subchain: ChainBody,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    #[serde(default)]
     pub first: bool,
 }
 
@@ -136,6 +144,8 @@ pub enum ChainRoot {
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ChainBody {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub root: Option<ChainRoot>,
     pub steps: Vec<Step>,
 }
@@ -144,7 +154,11 @@ pub struct ChainBody {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct Chain {
     pub body: ChainBody,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub select: Option<String>,
+    #[serde(skip_serializing_if = "std::vec::Vec::is_empty")]
+    #[serde(default)]
     pub subchains: Vec<Chain>,
 }
 
@@ -163,5 +177,7 @@ pub enum QuerySortDir {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct Query {
     pub chain: Chain,
+    #[serde(skip_serializing_if = "std::vec::Vec::is_empty")]
+    #[serde(default)]
     pub sort: Vec<(QuerySortDir, String)>,
 }

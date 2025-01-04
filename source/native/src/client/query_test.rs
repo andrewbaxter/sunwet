@@ -11,8 +11,8 @@ use {
 };
 
 #[test]
-fn test_move() {
-    assert_eq!(compile_query(r#""xyz" -> "owner" -> "name" { => a }"#.to_string()).unwrap(), Query {
+fn test_rt_move() {
+    assert_eq!(compile_query(r#""xyz" -> "owner" -> "name" { => a }"#).unwrap(), Query {
         chain: Chain {
             body: ChainBody {
                 root: Some(
@@ -39,4 +39,19 @@ fn test_move() {
         },
         sort: vec![],
     });
+}
+
+#[test]
+fn test_default_albums() {
+    compile_query(include_str!("../server/defaultview_query_albums.txt")).unwrap();
+}
+
+#[test]
+fn test_default_albums_tracks() {
+    compile_query(include_str!("../server/defaultview_query_albums_tracks.txt")).unwrap();
+}
+
+#[test]
+fn test_default_notes() {
+    compile_query(include_str!("../server/defaultview_query_notes.txt")).unwrap();
 }

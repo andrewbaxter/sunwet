@@ -258,20 +258,12 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                     );
                                 }
                             });
-                            if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::Bool(v)))) =
-                                fs.0.data.borrow().get(&field.form_id) {
-                                if *v {
-                                    input.ref_attr("checked", "checked");
-                                }
-                            } else if field.initial {
-                                input.ref_attr("checked", "checked");
-                            }
                             let initial =
                                 if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::Bool(v)))) =
                                     fs.0.data.borrow().get(&field.form_id) {
                                     *v
                                 } else {
-                                    let v = field.initial;
+                                    let v = field.initial_on;
                                     fs.0.data.borrow_mut().insert(field.form_id.clone(), make_v(v));
                                     v
                                 };

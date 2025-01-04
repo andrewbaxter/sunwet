@@ -1,0 +1,13 @@
+$album_id -> "sunwet/1/element" ?(<- "sunwet/1/is" == "sunwet/1/track") {
+    => track_id
+    ( -> "sunwet/1/name" first { => name })
+    (
+        *(<- "sunwet/1/element") -> "sunwet/1/creator" first {
+            => artist_id
+            ( *(<- "sunwet/1/element") -> "sunwet/1/name" first { => artist } )
+        }
+    )
+    ( -> "sunwet/1/index" first { => index } )
+    ( -> "sunwet/1/file" first { => file } )
+    ( -> "sunwet/1/media" first { => media } )
+}

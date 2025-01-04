@@ -99,9 +99,9 @@ fn compile_filter_suffix(suffix: query_parser_actions::FILTER_SUFFIX) -> Result<
     }
 }
 
-fn compile_filter(filter: query_parser_actions::FILTER_BODY) -> Result<FilterExpr, loga::Error> {
+fn compile_filter(filter: query_parser_actions::FILTER) -> Result<FilterExpr, loga::Error> {
     match filter {
-        query_parser_actions::FILTER_BODY::FILTER_BODY_EXISTS(f) => {
+        query_parser_actions::FILTER::FILTER_EXISTS(f) => {
             return Ok(FilterExpr::Exists(FilterExprExists {
                 type_: FilterExprExistsType::Exists,
                 subchain: compile_chain_body(*f.chain_body)?,
@@ -112,7 +112,7 @@ fn compile_filter(filter: query_parser_actions::FILTER_BODY) -> Result<FilterExp
                 },
             }));
         },
-        query_parser_actions::FILTER_BODY::FILTER_BODY_NOT_EXISTS(f) => {
+        query_parser_actions::FILTER::FILTER_NOT_EXISTS(f) => {
             return Ok(FilterExpr::Exists(FilterExprExists {
                 type_: FilterExprExistsType::DoesntExist,
                 subchain: compile_chain_body(*f.chain_body)?,
@@ -123,7 +123,7 @@ fn compile_filter(filter: query_parser_actions::FILTER_BODY) -> Result<FilterExp
                 },
             }));
         },
-        query_parser_actions::FILTER_BODY::FILTER_BODY_JUNCT_AND(f) => {
+        query_parser_actions::FILTER::FILTER_JUNCT_AND(f) => {
             let mut subexprs = vec![];
             for parsed_subexpr in f {
                 subexprs.push(compile_filter(*parsed_subexpr)?);
@@ -133,7 +133,7 @@ fn compile_filter(filter: query_parser_actions::FILTER_BODY) -> Result<FilterExp
                 subexprs: subexprs,
             }));
         },
-        query_parser_actions::FILTER_BODY::FILTER_BODY_JUNCT_OR(f) => {
+        query_parser_actions::FILTER::FILTER_JUNCT_OR(f) => {
             let mut subexprs = vec![];
             for parsed_subexpr in f {
                 subexprs.push(compile_filter(*parsed_subexpr)?);
@@ -249,9 +249,9 @@ fn compile_chain(chain: query_parser_actions::CHAIN) -> Result<Chain, loga::Erro
     });
 }
 
-pub fn compile_query(query: String) -> Result<Query, loga::Error> {
+pub fn compile_query(query: &str) -> Result<Query, loga::Error> {
     let parse =
-        rustemo::Parser::parse(&query_parser::QueryParserParser::new(), &query)
+        rustemo::Parser::parse(&query_parser::QueryParserParser::new(), query)
             .map_err(loga::err)
             .context("Error parsing query")?;
     return Ok(Query {

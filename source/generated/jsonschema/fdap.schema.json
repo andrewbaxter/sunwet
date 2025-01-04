@@ -1,57 +1,30 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Config",
+  "title": "GlobalConfig",
   "type": "object",
   "required": [
-    "bind_addr",
-    "cache_dir",
-    "files_dir",
-    "global",
-    "graph_dir",
-    "user"
+    "menu"
   ],
   "properties": {
-    "bind_addr": {
-      "type": "string"
-    },
-    "cache_dir": {
-      "type": "string"
-    },
-    "debug": {
-      "default": false,
-      "type": "boolean"
-    },
-    "fdap": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/FdapConfig"
-        },
-        {
-          "type": "null"
-        }
+    "admin_token": {
+      "type": [
+        "string",
+        "null"
       ]
     },
-    "files_dir": {
-      "type": "string"
+    "menu": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/MenuItem"
+      }
     },
-    "global": {
-      "$ref": "#/definitions/MaybeFdap_for_GlobalConfig"
-    },
-    "graph_dir": {
-      "type": "string"
-    },
-    "oidc": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/OidcConfig"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "user": {
-      "$ref": "#/definitions/MaybeFdap_for_UsersConfig"
+    "public_iam_grants": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/PageAccess"
+      },
+      "uniqueItems": true
     }
   },
   "additionalProperties": false,
@@ -67,8 +40,7 @@
     "Chain": {
       "type": "object",
       "required": [
-        "body",
-        "subchains"
+        "body"
       ],
       "properties": {
         "body": {
@@ -141,22 +113,6 @@
           "additionalProperties": false
         }
       ]
-    },
-    "FdapConfig": {
-      "type": "object",
-      "required": [
-        "token",
-        "url"
-      ],
-      "properties": {
-        "token": {
-          "type": "string"
-        },
-        "url": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
     },
     "FieldOrLiteral": {
       "oneOf": [
@@ -511,14 +467,14 @@
       "type": "object",
       "required": [
         "form_id",
-        "initial",
         "label"
       ],
       "properties": {
         "form_id": {
           "type": "string"
         },
-        "initial": {
+        "initial_on": {
+          "default": false,
           "type": "boolean"
         },
         "label": {
@@ -630,6 +586,7 @@
           "type": "string"
         },
         "placeholder": {
+          "default": null,
           "type": [
             "string",
             "null"
@@ -669,6 +626,7 @@
           "type": "string"
         },
         "initial": {
+          "default": null,
           "type": [
             "string",
             "null"
@@ -694,6 +652,7 @@
           "type": "string"
         },
         "placeholder": {
+          "default": null,
           "type": [
             "string",
             "null"
@@ -737,61 +696,6 @@
         }
       },
       "additionalProperties": false
-    },
-    "GlobalConfig": {
-      "type": "object",
-      "required": [
-        "menu"
-      ],
-      "properties": {
-        "admin_token": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "menu": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/MenuItem"
-          }
-        },
-        "public_iam_grants": {
-          "default": [],
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/PageAccess"
-          },
-          "uniqueItems": true
-        }
-      },
-      "additionalProperties": false
-    },
-    "IamGrants": {
-      "oneOf": [
-        {
-          "type": "string",
-          "enum": [
-            "admin"
-          ]
-        },
-        {
-          "type": "object",
-          "required": [
-            "limited"
-          ],
-          "properties": {
-            "limited": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/PageAccess"
-              },
-              "uniqueItems": true
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
     },
     "InputOrInline": {
       "oneOf": [
@@ -889,14 +793,17 @@
     "LayoutIndividual": {
       "type": "object",
       "required": [
-        "align",
         "item",
-        "orientation",
-        "x_scroll"
+        "orientation"
       ],
       "properties": {
         "align": {
-          "$ref": "#/definitions/Align"
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Align"
+            }
+          ]
         },
         "item": {
           "$ref": "#/definitions/WidgetNest"
@@ -905,6 +812,7 @@
           "$ref": "#/definitions/Orientation"
         },
         "x_scroll": {
+          "default": false,
           "type": "boolean"
         }
       },
@@ -915,8 +823,7 @@
       "required": [
         "align",
         "columns",
-        "orientation",
-        "x_scroll"
+        "orientation"
       ],
       "properties": {
         "align": {
@@ -932,6 +839,7 @@
           "$ref": "#/definitions/Orientation"
         },
         "x_scroll": {
+          "default": false,
           "type": "boolean"
         }
       },
@@ -942,72 +850,6 @@
       "enum": [
         "ellipsize",
         "wrap"
-      ]
-    },
-    "MaybeFdap_for_GlobalConfig": {
-      "oneOf": [
-        {
-          "description": "Get the config from FDAP, with this path.",
-          "type": "object",
-          "required": [
-            "fdap"
-          ],
-          "properties": {
-            "fdap": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "description": "The config is specified directly here.",
-          "type": "object",
-          "required": [
-            "local"
-          ],
-          "properties": {
-            "local": {
-              "$ref": "#/definitions/GlobalConfig"
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
-    },
-    "MaybeFdap_for_UsersConfig": {
-      "oneOf": [
-        {
-          "description": "Get the config from FDAP, with this path.",
-          "type": "object",
-          "required": [
-            "fdap"
-          ],
-          "properties": {
-            "fdap": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "description": "The config is specified directly here.",
-          "type": "object",
-          "required": [
-            "local"
-          ],
-          "properties": {
-            "local": {
-              "$ref": "#/definitions/UsersConfig"
-            }
-          },
-          "additionalProperties": false
-        }
       ]
     },
     "MenuItem": {
@@ -1089,28 +931,6 @@
         "v": true
       }
     },
-    "OidcConfig": {
-      "type": "object",
-      "required": [
-        "client_id",
-        "provider_url"
-      ],
-      "properties": {
-        "client_id": {
-          "type": "string"
-        },
-        "client_secret": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "provider_url": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
-    },
     "Orientation": {
       "type": "string",
       "enum": [
@@ -1156,8 +976,7 @@
       "description": "Right now, all fields are turned into a single top level record - this is useful for recursion which could otherwise lead to large nested objects when a flat list is desired.  A new `nest` step may be introduced later to create intermediate records (as `QueryResType::Record`).",
       "type": "object",
       "required": [
-        "chain",
-        "sort"
+        "chain"
       ],
       "properties": {
         "chain": {
@@ -1296,7 +1115,6 @@
       "type": "object",
       "required": [
         "dir",
-        "first",
         "predicate"
       ],
       "properties": {
@@ -1325,7 +1143,6 @@
     "StepRecurse": {
       "type": "object",
       "required": [
-        "first",
         "subchain"
       ],
       "properties": {
@@ -1334,33 +1151,6 @@
         },
         "subchain": {
           "$ref": "#/definitions/ChainBody"
-        }
-      },
-      "additionalProperties": false
-    },
-    "UserConfig": {
-      "type": "object",
-      "required": [
-        "iam_grants"
-      ],
-      "properties": {
-        "iam_grants": {
-          "$ref": "#/definitions/IamGrants"
-        }
-      },
-      "additionalProperties": false
-    },
-    "UsersConfig": {
-      "type": "object",
-      "required": [
-        "users"
-      ],
-      "properties": {
-        "users": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/definitions/UserConfig"
-          }
         }
       },
       "additionalProperties": false
@@ -1399,7 +1189,6 @@
         "display",
         "id",
         "name",
-        "parameters",
         "queries"
       ],
       "properties": {
@@ -1413,6 +1202,7 @@
           "type": "string"
         },
         "parameters": {
+          "default": [],
           "type": "array",
           "items": {
             "type": "array",
@@ -1535,22 +1325,26 @@
     "WidgetImage": {
       "type": "object",
       "required": [
-        "align",
-        "data",
-        "height",
-        "width"
+        "data"
       ],
       "properties": {
         "align": {
-          "$ref": "#/definitions/Align"
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Align"
+            }
+          ]
         },
         "data": {
           "$ref": "#/definitions/FieldOrLiteral"
         },
         "height": {
+          "default": "",
           "type": "string"
         },
         "width": {
+          "default": "",
           "type": "string"
         }
       },
@@ -1559,27 +1353,34 @@
     "WidgetMediaButton": {
       "type": "object",
       "required": [
-        "align",
         "field",
         "media_field"
       ],
       "properties": {
         "album_field": {
+          "default": null,
           "type": [
             "string",
             "null"
           ]
         },
         "align": {
-          "$ref": "#/definitions/Align"
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Align"
+            }
+          ]
         },
         "artist_field": {
+          "default": null,
           "type": [
             "string",
             "null"
           ]
         },
         "cover_field": {
+          "default": null,
           "type": [
             "string",
             "null"
@@ -1597,6 +1398,7 @@
           ]
         },
         "name_field": {
+          "default": null,
           "type": [
             "string",
             "null"
@@ -1608,13 +1410,17 @@
     "WidgetNest": {
       "type": "object",
       "required": [
-        "align",
         "children",
         "orientation"
       ],
       "properties": {
         "align": {
-          "$ref": "#/definitions/Align"
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Align"
+            }
+          ]
         },
         "children": {
           "type": "array",
@@ -1631,18 +1437,19 @@
     "WidgetTextLine": {
       "type": "object",
       "required": [
-        "align",
         "data",
         "orientation",
-        "prefix",
         "size",
-        "size_max",
-        "size_mode",
-        "suffix"
+        "size_mode"
       ],
       "properties": {
         "align": {
-          "$ref": "#/definitions/Align"
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Align"
+            }
+          ]
         },
         "data": {
           "$ref": "#/definitions/FieldOrLiteral"
@@ -1651,18 +1458,21 @@
           "$ref": "#/definitions/Orientation"
         },
         "prefix": {
+          "default": "",
           "type": "string"
         },
         "size": {
           "type": "string"
         },
         "size_max": {
+          "default": "",
           "type": "string"
         },
         "size_mode": {
           "$ref": "#/definitions/LineSizeMode"
         },
         "suffix": {
+          "default": "",
           "type": "string"
         }
       },

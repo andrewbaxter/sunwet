@@ -21,7 +21,6 @@ pub async fn handle_static(
     struct Static;
 
     let mut path = path_iter.collect::<Vec<&str>>();
-    eprintln!("static path {:?}", path);
     let mut f = Static::get(&path.join("/"));
     if f.is_none() {
         path.push("index.html");

@@ -95,10 +95,17 @@ pub enum Align {
     End,
 }
 
+impl Default for Align {
+    fn default() -> Self {
+        return Self::Start;
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct WidgetNest {
     pub orientation: Orientation,
+    #[serde(default)]
     pub align: Align,
     pub children: Vec<Widget>,
 }
@@ -107,7 +114,9 @@ pub struct WidgetNest {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct LayoutIndividual {
     pub orientation: Orientation,
+    #[serde(default)]
     pub align: Align,
+    #[serde(default)]
     pub x_scroll: bool,
     pub item: WidgetNest,
 }
@@ -117,6 +126,7 @@ pub struct LayoutIndividual {
 pub struct LayoutTable {
     pub orientation: Orientation,
     pub align: Align,
+    #[serde(default)]
     pub x_scroll: bool,
     pub columns: Vec<Widget>,
 }
@@ -155,12 +165,16 @@ pub enum QueryOrField {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct WidgetTextLine {
     pub data: FieldOrLiteral,
+    #[serde(default)]
     pub prefix: String,
+    #[serde(default)]
     pub suffix: String,
     pub size: String,
     pub size_mode: LineSizeMode,
+    #[serde(default)]
     pub size_max: String,
     pub orientation: Orientation,
+    #[serde(default)]
     pub align: Align,
 }
 
@@ -168,8 +182,11 @@ pub struct WidgetTextLine {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct WidgetImage {
     pub data: FieldOrLiteral,
+    #[serde(default)]
     pub width: String,
+    #[serde(default)]
     pub height: String,
+    #[serde(default)]
     pub align: Align,
 }
 
@@ -179,10 +196,15 @@ pub struct WidgetMediaButton {
     pub field: String,
     /// The media type (ex `sunwet/1/video`, `sunwet/1/audio`)
     pub media_field: FieldOrLiteral,
+    #[serde(default)]
     pub name_field: Option<String>,
+    #[serde(default)]
     pub album_field: Option<String>,
+    #[serde(default)]
     pub artist_field: Option<String>,
+    #[serde(default)]
     pub cover_field: Option<String>,
+    #[serde(default)]
     pub align: Align,
 }
 
@@ -231,6 +253,7 @@ pub enum QueryDefParameter {
 pub struct View {
     pub id: String,
     pub name: String,
+    #[serde(default)]
     pub parameters: Vec<(String, QueryDefParameter)>,
     pub display: ViewPartList,
     pub queries: BTreeMap<QueryId, Query>,

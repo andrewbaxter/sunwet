@@ -123,7 +123,7 @@ pub fn handle_compile_query(c: CompileQueryCommand) -> Result<(), loga::Error> {
     } else {
         return Err(loga::err("Must specify a query, either on the command line or as a file"));
     }
-    let out = compile_query(query)?;
+    let out = compile_query(&query)?;
     println!("{}", serde_json::to_string_pretty(&out).unwrap());
     return Ok(());
 }

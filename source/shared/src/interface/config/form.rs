@@ -34,6 +34,7 @@ pub struct FormFieldConstant {
 pub struct FormFieldText {
     pub form_id: String,
     pub label: String,
+    #[serde(default)]
     pub placeholder: Option<String>,
 }
 
@@ -42,6 +43,7 @@ pub struct FormFieldText {
 pub struct FormFieldNumber {
     pub form_id: String,
     pub label: String,
+    #[serde(default)]
     pub placeholder: Option<String>,
 }
 
@@ -50,7 +52,8 @@ pub struct FormFieldNumber {
 pub struct FormFieldBool {
     pub form_id: String,
     pub label: String,
-    pub initial: bool,
+    #[serde(default)]
+    pub initial_on: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
@@ -79,6 +82,7 @@ pub struct FormFieldDatetime {
 pub struct FormFieldRgbU8 {
     pub form_id: String,
     pub label: String,
+    #[serde(default)]
     pub initial: Option<String>,
 }
 
