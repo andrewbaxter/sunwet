@@ -29,6 +29,7 @@ taskmanager = "0.6"
 deadpool-sqlite = "0.9"
 futures = "0.3"
 http-body = "1"
+http-serde = "2"
 sha2 = "0.10"
 tempfile = "3"
 tokio-util = "0.7"
@@ -50,7 +51,7 @@ fdap = { version = "0.1" }
 mime_guess = "2"
 rustemo = "0.7"
 schemars = "0.8"
-# A dep just to disable resemo logs
+# A dep just to disable rustemo logs
 log = { version = "*", features = ["release_max_level_off"] }
 
 [build-dependencies]

@@ -7,7 +7,7 @@ use {
         },
         page_edit::build_page_edit,
         page_form::build_page_form_by_id,
-        page_query::{
+        page_view::{
             build_page_list_by_id,
             BuildPlaylistPos,
         },
@@ -20,7 +20,10 @@ use {
         },
         playlist::PlaylistState,
     },
-    lunk::ProcessingContext,
+    lunk::{
+        Prim,
+        ProcessingContext,
+    },
     rooting::{
         el,
         El,
@@ -45,9 +48,11 @@ pub struct Menu {
 }
 
 pub struct State_ {
+    // Ends with `/`
     pub base_url: String,
     pub playlist: PlaylistState,
     pub menu: BgVal<Result<Rc<Menu>, String>>,
+    pub menu_visible: Prim<bool>,
     pub stack: WeakEl,
     pub page_title: WeakEl,
     pub page_body: WeakEl,
@@ -65,6 +70,7 @@ pub fn el_ministate_button(pc: &mut ProcessingContext, state: &State, text: &str
             let state = state.clone();
             move |ev| eg.event(|pc| {
                 ev.stop_propagation();
+                state.menu_visible.set(pc, false);
                 change_ministate(pc, &state, &ministate);
             })
         });

@@ -1,0 +1,49 @@
+/*
+Baseline un-styling.
+*/
+
+*,
+*:before,
+*:after {
+  padding: 0;
+  margin: 0;
+  vertical-align: middle;
+  font-size: 12pt;
+  font-weight: 400;
+  font-family: "A";
+  box-sizing: border-box;
+  pointer-events: none;
+  text-decoration: none;
+  border: none;
+  background: none;
+  outline: none;
+  z-index: 0;
+  text-align: left;
+}
+
+html {
+  height: 100vh;
+  width: 100dvw;
+  max-width: 100dvw;
+  overflow-x: hidden;
+  display: grid;
+  grid-template-columns: 1fr;
+
+  & > * {
+    grid-column: 1;
+    grid-row: 1;
+  }
+}
+
+a,
+input,
+select,
+button {
+  pointer-events: initial;
+}
+
+input,
+select {
+  font-family: inherit;
+  font-size: inherit;
+}

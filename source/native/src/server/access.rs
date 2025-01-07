@@ -46,10 +46,7 @@ pub async fn identify_requester(
             return Ok(Some(Identity::User(user)));
         }
     }
-    if !global_config.config.public_iam_grants.is_empty() {
-        return Ok(Some(Identity::Public));
-    }
-    return Ok(None);
+    return Ok(Some(Identity::Public));
 }
 
 pub async fn is_admin(state: &State, identity: &Identity) -> Result<bool, loga::Error> {

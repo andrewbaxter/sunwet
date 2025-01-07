@@ -1,4 +1,8 @@
 use {
+    crate::el_general::{
+        get_dom_octothorpe,
+        log,
+    },
     gloo::utils::window,
     serde::{
         Deserialize,
@@ -50,18 +54,32 @@ pub enum Ministate {
     Edit(MinistateEdit),
 }
 
+pub fn ministate_octothorpe(s: &Ministate) -> String {
+    return format!("#{}", serde_json::to_string(&s).unwrap());
+}
+
 pub fn record_new_ministate(s: &Ministate) {
-    window()
-        .history()
-        .unwrap()
-        .push_state_with_url(&JsValue::null(), "", Some(&format!("#{}", serde_json::to_string(&s).unwrap())))
-        .unwrap();
+    window().history().unwrap().push_state_with_url(&JsValue::null(), "", Some(&ministate_octothorpe(s))).unwrap();
 }
 
 pub fn record_replace_ministate(s: &Ministate) {
     window()
         .history()
         .unwrap()
-        .replace_state_with_url(&JsValue::null(), "", Some(&format!("#{}", serde_json::to_string(&s).unwrap())))
+        .replace_state_with_url(&JsValue::null(), "", Some(&ministate_octothorpe(s)))
         .unwrap();
+}
+
+pub fn read_ministate() -> Option<Ministate> {
+    let Some(s) = get_dom_octothorpe() else {
+        return None;
+    };
+    let s = match serde_json::from_str::<Ministate>(s.as_ref()) {
+        Ok(s) => s,
+        Err(e) => {
+            log(format!("Unable to parse url anchor state: {:?}\nAnchor: {}", e, s));
+            return None;
+        },
+    };
+    return Some(s);
 }

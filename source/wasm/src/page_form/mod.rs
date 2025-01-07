@@ -97,16 +97,19 @@ fn build_field_enum(
             });
         }
     });
-    let draft_value = match fs.0.data.borrow().get(field_id) {
-        Some(x) => x.clone(),
-        None => {
-            let Some((_, first)) = choices.first() else {
-                return Err(format!("Enum field {} has no choices", field_id));
-            };
-            let value = first.clone();
-            fs.0.data.borrow_mut().insert(field_id.to_string(), value.clone());
-            value
-        },
+    let draft_value = {
+        let mut data = fs.0.data.borrow_mut();
+        match data.get(field_id) {
+            Some(x) => x.clone(),
+            None => {
+                let Some((_, first)) = choices.first() else {
+                    return Err(format!("Enum field {} has no choices", field_id));
+                };
+                let value = first.clone();
+                data.insert(field_id.to_string(), value.clone());
+                value
+            },
+        }
     };
     for choice in choices {
         let value = choice.1.clone();
@@ -144,7 +147,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
             };
             eg.event(|pc| {
                 let Some(form) = menu.forms.get(&form_id) else {
-                    async_el.ref_replace(vec![el_err_block("Unknown view".to_string())]);
+                    async_el.ref_replace(vec![el_err_block("Unknown form".to_string())]);
                     return;
                 };
                 let mut out = vec![];
@@ -191,17 +194,20 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                             if let Some(placeholder) = &field.placeholder {
                                 input.ref_attr("placeholder", &placeholder);
                             }
-                            input.ref_attr(
-                                "value",
-                                &if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(v)))) =
-                                    fs.0.data.borrow().get(&field.form_id) {
-                                    v.clone()
-                                } else {
-                                    let v = format!("");
-                                    fs.0.data.borrow_mut().insert(field.form_id.clone(), make_v(v.clone()));
-                                    v
-                                },
-                            );
+                            {
+                                let mut data = fs.0.data.borrow_mut();
+                                input.ref_attr(
+                                    "value",
+                                    &if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(v)))) =
+                                        data.get(&field.form_id) {
+                                        v.clone()
+                                    } else {
+                                        let v = format!("");
+                                        data.insert(field.form_id.clone(), make_v(v.clone()));
+                                        v
+                                    },
+                                );
+                            }
                             out.push(el("label").push(el("span").text(&field.label)).push(input.clone()));
                         },
                         FormField::Number(field) => {
@@ -228,17 +234,20 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                             if let Some(placeholder) = &field.placeholder {
                                 input.ref_attr("placeholder", &placeholder);
                             }
-                            input.ref_attr(
-                                "value",
-                                &if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::Number(v)))) =
-                                    fs.0.data.borrow().get(&field.form_id) {
-                                    v.to_string()
-                                } else {
-                                    let v = format!("");
-                                    fs.0.data.borrow_mut().insert(field.form_id.clone(), make_v(v.clone()));
-                                    v
-                                },
-                            );
+                            {
+                                let mut data = fs.0.data.borrow_mut();
+                                input.ref_attr(
+                                    "value",
+                                    &if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::Number(v)))) =
+                                        data.get(&field.form_id) {
+                                        v.to_string()
+                                    } else {
+                                        let v = format!("");
+                                        data.insert(field.form_id.clone(), make_v(v.clone()));
+                                        v
+                                    },
+                                );
+                            }
                             out.push(el("label").push(el("span").text(&field.label)).push(input.clone()));
                         },
                         FormField::Bool(field) => {
@@ -258,15 +267,19 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                     );
                                 }
                             });
-                            let initial =
-                                if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::Bool(v)))) =
-                                    fs.0.data.borrow().get(&field.form_id) {
-                                    *v
-                                } else {
-                                    let v = field.initial_on;
-                                    fs.0.data.borrow_mut().insert(field.form_id.clone(), make_v(v));
-                                    v
-                                };
+                            let initial;
+                            {
+                                let mut data = fs.0.data.borrow_mut();
+                                initial =
+                                    if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::Bool(v)))) =
+                                        data.get(&field.form_id) {
+                                        *v
+                                    } else {
+                                        let v = field.initial_on;
+                                        data.insert(field.form_id.clone(), make_v(v));
+                                        v
+                                    };
+                            }
                             if initial {
                                 input.ref_attr("checked", "checked");
                             }
@@ -291,17 +304,20 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                             ))));
                                         }
                                     });
-                            input.ref_attr(
-                                "value",
-                                &if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(v)))) =
-                                    fs.0.data.borrow().get(&field.form_id) {
-                                    v.clone()
-                                } else {
-                                    let v = format!("");
-                                    fs.0.data.borrow_mut().insert(field.form_id.clone(), make_v(v.clone()));
-                                    v
-                                },
-                            );
+                            {
+                                let mut data = fs.0.data.borrow_mut();
+                                input.ref_attr(
+                                    "value",
+                                    &if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(v)))) =
+                                        data.get(&field.form_id) {
+                                        v.clone()
+                                    } else {
+                                        let v = format!("");
+                                        data.insert(field.form_id.clone(), make_v(v.clone()));
+                                        v
+                                    },
+                                );
+                            }
                             out.push(el("label").push(el("span").text(&field.label)).push(input.clone()));
                         },
                         FormField::Time(field) => {
@@ -323,17 +339,20 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                             ))));
                                         }
                                     });
-                            input.ref_attr(
-                                "value",
-                                &if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(v)))) =
-                                    fs.0.data.borrow().get(&field.form_id) {
-                                    v.clone()
-                                } else {
-                                    let v = format!("");
-                                    fs.0.data.borrow_mut().insert(field.form_id.clone(), make_v(v.clone()));
-                                    v
-                                },
-                            );
+                            {
+                                let mut data = fs.0.data.borrow_mut();
+                                input.ref_attr(
+                                    "value",
+                                    &if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(v)))) =
+                                        data.get(&field.form_id) {
+                                        v.clone()
+                                    } else {
+                                        let v = format!("");
+                                        data.insert(field.form_id.clone(), make_v(v.clone()));
+                                        v
+                                    },
+                                );
+                            }
                             out.push(el("label").push(el("span").text(&field.label)).push(input.clone()));
                         },
                         FormField::Datetime(field) => {
@@ -376,17 +395,20 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                             );
                                         }
                                     });
-                            input.ref_attr(
-                                "value",
-                                &if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(v)))) =
-                                    fs.0.data.borrow().get(&field.form_id) {
-                                    v.clone()
-                                } else {
-                                    let v = format!("");
-                                    fs.0.data.borrow_mut().insert(field.form_id.clone(), make_v(v.clone()));
-                                    v
-                                },
-                            );
+                            {
+                                let mut data = fs.0.data.borrow_mut();
+                                input.ref_attr(
+                                    "value",
+                                    &if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(v)))) =
+                                        data.get(&field.form_id) {
+                                        v.clone()
+                                    } else {
+                                        let v = format!("");
+                                        data.insert(field.form_id.clone(), make_v(v.clone()));
+                                        v
+                                    },
+                                );
+                            }
                             out.push(el("label").push(el("span").text(&field.label)).push(input.clone()));
                         },
                         FormField::Color(field) => {
@@ -402,20 +424,23 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                     fs.update(&id, make_v(value));
                                 }
                             });
-                            input.ref_attr(
-                                "value",
-                                &if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(v)))) =
-                                    fs.0.data.borrow().get(&field.form_id) {
-                                    v.clone()
-                                } else if let Some(initial) = &field.initial {
-                                    fs.0.data.borrow_mut().insert(field.form_id.clone(), make_v(initial.clone()));
-                                    initial.clone()
-                                } else {
-                                    let v = format!("");
-                                    fs.0.data.borrow_mut().insert(field.form_id.clone(), make_v(v.clone()));
-                                    v
-                                },
-                            );
+                            {
+                                let mut data = fs.0.data.borrow_mut();
+                                input.ref_attr(
+                                    "value",
+                                    &if let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(v)))) =
+                                        data.get(&field.form_id) {
+                                        v.clone()
+                                    } else if let Some(initial) = &field.initial {
+                                        data.insert(field.form_id.clone(), make_v(initial.clone()));
+                                        initial.clone()
+                                    } else {
+                                        let v = format!("");
+                                        data.insert(field.form_id.clone(), make_v(v.clone()));
+                                        v
+                                    },
+                                );
+                            }
                             out.push(el("label").push(el("span").text(&field.label)).push(input.clone()));
                         },
                         FormField::ConstEnum(field) => {

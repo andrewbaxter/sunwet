@@ -32,22 +32,6 @@ pub trait C2SReqTrait: Serialize + DeserializeOwned + Into<C2SReq> {
     type Resp: Serialize + DeserializeOwned;
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub enum Resp<T> {
-    Ok(T),
-    Err(String),
-}
-
-impl<T> Resp<T> {
-    pub fn into_std(self) -> Result<T, String> {
-        match self {
-            Resp::Ok(v) => return Result::Ok(v),
-            Resp::Err(v) => return Result::Err(v),
-        }
-    }
-}
-
 // # Commit
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]

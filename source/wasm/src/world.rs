@@ -1,4 +1,8 @@
 use {
+    crate::auth::{
+        redirect_login,
+        want_logged_in,
+    },
     reqwasm::http::Request,
     shared::interface::{
         triple::FileHash,
@@ -7,7 +11,6 @@ use {
             C2SReqTrait,
             FileGenerated,
             FileUrlQuery,
-            Resp,
         },
     },
     wasm_bindgen::UnwrapThrowExt,
@@ -25,6 +28,9 @@ pub async fn req_post_json<T: C2SReqTrait>(base_url: &str, req: T) -> Result<T::
         },
     };
     let status = resp.status();
+    if status == 401 && want_logged_in() {
+        redirect_login(base_url);
+    }
     let body = match resp.binary().await {
         Err(e) => {
             return Err(format!("Got error response, got additional error trying to read body [{}]: {}", status, e));
@@ -34,11 +40,13 @@ pub async fn req_post_json<T: C2SReqTrait>(base_url: &str, req: T) -> Result<T::
     if status >= 400 {
         return Err(format!("Got error response [{}]: [{}]", status, String::from_utf8_lossy(&body)));
     }
-    return serde_json::from_slice::<Resp<T::Resp>>(&body)
-        .map_err(
+    return Ok(
+        serde_json::from_slice::<T::Resp>(
+            &body,
+        ).map_err(
             |e| format!("Error parsing JSON response from server: {}\nBody: {}", e, String::from_utf8_lossy(&body)),
-        )?
-        .into_std();
+        )?,
+    );
 }
 
 pub fn file_url(origin: &String, hash: &FileHash) -> String {

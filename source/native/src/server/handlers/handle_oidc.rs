@@ -15,7 +15,6 @@ use {
     htwrap::{
         htreq,
         htserve::{
-            self,
             responses::{
                 body_empty,
                 body_full,
@@ -82,14 +81,9 @@ use {
         DistString,
     },
     serde::Deserialize,
-    shared::interface::iam::{
-        UserIdentityId,
-    },
+    shared::interface::iam::UserIdentityId,
     std::{
-        net::{
-            Ipv4Addr,
-            SocketAddr,
-        },
+        borrow::Cow,
         sync::{
             Arc,
             Mutex,
@@ -98,7 +92,7 @@ use {
     },
 };
 
-pub const COOKIE_SESSION: &str = "session";
+pub const COOKIE_SESSION: &str = "sunwet_session";
 
 async fn oidc_http_client(
     log: &loga::Log,
@@ -143,7 +137,7 @@ async fn oidc_http_client(
 }
 
 struct OidcPreSession {
-    original_subpath: String,
+    original_url: Uri,
     pkce_verifier: Mutex<Option<PkceCodeVerifier>>,
     nonce: Nonce,
 }
@@ -182,7 +176,7 @@ pub struct OidcState {
     sessions: Cache<String, UserIdentityId>,
 }
 
-pub async fn new_state(log: &Log, base_url: &Uri, oidc_config: OidcConfig) -> Result<OidcState, loga::Error> {
+pub async fn new_state(log: &Log, oidc_config: OidcConfig) -> Result<OidcState, loga::Error> {
     let log = log.fork(ea!(subsystem = "oidc"));
     let client =
         CoreClient::from_provider_metadata(
@@ -191,7 +185,7 @@ pub async fn new_state(log: &Log, base_url: &Uri, oidc_config: OidcConfig) -> Re
             })).await?,
             ClientId::new(oidc_config.client_id.clone()),
             oidc_config.client_secret.as_ref().map(|s| ClientSecret::new(s.clone())),
-        ).set_redirect_uri(RedirectUrl::new(base_url.join("oidc").to_string())?);
+        );
     return Ok(OidcState {
         log: log,
         client: client,
@@ -200,11 +194,7 @@ pub async fn new_state(log: &Log, base_url: &Uri, oidc_config: OidcConfig) -> Re
     });
 }
 
-pub async fn handle_oidc(
-    state: &OidcState,
-    head: Parts,
-    subpath: &str,
-) -> Result<Response<Body>, VisErr<loga::Error>> {
+pub async fn handle_oidc(state: &OidcState, head: Parts) -> Result<Response<Body>, VisErr<loga::Error>> {
     let log = state.log.clone();
     let Some(query) = head.uri.query() else {
         return Ok(response_400("Missing query"));
@@ -274,20 +264,7 @@ pub async fn handle_oidc(
                         .build()
                         .to_string(),
                 )
-                .header(http::header::LOCATION, {
-                    let mut forwarded = htserve::forwarded::parse_all_forwarded(&head.headers).unwrap_or_default();
-                    forwarded.push(
-                        htserve::forwarded::get_forwarded_current(
-                            &head.uri,
-                            SocketAddr::new(Ipv4Addr::BROADCAST.into(), 0),
-                        ),
-                    );
-                    htserve::forwarded::get_original_base_url(&forwarded, subpath)
-                        .context("Couldn't determine access url from request")
-                        .err_external()?
-                        .join(&pre_session_state.original_subpath)
-                        .to_string()
-                })
+                .header(http::header::LOCATION, &pre_session_state.original_url.to_string())
                 .body(body_empty())
                 .unwrap(),
         );
@@ -296,7 +273,8 @@ pub async fn handle_oidc(
     // Start a new auth flow
     #[derive(Deserialize)]
     struct Params {
-        subpath: String,
+        #[serde(with = "http_serde::uri")]
+        url: Uri,
     }
 
     let Ok(params) = serde_urlencoded::from_str::<Params>(query) else {
@@ -307,10 +285,17 @@ pub async fn handle_oidc(
         state
             .client
             .authorize_url(CoreAuthenticationFlow::AuthorizationCode, CsrfToken::new_random, Nonce::new_random)
+            .set_redirect_uri(
+                Cow::Owned(
+                    RedirectUrl::new(params.url.join("../oidc").to_string())
+                        .context("Error creating redirect url from current state url")
+                        .err_internal()?,
+                ),
+            )
             .set_pkce_challenge(pkce_challenge)
             .url();
     state.pre_sessions.insert(csrf_token.secret().clone(), Arc::new(OidcPreSession {
-        original_subpath: params.subpath,
+        original_url: params.url,
         pkce_verifier: Mutex::new(Some(pkce_verifier)),
         nonce: nonce,
     })).await;
@@ -323,7 +308,7 @@ pub async fn handle_oidc(
     );
 }
 
-pub async fn get_req_identity(log: &Log, state: &OidcState, headers: &HeaderMap) -> Option<UserIdentityId> {
+pub fn get_req_session<'a>(log: &Log, headers: &HeaderMap) -> Option<String> {
     let Some(v) = headers.get(http::header::COOKIE).and_then(|c| c.to_str().ok()) else {
         return None;
     };
@@ -336,10 +321,47 @@ pub async fn get_req_identity(log: &Log, state: &OidcState, headers: &HeaderMap)
             },
         };
         if cookie.name() == COOKIE_SESSION {
-            if let Some(user) = state.sessions.get(cookie.value()).await {
-                return Some(user);
-            }
+            return Some(cookie.value().to_string());
         }
     }
     return None;
+}
+
+pub async fn get_req_identity(log: &Log, state: &OidcState, headers: &HeaderMap) -> Option<UserIdentityId> {
+    let Some(session) = get_req_session(log, headers) else {
+        return None;
+    };
+    let Some(user) = state.sessions.get(&session).await else {
+        return None;
+    };
+    return Some(user);
+}
+
+pub async fn handle_logout(
+    state: &OidcState,
+    log: &Log,
+    head: Parts,
+) -> Result<Response<Body>, VisErr<loga::Error>> {
+    if let Some(session) = get_req_session(log, &head.headers) {
+        state.sessions.remove(&session).await;
+    }
+
+    #[derive(Deserialize)]
+    struct Params {
+        url: String,
+    }
+
+    let Some(query) = head.uri.query() else {
+        return Ok(response_400("Missing query"));
+    };
+    let Ok(params) = serde_urlencoded::from_str::<Params>(query) else {
+        return Ok(response_400("Invalid query params"));
+    };
+    return Ok(
+        http::Response::builder()
+            .status(http::StatusCode::TEMPORARY_REDIRECT)
+            .header(http::header::LOCATION, params.url)
+            .body(body_empty())
+            .unwrap(),
+    );
 }

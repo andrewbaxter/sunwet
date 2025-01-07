@@ -1,0 +1,234 @@
+/*
+Styles that are necessary for widget functioning/control (there goes the css promise of separation of concerns). These will be the same regardless of user style.
+*/
+
+/* General */
+.g_group {
+  display: contents;
+}
+
+.g_hbox {
+  display: flex;
+  flex-direction: row;
+  justify-content: stretch;
+
+  & > .g_hbox {
+    flex-grow: 1;
+  }
+}
+
+.g_vbox {
+  display: flex;
+  flex-direction: column;
+  justify-content: stretch;
+
+  & > .g_vbox {
+    flex-grow: 1;
+  }
+}
+
+.g_space {
+  flex-grow: 1;
+}
+
+.g_hscroll {
+  min-width: 0;
+  overflow-x: auto !important;
+}
+
+.g_stack {
+  display: grid;
+  grid-template-columns: 1fr;
+
+  & > * {
+    grid-column: 1;
+    grid-row: 1;
+  }
+}
+
+div.g_error {
+  display: grid;
+  grid-template-columns: 1fr;
+  flex-grow: 1;
+  justify-items: center;
+  align-content: center;
+}
+
+div.g_async {
+  display: grid;
+  grid-template-columns: 1fr;
+  flex-grow: 1;
+  justify-items: center;
+  align-content: center;
+}
+
+.g_icon {
+  vertical-align: middle;
+  font-weight: 100;
+  aspect-ratio: 1/1;
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  align-content: center;
+}
+
+button {
+  display: flex;
+  flex-direction: row;
+}
+
+/* Specific */
+.s_transport {
+  display: grid;
+  grid-template-columns: 0fr 1fr 0fr;
+
+  & > * {
+    grid-row: 1;
+  }
+
+  & > .left {
+    grid-column: 1;
+  }
+
+  & > .middle {
+    grid-column: 2;
+    justify-content: center;
+  }
+
+  & > .right {
+    grid-column: 3;
+  }
+}
+
+.s_seekbar {
+  flex-grow: 1;
+  align-items: center;
+
+  & > .gutter {
+    display: flex;
+    flex-direction: row;
+
+    &,
+    & > .fill {
+      border-radius: 0.05cm;
+    }
+
+    justify-self: middle;
+    background-color: var(--time-gutter);
+    height: 0.15cm;
+
+    & > .fill {
+      justify-self: flex-start;
+      height: 100%;
+      background-color: var(--time-fill);
+    }
+  }
+
+  & > .label {
+    justify-self: end;
+    opacity: 50%;
+  }
+}
+
+.listview * {
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.listview_layout_table {
+  display: grid;
+  min-width: max-content;
+
+  &.converse_up,
+  &.converse_down {
+    justify-items: center;
+    align-items: first baseline;
+  }
+
+  &.converse_left,
+  &.converse_right {
+    align-items: center;
+  }
+
+  & > * > .g_button_icon {
+    rotate: 90deg;
+  }
+
+  padding-bottom: 0.2cm;
+}
+
+.listview_layout_individual {
+  display: flex;
+  gap: 0.1cm;
+
+  &.converse_up {
+    flex-direction: column-reverse;
+  }
+
+  &.converse_down {
+    flex-direction: column;
+  }
+
+  &.converse_left {
+    flex-direction: row-reverse;
+  }
+
+  &.converse_right {
+    flex-direction: row;
+  }
+}
+
+.listview_nest {
+  display: flex;
+  gap: 0.5cm;
+
+  &.converse_up {
+    flex-direction: column-reverse;
+  }
+
+  &.converse_down {
+    flex-direction: column;
+  }
+
+  &.converse_left {
+    flex-direction: row-reverse;
+  }
+
+  &.converse_right {
+    flex-direction: row;
+  }
+}
+
+.listview_text {
+  pointer-events: initial;
+
+  &.converse_up,
+  &.converse_down {
+    &.transverse_left {
+      writing-mode: vertical-rl;
+    }
+
+    &.transverse_right {
+      writing-mode: vertical-lr;
+    }
+  }
+
+  &.converse_left,
+  &.converse_right {
+    writing-mode: horizontal-tb;
+  }
+}
+
+.listview_image {
+  object-fit: contain;
+  aspect-ratio: auto;
+  flex-shrink: 0;
+
+  &.align_start {
+    align-self: flex-start;
+  }
+
+  &.align_end {
+    align-self: flex-end;
+  }
+}

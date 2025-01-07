@@ -944,7 +944,7 @@ pub fn build_page_view(
     let queries = Rc::new(def.queries.clone());
     let body =
         el("div")
-            .classes(&["s_list_body"])
+            .classes(&["s_listview_body"])
             .push(
                 build_widget_query(
                     pc,

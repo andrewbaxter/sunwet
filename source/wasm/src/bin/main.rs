@@ -1,25 +1,11 @@
 use {
-    web::{
-        playlist,
-        state::{
-            Menu,
-            build_ministate,
-            el_ministate_button,
-            State,
-            State_,
-        },
-        ministate::{
-            Ministate,
-            MinistateForm,
-            MinistateView,
-        },
-    },
-    flowcontrol::{
-        shed,
-        superif,
-    },
+    flowcontrol::superif,
     gloo::{
         events::EventListener,
+        storage::{
+            LocalStorage,
+            Storage,
+        },
         utils::window,
     },
     lunk::{
@@ -33,6 +19,7 @@ use {
         set_root,
         spawn_rooted,
         El,
+        WeakEl,
     },
     shared::interface::{
         config::{
@@ -54,63 +41,123 @@ use {
     },
     web::{
         async_::bg_val,
+        auth::{
+            redirect_login,
+            redirect_logout,
+            want_logged_in,
+            LOCALSTORAGE_LOGGED_IN,
+        },
         constants::LINK_HASH_PREFIX,
         el_general::{
             el_async,
             el_button_icon,
+            el_button_text,
             el_err_block,
             el_group,
             el_hbox,
             el_icon,
             el_stack,
+            el_svgicon_logo,
             el_vbox,
-            log,
-            CSS_STATE_GROW,
+            get_dom_octothorpe,
+            CSS_OFF,
+            CSS_ON,
             CSS_S_BODY,
             CSS_S_MENU,
-            CSS_S_ROOT,
+            CSS_S_PAGE,
             CSS_S_TITLE,
-            CSS_S_VIEW,
+            CSS_S_TITLE_ICON,
+            CSS_S_TITLE_ICON_SPACER,
             ICON_CLOSE,
         },
         main_link::main_link,
+        ministate::{
+            read_ministate,
+            Ministate,
+            MinistateForm,
+            MinistateView,
+        },
+        playlist,
+        state::{
+            build_ministate,
+            el_ministate_button,
+            Menu,
+            State,
+            State_,
+        },
         world::req_post_json,
     },
     web_sys::HtmlElement,
 };
 
-fn get_dom_hash() -> Option<String> {
-    let hash = window().location().hash().unwrap();
-    let Some(s) = hash.strip_prefix("#") else {
-        return None;
-    };
-    let s = match urlencoding::decode(s) {
-        Ok(s) => s,
-        Err(e) => {
-            log(format!("Unable to url-decode anchor state: {:?}\nAnchor: {}", e, s));
-            return None;
-        },
-    };
-    return Some(s.to_string());
+fn restore_ministate(pc: &mut ProcessingContext, state: &State) {
+    build_ministate(pc, &state, &read_ministate().unwrap_or(Ministate::Home));
 }
 
-fn restore_ministate(pc: &mut ProcessingContext, state: &State) {
-    build_ministate(pc, &state, &shed!{
-        'ret_ministate _;
-        shed!{
-            let Some(s) = get_dom_hash() else {
-                break;
-            };
-            let s = match serde_json::from_str::<Ministate>(s.as_ref()) {
-                Ok(s) => s,
-                Err(e) => {
-                    log(format!("Unable to parse url anchor state: {:?}\nAnchor: {}", e, s));
-                    break;
+async fn async_build_menu(state: State, eg: EventGraph, async_el: WeakEl) {
+    let menu = state.menu.get().await;
+    let Some(async_el) = async_el.upgrade() else {
+        return;
+    };
+    let menu = match menu {
+        Ok(m) => m,
+        Err(e) => {
+            async_el.ref_replace(vec![el_err_block(e)]);
+            return;
+        },
+    };
+    eg.event(|pc| {
+        let mut els = vec![];
+
+        fn build_menu_item(state: &State, pc: &mut ProcessingContext, i: &MenuItem) -> El {
+            match i {
+                MenuItem::Section(s) => {
+                    let out = el("details");
+                    out.ref_push(el("summary").text(&s.name));
+                    let mut children = vec![];
+                    for child in &s.children {
+                        children.push(build_menu_item(state, pc, &child));
+                    }
+                    out.ref_push(el("div").classes(&["g_menu_section_body"]).extend(children));
+                    return out;
                 },
-            };
-            break 'ret_ministate s;
+                MenuItem::View(view) => {
+                    return el_ministate_button(pc, &state, &view.name, Ministate::List(MinistateView {
+                        id: view.id.clone(),
+                        title: view.name.clone(),
+                        pos: None,
+                    }));
+                },
+                MenuItem::Form(form) => {
+                    return el_ministate_button(pc, &state, &form.name, Ministate::Form(MinistateForm {
+                        id: form.id.clone(),
+                        title: form.name.clone(),
+                    }));
+                },
+            }
         }
-        break 'ret_ministate Ministate::Home;
+
+        for item in &menu.menu {
+            els.push(build_menu_item(&state, pc, item));
+        }
+        if !want_logged_in() {
+            els.push(el_button_text(pc, "Login", {
+                let state = state.clone();
+                move |_pc| {
+                    LocalStorage::set(LOCALSTORAGE_LOGGED_IN, "x").unwrap();
+                    redirect_login(&state.base_url);
+                }
+            }));
+        } else {
+            els.push(el_button_text(pc, "Logout", {
+                let state = state.clone();
+                move |_pc| {
+                    LocalStorage::delete(LOCALSTORAGE_LOGGED_IN);
+                    redirect_logout(&state.base_url);
+                }
+            }));
+        }
+        async_el.ref_replace(vec![el("div").classes(&[CSS_S_BODY]).extend(els)]);
     });
 }
 
@@ -126,7 +173,7 @@ fn main() {
 
         // Short circuit to link mode
         superif!({
-            let Some(hash) = get_dom_hash() else {
+            let Some(hash) = get_dom_octothorpe() else {
                 break;
             };
             let Some(link_id) = hash.strip_prefix(LINK_HASH_PREFIX) else {
@@ -139,7 +186,7 @@ fn main() {
         });
 
         // Non-link
-        let page_title = el_group().classes(&[CSS_S_TITLE]);
+        let page_title = el("h1").classes(&[CSS_S_TITLE]);
         let page_body = el_group().classes(&[CSS_S_BODY]);
         let (playlist_state, playlist_root) = playlist::state_new(pc, base_url.clone());
 
@@ -184,16 +231,17 @@ fn main() {
         });
 
         // Build app state
-        let stack = el_stack().classes(&[CSS_S_ROOT, CSS_STATE_GROW]);
+        let stack = el_stack();
+        let menu_visible = Prim::new(true);
         let state = State::new(State_ {
             base_url: base_url.clone(),
             playlist: playlist_state,
             menu: menu,
+            menu_visible: menu_visible.clone(),
             stack: stack.weak(),
             page_title: page_title.weak(),
             page_body: page_body.weak(),
         });
-        let menu_visible = Prim::new(true);
 
         // Load initial view
         restore_ministate(pc, &state);
@@ -207,100 +255,60 @@ fn main() {
             })
         }).forget();
 
-        // Create view
-        stack.ref_push(el_vbox().classes(&[CSS_S_VIEW]).extend(vec![
+        // Create page
+        stack.ref_push(el_vbox().classes(&[CSS_S_PAGE]).extend(vec![
             //. .
             el_hbox().classes(&["s_titlebar"]).extend(vec![
                 //. .
-                el_button_icon(pc, el("img").attr("src", "logo_off.svg"), "Menu", {
-                    let menu_visible = menu_visible.clone();
-                    move |pc| {
-                        menu_visible.set(pc, true);
-                    }
-                }),
+                el("button")
+                    .classes(&[CSS_S_TITLE_ICON])
+                    .push(el_svgicon_logo().classes(&[CSS_OFF]))
+                    .attr("title", "Back")
+                    .on("click", {
+                        let eg = pc.eg();
+                        let menu_visible = menu_visible.clone();
+                        move |_| eg.event(|pc| {
+                            menu_visible.set(pc, true);
+                        })
+                    }),
+                el("div").classes(&[CSS_S_TITLE_ICON_SPACER]),
                 page_title
             ]),
             page_body
         ]));
 
         // Create menu
-        stack.ref_push(el_vbox()
-            .classes(&[CSS_S_MENU])
-            .extend(vec![el_hbox().classes(&["s_titlebar"]).extend(vec![
+        stack.ref_push(el_vbox().classes(&[CSS_S_MENU]).extend(vec![
+            //. .
+            el_hbox().classes(&["s_titlebar"]).extend(vec![
                 //. .
-                el_button_icon(pc, el("img").attr("src", "logo_off.svg"), "Back", {
-                    let menu_visible = menu_visible.clone();
-                    move |pc| {
-                        menu_visible.set(pc, false);
-                    }
-                }),
-                el("h1").classes(&["Sunwet"])
-            ]), el_async().own(|async_el| spawn_rooted({
-                let state = state.clone();
-                let eg = pc.eg();
-                let async_el = async_el.weak();
-                async move {
-                    let menu = state.menu.get().await;
-                    let Some(async_el) = async_el.upgrade() else {
-                        return;
-                    };
-                    let menu = match menu {
-                        Ok(m) => m,
-                        Err(e) => {
-                            async_el.ref_replace(vec![el_err_block(e)]);
-                            return;
-                        },
-                    };
-                    eg.event(|pc| {
-                        let mut els = vec![];
-
-                        fn build_menu_item(state: &State, pc: &mut ProcessingContext, i: &MenuItem) -> El {
-                            match i {
-                                MenuItem::Section(s) => {
-                                    let out = el("details");
-                                    out.ref_push(el("summary").text(&s.name));
-                                    let mut children = vec![];
-                                    for child in &s.children {
-                                        children.push(build_menu_item(state, pc, &child));
-                                    }
-                                    out.ref_push(el("div").classes(&["g_menu_section_body"]).extend(children));
-                                    return out;
-                                },
-                                MenuItem::View(view) => {
-                                    return el_ministate_button(pc, &state, &view.name, Ministate::List(MinistateView {
-                                        id: view.id.clone(),
-                                        title: view.name.clone(),
-                                        pos: None,
-                                    }));
-                                },
-                                MenuItem::Form(form) => {
-                                    return el_ministate_button(pc, &state, &form.name, Ministate::Form(MinistateForm {
-                                        id: form.id.clone(),
-                                        title: form.name.clone(),
-                                    }));
-                                },
-                            }
-                        }
-
-                        for item in &menu.menu {
-                            els.push(build_menu_item(&state, pc, item));
-                        }
-                        async_el.ref_replace(els);
-                    });
-                }
-            }))])
-            .own(|menu_el| link!((_pc = pc), (menu_visible = menu_visible.clone()), (), (menu_el = menu_el.weak()), {
-                let menu_el = menu_el.upgrade()?;
-                let style = menu_el.raw().dyn_into::<HtmlElement>().unwrap().style();
-                match *menu_visible.borrow() {
-                    true => {
-                        style.remove_property("display").unwrap();
-                    },
-                    false => {
-                        style.set_property("display", "none").unwrap();
-                    },
-                }
-            })));
+                el("button")
+                    .classes(&[CSS_S_TITLE_ICON])
+                    .push(el_svgicon_logo().classes(&[CSS_ON]))
+                    .attr("title", "Back")
+                    .on("click", {
+                        let eg = pc.eg();
+                        let menu_visible = menu_visible.clone();
+                        move |_| eg.event(|pc| {
+                            menu_visible.set(pc, false);
+                        })
+                    }),
+                el("div").classes(&[CSS_S_TITLE_ICON_SPACER]),
+                el("h1").text("Sunwet")
+            ]),
+            el_async().own(|async_el| spawn_rooted(async_build_menu(state.clone(), pc.eg(), async_el.weak())))
+        ]).own(|menu_el| link!((_pc = pc), (menu_visible = menu_visible.clone()), (), (menu_el = menu_el.weak()), {
+            let menu_el = menu_el.upgrade()?;
+            let style = menu_el.raw().dyn_into::<HtmlElement>().unwrap().style();
+            match *menu_visible.borrow() {
+                true => {
+                    style.remove_property("display").unwrap();
+                },
+                false => {
+                    style.set_property("display", "none").unwrap();
+                },
+            }
+        })));
 
         // Set up playback handling (including making video overlay)
         stack.ref_own(

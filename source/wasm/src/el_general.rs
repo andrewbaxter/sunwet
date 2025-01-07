@@ -1,6 +1,9 @@
 use {
     futures::channel::oneshot::channel,
-    gloo::events::EventListener,
+    gloo::{
+        events::EventListener,
+        utils::window,
+    },
     lunk::{
         link,
         HistPrim,
@@ -13,8 +16,8 @@ use {
     },
     std::fmt::Display,
     wasm_bindgen::{
-        JsValue,
         JsCast,
+        JsValue,
     },
     web_sys::{
         Event,
@@ -22,6 +25,21 @@ use {
         HtmlElement,
     },
 };
+
+pub fn get_dom_octothorpe() -> Option<String> {
+    let hash = window().location().hash().unwrap();
+    let Some(s) = hash.strip_prefix("#") else {
+        return None;
+    };
+    let s = match urlencoding::decode(s) {
+        Ok(s) => s,
+        Err(e) => {
+            log(format!("Unable to url-decode anchor state: {:?}\nAnchor: {}", e, s));
+            return None;
+        },
+    };
+    return Some(s.to_string());
+}
 
 #[derive(Clone, Copy)]
 pub struct CssIcon(pub &'static str);
@@ -45,31 +63,48 @@ pub static ICON_VOLUME: CssIcon = CssIcon("\u{e050}");
 pub static ICON_SHARE: CssIcon = CssIcon("\u{e80d}");
 pub static ICON_NOSHARE: CssIcon = CssIcon("\u{f6cb}");
 pub static ICON_CLOSE: CssIcon = CssIcon("\u{e5cd}");
-pub static CSS_S_TITLE: &'static str = "s_title";
-pub static CSS_S_BODY: &'static str = "s_body";
-pub static CSS_S_ROOT: &'static str = "s_root";
+
+// Stack elements
 pub static CSS_S_MENU: &'static str = "s_menu";
-pub static CSS_S_VIEW: &'static str = "s_view";
+pub static CSS_S_PAGE: &'static str = "s_page";
+pub static CSS_MODAL: &'static str = "g_modal";
+
+// Functional
 pub static CSS_VBOX: &'static str = "g_vbox";
 pub static CSS_HBOX: &'static str = "g_hbox";
 pub static CSS_SPACER: &'static str = "g_space";
 pub static CSS_HSCROLL: &'static str = "g_hscroll";
 pub static CSS_GROUP: &'static str = "g_group";
-pub static CSS_STACK: &'static str = "g_icon";
-pub static CSS_ICON: &'static str = "g_stack";
-pub static CSS_MODAL: &'static str = "g_modal";
-pub static CSS_MODAL_BG: &'static str = "modal_bg";
-pub static CSS_MODAL_CONTENT: &'static str = "modal_content";
-pub static CSS_MODAL_TITLE: &'static str = "modal_title";
-pub static CSS_MODAL_BODY: &'static str = "modal_body";
-pub static CSS_STATE_GROW: &'static str = "grow";
+pub static CSS_STACK: &'static str = "g_stack";
+
+// General (may be freely composed)
+pub static CSS_ICON: &'static str = "g_icon";
 pub static CSS_BUTTON: &'static str = "g_button";
 pub static CSS_BUTTON_ICON: &'static str = "g_button_icon";
 pub static CSS_BUTTON_ICON_TEXT: &'static str = "g_button_icon_text";
 pub static CSS_BUTTON_TEXT: &'static str = "g_button_text";
-pub static CSS_STATE_PRESSED: &'static str = "pressed";
-pub static CSS_FORM_BUTTONBOX: &'static str = "g_form_buttonbox";
 pub static CSS_ERROR: &'static str = "g_error";
+pub static CSS_FORM_BUTTONBOX: &'static str = "g_form_buttonbox";
+pub static CSS_ASYNC: &'static str = "g_async";
+
+// Specific-use case (used in one specific composition)
+pub static CSS_S_TITLE: &'static str = "s_title";
+pub static CSS_S_TITLE_ICON: &'static str = "s_title_icon";
+pub static CSS_S_TITLE_ICON_SPACER: &'static str = "s_title_icon_spacer";
+pub static CSS_S_BODY: &'static str = "s_body";
+pub static CSS_S_SVGICON_LOGO: &'static str = "s_svgicon_logo";
+pub static CSS_S_SVGICON_SPINNER: &'static str = "s_svgicon_spinner";
+pub static CSS_SVGICON: &'static str = "g_svgicon";
+pub static CSS_MODAL_BG: &'static str = "modal_bg";
+pub static CSS_MODAL_CONTENT: &'static str = "modal_content";
+pub static CSS_MODAL_TITLE: &'static str = "modal_title";
+pub static CSS_MODAL_BODY: &'static str = "modal_body";
+
+// Single-widget modifiers, not used alone in queries
+pub static CSS_ON: &'static str = "on";
+pub static CSS_OFF: &'static str = "off";
+pub static CSS_STATE_GROW: &'static str = "grow";
+pub static CSS_STATE_PRESSED: &'static str = "pressed";
 pub static CSS_STATE_INVALID: &'static str = "invalid";
 pub static CSS_STATE_DELETED: &'static str = "deleted";
 
@@ -95,6 +130,14 @@ pub fn el_stack() -> El {
 
 pub fn el_icon(icon: CssIcon) -> El {
     return el("div").classes(&[CSS_ICON]).text(icon.0);
+}
+
+pub fn el_svgicon_logo() -> El {
+    return el("div").classes(&[CSS_SVGICON, CSS_S_SVGICON_LOGO]);
+}
+
+pub fn el_svgicon_spinner() -> El {
+    return el("div").classes(&[CSS_SVGICON, CSS_S_SVGICON_SPINNER]);
 }
 
 pub fn el_button_text(
@@ -252,12 +295,11 @@ pub fn log_js2(x: impl Display, v: &JsValue, v2: &JsValue) {
 }
 
 pub fn el_async() -> El {
-    return el("video")
-        .attr("autoplay", "true")
-        .attr("loop", "true")
-        .attr("playsinline", "true")
-        .attr("src", "static/spinner.webm")
-        .classes(&["g_async"]);
+    return el("span").classes(&[CSS_ASYNC]).push(el_svgicon_spinner());
+}
+
+pub fn el_async_block() -> El {
+    return el("div").classes(&[CSS_ASYNC]).push(el_svgicon_spinner());
 }
 
 pub fn el_modal(

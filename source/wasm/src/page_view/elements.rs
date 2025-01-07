@@ -24,12 +24,12 @@ use {
 };
 
 pub const CSS_TREE: &'static str = "tree";
-pub const CSS_TREE_NEST: &'static str = "tree_nest";
-pub const CSS_TREE_LAYOUT_INDIVIDUAL: &'static str = "tree_layout_individual";
-pub const CSS_TREE_LAYOUT_TABLE: &'static str = "tree_layout_table";
-pub const CSS_TREE_TEXT: &'static str = "tree_text";
-pub const CSS_TREE_IMAGE: &'static str = "tree_image";
-pub const CSS_TREE_MEDIA_BUTTON: &'static str = "tree_media_button";
+pub const CSS_TREE_NEST: &'static str = "listview_nest";
+pub const CSS_TREE_LAYOUT_INDIVIDUAL: &'static str = "listview_layout_individual";
+pub const CSS_TREE_LAYOUT_TABLE: &'static str = "listview_layout_table";
+pub const CSS_TREE_TEXT: &'static str = "listview_text";
+pub const CSS_TREE_IMAGE: &'static str = "listview_image";
+pub const CSS_TREE_MEDIA_BUTTON: &'static str = "listview_media_button";
 
 pub fn el_image_err(text: String) -> El {
     return el_err_block(text).classes(&["image"]);
@@ -71,11 +71,11 @@ pub fn style_tree(type_: &str, depth: usize, align: Align, widget: &El) {
         //. .
         CSS_TREE,
         type_,
-        &format!("tree_depth_{}", depth),
+        &format!("listview_depth_{}", depth),
         if depth % 2 == 0 {
-            "tree_depth_even"
+            "listview_depth_even"
         } else {
-            "tree_depth_odd"
+            "listview_depth_odd"
         },
         match align {
             Align::Start => "align_start",

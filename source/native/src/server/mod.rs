@@ -190,12 +190,14 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                 match path_first {
                     "oidc" => {
                         if let Some(oidc_state) = state.oidc_state.as_ref() {
-                            let mut subpath = path_iter.collect::<Vec<_>>();
-                            if subpath.is_empty() {
-                                subpath.push("");
-                            }
-                            let subpath = subpath.join("/");
-                            return Ok(handle_oidc::handle_oidc(oidc_state, head, &subpath).await?);
+                            return Ok(handle_oidc::handle_oidc(oidc_state, head).await?);
+                        } else {
+                            return Ok(response_404());
+                        }
+                    },
+                    "logout" => {
+                        if let Some(oidc_state) = state.oidc_state.as_ref() {
+                            return Ok(handle_oidc::handle_logout(oidc_state, &state.log, head).await?);
                         } else {
                             return Ok(response_404());
                         }
@@ -226,7 +228,9 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 htwrap::htserve::responses::response_200_json,
                                 hyper::body::Bytes,
                                 serde::Serialize,
-                                shared::interface::wire::C2SReqTrait,
+                                shared::interface::{
+                                    wire::C2SReqTrait,
+                                },
                             };
 
                             // Private constructor
@@ -556,13 +560,7 @@ pub async fn main(config: Config) -> Result<(), loga::Error> {
         {
             let oidc_state = match &config.oidc {
                 Some(oidc_config) => {
-                    Some(
-                        handle_oidc::new_state(
-                            &log,
-                            &Uri::from_str(&oidc_config.provider_url).context("Invalid oidc provider url")?,
-                            oidc_config.clone(),
-                        ).await?,
-                    )
+                    Some(handle_oidc::new_state(&log, oidc_config.clone()).await?)
                 },
                 None => None,
             };
