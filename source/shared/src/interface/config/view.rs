@@ -253,8 +253,14 @@ pub enum QueryDefParameter {
 pub struct View {
     pub id: String,
     pub name: String,
+    /// How to display the queried data
+    pub display: ViewPartList,
+    /// Queries used to prepare data for displaying
+    pub queries: BTreeMap<QueryId, Query>,
+    /// Prepare a form or accept parameters in url to use in the queries
     #[serde(default)]
     pub parameters: Vec<(String, QueryDefParameter)>,
-    pub display: ViewPartList,
-    pub queries: BTreeMap<QueryId, Query>,
+    /// Show media controls
+    #[serde(default)]
+    pub media_controls: bool,
 }

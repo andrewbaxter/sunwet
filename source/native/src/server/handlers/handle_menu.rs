@@ -38,6 +38,7 @@ pub async fn handle_get_menu(state: Arc<State>, identity: &Identity) -> Result<V
                     match iam_grants {
                         IamGrants::Admin => { },
                         IamGrants::Limited(grants) => {
+                            eprintln!("limited, no access to {}", i.id);
                             if !grants.contains(&PageAccess::View(i.id.clone())) {
                                 continue;
                             }
@@ -49,6 +50,7 @@ pub async fn handle_get_menu(state: Arc<State>, identity: &Identity) -> Result<V
                     match iam_grants {
                         IamGrants::Admin => { },
                         IamGrants::Limited(grants) => {
+                            eprintln!("limited, no access to {}", i.id);
                             if !grants.contains(&PageAccess::Form(i.id.clone())) {
                                 continue;
                             }

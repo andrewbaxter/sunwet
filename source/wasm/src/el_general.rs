@@ -63,6 +63,9 @@ pub static ICON_VOLUME: CssIcon = CssIcon("\u{e050}");
 pub static ICON_SHARE: CssIcon = CssIcon("\u{e80d}");
 pub static ICON_NOSHARE: CssIcon = CssIcon("\u{f6cb}");
 pub static ICON_CLOSE: CssIcon = CssIcon("\u{e5cd}");
+pub static ICON_FILTER: CssIcon = CssIcon("\u{e152}");
+pub static ICON_LOGIN: CssIcon = CssIcon("\u{ea77}");
+pub static ICON_LOGOUT: CssIcon = CssIcon("\u{e9ba}");
 
 // Stack elements
 pub static CSS_S_MENU: &'static str = "s_menu";
@@ -84,8 +87,10 @@ pub static CSS_BUTTON_ICON: &'static str = "g_button_icon";
 pub static CSS_BUTTON_ICON_TEXT: &'static str = "g_button_icon_text";
 pub static CSS_BUTTON_TEXT: &'static str = "g_button_text";
 pub static CSS_ERROR: &'static str = "g_error";
-pub static CSS_FORM_BUTTONBOX: &'static str = "g_form_buttonbox";
+pub static CSS_BUTTONBOX: &'static str = "g_buttonbox";
 pub static CSS_ASYNC: &'static str = "g_async";
+pub static CSS_FORM_SECTION: &str = "g_form_section";
+pub static CSS_SVGICON: &'static str = "g_svgicon";
 
 // Specific-use case (used in one specific composition)
 pub static CSS_S_TITLE: &'static str = "s_title";
@@ -94,11 +99,15 @@ pub static CSS_S_TITLE_ICON_SPACER: &'static str = "s_title_icon_spacer";
 pub static CSS_S_BODY: &'static str = "s_body";
 pub static CSS_S_SVGICON_LOGO: &'static str = "s_svgicon_logo";
 pub static CSS_S_SVGICON_SPINNER: &'static str = "s_svgicon_spinner";
-pub static CSS_SVGICON: &'static str = "g_svgicon";
 pub static CSS_MODAL_BG: &'static str = "modal_bg";
 pub static CSS_MODAL_CONTENT: &'static str = "modal_content";
 pub static CSS_MODAL_TITLE: &'static str = "modal_title";
 pub static CSS_MODAL_BODY: &'static str = "modal_body";
+pub static CSS_S_MENU_ITEMS: &'static str = "s_menu_items";
+pub static CSS_S_EDIT_FORM_BOTTOM: &str = "s_edit_form_bottom";
+pub static CSS_S_EDIT_FORM_TOP: &str = "s_edit_form_top";
+pub static CSS_S_LISTVIEW_BODY: &str = "s_listview_body";
+pub static CSS_S_FORM: &'static str = "s_form";
 
 // Single-widget modifiers, not used alone in queries
 pub static CSS_ON: &'static str = "on";
@@ -138,6 +147,10 @@ pub fn el_svgicon_logo() -> El {
 
 pub fn el_svgicon_spinner() -> El {
     return el("div").classes(&[CSS_SVGICON, CSS_S_SVGICON_SPINNER]);
+}
+
+pub fn el_buttonbox() -> El {
+    return el_hbox().classes(&[CSS_BUTTONBOX]);
 }
 
 pub fn el_button_text(
@@ -261,9 +274,9 @@ pub fn el_button_icon_text(
     mut f: impl 'static + FnMut(&mut ProcessingContext) -> (),
 ) -> El {
     return el("button")
+        .classes(&[CSS_BUTTON, CSS_BUTTON_ICON_TEXT])
         .push(el_icon(icon))
         .push(el("span").text(text))
-        .classes(&[CSS_BUTTON, CSS_BUTTON_ICON_TEXT])
         .on("click", {
             let eg = pc.eg();
             move |_| eg.event(|pc| f(pc))

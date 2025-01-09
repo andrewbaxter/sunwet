@@ -1,0 +1,28 @@
+/* Specific */
+.s_menu {
+  background: linear-gradient(0deg, var(--c-bg-dark) 0%, var(--c-bg-mid) 100%);
+
+  & .s_body {
+    padding: var(--s-pad-large) var(--s-pad);
+
+    & .s_menu_items {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(10cm, 1fr));
+      row-gap: var(--s-pad);
+      column-gap: var(--s-pad);
+      align-content: start;
+      align-items: start;
+    }
+  }
+}
+
+summary {
+  font-size: 16pt;
+  margin-bottom: var(--s-pad);
+  cursor: default;
+}
+
+details > .g_vbox {
+  gap: var(--s-pad);
+  padding-left: 0.4cm;
+}

@@ -3,22 +3,27 @@ use {
     crate::{
         el_general::{
             el_async,
+            el_async_block,
             el_button_icon,
             el_button_icon_text,
             el_button_icon_toggle_auto,
+            el_buttonbox,
             el_err_block,
             el_hbox,
             el_icon,
             el_spacer,
             el_vbox,
-            CSS_FORM_BUTTONBOX,
+            CSS_FORM_SECTION,
             CSS_STATE_DELETED,
             CSS_STATE_INVALID,
+            CSS_S_EDIT_FORM_BOTTOM,
+            CSS_S_EDIT_FORM_TOP,
             ICON_ADD,
             ICON_REMOVE,
             ICON_RESET,
             ICON_SAVE,
         },
+        state::set_page,
         world::{
             self,
             req_post_json,
@@ -541,8 +546,7 @@ fn build_edit_triple(pc: &mut ProcessingContext, triple: &TripleState) -> El {
 }
 
 pub fn build_page_edit(pc: &mut ProcessingContext, outer_state: &State, edit_title: &str, node: &Node) {
-    outer_state.page_title.upgrade().unwrap().ref_text(&edit_title);
-    outer_state.page_body.upgrade().unwrap().ref_push(el_async().own(|async_el| {
+    set_page(outer_state, edit_title, el_async_block().own(|async_el| {
         let async_el = async_el.weak();
         let eg = pc.eg();
         let outer_state = outer_state.clone();
@@ -562,31 +566,33 @@ pub fn build_page_edit(pc: &mut ProcessingContext, outer_state: &State, edit_tit
             eg.event(|pc| {
                 match (|| {
                     ta_return!(Vec < El >, String);
-                    let mut out = vec![];
+                    let top_section = el_vbox().classes(&[CSS_FORM_SECTION]);
+                    let mid_section = el_vbox().classes(&[CSS_FORM_SECTION]);
+                    let bottom_section = el_vbox().classes(&[CSS_FORM_SECTION]);
+                    let triple_states = Rc::new(RefCell::new(vec![] as Vec<TripleState>));
 
                     // Incoming triples
-                    let triple_states = Rc::new(RefCell::new(vec![] as Vec<TripleState>));
-                    let incoming_triples_box = el_vbox();
-                    for t in triples.incoming {
-                        let triple = new_triple_state(pc, &t, true);
-                        incoming_triples_box.ref_push(el_vbox().extend(vec![build_edit_triple(pc, &triple)]));
-                        triple_states.borrow_mut().push(triple);
-                    }
-                    let incoming_box = el_vbox().classes(&["g_edit_incoming"]);
-                    incoming_box.ref_push(el_button_icon(pc, el_icon(ICON_ADD), "Add incoming", {
-                        let triple_states = triple_states.clone();
-                        let incoming_triples_box = incoming_triples_box.clone();
-                        move |pc| {
-                            let triple = new_triple_state(pc, &Triple {
-                                subject: Node::Value(serde_json::Value::String("".to_string())),
-                                predicate: "".to_string(),
-                                object: Node::Value(serde_json::Value::String("".to_string())),
-                            }, true);
-                            incoming_triples_box.ref_push(build_edit_triple(pc, &triple));
+                    {
+                        let incoming_triples_box = el_vbox();
+                        for t in triples.incoming {
+                            let triple = new_triple_state(pc, &t, true);
+                            incoming_triples_box.ref_push(el_vbox().extend(vec![build_edit_triple(pc, &triple)]));
                             triple_states.borrow_mut().push(triple);
                         }
-                    }));
-                    out.push(incoming_box);
+                        top_section.ref_push(el_button_icon(pc, el_icon(ICON_ADD), "Add incoming", {
+                            let triple_states = triple_states.clone();
+                            let incoming_triples_box = incoming_triples_box.clone();
+                            move |pc| {
+                                let triple = new_triple_state(pc, &Triple {
+                                    subject: Node::Value(serde_json::Value::String("".to_string())),
+                                    predicate: "".to_string(),
+                                    object: Node::Value(serde_json::Value::String("".to_string())),
+                                }, true);
+                                incoming_triples_box.ref_push(build_edit_triple(pc, &triple));
+                                triple_states.borrow_mut().push(triple);
+                            }
+                        }));
+                    }
 
                     // Pivot
                     let pivot_state = new_pivot_state(pc, &node);
@@ -630,59 +636,97 @@ pub fn build_page_edit(pc: &mut ProcessingContext, outer_state: &State, edit_tit
                                     ),
                             )
                             .ref_push(edit_pivot_res.input);
-                        out.push(pivot_root);
+                        mid_section.ref_push(pivot_root);
                     }
 
                     // Outgoing triples
-                    let outgoing_triples_box = el_vbox();
-                    for t in triples.outgoing {
-                        let triple = new_triple_state(pc, &t, true);
-                        outgoing_triples_box.ref_push(build_edit_triple(pc, &triple));
-                        triple_states.borrow_mut().push(triple);
-                    }
-                    let outgoing_box = el_vbox().classes(&["g_edit_outgoing"]);
-                    outgoing_box.ref_push(outgoing_triples_box.clone());
-                    outgoing_box.ref_push(el_button_icon(pc, el_icon(ICON_ADD), "Add outgoing", {
-                        let triple_states = triple_states.clone();
-                        let outgoing_triples_box = outgoing_triples_box;
-                        move |pc| {
-                            let triple = new_triple_state(pc, &Triple {
-                                subject: Node::Value(serde_json::Value::String("".to_string())),
-                                predicate: "".to_string(),
-                                object: Node::Value(serde_json::Value::String("".to_string())),
-                            }, false);
+                    {
+                        let outgoing_triples_box = el_vbox();
+                        for t in triples.outgoing {
+                            let triple = new_triple_state(pc, &t, true);
                             outgoing_triples_box.ref_push(build_edit_triple(pc, &triple));
                             triple_states.borrow_mut().push(triple);
                         }
-                    }));
-                    out.push(outgoing_box);
+                        bottom_section.ref_push(outgoing_triples_box.clone());
+                        bottom_section.ref_push(el_button_icon(pc, el_icon(ICON_ADD), "Add outgoing", {
+                            let triple_states = triple_states.clone();
+                            let outgoing_triples_box = outgoing_triples_box;
+                            move |pc| {
+                                let triple = new_triple_state(pc, &Triple {
+                                    subject: Node::Value(serde_json::Value::String("".to_string())),
+                                    predicate: "".to_string(),
+                                    object: Node::Value(serde_json::Value::String("".to_string())),
+                                }, false);
+                                outgoing_triples_box.ref_push(build_edit_triple(pc, &triple));
+                                triple_states.borrow_mut().push(triple);
+                            }
+                        }));
+                    }
 
                     // Edit form controls
                     let error_el = el_err_block("");
-                    out.push(error_el.clone());
-                    out.push(
-                        el("div").classes(&[CSS_FORM_BUTTONBOX]).push(el_button_icon_text(pc, ICON_SAVE, "Save", {
-                            let triple_states = triple_states.clone();
-                            let pivot_state = pivot_state.clone();
-                            let bg = Rc::new(RefCell::new(None));
-                            let outer_state = outer_state.clone();
-                            let error_el = error_el.weak();
-                            move |_pc| {
-                                *bg.borrow_mut() = Some(spawn_rooted({
-                                    let triple_states = triple_states.clone();
-                                    let pivot_state = pivot_state.clone();
-                                    let outer_state = outer_state.clone();
-                                    let error_el = error_el.clone();
-                                    async move {
-                                        match async {
-                                            ta_return!((), String);
-                                            let mut add = vec![];
-                                            let mut remove = vec![];
-                                            if *pivot_state.0.delete.borrow() {
-                                                for triple in &*RefCell::borrow(&triple_states) {
-                                                    if triple.0.add {
-                                                        continue;
-                                                    }
+                    bottom_section.ref_push(error_el.clone());
+                    bottom_section.ref_push(el_buttonbox().push(el_button_icon_text(pc, ICON_SAVE, "Save", {
+                        let triple_states = triple_states.clone();
+                        let pivot_state = pivot_state.clone();
+                        let bg = Rc::new(RefCell::new(None));
+                        let outer_state = outer_state.clone();
+                        let error_el = error_el.weak();
+                        move |_pc| {
+                            *bg.borrow_mut() = Some(spawn_rooted({
+                                let triple_states = triple_states.clone();
+                                let pivot_state = pivot_state.clone();
+                                let outer_state = outer_state.clone();
+                                let error_el = error_el.clone();
+                                async move {
+                                    match async {
+                                        ta_return!((), String);
+                                        let mut add = vec![];
+                                        let mut remove = vec![];
+                                        if *pivot_state.0.delete.borrow() {
+                                            for triple in &*RefCell::borrow(&triple_states) {
+                                                if triple.0.add {
+                                                    continue;
+                                                }
+                                                let old_subject;
+                                                let old_object;
+                                                if triple.0.incoming {
+                                                    old_subject = triple.0.initial.1.clone();
+                                                    old_object = pivot_state.0.initial.clone();
+                                                } else {
+                                                    old_subject = pivot_state.0.initial.clone();
+                                                    old_object = triple.0.initial.1.clone();
+                                                }
+                                                remove.push(Triple {
+                                                    subject: old_subject,
+                                                    predicate: triple.0.initial.0.clone(),
+                                                    object: old_object,
+                                                });
+                                            }
+                                        } else {
+                                            let pivot_node = pivot_state.0.node.type_value_to_node();
+                                            let pivot_changed = pivot_node != pivot_state.0.initial;
+                                            for triple in &*RefCell::borrow(&triple_states) {
+                                                let triple_node = triple.0.node.type_value_to_node();
+                                                if !pivot_changed && triple_node == triple.0.initial.1 &&
+                                                    triple.0.predicate.borrow().as_str() == &triple.0.initial.0 {
+                                                    continue;
+                                                }
+                                                let subject;
+                                                let object;
+                                                if triple.0.incoming {
+                                                    subject = triple_node;
+                                                    object = pivot_node.clone();
+                                                } else {
+                                                    subject = pivot_node.clone();
+                                                    object = triple_node;
+                                                }
+                                                add.push(Triple {
+                                                    subject: subject,
+                                                    predicate: triple.0.predicate.borrow().clone(),
+                                                    object: object,
+                                                });
+                                                if !triple.0.add {
                                                     let old_subject;
                                                     let old_object;
                                                     if triple.0.incoming {
@@ -698,71 +742,37 @@ pub fn build_page_edit(pc: &mut ProcessingContext, outer_state: &State, edit_tit
                                                         object: old_object,
                                                     });
                                                 }
-                                            } else {
-                                                let pivot_node = pivot_state.0.node.type_value_to_node();
-                                                let pivot_changed = pivot_node != pivot_state.0.initial;
-                                                for triple in &*RefCell::borrow(&triple_states) {
-                                                    let triple_node = triple.0.node.type_value_to_node();
-                                                    if !pivot_changed && triple_node == triple.0.initial.1 &&
-                                                        triple.0.predicate.borrow().as_str() == &triple.0.initial.0 {
-                                                        continue;
-                                                    }
-                                                    let subject;
-                                                    let object;
-                                                    if triple.0.incoming {
-                                                        subject = triple_node;
-                                                        object = pivot_node.clone();
-                                                    } else {
-                                                        subject = pivot_node.clone();
-                                                        object = triple_node;
-                                                    }
-                                                    add.push(Triple {
-                                                        subject: subject,
-                                                        predicate: triple.0.predicate.borrow().clone(),
-                                                        object: object,
-                                                    });
-                                                    if !triple.0.add {
-                                                        let old_subject;
-                                                        let old_object;
-                                                        if triple.0.incoming {
-                                                            old_subject = triple.0.initial.1.clone();
-                                                            old_object = pivot_state.0.initial.clone();
-                                                        } else {
-                                                            old_subject = pivot_state.0.initial.clone();
-                                                            old_object = triple.0.initial.1.clone();
-                                                        }
-                                                        remove.push(Triple {
-                                                            subject: old_subject,
-                                                            predicate: triple.0.initial.0.clone(),
-                                                            object: old_object,
-                                                        });
-                                                    }
-                                                }
                                             }
-                                            world::req_post_json(&outer_state.base_url, ReqCommit {
-                                                add: add,
-                                                remove: remove,
-                                                files: vec![],
-                                            }).await?;
-                                            return Ok(());
-                                        }.await {
-                                            Ok(_) => {
-                                                return;
-                                            },
-                                            Err(e) => {
-                                                let Some(error_el) = error_el.upgrade() else {
-                                                    return;
-                                                };
-                                                error_el.ref_text(&e);
-                                                return;
-                                            },
                                         }
+                                        world::req_post_json(&outer_state.base_url, ReqCommit {
+                                            add: add,
+                                            remove: remove,
+                                            files: vec![],
+                                        }).await?;
+                                        return Ok(());
+                                    }.await {
+                                        Ok(_) => {
+                                            return;
+                                        },
+                                        Err(e) => {
+                                            let Some(error_el) = error_el.upgrade() else {
+                                                return;
+                                            };
+                                            error_el.ref_text(&e);
+                                            return;
+                                        },
                                     }
-                                }));
-                            }
-                        })),
+                                }
+                            }));
+                        }
+                    })));
+                    return Ok(
+                        vec![
+                            el_vbox().classes(&[CSS_S_EDIT_FORM_TOP]).push(top_section),
+                            mid_section,
+                            el_vbox().classes(&[CSS_S_EDIT_FORM_BOTTOM]).push(bottom_section)
+                        ],
                     );
-                    return Ok(out);
                 })() {
                     Ok(e) => {
                         let Some(async_el) = async_el.upgrade() else {

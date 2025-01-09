@@ -51,11 +51,13 @@ use {
         el_general::{
             el_async,
             el_button_icon,
-            el_button_text,
+            el_button_icon_text,
+            el_buttonbox,
             el_err_block,
             el_group,
             el_hbox,
             el_icon,
+            el_spacer,
             el_stack,
             el_svgicon_logo,
             el_vbox,
@@ -64,11 +66,14 @@ use {
             CSS_ON,
             CSS_S_BODY,
             CSS_S_MENU,
+            CSS_S_MENU_ITEMS,
             CSS_S_PAGE,
             CSS_S_TITLE,
             CSS_S_TITLE_ICON,
             CSS_S_TITLE_ICON_SPACER,
             ICON_CLOSE,
+            ICON_LOGIN,
+            ICON_LOGOUT,
         },
         main_link::main_link,
         ministate::{
@@ -107,7 +112,7 @@ async fn async_build_menu(state: State, eg: EventGraph, async_el: WeakEl) {
         },
     };
     eg.event(|pc| {
-        let mut els = vec![];
+        let mut menu_items = vec![];
 
         fn build_menu_item(state: &State, pc: &mut ProcessingContext, i: &MenuItem) -> El {
             match i {
@@ -118,7 +123,7 @@ async fn async_build_menu(state: State, eg: EventGraph, async_el: WeakEl) {
                     for child in &s.children {
                         children.push(build_menu_item(state, pc, &child));
                     }
-                    out.ref_push(el("div").classes(&["g_menu_section_body"]).extend(children));
+                    out.ref_push(el_vbox().extend(children));
                     return out;
                 },
                 MenuItem::View(view) => {
@@ -138,10 +143,11 @@ async fn async_build_menu(state: State, eg: EventGraph, async_el: WeakEl) {
         }
 
         for item in &menu.menu {
-            els.push(build_menu_item(&state, pc, item));
+            menu_items.push(build_menu_item(&state, pc, item));
         }
+        let sys_buttons = el_buttonbox();
         if !want_logged_in() {
-            els.push(el_button_text(pc, "Login", {
+            sys_buttons.ref_push(el_button_icon_text(pc, ICON_LOGIN, "Login", {
                 let state = state.clone();
                 move |_pc| {
                     LocalStorage::set(LOCALSTORAGE_LOGGED_IN, "x").unwrap();
@@ -149,7 +155,7 @@ async fn async_build_menu(state: State, eg: EventGraph, async_el: WeakEl) {
                 }
             }));
         } else {
-            els.push(el_button_text(pc, "Logout", {
+            sys_buttons.ref_push(el_button_icon_text(pc, ICON_LOGOUT, "Logout", {
                 let state = state.clone();
                 move |_pc| {
                     LocalStorage::delete(LOCALSTORAGE_LOGGED_IN);
@@ -157,7 +163,12 @@ async fn async_build_menu(state: State, eg: EventGraph, async_el: WeakEl) {
                 }
             }));
         }
-        async_el.ref_replace(vec![el("div").classes(&[CSS_S_BODY]).extend(els)]);
+        async_el.ref_replace(vec![
+            //. .
+            el_vbox()
+                .classes(&[CSS_S_BODY])
+                .extend(vec![el("div").classes(&[CSS_S_MENU_ITEMS]).extend(menu_items), el_spacer(), sys_buttons])
+        ]);
     });
 }
 

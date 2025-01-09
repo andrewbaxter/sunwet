@@ -4,11 +4,14 @@ use {
         el_general::{
             el_async,
             el_button_icon_text,
+            el_buttonbox,
             el_err_block,
             el_err_span,
-            CSS_FORM_BUTTONBOX,
+            CSS_FORM_SECTION,
+            CSS_S_FORM,
             ICON_SAVE,
         },
+        state::set_page,
         world::{
             self,
             req_post_json,
@@ -124,8 +127,7 @@ fn build_field_enum(
 
 pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, form_title: &str, form_id: &str) {
     let draft_id = format!("form-draft-{}", form_id);
-    outer_state.page_title.upgrade().unwrap().ref_text(form_title);
-    outer_state.page_body.upgrade().unwrap().ref_push(el_async().own(|async_el| {
+    set_page(outer_state, form_title, el_async().own(|async_el| {
         let async_el = async_el.weak();
         let eg = pc.eg();
         let outer_state = outer_state.clone();
@@ -527,7 +529,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                         },
                     }
                 }
-                out.push(el("div").classes(&[CSS_FORM_BUTTONBOX]).push(el_button_icon_text(pc, ICON_SAVE, "Save", {
+                out.push(el_buttonbox().push(el_button_icon_text(pc, ICON_SAVE, "Save", {
                     let outer_state = outer_state.clone();
                     let form_title = form_title.to_string();
                     let fs = fs.clone();
@@ -652,7 +654,13 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                         }));
                     }
                 })));
-                async_el.ref_replace(out);
+                async_el.ref_replace(
+                    vec![
+                        el("div")
+                            .classes(&[CSS_S_FORM])
+                            .push(el("div").classes(&[CSS_FORM_SECTION]).extend(out))
+                    ],
+                );
             });
         })
     }));

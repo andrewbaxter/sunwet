@@ -7,14 +7,15 @@ use {
         },
         page_edit::build_page_edit,
         page_form::build_page_form_by_id,
-        page_view::{
-            build_page_list_by_id,
+        page_list::{
+            build_page_list,
             BuildPlaylistPos,
         },
     },
     crate::{
         async_::BgVal,
         el_general::{
+            el_group,
             CSS_BUTTON,
             CSS_BUTTON_ICON_TEXT,
         },
@@ -76,14 +77,18 @@ pub fn el_ministate_button(pc: &mut ProcessingContext, state: &State, text: &str
         });
 }
 
+pub fn set_page(state: &State, title: &str, body: El) {
+    state.page_title.upgrade().unwrap().ref_text(title);
+    state.page_body.upgrade().unwrap().ref_clear().ref_push(body);
+}
+
 pub fn build_ministate(pc: &mut ProcessingContext, state: &State, s: &Ministate) {
     match s {
         Ministate::Home => {
-            state.page_title.upgrade().unwrap().ref_clear().ref_push(el("h1").text("Sunwet"));
-            state.page_body.upgrade().unwrap().ref_clear();
+            set_page(state, "Sunwet", el_group());
         },
         Ministate::List(ms) => {
-            build_page_list_by_id(pc, state, &ms.title, &ms.id, &BuildPlaylistPos {
+            build_page_list(pc, state, &ms.title, &ms.id, &BuildPlaylistPos {
                 list_id: ms.id.clone(),
                 list_title: ms.title.clone(),
                 entry_path: Some(PlaylistEntryPath(vec![])),

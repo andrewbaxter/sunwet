@@ -1,13 +1,16 @@
 use {
     super::{
-        handlers::handle_oidc,
         state::{
             get_global_config,
             get_user_config,
             State,
         },
     },
-    crate::interface::config::IamGrants,
+    crate::{
+        interface::config::IamGrants,
+        server::handlers::handle_oidc::get_req_session,
+    },
+    flowcontrol::shed,
     http::HeaderMap,
     htwrap::htserve::{
         self,
@@ -16,9 +19,7 @@ use {
             VisErr,
         },
     },
-    shared::interface::iam::{
-        UserIdentityId,
-    },
+    shared::interface::iam::UserIdentityId,
 };
 
 pub enum Identity {
@@ -38,14 +39,27 @@ pub async fn identify_requester(
             if !htserve::auth::check_auth_token_hash(&want_token, &got_token) {
                 return Ok(None);
             }
+            state.log.log(loga::DEBUG, "Request user identified as admin");
             return Ok(Some(Identity::Admin));
         }
+        state.log.log(loga::DEBUG, "Request user has no admin token");
     }
     if let Some(oidc_state) = &state.oidc_state {
-        if let Some(user) = handle_oidc::get_req_identity(&state.log, oidc_state, headers).await {
+        shed!{
+            let Some(session) = get_req_session(&state.log, headers) else {
+                break;
+            };
+            let Some(user) = oidc_state.sessions.get(&session).await else {
+                state
+                    .log
+                    .log(loga::DEBUG, format!("Request has session id [{}] but no matching session found", session));
+                return Ok(None);
+            };
+            state.log.log(loga::DEBUG, format!("Request user identified as [{}]", user.0));
             return Ok(Some(Identity::User(user)));
         }
     }
+    state.log.log(loga::DEBUG, "Request user identified as public");
     return Ok(Some(Identity::Public));
 }
 

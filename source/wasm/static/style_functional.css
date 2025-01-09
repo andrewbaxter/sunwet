@@ -72,9 +72,12 @@ div.g_async {
   align-content: center;
 }
 
-button {
+.g_button {
   display: flex;
   flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
 }
 
 /* Specific */

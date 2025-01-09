@@ -7,7 +7,7 @@ pub mod ont;
 pub mod ministate;
 pub mod playlist;
 pub mod state;
-pub mod page_view;
+pub mod page_list;
 pub mod page_form;
 pub mod page_edit;
 pub mod main_link;

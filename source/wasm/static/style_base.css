@@ -19,6 +19,9 @@ Baseline un-styling.
   outline: none;
   z-index: 0;
   text-align: left;
+  color: inherit;
+  min-width: 0;
+  min-height: 0;
 }
 
 html {
@@ -38,7 +41,9 @@ html {
 a,
 input,
 select,
-button {
+button,
+*[contenteditable],
+summary {
   pointer-events: initial;
 }
 

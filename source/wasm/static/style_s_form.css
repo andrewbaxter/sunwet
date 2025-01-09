@@ -1,0 +1,11 @@
+/* Specific */
+
+.s_form {
+  max-width: 12cm;
+  background-color: var(--c-bg-mid2);
+  align-self: center;
+  flex-grow: 1;
+  width: 100%;
+  padding: var(--s-pad-large) var(--s-pad);
+  margin: var(--s-pad);
+}

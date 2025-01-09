@@ -1193,15 +1193,26 @@
       ],
       "properties": {
         "display": {
-          "$ref": "#/definitions/ViewPartList"
+          "description": "How to display the queried data",
+          "allOf": [
+            {
+              "$ref": "#/definitions/ViewPartList"
+            }
+          ]
         },
         "id": {
           "type": "string"
+        },
+        "media_controls": {
+          "description": "Show media controls",
+          "default": false,
+          "type": "boolean"
         },
         "name": {
           "type": "string"
         },
         "parameters": {
+          "description": "Prepare a form or accept parameters in url to use in the queries",
           "default": [],
           "type": "array",
           "items": {
@@ -1219,6 +1230,7 @@
           }
         },
         "queries": {
+          "description": "Queries used to prepare data for displaying",
           "type": "object",
           "additionalProperties": {
             "$ref": "#/definitions/Query"

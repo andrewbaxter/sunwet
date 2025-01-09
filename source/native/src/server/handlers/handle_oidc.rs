@@ -173,7 +173,7 @@ pub struct OidcState {
         StandardErrorResponse<RevocationErrorResponseType>,
     >,
     pre_sessions: Cache<String, Arc<OidcPreSession>>,
-    sessions: Cache<String, UserIdentityId>,
+    pub(crate) sessions: Cache<String, UserIdentityId>,
 }
 
 pub async fn new_state(log: &Log, oidc_config: OidcConfig) -> Result<OidcState, loga::Error> {
@@ -310,6 +310,7 @@ pub async fn handle_oidc(state: &OidcState, head: Parts) -> Result<Response<Body
 
 pub fn get_req_session<'a>(log: &Log, headers: &HeaderMap) -> Option<String> {
     let Some(v) = headers.get(http::header::COOKIE).and_then(|c| c.to_str().ok()) else {
+        eprintln!("no cookie header");
         return None;
     };
     for cookie in cookie::Cookie::split_parse(v) {
@@ -323,18 +324,10 @@ pub fn get_req_session<'a>(log: &Log, headers: &HeaderMap) -> Option<String> {
         if cookie.name() == COOKIE_SESSION {
             return Some(cookie.value().to_string());
         }
+        eprintln!("cookie not session: {} v {}", cookie.name(), COOKIE_SESSION);
     }
+    eprintln!("no session header");
     return None;
-}
-
-pub async fn get_req_identity(log: &Log, state: &OidcState, headers: &HeaderMap) -> Option<UserIdentityId> {
-    let Some(session) = get_req_session(log, headers) else {
-        return None;
-    };
-    let Some(user) = state.sessions.get(&session).await else {
-        return None;
-    };
-    return Some(user);
 }
 
 pub async fn handle_logout(

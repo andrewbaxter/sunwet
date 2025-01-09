@@ -24,7 +24,7 @@ use {
     crate::{
         constants::LINK_HASH_PREFIX,
         el_general::{
-            el_async,
+            el_async_block,
             el_audio,
             el_button_icon,
             el_button_icon_switch,
@@ -40,6 +40,7 @@ use {
             el_video,
             log,
             CSS_STATE_GROW,
+            CSS_S_LISTVIEW_BODY,
             ICON_NOSHARE,
             ICON_SHARE,
             ICON_TRANSPORT_NEXT,
@@ -65,7 +66,10 @@ use {
             PlaylistEntry,
             VideoPlaylistMedia,
         },
-        state::State,
+        state::{
+            set_page,
+            State,
+        },
         util::OptString,
         websocket::Ws,
         world::{
@@ -83,7 +87,9 @@ use {
         superif,
     },
     gloo::{
-        timers::future::TimeoutFuture,
+        timers::future::{
+            TimeoutFuture,
+        },
         utils::window,
     },
     lunk::{
@@ -163,7 +169,7 @@ pub fn build_widget_query(
     build_playlist_pos: &BuildPlaylistPos,
     restore_playlist_pos: &Option<PlaylistPos>,
 ) -> El {
-    return el_async().own(|e| spawn_rooted({
+    return el_async_block().own(|e| spawn_rooted({
         let def = def.clone();
         let source_data = data.clone();
         let queries = queries.clone();
@@ -869,7 +875,7 @@ fn build_layout(
     }
 }
 
-pub fn build_page_list_by_id(
+pub fn build_page_list(
     pc: &mut ProcessingContext,
     outer_state: &State,
     list_title: &str,
@@ -877,8 +883,7 @@ pub fn build_page_list_by_id(
     build_playlist_pos: &BuildPlaylistPos,
     restore_playlist_pos: &Option<PlaylistPos>,
 ) {
-    outer_state.page_title.upgrade().unwrap().ref_clear().ref_push(el("h1").text(list_title));
-    outer_state.page_body.upgrade().unwrap().ref_push(el_async().own(|async_el| {
+    set_page(outer_state, list_title, el_async_block().own(|async_el| {
         let async_el = async_el.weak();
         let eg = pc.eg();
         let outer_state = outer_state.clone();
@@ -886,21 +891,30 @@ pub fn build_page_list_by_id(
         let restore_playlist_pos = restore_playlist_pos.clone();
         let list_id = list_id.to_string();
         spawn_rooted(async move {
-            let Some(async_el) = async_el.upgrade() else {
-                return;
-            };
             let menu = match outer_state.menu.get().await {
                 Ok(m) => m,
                 Err(e) => {
+                    let Some(async_el) = async_el.upgrade() else {
+                        return;
+                    };
                     async_el.ref_replace(vec![el_err_block(format!("Error retrieving menu: {}", e))]);
                     return;
                 },
+            };
+            let Some(async_el) = async_el.upgrade() else {
+                return;
             };
             eg.event(|pc| {
                 match menu.views.get(&list_id) {
                     Some(v) => {
                         async_el.ref_replace(vec![]);
-                        build_page_view(pc, &outer_state, v.clone(), &build_playlist_pos, &restore_playlist_pos);
+                        build_page_list_inner(
+                            pc,
+                            &outer_state,
+                            v.clone(),
+                            &build_playlist_pos,
+                            &restore_playlist_pos,
+                        );
                     },
                     None => {
                         async_el.ref_replace(vec![el_err_block("Unknown view".to_string())]);
@@ -911,7 +925,7 @@ pub fn build_page_list_by_id(
     }));
 }
 
-pub fn build_page_view(
+pub fn build_page_list_inner(
     pc: &mut ProcessingContext,
     state: &State,
     def: View,
@@ -919,10 +933,6 @@ pub fn build_page_view(
     restore_playlist_pos: &Option<PlaylistPos>,
 ) {
     playlist_clear(pc, &state.playlist);
-    let Some(page_title) = state.page_title.upgrade() else {
-        return;
-    };
-    page_title.ref_text(&def.name);
 
     fn get_mouse_pct(ev: &Event) -> (f64, f64, MouseEvent) {
         let element = ev.target().unwrap().dyn_into::<Element>().unwrap();
@@ -944,7 +954,7 @@ pub fn build_page_view(
     let queries = Rc::new(def.queries.clone());
     let body =
         el("div")
-            .classes(&["s_listview_body"])
+            .classes(&[CSS_S_LISTVIEW_BODY])
             .push(
                 build_widget_query(
                     pc,
@@ -958,9 +968,9 @@ pub fn build_page_view(
                 ),
             );
     let hover_time = Prim::new(None);
-    state.page_body.upgrade().unwrap().ref_clear().ref_extend(vec![
-        //. .
-        el("div").classes(&["s_transport"]).extend(vec![
+    let mut page_body = vec![];
+    if def.media_controls {
+        page_body.push(el("div").classes(&["s_transport"]).extend(vec![
             //. .
             el_hbox().classes(&["left"]).extend(vec![
                 //. .
@@ -1203,173 +1213,168 @@ pub fn build_page_view(
                     }
                 })
             ])
-        ]),
-        {
-            let parameters = el_vbox().classes(&["s_parameters"]);
-            if !def.parameters.is_empty() {
-                let bg = Rc::new(RefCell::new(None));
+        ]));
+    }
+    if !def.parameters.is_empty() {
+        let parameters = el_vbox().classes(&["s_parameters"]);
+        let bg = Rc::new(RefCell::new(None));
 
-                #[derive(Clone)]
-                struct DelayRebuild {
-                    bg: Rc<RefCell<Option<ScopeValue>>>,
-                    state: State,
-                    queries: Rc<BTreeMap<String, Query>>,
-                    def: View,
-                    parameter_values: Rc<RefCell<BTreeMap<String, TreeNode>>>,
-                    build_playlist_pos: BuildPlaylistPos,
-                    body: El,
-                }
+        #[derive(Clone)]
+        struct DelayRebuild {
+            bg: Rc<RefCell<Option<ScopeValue>>>,
+            state: State,
+            queries: Rc<BTreeMap<String, Query>>,
+            def: View,
+            parameter_values: Rc<RefCell<BTreeMap<String, TreeNode>>>,
+            build_playlist_pos: BuildPlaylistPos,
+            body: El,
+        }
 
-                impl DelayRebuild {
-                    fn call(&self, pc: &mut ProcessingContext) {
-                        *self.bg.borrow_mut() = Some(spawn_rooted({
-                            let eg = pc.eg();
-                            let state = self.state.clone();
-                            let queries = self.queries.clone();
-                            let def = self.def.clone();
-                            let parameter_values = self.parameter_values.clone();
-                            let build_playlist_pos = self.build_playlist_pos.clone();
-                            let body = self.body.clone();
-                            async move {
-                                TimeoutFuture::new(1000).await;
-                                eg.event(|pc| {
-                                    body
-                                        .ref_clear()
-                                        .ref_push(
-                                            build_widget_query(
-                                                pc,
-                                                &state,
-                                                &queries,
-                                                0,
-                                                &def.display,
-                                                &*parameter_values.borrow(),
-                                                &build_playlist_pos,
-                                                &None,
-                                            ),
-                                        );
-                                });
-                            }
-                        }));
+        impl DelayRebuild {
+            fn call(&self, pc: &mut ProcessingContext) {
+                *self.bg.borrow_mut() = Some(spawn_rooted({
+                    let eg = pc.eg();
+                    let state = self.state.clone();
+                    let queries = self.queries.clone();
+                    let def = self.def.clone();
+                    let parameter_values = self.parameter_values.clone();
+                    let build_playlist_pos = self.build_playlist_pos.clone();
+                    let body = self.body.clone();
+                    async move {
+                        TimeoutFuture::new(1000).await;
+                        eg.event(|pc| {
+                            body
+                                .ref_clear()
+                                .ref_push(
+                                    build_widget_query(
+                                        pc,
+                                        &state,
+                                        &queries,
+                                        0,
+                                        &def.display,
+                                        &*parameter_values.borrow(),
+                                        &build_playlist_pos,
+                                        &None,
+                                    ),
+                                );
+                        });
                     }
-                }
-
-                let delay_rebuild = DelayRebuild {
-                    bg: bg.clone(),
-                    state: state.clone(),
-                    queries: queries.clone(),
-                    def: def.clone(),
-                    parameter_values: Default::default(),
-                    build_playlist_pos: build_playlist_pos.clone(),
-                    body: body.clone(),
-                };
-                parameters.ref_own(|_| bg.clone());
-                for (k, v) in def.parameters {
-                    parameters.ref_push(el("label").extend(vec![el("span").text(&k), match v {
-                        QueryDefParameter::Text => {
-                            delay_rebuild
-                                .parameter_values
-                                .borrow_mut()
-                                .insert(
-                                    k.clone(),
-                                    TreeNode::Scalar(Node::Value(serde_json::Value::String("".to_string()))),
-                                );
-                            el("input").attr("type", "text").on("input", {
-                                let eg = pc.eg();
-                                let delay_rebuild = delay_rebuild.clone();
-                                let parameter_values = delay_rebuild.parameter_values.clone();
-                                move |ev| eg.event(|pc| {
-                                    let e = ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
-                                    parameter_values
-                                        .borrow_mut()
-                                        .insert(
-                                            k.clone(),
-                                            TreeNode::Scalar(Node::Value(serde_json::Value::String(e.value()))),
-                                        );
-                                    delay_rebuild.call(pc);
-                                })
-                            })
-                        },
-                        QueryDefParameter::Number => {
-                            delay_rebuild
-                                .parameter_values
-                                .borrow_mut()
-                                .insert(
-                                    k.clone(),
-                                    TreeNode::Scalar(
-                                        Node::Value(serde_json::Value::Number(serde_json::Number::from(0))),
-                                    ),
-                                );
-                            el("input").attr("type", "number").on("input", {
-                                let eg = pc.eg();
-                                let delay_rebuild = delay_rebuild.clone();
-                                move |ev| eg.event(|pc| {
-                                    let e = ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
-                                    if !e.value().is_empty() {
-                                        let n = serde_json::Number::from_str(&e.value()).unwrap();
-                                        delay_rebuild
-                                            .parameter_values
-                                            .borrow_mut()
-                                            .insert(
-                                                k.clone(),
-                                                TreeNode::Scalar(Node::Value(serde_json::Value::Number(n))),
-                                            );
-                                        delay_rebuild.call(pc);
-                                    }
-                                })
-                            })
-                        },
-                        QueryDefParameter::Bool => {
-                            delay_rebuild
-                                .parameter_values
-                                .borrow_mut()
-                                .insert(k.clone(), TreeNode::Scalar(Node::Value(serde_json::Value::Bool(false))));
-                            el("input").attr("type", "checkbox").on("input", {
-                                let eg = pc.eg();
-                                let delay_rebuild = delay_rebuild.clone();
-                                move |ev| eg.event(|pc| {
-                                    let e = ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
-                                    delay_rebuild
-                                        .parameter_values
-                                        .borrow_mut()
-                                        .insert(
-                                            k.clone(),
-                                            TreeNode::Scalar(Node::Value(serde_json::Value::Bool(e.checked()))),
-                                        );
-                                    delay_rebuild.call(pc);
-                                })
-                            })
-                        },
-                        QueryDefParameter::Datetime => {
-                            delay_rebuild
-                                .parameter_values
-                                .borrow_mut()
-                                .insert(
-                                    k.clone(),
-                                    TreeNode::Scalar(
-                                        Node::Value(serde_json::Value::String(Utc::now().to_rfc3339())),
-                                    ),
-                                );
-                            el("input").attr("type", "datetime-local").on("input", {
-                                let eg = pc.eg();
-                                let delay_rebuild = delay_rebuild.clone();
-                                move |ev| eg.event(|pc| {
-                                    let e = ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
-                                    delay_rebuild
-                                        .parameter_values
-                                        .borrow_mut()
-                                        .insert(
-                                            k.clone(),
-                                            TreeNode::Scalar(Node::Value(serde_json::Value::String(e.value()))),
-                                        );
-                                    delay_rebuild.call(pc);
-                                })
-                            })
-                        },
-                    }]));
-                }
+                }));
             }
-            parameters
-        },
-        body
-    ]);
+        }
+
+        let delay_rebuild = DelayRebuild {
+            bg: bg.clone(),
+            state: state.clone(),
+            queries: queries.clone(),
+            def: def.clone(),
+            parameter_values: Default::default(),
+            build_playlist_pos: build_playlist_pos.clone(),
+            body: body.clone(),
+        };
+        parameters.ref_own(|_| bg.clone());
+        for (k, v) in def.parameters {
+            parameters.ref_push(el("label").extend(vec![el("span").text(&k), match v {
+                QueryDefParameter::Text => {
+                    delay_rebuild
+                        .parameter_values
+                        .borrow_mut()
+                        .insert(
+                            k.clone(),
+                            TreeNode::Scalar(Node::Value(serde_json::Value::String("".to_string()))),
+                        );
+                    el("input").attr("type", "text").on("input", {
+                        let eg = pc.eg();
+                        let delay_rebuild = delay_rebuild.clone();
+                        let parameter_values = delay_rebuild.parameter_values.clone();
+                        move |ev| eg.event(|pc| {
+                            let e = ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
+                            parameter_values
+                                .borrow_mut()
+                                .insert(
+                                    k.clone(),
+                                    TreeNode::Scalar(Node::Value(serde_json::Value::String(e.value()))),
+                                );
+                            delay_rebuild.call(pc);
+                        })
+                    })
+                },
+                QueryDefParameter::Number => {
+                    delay_rebuild
+                        .parameter_values
+                        .borrow_mut()
+                        .insert(
+                            k.clone(),
+                            TreeNode::Scalar(Node::Value(serde_json::Value::Number(serde_json::Number::from(0)))),
+                        );
+                    el("input").attr("type", "number").on("input", {
+                        let eg = pc.eg();
+                        let delay_rebuild = delay_rebuild.clone();
+                        move |ev| eg.event(|pc| {
+                            let e = ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
+                            if !e.value().is_empty() {
+                                let n = serde_json::Number::from_str(&e.value()).unwrap();
+                                delay_rebuild
+                                    .parameter_values
+                                    .borrow_mut()
+                                    .insert(
+                                        k.clone(),
+                                        TreeNode::Scalar(Node::Value(serde_json::Value::Number(n))),
+                                    );
+                                delay_rebuild.call(pc);
+                            }
+                        })
+                    })
+                },
+                QueryDefParameter::Bool => {
+                    delay_rebuild
+                        .parameter_values
+                        .borrow_mut()
+                        .insert(k.clone(), TreeNode::Scalar(Node::Value(serde_json::Value::Bool(false))));
+                    el("input").attr("type", "checkbox").on("input", {
+                        let eg = pc.eg();
+                        let delay_rebuild = delay_rebuild.clone();
+                        move |ev| eg.event(|pc| {
+                            let e = ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
+                            delay_rebuild
+                                .parameter_values
+                                .borrow_mut()
+                                .insert(
+                                    k.clone(),
+                                    TreeNode::Scalar(Node::Value(serde_json::Value::Bool(e.checked()))),
+                                );
+                            delay_rebuild.call(pc);
+                        })
+                    })
+                },
+                QueryDefParameter::Datetime => {
+                    delay_rebuild
+                        .parameter_values
+                        .borrow_mut()
+                        .insert(
+                            k.clone(),
+                            TreeNode::Scalar(Node::Value(serde_json::Value::String(Utc::now().to_rfc3339()))),
+                        );
+                    el("input").attr("type", "datetime-local").on("input", {
+                        let eg = pc.eg();
+                        let delay_rebuild = delay_rebuild.clone();
+                        move |ev| eg.event(|pc| {
+                            let e = ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
+                            delay_rebuild
+                                .parameter_values
+                                .borrow_mut()
+                                .insert(
+                                    k.clone(),
+                                    TreeNode::Scalar(Node::Value(serde_json::Value::String(e.value()))),
+                                );
+                            delay_rebuild.call(pc);
+                        })
+                    })
+                },
+            }]));
+        }
+        page_body.push(parameters);
+    }
+    page_body.push(body);
+    set_page(state, &def.name, el_vbox().extend(page_body));
 }

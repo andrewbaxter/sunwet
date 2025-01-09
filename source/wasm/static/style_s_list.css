@@ -1,0 +1,24 @@
+.s_transport {
+  padding: 0 var(--s-content-padding);
+  background-color: white;
+}
+
+.s_seekbar {
+  max-width: 8cm;
+}
+
+.s_listview_body {
+  padding: var(--s-content-padding);
+}
+
+.listview_layout_table {
+  padding-bottom: 0.2cm;
+}
+
+.listview_layout_individual {
+  gap: 0.1cm;
+}
+
+.listview_nest {
+  gap: 0.5cm;
+}
