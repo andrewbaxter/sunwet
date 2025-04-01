@@ -53,6 +53,14 @@ rustemo = "0.7"
 schemars = "0.8"
 # A dep just to disable rustemo logs
 log = { version = "*", features = ["release_max_level_off"] }
+taglib = "1"
+zip = "0.6"
+walkdir = "2"
+symphonia = { version = "0.5", features = ["all"] }
+uuid = { version = "1", features = ["v4"] }
+mkvparser = "0.2"
+mkvdump = "0.6"
+
 
 [build-dependencies]
 good-ormning = { version = "0.3", features = ["sqlite", "chrono"] }

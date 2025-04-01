@@ -87,9 +87,7 @@ use {
         superif,
     },
     gloo::{
-        timers::future::{
-            TimeoutFuture,
-        },
+        timers::future::TimeoutFuture,
         utils::window,
     },
     lunk::{
@@ -118,13 +116,12 @@ use {
             Widget,
             WidgetNest,
         },
-        query::Query,
         triple::{
             FileHash,
             Node,
         },
         wire::{
-            ReqQuery,
+            ReqViewQuery,
             TreeNode,
         },
     },
@@ -162,7 +159,7 @@ fn query_res_as_file(r: &TreeNode) -> Result<FileHash, String> {
 pub fn build_widget_query(
     pc: &mut ProcessingContext,
     state: &State,
-    queries: &Rc<BTreeMap<String, Query>>,
+    view: &String,
     depth: usize,
     def: &ViewPartList,
     data: &BTreeMap<String, TreeNode>,
@@ -172,7 +169,7 @@ pub fn build_widget_query(
     return el_async_block().own(|e| spawn_rooted({
         let def = def.clone();
         let source_data = data.clone();
-        let queries = queries.clone();
+        let view = view.clone();
         let state = state.clone();
         let eg = pc.eg();
         let e = e.weak();
@@ -210,11 +207,8 @@ pub fn build_widget_query(
                         };
                         parameters.insert(k.clone(), n.clone());
                     }
-                    let Some(query) = queries.get(query) else {
-                        placeholder.ref_push(el_err_span(format!("No query with id {}", query)));
-                        return;
-                    };
-                    let res = req_post_json(&state.base_url, ReqQuery {
+                    let res = req_post_json(&state.base_url, ReqViewQuery {
+                        view: view.clone(),
                         query: query.clone(),
                         parameters: parameters,
                     }).await;
@@ -230,23 +224,14 @@ pub fn build_widget_query(
                         placeholder.ref_push(el_err_span(format!("Query response is not an array (likely bug)")));
                         return;
                     };
+                    log(format!("DEBUG got array res len {}", res.len()));
                     rows = res;
                 },
             }
             eg.event(|pc| {
                 placeholder.ref_replace(vec![
                     //. .
-                    build_layout(
-                        pc,
-                        &state,
-                        &queries,
-                        depth,
-                        &def.layout,
-                        &rows,
-                        &def.key_field,
-                        &build_playlist_pos,
-                        &restore_playlist_pos,
-                    )
+                    build_layout(pc, &state, &view, depth, &def.layout, &rows, &def.key_field, &build_playlist_pos, &restore_playlist_pos)
                 ]);
             });
         }
@@ -280,7 +265,7 @@ impl BuildPlaylistPos {
 fn build_widget(
     pc: &mut ProcessingContext,
     state: &State,
-    queries: &Rc<BTreeMap<String, Query>>,
+    view: &String,
     depth: usize,
     def: &Widget,
     data: &BTreeMap<String, TreeNode>,
@@ -291,7 +276,7 @@ fn build_widget(
         Widget::Nest(d) => return build_nest(
             pc,
             state,
-            queries,
+            view,
             depth,
             d,
             data,
@@ -358,10 +343,7 @@ fn build_widget(
                         return el_image_err(format!("Missing field {}", field));
                     };
                     superif!({
-                        let TreeNode::Scalar(Node::Value(serde_json::Value::String(n))) = v else {
-                            break 'bad;
-                        };
-                        let Ok(n) = FileHash::from_str(&n) else {
+                        let TreeNode::Scalar(Node::File(n)) = v else {
                             break 'bad;
                         };
                         url = file_url(&state.base_url, &n);
@@ -701,7 +683,7 @@ fn build_widget(
         Widget::Sublist(d) => return build_widget_query(
             pc,
             state,
-            queries,
+            view,
             depth,
             d,
             data,
@@ -714,7 +696,7 @@ fn build_widget(
 fn build_nest(
     pc: &mut ProcessingContext,
     state: &State,
-    queries: &Rc<BTreeMap<String, Query>>,
+    view: &String,
     depth: usize,
     def: &WidgetNest,
     data: &BTreeMap<String, TreeNode>,
@@ -725,7 +707,7 @@ fn build_nest(
     style_tree(CSS_TREE_NEST, depth, def.align, &out);
     for col_def in &def.children {
         out.ref_push(
-            build_widget(pc, state, queries, depth + 1, col_def, data, build_playlist_pos, restore_playlist_pos),
+            build_widget(pc, state, view, depth + 1, col_def, data, build_playlist_pos, restore_playlist_pos),
         );
     }
     return out;
@@ -734,7 +716,7 @@ fn build_nest(
 fn build_layout(
     pc: &mut ProcessingContext,
     state: &State,
-    queries: &Rc<BTreeMap<String, Query>>,
+    view: &String,
     depth: usize,
     def: &Layout,
     data: &Vec<TreeNode>,
@@ -748,14 +730,25 @@ fn build_layout(
             style_tree(CSS_TREE_LAYOUT_INDIVIDUAL, depth, d.align, &out);
             out.ref_classes(&d.orientation.css());
             for trans_data in data {
+                log(format!("DEBUG row"));
                 let TreeNode::Record(trans_data) = trans_data else {
                     let out = el_err_block(format!("Value list contains non-record elements"));
                     style_tree(CSS_TREE_TEXT, depth, d.align, &out);
                     return out;
                 };
+                log(format!("DEBUG row a"));
                 let key_value = match trans_data.get(key) {
                     Some(TreeNode::Scalar(v)) => v,
-                    _ => continue,
+                    _ => {
+                        log(
+                            format!(
+                                "Row missing key field [{}], skipping (has fields {:?})",
+                                key,
+                                trans_data.keys().collect::<Vec<_>>()
+                            ),
+                        );
+                        continue;
+                    },
                 };
                 let subrestore_playlist_pos = shed!{
                     'found_pos _;
@@ -780,7 +773,7 @@ fn build_layout(
                     build_nest(
                         pc,
                         state,
-                        queries,
+                        view,
                         depth,
                         &d.item,
                         &trans_data,
@@ -855,7 +848,7 @@ fn build_layout(
                         build_widget(
                             pc,
                             state,
-                            queries,
+                            view,
                             depth,
                             &cell_def,
                             &trans_data,
@@ -951,7 +944,7 @@ pub fn build_page_list_inner(
         return Some(max_time * percent);
     }
 
-    let queries = Rc::new(def.queries.clone());
+    let view = def.id.clone();
     let body =
         el("div")
             .classes(&[CSS_S_LISTVIEW_BODY])
@@ -959,7 +952,7 @@ pub fn build_page_list_inner(
                 build_widget_query(
                     pc,
                     &state,
-                    &queries,
+                    &view,
                     0,
                     &def.display,
                     &Default::default(),
@@ -1223,7 +1216,6 @@ pub fn build_page_list_inner(
         struct DelayRebuild {
             bg: Rc<RefCell<Option<ScopeValue>>>,
             state: State,
-            queries: Rc<BTreeMap<String, Query>>,
             def: View,
             parameter_values: Rc<RefCell<BTreeMap<String, TreeNode>>>,
             build_playlist_pos: BuildPlaylistPos,
@@ -1235,7 +1227,6 @@ pub fn build_page_list_inner(
                 *self.bg.borrow_mut() = Some(spawn_rooted({
                     let eg = pc.eg();
                     let state = self.state.clone();
-                    let queries = self.queries.clone();
                     let def = self.def.clone();
                     let parameter_values = self.parameter_values.clone();
                     let build_playlist_pos = self.build_playlist_pos.clone();
@@ -1249,7 +1240,7 @@ pub fn build_page_list_inner(
                                     build_widget_query(
                                         pc,
                                         &state,
-                                        &queries,
+                                        &def.id,
                                         0,
                                         &def.display,
                                         &*parameter_values.borrow(),
@@ -1266,7 +1257,6 @@ pub fn build_page_list_inner(
         let delay_rebuild = DelayRebuild {
             bg: bg.clone(),
             state: state.clone(),
-            queries: queries.clone(),
             def: def.clone(),
             parameter_values: Default::default(),
             build_playlist_pos: build_playlist_pos.clone(),

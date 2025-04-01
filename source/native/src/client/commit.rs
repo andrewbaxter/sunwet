@@ -86,9 +86,9 @@ pub struct CliCommit {
 }
 
 #[derive(Aargvark)]
-pub struct ChangeCommand(AargvarkJson<CliCommit>);
+pub struct CommitCommand(AargvarkJson<CliCommit>);
 
-pub async fn handle_change(c: ChangeCommand) -> Result<(), loga::Error> {
+pub async fn handle_commit(c: CommitCommand) -> Result<(), loga::Error> {
     let log = Log::new_root(loga::INFO);
 
     // # Build commit info

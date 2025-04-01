@@ -88,11 +88,9 @@ fn main() {
             .build(&mut latest_version);
         t
             .index("zBZVX51AR", "triple_index_pred_subj", &[&predicate, &subject, &event_stamp])
-            .unique()
             .build(&mut latest_version);
         t
             .index("zTVLKA6GQ", "triple_index_pred_obj", &[&predicate, &object, &event_stamp])
-            .unique()
             .build(&mut latest_version);
         queries.push(
             new_insert(

@@ -43,7 +43,7 @@ use {
 };
 
 pub mod req;
-pub mod change;
+pub mod commit;
 pub mod query;
 pub mod query_test;
 

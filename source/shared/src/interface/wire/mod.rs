@@ -120,6 +120,10 @@ pub struct ReqQuery {
     pub parameters: HashMap<String, Node>,
 }
 
+/// A tree node is like a json node but it can also encode files.  So the root of
+/// the returned query is generic data w/ a file type, then once you reach the
+/// nodes it's just generic data. This allows users to select on files directly,
+/// rather than try to re-parse json.
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Debug, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum TreeNode {

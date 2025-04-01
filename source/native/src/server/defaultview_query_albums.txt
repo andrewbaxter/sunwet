@@ -1,10 +1,10 @@
 "sunwet/1/album" <- "sunwet/1/is" {
     => album_id
-    ( *(<- "sunwet/1/element") -> "sunwet/1/name" first { => album } )
+    ( *(<- "sunwet/1/element") -> "sunwet/1/name" first { => album_name } )
     (
-        *(<- "sunwet/1/element") -> "sunwet/1/creator" first {
+        *(<- "sunwet/1/element") -> "sunwet/1/artist" first {
             => artist_id
-            ( *(<- "sunwet/1/element") -> "sunwet/1/name" first { => artist } )
+            ( *(<- "sunwet/1/element") -> "sunwet/1/name" first { => artist_name } )
         }
     )
     ( *(<- "sunwet/1/element") -> "sunwet/1/cover" first { => cover } )

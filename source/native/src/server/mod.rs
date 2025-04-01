@@ -14,6 +14,10 @@ use {
             },
         },
     },
+    aargvark::{
+        traits_impls::AargvarkJson,
+        Aargvark,
+    },
     access::{
         identify_requester,
         is_admin,
@@ -87,10 +91,10 @@ use {
         },
         wire::{
             C2SReq,
-            TreeNode,
             RespGetTriplesAround,
             RespHistoryCommit,
             RespQuery,
+            TreeNode,
             Triple,
         },
     },
@@ -519,7 +523,17 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
     }
 }
 
-pub async fn main(config: Config) -> Result<(), loga::Error> {
+#[derive(Aargvark)]
+pub struct Args {
+    config: AargvarkJson<Config>,
+    validate: Option<()>,
+}
+
+pub async fn main(args: Args) -> Result<(), loga::Error> {
+    let config = args.config.value;
+    if args.validate.is_some() {
+        return Ok(());
+    }
     let log = Log::new_root(match config.debug {
         true => loga::DEBUG,
         false => loga::INFO,

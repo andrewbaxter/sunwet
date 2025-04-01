@@ -1,6 +1,5 @@
 use {
     aargvark::{
-        traits_impls::AargvarkJson,
         vark,
         Aargvark,
     },
@@ -9,7 +8,6 @@ use {
         client::{
             self,
         },
-        interface::config::Config,
         server,
     },
 };
@@ -18,10 +16,10 @@ use {
 enum Command {
     Query(client::QueryCommand),
     CompileQuery(client::CompileQueryCommand),
-    Change(client::change::ChangeCommand),
+    Commit(client::commit::CommitCommand),
     History(client::HistoryCommand),
     GetNode(client::GetNodeCommand),
-    RunServer(AargvarkJson<Config>),
+    RunServer(server::Args),
 }
 
 #[derive(Aargvark)]
@@ -38,8 +36,8 @@ async fn main1() -> Result<(), loga::Error> {
         Command::CompileQuery(c) => {
             client::handle_compile_query(c)?;
         },
-        Command::Change(c) => {
-            client::change::handle_change(c).await?;
+        Command::Commit(c) => {
+            client::commit::handle_commit(c).await?;
         },
         Command::History(c) => {
             client::handle_history(c).await?;
@@ -48,7 +46,7 @@ async fn main1() -> Result<(), loga::Error> {
             client::handle_get_node(c).await?;
         },
         Command::RunServer(config) => {
-            server::main(config.value).await?;
+            server::main(config).await?;
         },
     }
     return Ok(());

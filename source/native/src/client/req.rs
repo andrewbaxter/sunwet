@@ -40,7 +40,7 @@ pub fn server_headers() -> Result<HashMap<String, String>, loga::Error> {
 pub async fn req<
     T: C2SReqTrait,
 >(log: &Log, conn: &mut Conn, headers: &HashMap<String, String>, url: &Uri, req: T) -> Result<T::Resp, loga::Error> {
-    return Ok(htreq::post_json::<T::Resp>(log, conn, &url.join("api"), headers, req, usize::MAX).await?);
+    return Ok(htreq::post_json::<T::Resp>(log, conn, &url.join("api"), headers, req.into(), usize::MAX).await?);
 }
 
 pub async fn req_simple<T: C2SReqTrait>(log: &Log, req0: T) -> Result<T::Resp, loga::Error> {

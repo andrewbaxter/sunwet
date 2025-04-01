@@ -12,9 +12,12 @@ use {
         ColumnRef,
         Expr,
         ExprTrait,
+        IntoColumnRef,
+        Nullable,
         SeaRc,
         SimpleExpr,
         TableRef,
+        WindowStatement,
     },
     sea_query_rusqlite::RusqliteBinder,
     shared::interface::{
@@ -41,9 +44,18 @@ use {
     },
 };
 
+fn sql_fn(name: &str, args: Vec<SimpleExpr>) -> SimpleExpr {
+    let mut f = sea_query::Func::cust(SeaRc::new(Alias::new(name)));
+    for arg in args {
+        f = f.arg(arg);
+    }
+    return sea_query::SimpleExpr::FunctionCall(f).into();
+}
+
 struct QueryBuildState {
     parameters: HashMap<String, Node>,
     // # Immutable
+    ident_rowid: sea_query::DynIden,
     ident_table_primary: sea_query::DynIden,
     ident_table_prev: sea_query::DynIden,
     ident_col_start: sea_query::DynIden,
@@ -216,6 +228,10 @@ fn build_step(
             query_state.global_unique += 1;
             {
                 let ident_cte = SeaRc::new(Alias::new(seg_name.clone()));
+                let mut sql_cte = sea_query::CommonTableExpression::new();
+                sql_cte.table_name(ident_cte.clone());
+
+                // Select
                 let mut sql_sel = sea_query::Query::select();
                 let local_ident_table_primary = query_state.ident_table_primary.clone();
                 sql_sel.from_as(query_state.triple_table.clone(), local_ident_table_primary.clone());
@@ -244,16 +260,6 @@ fn build_step(
                         from_ident_primary_end.clone(),
                     );
 
-                // Only get latest event
-                sql_sel.group_by_col(local_col_primary_start.clone());
-                sql_sel.group_by_col(
-                    sea_query::ColumnRef::TableColumn(
-                        local_ident_table_primary.clone(),
-                        query_state.ident_col_predicate.clone(),
-                    ),
-                );
-                sql_sel.group_by_col(local_col_primary_end.clone());
-
                 // Movement
                 sql_sel.and_where(
                     sea_query::Expr::col(
@@ -264,7 +270,7 @@ fn build_step(
                     ).eq(step.predicate.clone()),
                 );
 
-                // Subset of previous results
+                // Output start col - subset of previous results
                 let out_col_start;
                 if let Some(previous) = &previous {
                     let local_ident_table_prev = query_state.ident_table_prev.clone();
@@ -287,16 +293,36 @@ fn build_step(
                 } else {
                     out_col_start = local_col_primary_start.clone();
                 }
-
-                // Assemble
+                sql_cte.column(query_state.ident_col_start.clone());
                 sql_sel.column(out_col_start);
+
+                // Output rowid
+                sql_cte.column(query_state.ident_rowid.clone());
+                sql_sel.expr_window(sql_fn("row_number", vec![]), WindowStatement::new());
+
+                // Output end col
+                sql_cte.column(query_state.ident_col_end.clone());
                 sql_sel.column(local_col_primary_end.clone());
+
+                // Output exists
+                sql_cte.column(query_state.ident_col_exists.clone());
                 sql_sel.column(
                     sea_query::ColumnRef::TableColumn(
                         local_ident_table_primary.clone(),
                         query_state.ident_col_exists.clone(),
                     ),
                 );
+
+                // Only get latest event
+                sql_sel.group_by_col(local_col_primary_start.clone());
+                sql_sel.group_by_col(
+                    sea_query::ColumnRef::TableColumn(
+                        local_ident_table_primary.clone(),
+                        query_state.ident_col_predicate.clone(),
+                    ),
+                );
+                sql_sel.group_by_col(local_col_primary_end.clone());
+                sql_cte.column(SeaRc::new(Alias::new("_unused_timestamp")));
                 sql_sel.expr(
                     // Unnamed, unused
                     sea_query::Expr::max(
@@ -308,12 +334,8 @@ fn build_step(
                         ),
                     ),
                 );
-                let mut sql_cte = sea_query::CommonTableExpression::new();
-                sql_cte.table_name(ident_cte.clone());
-                sql_cte.column(query_state.ident_col_start.clone());
-                sql_cte.column(query_state.ident_col_end.clone());
-                sql_cte.column(query_state.ident_col_exists.clone());
-                sql_cte.column(SeaRc::new(Alias::new("unused_timestamp")));
+
+                // Assemble
                 sql_cte.query(sql_sel);
                 query_state.ctes.push(sql_cte);
                 out = BuildStepRes {
@@ -326,32 +348,50 @@ fn build_step(
 
             // Exclude deleted records
             {
-                let ident_cte = SeaRc::new(Alias::new(format!("{}_b", seg_name)));
+                let ident_cte = SeaRc::new(Alias::new(format!("{}__exists", seg_name)));
+                let mut sql_cte = sea_query::CommonTableExpression::new();
+                sql_cte.table_name(ident_cte.clone());
+
+                // Select, from previous
                 let mut sql_sel = sea_query::Query::select();
-                let local_ident_table_primary = query_state.ident_table_primary.clone();
-                sql_sel.from_as(out.ident_table.clone(), local_ident_table_primary.clone());
-                sql_sel.column(sea_query::ColumnRef::TableColumn(local_ident_table_primary.clone(), out.col_start));
-                sql_sel.column(sea_query::ColumnRef::TableColumn(local_ident_table_primary.clone(), out.col_end));
+                let primary_table = query_state.ident_table_primary.clone();
+                sql_sel.from_as(out.ident_table.clone(), primary_table.clone());
+                let primary_col_start = sea_query::ColumnRef::TableColumn(primary_table.clone(), out.col_start);
+                let primary_col_end = sea_query::ColumnRef::TableColumn(primary_table.clone(), out.col_end);
+
+                // Output rowid
+                sql_cte.column(query_state.ident_rowid.clone());
+                sql_sel.expr_window(sql_fn("row_number", vec![]), WindowStatement::new());
+
+                // Output start
+                sql_cte.column(query_state.ident_col_start.clone());
+                sql_sel.column(primary_col_start.clone());
+
+                // Output end
+                sql_cte.column(query_state.ident_col_end.clone());
+                sql_sel.column(primary_col_end.clone());
+
+                // Exclude deleted
                 sql_sel.and_where(
                     sea_query::Expr::col(
-                        sea_query::ColumnRef::TableColumn(
-                            local_ident_table_primary.clone(),
-                            query_state.ident_col_exists.clone(),
-                        ),
+                        sea_query::ColumnRef::TableColumn(primary_table.clone(), query_state.ident_col_exists.clone()),
                     ).into(),
                 );
 
                 // Trim
                 if step.first && step.filter.is_none() {
-                    // (If filtering, apply limit during that step)
-                    sql_sel.limit(1);
+                    // (If filtering as separate step, apply limit there)
+                    sql_sel.group_by_col(primary_col_start);
+                    sql_sel.group_by_col(primary_col_end);
+                    sql_cte.column(SeaRc::new(Alias::new("_unused_first")));
+                    sql_sel.expr(
+                        Expr::expr(
+                            sea_query::ColumnRef::TableColumn(primary_table, SeaRc::new(Alias::new("rowid"))),
+                        ).min(),
+                    );
                 }
 
                 // Assemble
-                let mut sql_cte = sea_query::CommonTableExpression::new();
-                sql_cte.table_name(ident_cte.clone());
-                sql_cte.column(query_state.ident_col_start.clone());
-                sql_cte.column(query_state.ident_col_end.clone());
                 sql_cte.query(sql_sel);
                 query_state.ctes.push(sql_cte);
                 out = BuildStepRes {
@@ -364,31 +404,51 @@ fn build_step(
 
             // Filter + limit
             if let Some(filter) = &step.filter {
-                let ident_cte = SeaRc::new(Alias::new(format!("{}_c", seg_name)));
+                let ident_cte = SeaRc::new(Alias::new(format!("{}__filter", seg_name)));
+                let mut sql_cte = sea_query::CommonTableExpression::new();
+                sql_cte.table_name(ident_cte.clone());
+
+                // Select, from previous
                 let mut sql_sel = sea_query::Query::select();
-                let local_ident_table_primary = query_state.ident_table_primary.clone();
-                sql_sel.from_as(out.ident_table.clone(), local_ident_table_primary.clone());
-                sql_sel.column(
-                    sea_query::ColumnRef::TableColumn(local_ident_table_primary.clone(), out.col_start.clone()),
-                );
-                let col_end =
-                    sea_query::ColumnRef::TableColumn(local_ident_table_primary.clone(), out.col_end.clone());
-                sql_sel.column(col_end.clone());
-                sql_sel.and_where(build_filter(query_state, &col_end, BuildStepRes {
+                let primary_table = query_state.ident_table_primary.clone();
+                let primary_col_start =
+                    sea_query::ColumnRef::TableColumn(primary_table.clone(), out.col_start.clone());
+                let primary_col_end = sea_query::ColumnRef::TableColumn(primary_table.clone(), out.col_end.clone());
+                sql_sel.from_as(out.ident_table.clone(), primary_table.clone());
+
+                // Apply filter
+                sql_sel.and_where(build_filter(query_state, &primary_col_end, BuildStepRes {
                     ident_table: out.ident_table,
                     col_start: out.col_end.clone(),
                     col_end: out.col_end,
                     plural: out.plural,
                 }, filter)?);
+
+                // Output rowid
+                sql_cte.column(query_state.ident_rowid.clone());
+                sql_sel.expr_window(sql_fn("row_number", vec![]), WindowStatement::new());
+
+                // Output start
+                sql_cte.column(query_state.ident_col_start.clone());
+                sql_sel.column(primary_col_start.clone());
+
+                // Output end
+                sql_cte.column(query_state.ident_col_end.clone());
+                sql_sel.column(primary_col_end.clone());
+
+                // Limit/first
                 if step.first {
-                    sql_sel.limit(1);
+                    sql_sel.group_by_col(primary_col_start);
+                    sql_sel.group_by_col(primary_col_end);
+                    sql_cte.column(SeaRc::new(Alias::new("_unused_first")));
+                    sql_sel.expr(
+                        Expr::expr(
+                            sea_query::ColumnRef::TableColumn(primary_table, SeaRc::new(Alias::new("rowid"))),
+                        ).min(),
+                    );
                 }
 
                 // Assemble
-                let mut sql_cte = sea_query::CommonTableExpression::new();
-                sql_cte.table_name(ident_cte.clone());
-                sql_cte.column(query_state.ident_col_start.clone());
-                sql_cte.column(query_state.ident_col_end.clone());
                 sql_cte.query(sql_sel);
                 query_state.ctes.push(sql_cte);
                 out = BuildStepRes {
@@ -577,15 +637,27 @@ fn build_subchain(
                 } else {
                     let ident_table_root = SeaRc::new(Alias::new(format!("root{}", query_state.global_unique)));
                     query_state.global_unique += 1;
-                    let mut sql_sel = sea_query::Query::select();
-                    let root_expr = build_value(query_state, root)?;
-                    sql_sel.expr(root_expr.clone());
-                    sql_sel.expr(root_expr.clone());
                     let mut sql_cte = sea_query::CommonTableExpression::new();
                     sql_cte.table_name(ident_table_root.clone());
-                    sql_cte.query(sql_sel);
+                    let mut sql_sel = sea_query::Query::select();
+
+                    // Data
+                    let root_expr = build_value(query_state, root)?;
+
+                    // Output start
                     sql_cte.column(query_state.ident_col_start.clone());
+                    sql_sel.expr(root_expr.clone());
+
+                    // Output end
                     sql_cte.column(query_state.ident_col_end.clone());
+                    sql_sel.expr(root_expr.clone());
+
+                    // Output rowid
+                    sql_cte.column(query_state.ident_rowid.clone());
+                    sql_sel.expr_window(sql_fn("row_number", vec![]), WindowStatement::new());
+
+                    // Assemble
+                    sql_cte.query(sql_sel);
                     query_state.ctes.push(sql_cte);
                     let root_res = BuildStepRes {
                         ident_table: ident_table_root,
@@ -739,6 +811,7 @@ pub fn build_query(
 ) -> Result<(String, sea_query_rusqlite::RusqliteValues), loga::Error> {
     let mut query_state = QueryBuildState {
         parameters: parameters,
+        ident_rowid: SeaRc::new(Alias::new("rowid")),
         ident_table_primary: SeaRc::new(Alias::new("primary")),
         ident_table_prev: SeaRc::new(Alias::new("prev")),
         ident_col_start: SeaRc::new(Alias::new("start")),
@@ -762,21 +835,26 @@ pub fn build_query(
         let expr = sql_fn("json_object", vec![
             //. .
             Expr::value("scalar"),
-            sea_query::ColumnRef::TableColumn(
-                cte.cte_name.clone(),
-                SeaRc::new(Alias::new(format!("_{}", name))),
-            ).into()
+            query_state.func_json_extract.clone().arg(sql_fn("ifnull", vec![
+                //. .
+                SimpleExpr::from(
+                    sea_query::ColumnRef::TableColumn(
+                        cte.cte_name.clone(),
+                        SeaRc::new(Alias::new(format!("_{}", name))),
+                    ),
+                ),
+                sql_fn(
+                    "json_object",
+                    vec![
+                        Expr::value("t"),
+                        Expr::value("v"),
+                        Expr::value("v"),
+                        Expr::value(<String as Nullable>::null())
+                    ],
+                )
+            ])).arg("$").into()
         ]);
         let ident_name = SeaRc::new(Alias::new(name));
-
-        fn sql_fn(name: &str, args: Vec<SimpleExpr>) -> SimpleExpr {
-            let mut f = sea_query::Func::cust(SeaRc::new(Alias::new(name)));
-            for arg in args {
-                f = f.arg(arg);
-            }
-            return sea_query::SimpleExpr::FunctionCall(f).into();
-        }
-
         if plural {
             sel_root.expr_as(sql_fn("json_object", vec![
                 //. .
@@ -811,15 +889,10 @@ pub fn execute_sql_query(
         };
         let mut got_row1 = BTreeMap::new();
         for (i, name) in column_names.iter().enumerate() {
-            let value: TreeNode;
-            match got_row.get::<usize, Option<String>>(i).unwrap() {
-                Some(v) => {
-                    value = serde_json::from_str::<TreeNode>(&v).unwrap();
-                },
-                None => {
-                    value = TreeNode::Scalar(Node::Value(serde_json::Value::Null));
-                },
-            }
+            let value =
+                serde_json::from_str::<TreeNode>(
+                    &got_row.get::<usize, Option<String>>(i).unwrap().unwrap(),
+                ).unwrap();
             got_row1.insert(name.to_string(), value);
         }
         out.push(TreeNode::Record(got_row1));
@@ -833,6 +906,7 @@ pub async fn execute_query(
     parameters: HashMap<String, Node>,
 ) -> Result<TreeNode, loga::Error> {
     let (sql_query, sql_parameters) = build_query(query, parameters)?;
+    eprintln!("query {}", sql_query);
     return Ok(tx(&db, move |txn| {
         return Ok(execute_sql_query(txn, sql_query, sql_parameters)?);
     }).await?);

@@ -1,14 +1,15 @@
 #![cfg(test)]
+
 use {
     super::defaultviews::{
-        default_query_albums,
         node_is_album,
-        PREDICATE_CREATOR,
+        PREDICATE_ARTIST,
         PREDICATE_ELEMENT,
         PREDICATE_IS,
         PREDICATE_NAME,
     },
     crate::{
+        client::query::compile_query,
         interface::triple::DbNode,
         server::{
             db,
@@ -78,26 +79,28 @@ fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, TreeNode)]], query
     for (s, p, o) in triples {
         db::triple_insert(&db, &DbNode((*s).clone()), p, &DbNode((*o).clone()), Utc::now().into(), true).unwrap();
     }
-    {
-        let prettier_root = PathBuf::from("/home/andrew/temp/soft/node/node_modules/");
-        let mut prettier = Command::new(prettier_root.join(".bin/prettier"));
-        prettier
-            .arg("--parser")
-            .arg("sql")
-            .arg("--plugin")
-            .arg(prettier_root.join("prettier-plugin-sql/lib/index.cjs"));
-        prettier.stdin(Stdio::piped());
-        prettier.stdout(Stdio::piped());
-        let mut child = prettier.spawn().unwrap();
-        let mut child_stdin = child.stdin.take().unwrap();
-        child_stdin.write_all(query.as_bytes()).unwrap();
-        drop(child_stdin);
-        let output = child.wait_with_output().unwrap();
-        if !output.status.success() {
-            panic!();
-        }
-        println!("Query: {}", String::from_utf8(output.stdout).unwrap());
-    }
+
+    //.    {
+    //.        let prettier_root = PathBuf::from("/home/andrew/temp/soft/node/node_modules/");
+    //.        let mut prettier = Command::new(prettier_root.join(".bin/prettier"));
+    //.        prettier
+    //.            .arg("--parser")
+    //.            .arg("sql")
+    //.            .arg("--plugin")
+    //.            .arg(prettier_root.join("prettier-plugin-sql/lib/index.cjs"));
+    //.        prettier.stdin(Stdio::piped());
+    //.        prettier.stdout(Stdio::piped());
+    //.        let mut child = prettier.spawn().unwrap();
+    //.        let mut child_stdin = child.stdin.take().unwrap();
+    //.        child_stdin.write_all(query.as_bytes()).unwrap();
+    //.        drop(child_stdin);
+    //.        let output = child.wait_with_output().unwrap();
+    //.        if !output.status.success() {
+    //.            panic!();
+    //.        }
+    //.        println!("Query: {}", String::from_utf8(output.stdout).unwrap());
+    //.    }
+    println!("Query: {}", query);
     {
         let mut s = db.prepare(&format!("explain query plan {}", query)).unwrap();
         let mut results = s.query(&*query_values.as_params()).unwrap();
@@ -120,7 +123,7 @@ fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, TreeNode)]], query
                 )
                 .collect::<Vec<_>>(),
         );
-    pretty_assertions::assert_eq!(want, got);
+    assert_eq!(want, got);
 }
 
 #[test]
@@ -129,18 +132,19 @@ fn test_base() {
         &[
             (&s("a"), PREDICATE_IS, &node_is_album()),
             (&s("a"), PREDICATE_NAME, &s("a_name")),
-            (&s("a"), PREDICATE_CREATOR, &s("a_a")),
+            (&s("a"), PREDICATE_ARTIST, &s("a_a")),
             (&s("a_a"), PREDICATE_NAME, &s("a_a_name")),
         ],
         &[
             &[
-                ("id", TreeNode::Scalar(s("a"))),
-                ("name", TreeNode::Scalar(s("a_name"))),
-                ("artist", TreeNode::Scalar(s("a_a_name"))),
+                ("album_id", TreeNode::Scalar(s("a"))),
+                ("album_name", TreeNode::Scalar(s("a_name"))),
+                ("artist_id", TreeNode::Scalar(s("a_a"))),
+                ("artist_name", TreeNode::Scalar(s("a_a_name"))),
                 ("cover", TreeNode::Scalar(n())),
             ],
         ],
-        default_query_albums(),
+        compile_query(include_str!("defaultview_query_albums.txt")).unwrap(),
     );
 }
 
@@ -367,14 +371,14 @@ fn test_gc() {
     db::triple_gc_deleted(&db, stamp2 + Duration::seconds(1)).unwrap();
     let want = vec![
         //. .
-        format!("{:?}", (s("a"), "b".to_string(), s("c"), stamp3, true, 0)),
-        format!("{:?}", (s("d"), "e".to_string(), s("f"), stamp2, true, 0))
+        format!("{:?}", (s("a"), "b".to_string(), s("c"), stamp3, true)),
+        format!("{:?}", (s("d"), "e".to_string(), s("f"), stamp2, true))
     ];
     let mut have =
         db::triple_list_all(&db)
             .unwrap()
             .into_iter()
-            .map(|r| format!("{:?}", (r.subject, r.predicate, r.object, r.timestamp, r.exists)))
+            .map(|r| format!("{:?}", (r.subject.0, r.predicate, r.object.0, r.timestamp, r.exists)))
             .collect::<Vec<_>>();
     have.sort();
     pretty_assertions::assert_eq!(want, have);
@@ -383,7 +387,7 @@ fn test_gc() {
         db::triple_list_all(&db)
             .unwrap()
             .into_iter()
-            .map(|r| format!("{:?}", (r.subject, r.predicate, r.object, r.timestamp, r.exists)))
+            .map(|r| format!("{:?}", (r.subject.0, r.predicate, r.object.0, r.timestamp, r.exists)))
             .collect::<Vec<_>>();
     have.sort();
     pretty_assertions::assert_eq!(want, have);

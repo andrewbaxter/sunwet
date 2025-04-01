@@ -48,7 +48,7 @@ pub fn migrate(db: &mut rusqlite::Connection) -> Result<(), GoodError> {
                 };
                 {
                     let query =
-                        "create unique index \"triple_index_pred_subj\" on \"triple\" ( \"predicate\" , \"subject\" , \"timestamp\" )";
+                        "create index \"triple_index_pred_subj\" on \"triple\" ( \"predicate\" , \"subject\" , \"timestamp\" )";
                     txn.execute(query, ()).to_good_error_query(query)?
                 };
                 {
@@ -58,7 +58,7 @@ pub fn migrate(db: &mut rusqlite::Connection) -> Result<(), GoodError> {
                 };
                 {
                     let query =
-                        "create unique index \"triple_index_pred_obj\" on \"triple\" ( \"predicate\" , \"object\" , \"timestamp\" )";
+                        "create index \"triple_index_pred_obj\" on \"triple\" ( \"predicate\" , \"object\" , \"timestamp\" )";
                     txn.execute(query, ()).to_good_error_query(query)?
                 };
                 {

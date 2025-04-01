@@ -1,10 +1,10 @@
-$album_id -> "sunwet/1/element" ?(<- "sunwet/1/is" == "sunwet/1/track") {
+$album_id -> "sunwet/1/element" ?(-> "sunwet/1/is" == "sunwet/1/track") {
     => track_id
-    ( -> "sunwet/1/name" first { => name })
+    ( -> "sunwet/1/name" first { => track_name })
     (
-        *(<- "sunwet/1/element") -> "sunwet/1/creator" first {
+        *(<- "sunwet/1/element") -> "sunwet/1/artist" first {
             => artist_id
-            ( *(<- "sunwet/1/element") -> "sunwet/1/name" first { => artist } )
+            ( *(<- "sunwet/1/element") -> "sunwet/1/name" first { => artist_name } )
         }
     )
     ( -> "sunwet/1/index" first { => index } )
