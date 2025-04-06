@@ -32,7 +32,7 @@ html {
   display: grid;
   grid-template-columns: 1fr;
 
-  & > * {
+  &>* {
     grid-column: 1;
     grid-row: 1;
   }

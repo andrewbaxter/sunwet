@@ -1,0 +1,21 @@
+<svg viewBox="1 -1 1 2" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="clip"><circle cx="1.5" cy="0" r="0.5" /></clipPath>
+    <radialGradient id="grad" cx="0" cy="0.5" r="0.4">
+      <stop offset="30%" stop-color="currentColor" />
+      <stop offset="100%" stop-color="transparent" />
+    </radialGradient>
+  </defs>
+  <g clip-path="url(#clip)">
+    <path d="M 0 0 c 0.466 -0.4, 0.534 0.4, 1 0 c 0.466 -0.4, 0.534 0.4, 1 0 c 0.466 -0.4, 0.534 0.4, 1 0 c 0.466 -0.4, 0.534 0.4, 1 0" stroke="currentColor" stroke-width="0.1" fill="none">
+      <animateTransform attributeType="XML" attributeName="transform" type="translate" values="0, 0; -1, 0" dur="3s" repeatCount="indefinite" />
+    </path>
+  </g>
+  <!--<circle cx="1.5" cy="0" r="0.46" stroke="currentColor" opacity="0.1" stroke-width="0.08" fill="none" />-->
+  <circle cx="1.5" cy="0" r="0.46" stroke="url(#grad)" stroke-width="0.08" fill="none" transform-origin="1.5 0">
+    <animateTransform attributeType="XML" attributeName="transform" type="rotate" dur="3s" begin="-0.45s" repeatCount="indefinite" calcMode="spline" values="-10; 10; -10" keySplines="0.37 0 0.63 1; 0.37 0, 0.63 1;" />
+  </circle>
+  <circle cx="1.5" cy="0" r="0.46" stroke="url(#grad)" stroke-width="0.08" fill="none" transform-origin="1.5 0">
+    <animateTransform attributeType="XML" attributeName="transform" type="rotate" dur="3s" begin="-0.95s" repeatCount="indefinite" calcMode="spline" values="190; 170; 190" keySplines="0.37 0 0.63 1; 0.37 0, 0.63 1;" />
+  </circle>
+</svg>

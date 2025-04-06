@@ -1,0 +1,14 @@
+<svg viewBox="0 0 1 1" xmlns="http://www.w3.org/2000/svg">
+  <defs><path id="x" fill="none" stroke="currentColor" stroke-width="0.08" stroke-linecap="round" d="M 0.38 0 H 0.46" /></defs>
+  <g transform-origin="0.5 0.5">
+    <use href="#x" transform="translate(0.5 0.5) rotate(0)" />
+    <use href="#x" transform="translate(0.5 0.5) rotate(45)" />
+    <use href="#x" transform="translate(0.5 0.5) rotate(90)" />
+    <use href="#x" transform="translate(0.5 0.5) rotate(135)" />
+    <use href="#x" transform="translate(0.5 0.5) rotate(180)" />
+    <use href="#x" transform="translate(0.5 0.5) rotate(225)" />
+    <use href="#x" transform="translate(0.5 0.5) rotate(270)" />
+    <use href="#x" transform="translate(0.5 0.5) rotate(315)" />
+    <animateTransform attributeType="XML" attributeName="transform" type="rotate" values="0; -360;" dur="10s" repeatCount="indefinite" />
+  </g>
+</svg>

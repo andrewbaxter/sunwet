@@ -1,0 +1,27 @@
+<svg viewBox="0 0 3.7242256683503507 3.7242256683503507" xmlns="http://www.w3.org/2000/svg">
+  <!-- circumference 9, thickness 30% -->
+  <circle cx="1.8621128341751754" cy="1.8621128341751754" r="1.432394487827058" stroke-width="0.4297183463481174" stroke="black" fill="none"
+    stroke-dasharray='0.02 2.98 0.2 1.8 0.02 1.48 0.8 1.7' stroke-linecap="butt">
+    <animate dur="54s" repeatCount="indefinite" calcMode="spline" attributeName="stroke-dashoffset" values="0; 9" keyTimes="0; 1" />
+  </circle>
+  <circle cx="1.8621128341751754" cy="1.8621128341751754" r="1.432394487827058" stroke-width="0.4297183463481174" stroke="black" fill="none"
+    stroke-dasharray='0.1 1.4 0.3 1.5 0.02 3.98 0.1 1.6' stroke-linecap="butt">
+    <animate dur="37s" repeatCount="indefinite" calcMode="spline" attributeName="stroke-dashoffset" values="0; 9" keyTimes="0; 1" />
+  </circle>
+  <circle cx="1.8621128341751754" cy="1.8621128341751754" r="1.432394487827058" stroke-width="0.4297183463481174" stroke="black" fill="none"
+    stroke-dasharray='0.3 0.7 0.02 1.98 0.5 3.5 0.1 1.9' stroke-linecap="butt">
+    <animate dur="29s" repeatCount="indefinite" calcMode="spline" attributeName="stroke-dashoffset" values="0; 9" keyTimes="0; 1" />
+  </circle>
+  <circle cx="1.8621128341751754" cy="1.8621128341751754" r="1.432394487827058" stroke-width="0.4297183463481174" stroke="black" fill="none"
+    stroke-dasharray='0.2 0.8 0.1 2.9 0.4 1.6 0.02 2.98' stroke-linecap="butt">
+    <animate dur="40s" repeatCount="indefinite" calcMode="spline" attributeName="stroke-dashoffset" values="0; 9" keyTimes="0; 1" />
+  </circle>
+  <circle cx="1.8621128341751754" cy="1.8621128341751754" r="1.432394487827058" stroke-width="0.4297183463481174" stroke="black" fill="none"
+    stroke-dasharray='1 2.15 0.05 1.8 0.1 2.5 0.2 1.2' stroke-linecap="butt">
+    <animate dur="38s" repeatCount="indefinite" calcMode="spline" attributeName="stroke-dashoffset" values="0; 9" keyTimes="0; 1" />
+  </circle>
+  <circle cx="1.8621128341751754" cy="1.8621128341751754" r="1.432394487827058" stroke-width="0.4297183463481174" stroke="black" fill="none"
+    stroke-dasharray='1.2 1.8 0.9 2.5 1 1.6' stroke-linecap="butt">
+    <animate dur="77s" repeatCount="indefinite" calcMode="spline" attributeName="stroke-dashoffset" values="0; 9" keyTimes="0; 1" />
+  </circle>
+</svg>

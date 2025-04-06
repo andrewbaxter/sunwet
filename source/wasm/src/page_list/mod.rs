@@ -381,6 +381,12 @@ fn build_widget(
                     if let TreeNode::Scalar(Node::Value(serde_json::Value::String(m))) = v {
                         media_type = m.clone();
                     } else {
+                        log(
+                            format!(
+                                "Error: Media field value not string, got:\n{}",
+                                serde_json::to_string(&v).unwrap()
+                            ),
+                        );
                         return el_image_err("Media field value not string".to_string());
                     }
                 },

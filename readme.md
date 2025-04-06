@@ -38,11 +38,11 @@ Taking the above example about cats and dogs, you could solve this by having a n
 
 Do knowledge graphs work? I have no idea, I made this, as an accessible and general-purpose knowledge graph, to find out.
 
-# Criticism: Just don't organize
+# On not-organizing things
 
 Some people say organizing things like this requires unrealistic diligence, it's not worth it - doing full text search is all you really need.
 
-I agree there're a lot of searches that full text search works great for, but there're also a lot of things it doesn't:
+I agree there're a lot of uses that full text search works great for, but there're also a lot of uses it doesn't:
 
 - Nobody searches their music collection using full text search, even if the relevant text is in the track metadata. They find music by categories - genre, artist, purchase date, mood. And more importantly, they frequently aren't _searching_ but _exploring_.
 
@@ -57,6 +57,8 @@ I agree there're a lot of searches that full text search works great for, but th
 Also, while some of this data might be added by hand, I'd expect a lot of it to be added using automatic importers, perhaps reading from other databases of well-classified information.
 
 Sunwet supports full text search too though.
+
+Edit: Actually today people would probably say just use AI... I wrote this a couple years ago originally. I'm not going to address this directly, but to some point I think the above still applies: in order to train AI you still need structured, and I think AI (chat) wouldn't be a satisfactory interface for many interactions above.
 
 # What is Sunwet
 

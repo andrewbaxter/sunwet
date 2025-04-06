@@ -1,0 +1,9 @@
+<svg viewBox="1 -1 1 2" xmlns="http://www.w3.org/2000/svg">
+  <defs><clipPath id="clip"><ellipse cx="1.5" cy="0" rx="0.5" ry="0.4" /></clipPath></defs>
+  <g clip-path="url(#clip)">
+    <path d="M 0 0 c 0.466 -0.4, 0.534 0.4, 1 0 c 0.466 -0.4, 0.534 0.4, 1 0 c 0.466 -0.4, 0.534 0.4, 1 0 c 0.466 -0.4, 0.534 0.4, 1 0" stroke="currentColor" stroke-width="0.1" fill="none">
+      <animateTransform attributeType="XML" attributeName="transform" type="translate" values="0, 0; -1, 0" dur="3s" repeatCount="indefinite" />
+    </path>
+  </g>
+  <rect x="1" y="-0.5" width="0.96" height="0.96" rx="0.2" fill="none" stroke="currentColor" stroke-width="0.08" stroke-dasharray="0.314 0.56 0.314 0.56 0.314 0.56 0.314 0.56" stroke-dashoffset="0.314" />
+</svg>
