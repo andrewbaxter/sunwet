@@ -1,16 +1,22 @@
 @font-face {
-  font-family: "A";
-  src: url("Quicksand-VariableFont_wght.ttf");
-}
-
-@font-face {
   font-family: "I";
   src: url("MaterialSymbolsRounded.woff2");
 }
 
+@font-face {
+  font-family: "X";
+  src: url("MaterialSymbolsRounded.woff2");
+  unicode-range: U+E000-F8FF;
+  /* Combining fonts messes with the icon metrics, use I for pure icons */
+}
+
+@font-face {
+  font-family: "X";
+  src: url("Quicksand-VariableFont_wght.ttf");
+}
+
 :root {
   --s-pad-title: 0.4cm;
-  --s-font-title: 24pt;
   --s-font-menu: 16pt;
   --s-font-content: 12pt;
   --s-font-icon-menu: 20pt;
@@ -27,16 +33,16 @@
 
 @media (prefers-color-scheme: light) {
   :root {
-    --c-background: #cdcfd4;
-    --c-bg2: #dadce2;
+    --c-background: rgb(205, 207, 212);
+    --c-bg2: rgb(218, 220, 226);
     --c-background-menu-button-hover: var(--c-bg2);
-    --c-background-menu-button-click: #e2e5ed;
-    --c-background-menu: #adb1bc;
-    --c-background-menu-buttons: #b7bbc7;
-    --c-background-menu-buttons-hover: #c4c8d5;
-    --c-background-menu-buttons-click: #cacedb;
-    --c-foreground: black;
-    --c-input-border: #9a9da8;
+    --c-background-menu-button-click: rgb(226, 229, 237);
+    --c-background-menu: rgb(173, 177, 188);
+    --c-background-menu-buttons: rgb(183, 187, 199);
+    --c-background-menu-buttons-hover: rgb(196, 200, 213);
+    --c-background-menu-buttons-click: rgb(202, 206, 219);
+    --c-foreground: rgb(0, 0, 0);
+    --c-input-border: rgb(154, 157, 168);
     --c-input-background: var(--c-bg2);
 
     --c-sunwet-light: blue;
@@ -62,51 +68,45 @@
   }
 }
 
-/* General */
-vbox {
+html {
+  font-family: X;
+}
+
+.cont_vbox {
   display: flex;
   flex-direction: column;
 }
 
-hbox {
+.cont_hbox {
   display: flex;
   flex-direction: row;
 }
 
-space {
+.leaf_space {
   flex-grow: 1;
+}
+
+.cont_bar {
+  width: 100%;
+}
+
+.leaf_bar_button {
+  padding: 0.3cm;
+}
+
+.cont_menu_group {
+  margin-left: 0.6cm;
+  gap: 0.3cm;
+}
+
+.leaf_edit_rel {
+  padding: 0.2cm;
+  color: var(--param_c_center);
 }
 
 .g_error {
   font-size: 14pt;
   color: var(--c-fg-err);
-}
-
-icon,
-.g_icon {
-  font-family: "I";
-  display: grid;
-  grid-template-columns: 1fr;
-  justify-items: center;
-  align-items: center;
-  --s-icon: 0.7cm;
-  width: var(--s-icon);
-  height: var(--s-icon);
-}
-
-icon.g_icon_rel {
-  font-size: 30pt;
-  font-weight: 200;
-  --s-icon: 1.2cm;
-  margin-bottom: calc(-0.5 * var(--s-icon));
-}
-
-button.g_icon {
-  font-size: 18pt;
-}
-
-button {
-  padding: 0.3cm;
 }
 
 .g_qr {

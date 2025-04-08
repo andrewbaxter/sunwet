@@ -10,7 +10,6 @@ Baseline un-styling.
   vertical-align: middle;
   font-size: 12pt;
   font-weight: 400;
-  font-family: "A";
   box-sizing: border-box;
   pointer-events: none;
   text-decoration: none;
@@ -22,6 +21,8 @@ Baseline un-styling.
   color: inherit;
   min-width: 0;
   min-height: 0;
+  font-family: inherit;
+  font-size: inherit;
 }
 
 html {
@@ -45,10 +46,4 @@ button,
 *[contenteditable],
 summary {
   pointer-events: initial;
-}
-
-input,
-select {
-  font-family: inherit;
-  font-size: inherit;
 }
