@@ -7,7 +7,6 @@ Baseline un-styling.
 *:after {
   padding: 0;
   margin: 0;
-  vertical-align: middle;
   font-size: 12pt;
   font-weight: 400;
   box-sizing: border-box;
@@ -23,7 +22,7 @@ Baseline un-styling.
 }
 
 html {
-  height: 100vh;
+  min-height: 100dvh;
   width: 100dvw;
   max-width: 100dvw;
   overflow-x: hidden;
