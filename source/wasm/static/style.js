@@ -454,21 +454,25 @@ const leafButtonFreeEndStyle = s(uniq("leaf_button_free_incoming"), {
     s.alignSelf = "center";
   },
 });
-/** @type { (id: string, nodeHint: string, node: string, revert: ()=>void) => HTMLElement} */
-const newLeafEditNode = (id, nodeHint, node, revert) => {
-  /** @type { (icon: string, hint: string, click?: ()=>void) => HTMLElement} */
-  const newButton = (icon, hint, click) =>
+/** @type { (id: string, nodeHint: string, nodeType: string, node: string) => HTMLElement} */
+const newLeafEditNode = (id, nodeHint, nodeType, node) => {
+  /** @type { (icon: string, hint: string) => HTMLElement} */
+  const newButton = (icon, hint) =>
     e("button", {
       title: hint,
       styles_: [leafButtonFreeStyle, leafIconStyle],
       textContent: icon,
-      onclick: click,
     });
-  const inputSelect = newLeafInputSelect(`${id}_type`, [
-    e("option", { textContent: "Value" }),
-    e("option", { textContent: "File" }),
-  ]);
-  const inputText = newLeafInputText(id, nodeHint, node);
+  const inputSelect = /** @type {HTMLSelectElement} */ (
+    newLeafInputSelect(`${id}_type`, [
+      e("option", { textContent: "Value", value: "value" }),
+      e("option", { textContent: "File", value: "file" }),
+    ])
+  );
+  inputSelect.value = nodeType;
+  const inputText = /** @type {HTMLInputElement} */ (
+    newLeafInputText(id, nodeHint, node)
+  );
   return e("div", {
     styles_: [contVBoxStyle, contEditNodeVboxStyle],
     children_: [
@@ -478,11 +482,7 @@ const newLeafEditNode = (id, nodeHint, node, revert) => {
           inputSelect,
           newLeafSpace(),
           newButton("\ue15b", "Delete"),
-          newButton("\ue166", "Revert", () => {
-            inputSelect.value = originalType;
-            inputText.value = node;
-            revert();
-          }),
+          newButton("\ue166", "Revert"),
         ],
       }),
       inputText,
@@ -789,11 +789,11 @@ addEventListener("DOMContentLoaded", (_) => {
         styles_: [contVBoxStyle, contPageEditStyle],
         children_: [
           newLeafEditRowIncoming([
-            newLeafEditNode(uniq(), "Subject", "WXYZ-9999"),
+            newLeafEditNode(uniq(), "Subject", "value", "WXYZ-9999"),
             newLeafEditPredicate(uniq(), "sunwet/1/is"),
           ]),
           newLeafEditRowIncoming([
-            newLeafEditNode(uniq(), "Subject", "LMNO-4567"),
+            newLeafEditNode(uniq(), "Subject", "file", "LMNO-4567"),
             newLeafEditPredicate(uniq(), "sunwet/1/has"),
           ]),
         ],
@@ -809,17 +809,19 @@ addEventListener("DOMContentLoaded", (_) => {
             },
           }),
         ],
-        children_: [newLeafEditNode(uniq(), "Current node", "ABCD-01234")],
+        children_: [
+          newLeafEditNode(uniq(), "Current node", "value", "ABCD-01234"),
+        ],
       }),
       e("div", {
         styles_: [contVBoxStyle, contPageEditStyle],
         children_: [
           newLeafEditRowOutgoing([
-            newLeafEditNode(uniq(), "Subject", "WXYZ-9999"),
+            newLeafEditNode(uniq(), "Subject", "file", "WXYZ-9999"),
             newLeafEditPredicate(uniq(), "sunwet/1/is"),
           ]),
           newLeafEditRowOutgoing([
-            newLeafEditNode(uniq(), "Subject", "LMNO-4567"),
+            newLeafEditNode(uniq(), "Subject", "value", "LMNO-4567"),
             newLeafEditPredicate(uniq(), "sunwet/1/has"),
           ]),
         ],
