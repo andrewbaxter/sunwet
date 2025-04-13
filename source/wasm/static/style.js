@@ -383,7 +383,7 @@ const contBodyNarrowStyle = s(uniq("cont_body_narrow"), {
     s.gridColumn = "1/4";
     s.width = `min(20cm, 100% - ${varSCol1Width} * 2)`;
     s.justifySelf = "center";
-    s.marginBottom = "1cm";
+    s.marginBottom = "2.5cm";
   },
   [`.${classMenuStateOpen}`]: (s) => {
     s.display = "none";
