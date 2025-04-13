@@ -362,21 +362,6 @@ const newLeafInputSelect = (id, children) =>
 ///////////////////////////////////////////////////////////////////////////////
 // xx Components, styles: page, form
 
-const contPageFormStyle = s(uniq("cont_page_form"), {
-  "": (s) => {
-    s.display = "grid";
-    s.gridTemplateColumns = "auto 1fr";
-    s.alignItems = "first baseline";
-    s.columnGap = "0.2cm";
-    s.rowGap = "0.2cm";
-  },
-  ">label": (s) => {
-    s.gridColumn = "1";
-  },
-  ">input": (s) => {
-    s.gridColumn = "2";
-  },
-});
 const contBodyNarrowStyle = s(uniq("cont_body_narrow"), {
   "": (s) => {
     s.gridRow = "2";
@@ -392,18 +377,35 @@ const contBodyNarrowStyle = s(uniq("cont_body_narrow"), {
 /** @type { (entries: HTMLElement[]) => HTMLElement} */
 const newContPageForm = (entries) =>
   e("div", {
-    styles_: [contPageFormStyle, contBodyNarrowStyle],
-    children_: entries,
+    styles_: [classMenuWantStateOpen, contBodyNarrowStyle, contVBoxStyle],
+    children_: [
+      e("div", {
+        styles_: [
+          ss(uniq("cont_page_form"), {
+            "": (s) => {
+              s.display = "grid";
+              s.gridTemplateColumns = "auto 1fr";
+              s.alignItems = "first baseline";
+              s.columnGap = "0.2cm";
+              s.rowGap = "0.2cm";
+            },
+            ">label": (s) => {
+              s.gridColumn = "1";
+            },
+            ">input": (s) => {
+              s.gridColumn = "2";
+            },
+          }),
+        ],
+        children_: entries,
+      }),
+      newLeafSpace(),
+    ],
   });
 
 ///////////////////////////////////////////////////////////////////////////////
 // xx Components, styles: page, edit
 
-const contPageEditStyle = s(uniq("page_edit"), {
-  "": (s) => {
-    s.gap = "0.5cm";
-  },
-});
 /** @type { (children: HTMLElement[]) => HTMLElement} */
 const newContPageEdit = (children) =>
   e("div", {
@@ -411,7 +413,11 @@ const newContPageEdit = (children) =>
       classMenuWantStateOpen,
       contBodyNarrowStyle,
       contVBoxStyle,
-      contPageEditStyle,
+      ss(uniq("page_edit"), {
+        "": (s) => {
+          s.gap = "0.5cm";
+        },
+      }),
     ],
     children_: children,
   });
@@ -771,69 +777,70 @@ addEventListener("DOMContentLoaded", (_) => {
       [e("button", { textContent: "Save" })]
     )
   );
-  //   document.body.appendChild(
-  //     newContPageForm([
-  //       newLeafInputPairText("item1", "Title", "ABCD"),
-  //       newLeafInputPairText("item2", "Text", "WXYC"),
-  //     ])
-  //   );
   document.body.appendChild(
-    newContPageEdit([
-      newLeafEditRowIncoming([
-        e("button", {
-          styles_: [leafIconStyle, leafButtonFreeStyle, leafButtonFreeEndStyle],
-          textContent: "\ue145",
-        }),
-      ]),
-      e("div", {
-        styles_: [contVBoxStyle, contPageEditStyle],
-        children_: [
-          newLeafEditRowIncoming([
-            newLeafEditNode(uniq(), "Subject", "value", "WXYZ-9999"),
-            newLeafEditPredicate(uniq(), "sunwet/1/is"),
-          ]),
-          newLeafEditRowIncoming([
-            newLeafEditNode(uniq(), "Subject", "file", "LMNO-4567"),
-            newLeafEditPredicate(uniq(), "sunwet/1/has"),
-          ]),
-        ],
-      }),
-      e("div", {
-        styles_: [
-          s(uniq("cont_page_edit_center"), {
-            "": (s) => {
-              s.padding = "0.2cm";
-              s.backgroundColor = varCEditCenter;
-              s.borderRadius = "0.2cm";
-              s.margin = "0.4cm 0";
-            },
-          }),
-        ],
-        children_: [
-          newLeafEditNode(uniq(), "Current node", "value", "ABCD-01234"),
-        ],
-      }),
-      e("div", {
-        styles_: [contVBoxStyle, contPageEditStyle],
-        children_: [
-          newLeafEditRowOutgoing([
-            newLeafEditNode(uniq(), "Subject", "file", "WXYZ-9999"),
-            newLeafEditPredicate(uniq(), "sunwet/1/is"),
-          ]),
-          newLeafEditRowOutgoing([
-            newLeafEditNode(uniq(), "Subject", "value", "LMNO-4567"),
-            newLeafEditPredicate(uniq(), "sunwet/1/has"),
-          ]),
-        ],
-      }),
-      newLeafEditRowOutgoing([
-        e("button", {
-          styles_: [leafIconStyle, leafButtonFreeStyle, leafButtonFreeEndStyle],
-          textContent: "\ue145",
-        }),
-      ]),
+    newContPageForm([
+      newLeafInputPairText("item1", "Title", "ABCD"),
+      newLeafInputPairText("item2", "Text", "WXYC"),
+      newLeafSpace(),
     ])
   );
+  //   document.body.appendChild(
+  //     newContPageEdit([
+  //       newLeafEditRowIncoming([
+  //         e("button", {
+  //           styles_: [leafIconStyle, leafButtonFreeStyle, leafButtonFreeEndStyle],
+  //           textContent: "\ue145",
+  //         }),
+  //       ]),
+  //       e("div", {
+  //         styles_: [contVBoxStyle, contPageEditStyle],
+  //         children_: [
+  //           newLeafEditRowIncoming([
+  //             newLeafEditNode(uniq(), "Subject", "value", "WXYZ-9999"),
+  //             newLeafEditPredicate(uniq(), "sunwet/1/is"),
+  //           ]),
+  //           newLeafEditRowIncoming([
+  //             newLeafEditNode(uniq(), "Subject", "file", "LMNO-4567"),
+  //             newLeafEditPredicate(uniq(), "sunwet/1/has"),
+  //           ]),
+  //         ],
+  //       }),
+  //       e("div", {
+  //         styles_: [
+  //           s(uniq("cont_page_edit_center"), {
+  //             "": (s) => {
+  //               s.padding = "0.2cm";
+  //               s.backgroundColor = varCEditCenter;
+  //               s.borderRadius = "0.2cm";
+  //               s.margin = "0.4cm 0";
+  //             },
+  //           }),
+  //         ],
+  //         children_: [
+  //           newLeafEditNode(uniq(), "Current node", "value", "ABCD-01234"),
+  //         ],
+  //       }),
+  //       e("div", {
+  //         styles_: [contVBoxStyle, contPageEditStyle],
+  //         children_: [
+  //           newLeafEditRowOutgoing([
+  //             newLeafEditNode(uniq(), "Subject", "file", "WXYZ-9999"),
+  //             newLeafEditPredicate(uniq(), "sunwet/1/is"),
+  //           ]),
+  //           newLeafEditRowOutgoing([
+  //             newLeafEditNode(uniq(), "Subject", "value", "LMNO-4567"),
+  //             newLeafEditPredicate(uniq(), "sunwet/1/has"),
+  //           ]),
+  //         ],
+  //       }),
+  //       newLeafEditRowOutgoing([
+  //         e("button", {
+  //           styles_: [leafIconStyle, leafButtonFreeStyle, leafButtonFreeEndStyle],
+  //           textContent: "\ue145",
+  //         }),
+  //       ]),
+  //     ])
+  //   );
 
   document.body.appendChild(
     e("div", {
