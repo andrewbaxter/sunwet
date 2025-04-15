@@ -1,9 +1,18 @@
 ///////////////////////////////////////////////////////////////////////////////
 // xx Utility, globals
 
-const uniq = (args) => {
+/** @type { <T>(x: T|null|undefined) => T } */
+const notnull = (x) => {
+  if (x == null) {
+    throw Error();
+  }
+  return x;
+};
+
+/** @type { (...args: string[]) => string} */
+const uniq = (...args) => {
   const uniq = [];
-  for (const e of new Error().stack.matchAll(/(\d+):\d+/g)) {
+  for (const e of notnull(new Error().stack).matchAll(/(\d+):\d+/g)) {
     uniq.push(e[1]);
   }
   uniq.push(args);
@@ -31,6 +40,7 @@ const e = (name, args) => {
           out.appendChild(c);
         }
       } else {
+        // @ts-ignore
         out[k] = v;
       }
     }
@@ -120,6 +130,7 @@ const s = (id, f) => {
 };
 
 const staticStyles = new Map();
+// Static style - the constructor mustn't close on anything. This guarantees the style is only built once, even if called multiple times.
 /** @type { (id: string, f: {[s: string]: (r: CSSStyleDeclaration) => void}) => string } */
 const ss = (id, f) => {
   if (staticStyles.has(id)) {
@@ -143,14 +154,21 @@ const varSCol1Width = v("min(0.8cm, 5dvw)");
 const varSCol3Width = v("1.4cm");
 const varSMenuColWidth = v("min(100%, 12cm)");
 const varSEditRelWidth = v("1.5cm");
-const varCBackground = vs("rgb(205, 207, 212)", "rgb(0,0,0)");
+//const varCBackground = vs("rgb(205, 207, 212)", "rgb(0,0,0)");
+const varCBackground = vs("rgb(230, 232, 238)", "rgb(0,0,0)");
 const varCBg2 = vs("rgb(218, 220, 226)", "rgb(0,0,0)");
-const varCBackgroundMenuButtonHover = vs(varCBg2, "rgb(0,0,0)");
-const varCBackgroundMenuButtonClick = vs("rgb(226, 229, 237)", "rgb(0,0,0)");
-const varCBackgroundMenu = vs("rgb(173, 177, 188)", "rgb(0,0,0)");
-const varCBackgroundMenuButtons = vs("rgb(183, 187, 199)", "rgb(0,0,0)");
-const varCBackgroundMenuButtonsHover = vs("rgb(196, 200, 213)", "rgb(0,0,0)");
-const varCBackgroundMenuButtonsClick = vs("rgb(202, 206, 219)", "rgb(0,0,0)");
+//const varCBackgroundMenu = vs("rgb(173, 177, 188)", "rgb(0,0,0)");
+const varCBackgroundMenu = vs("rgb(205, 208, 217)", "rgb(0,0,0)");
+const varCBackgroundMenuButtons = vs("rgb(219, 223, 232)", "rgb(0,0,0)");
+
+const varCButtonHover = vs("rgba(255, 255, 255, 0.7)", "rgb(0,0,0)");
+const varCButtonClick = vs("rgba(255, 255, 255, 1)", "rgb(0,0,0)");
+
+const varCSeekbarEmpty = vs("rgb(212, 216, 223)", "rgb(0,0,0)");
+const varCSeekbarFill = vs("rgb(197, 196, 209)", "rgb(0,0,0)");
+
+const varSButtonPad = v("0.3cm");
+
 const varCForeground = vs("rgb(0, 0, 0)", "rgb(0,0,0)");
 const varCInputBorder = vs("rgb(154, 157, 168)", "rgb(0,0,0)");
 const varCInputBackground = vs(varCBg2, "rgb(0,0,0)");
@@ -172,6 +190,7 @@ const classMenuStateOpen = "state_open";
 
 const contVBoxStyle = "vbox";
 const contHBoxStyle = "hbox";
+const contStackStyle = "stack";
 
 const contTitleStyle = s(uniq("cont_title"), {
   "": (s) => {
@@ -220,44 +239,194 @@ const leafIconStyle = s(uniq("icon"), {
   },
 });
 
-/** @type { (extraStyles: string[], children: HTMLElement[]) => HTMLElement} */
-const newContBar = (extraStyles, children) =>
-  e("div", {
+/** @type { (
+ *    extraStyles: string[],
+ *    leftChildren: HTMLElement[],
+ *    leftMidChildren: HTMLElement[],
+ *    midChildren: HTMLElement[],
+ *    rightMidChildren: HTMLElement[],
+ *    rightChildren: HTMLElement[]
+ * ) => HTMLElement} */
+const newContBar = (
+  extraStyles,
+  leftChildren,
+  leftMidChildren,
+  midChildren,
+  rightMidChildren,
+  rightChildren
+) => {
+  /** @type { (children: HTMLElement[]) => HTMLElement} */
+  const newHbox = (children) =>
+    e("div", {
+      styles_: [
+        contHBoxStyle,
+        ss(uniq("cont_bar_hbox"), {
+          "": (s) => {
+            s.alignItems = "center";
+            s.gap = "0.2cm";
+            s.margin = `0 0.2cm`;
+          },
+        }),
+      ],
+      children_: children,
+    });
+
+  return e("div", {
     styles_: [
       ss(uniq("cont_bar"), {
         "": (s) => {
           s.zIndex = "2";
           s.display = "grid";
+          s.gridTemplateColumns =
+            "minmax(min-content, 1fr) auto minmax(min-content, 1fr)";
+        },
+        ">*:nth-child(1)": (s) => {
+          s.gridColumn = "1";
+          s.justifySelf = "start";
+        },
+        ">*:nth-child(2)": (s) => {
+          s.gridColumn = "2";
+          s.justifySelf = "center";
+        },
+        ">*:nth-child(3)": (s) => {
+          s.gridColumn = "3";
+          s.justifySelf = "end";
         },
       }),
       ...extraStyles,
     ],
     children_: [
+      newHbox(leftChildren),
       e("div", {
         styles_: [
-          contHBoxStyle,
-          ss(uniq(), {
+          ss(uniq("cont_bar_middle"), {
             "": (s) => {
+              s.minWidth = "0";
+              s.display = "grid";
               s.gridColumn = "2";
-              s.justifyContent = "flex-end";
-              s.alignItems = "center";
+              s.gridTemplateColumns =
+                "minmax(min-content, 1fr) auto minmax(min-content, 1fr)";
             },
-            ">button": (s) => {
-              s.padding = "0.3cm";
-              s.backgroundColor = "rgba(255, 255, 255, 0)";
+            ">*:nth-child(1)": (s) => {
+              s.gridColumn = "1";
+              s.justifySelf = "end";
             },
-            ">button:hover": (s) => {
-              s.backgroundColor = "rgba(255, 255, 255, 0.7)";
+            ">*:nth-child(2)": (s) => {
+              s.gridColumn = "2";
+              s.justifySelf = "center";
             },
-            ">button:hover:active": (s) => {
-              s.backgroundColor = "rgba(255, 255, 255, 1)";
+            ">*:nth-child(3)": (s) => {
+              s.gridColumn = "3";
+              s.justifySelf = "start";
             },
           }),
         ],
-        children_: children,
+        children_: [
+          newHbox(leftMidChildren),
+          newHbox(midChildren),
+          newHbox(rightMidChildren),
+        ],
       }),
+      newHbox(rightChildren),
     ],
   });
+};
+
+const contBarMainStyle = ss(uniq("cont_bar_main"), {
+  "": (s) => {
+    s.width = "100%";
+    s.position = "fixed";
+    s.bottom = "0.7cm";
+
+    s.transition = "0.03s opacity";
+    s.opacity = "1";
+  },
+  [`.${classMenuStateOpen}`]: (s) => {
+    s.opacity = "0";
+  },
+});
+
+/** @type { (
+ *    leftChildren: HTMLElement[],
+ *    leftMidChildren: HTMLElement[],
+ *    midChildren: HTMLElement[],
+ *    rightMidChildren: HTMLElement[],
+ *    rightChildren: HTMLElement[]
+ * ) => HTMLElement} */
+const newContBarMainForm = (
+  leftChildren,
+  leftMidChildren,
+  midChildren,
+  rightMidChildren,
+  rightChildren
+) =>
+  newContBar(
+    [
+      classMenuWantStateOpen,
+      contBarMainStyle,
+      ss(uniq("cont_bar_main_form"), {
+        "": (s) => {
+          s.backdropFilter = "brightness(1.06) blur(0.2cm)";
+        },
+      }),
+    ],
+    leftChildren,
+    leftMidChildren,
+    midChildren,
+    rightMidChildren,
+    rightChildren
+  );
+
+/** @type { (
+ *    leftChildren: HTMLElement[],
+ *    leftMidChildren: HTMLElement[],
+ *    midChildren: HTMLElement[],
+ *    rightMidChildren: HTMLElement[],
+ *    rightChildren: HTMLElement[]
+ * ) => HTMLElement} */
+const newContBarMainTransport = (
+  leftChildren,
+  leftMidChildren,
+  midChildren,
+  rightMidChildren,
+  rightChildren
+) =>
+  newContBar(
+    [
+      classMenuWantStateOpen,
+      contBarMainStyle,
+      ss(uniq("cont_bar_main_transport"), {
+        "": (s) => {
+          s.backdropFilter = "blur(0.2cm)";
+        },
+      }),
+    ],
+    leftChildren,
+    leftMidChildren,
+    midChildren,
+    rightMidChildren,
+    rightChildren
+  );
+
+/** @type { (children: HTMLElement[]) => HTMLElement} */
+const newContBarMenu = (children) =>
+  newContBar(
+    [
+      ss(uniq("cont_bar_menu"), {
+        "": (s) => {
+          s.gridColumn = "1/3";
+
+          s.backgroundColor = varCBackgroundMenuButtons;
+          s.margin = "0.5cm 0";
+        },
+      }),
+    ],
+    [],
+    [],
+    [],
+    [],
+    children
+  );
 
 const leafSpinnerStyle = s(uniq("leaf_spinner"), {
   "": (s) => {
@@ -300,6 +469,35 @@ const leafSpaceStyle = s(uniq("leaf_space"), {
 /** @type { () => HTMLElement} */
 const newLeafSpace = () => e("div", { styles_: [leafSpaceStyle] });
 
+/** @type { (title: string, text: string, extraStyles: string[], onclick?: ()=>void) => HTMLElement} */
+const newLeafButton = (title, text, extraStyles, onclick) =>
+  e("button", {
+    styles_: [
+      ss(uniq("leaf_button"), {
+        ":hover": (s) => {
+          s.backgroundColor = varCButtonHover;
+        },
+        ":hover:active": (s) => {
+          s.backgroundColor = varCButtonClick;
+        },
+      }),
+      ...extraStyles,
+    ],
+    title: title,
+    textContent: text,
+    onclick: onclick,
+  });
+
+/** @type { (title: string, icon: string) => HTMLElement} */
+const newLeafBarButtonBig = (title, text) =>
+  newLeafButton(title, text, [
+    ss(uniq("leaf_button_bar_big"), {
+      "": (s) => {
+        s.padding = varSButtonPad;
+      },
+    }),
+  ]);
+
 ///////////////////////////////////////////////////////////////////////////////
 // xx Components, styles: page, form + edit
 const leafInputPairStyle = s(uniq("leaf_form_input_pair"), {
@@ -328,10 +526,8 @@ const newLeafInputPair = (label, inputId, input) =>
 
 const leafInputStyle = s(uniq("leaf_form_input_text"), {
   "": (s) => {
-    s.border = `0.04cm solid ${varCInputBorder}`;
-    //s.backgroundColor = varCInputBackground;
+    s.borderBottom = `0.04cm solid ${varCInputBorder}`;
     s.padding = "0.1cm";
-    s.borderRadius = "0.2cm";
     s.maxWidth = "9999cm";
   },
 });
@@ -358,6 +554,31 @@ const newLeafInputSelect = (id, children) =>
     name: id,
     children_: children,
   });
+
+///////////////////////////////////////////////////////////////////////////////
+// xx Components, styles: page, view
+
+/** @type { (entries: HTMLElement[]) => HTMLElement} */
+const newContPageView = (entries) =>
+  e("div", {
+    styles_: [classMenuWantStateOpen, contVBoxStyle],
+    children_: entries,
+  });
+
+/** @type { (title: string, icon: string) => HTMLElement} */
+const newLeafTransportButton = (title, icon) =>
+  newLeafButton(title, icon, [
+    leafIconStyle,
+    ss(uniq("leaf_transport_button"), {
+      "": (s) => {
+        s.fontSize = "24pt";
+        s.fontWeight = "100";
+        const size = "1cm";
+        s.width = size;
+        s.height = size;
+      },
+    }),
+  ]);
 
 ///////////////////////////////////////////////////////////////////////////////
 // xx Components, styles: page, form
@@ -406,6 +627,8 @@ const newContPageForm = (entries) =>
 ///////////////////////////////////////////////////////////////////////////////
 // xx Components, styles: page, edit
 
+var varSEditGap = v("0.5cm");
+
 /** @type { (children: HTMLElement[]) => HTMLElement} */
 const newContPageEdit = (children) =>
   e("div", {
@@ -415,12 +638,49 @@ const newContPageEdit = (children) =>
       contVBoxStyle,
       ss(uniq("page_edit"), {
         "": (s) => {
-          s.gap = "0.5cm";
+          s.gap = varSEditGap;
         },
       }),
     ],
     children_: children,
   });
+
+/** @type { (children: HTMLElement[]) => HTMLElement} */
+const newContPageEditSectionRel = (children) =>
+  e("div", {
+    styles_: [
+      contVBoxStyle,
+      ss(uniq("cont_page_edit_section_rel"), {
+        "": (s) => {
+          s.gap = varSEditGap;
+        },
+      }),
+    ],
+    children_: children,
+  });
+
+/** @type { (icon: string, hint: string) => HTMLElement} */
+const newLeafButtonEditFree = (icon, hint) =>
+  newLeafButton(hint, icon, [
+    leafIconStyle,
+    ss(uniq("leaf_button_free"), {
+      "": (s) => {
+        s.fontSize = "22pt";
+        s.fontWeight = "300";
+        const size = "1.2cm";
+        s.width = size;
+        s.height = size;
+        s.borderRadius = "0.2cm";
+        s.color = `color-mix(in srgb, ${varCForeground}, transparent 30%)`;
+      },
+      ":hover": (s) => {
+        s.color = varCForeground;
+      },
+      ":hover:active": (s) => {
+        s.color = varCForeground;
+      },
+    }),
+  ]);
 
 const contEditNodeVboxStyle = s(uniq("cont_edit_node_vbox"), {
   "": (s) => {
@@ -434,41 +694,8 @@ const contEditNodeHboxStyle = s(uniq("cont_edit_node_hbox"), {
     s.gap = "0.2cm";
   },
 });
-const leafButtonFreeStyle = s(uniq("leaf_button_free"), {
-  "": (s) => {
-    s.fontSize = "22pt";
-    s.fontWeight = "300";
-    const size = "1.2cm";
-    s.width = size;
-    s.height = size;
-    s.borderRadius = "0.2cm";
-    s.color = `color-mix(in srgb, ${varCForeground}, transparent 30%)`;
-  },
-  ":hover": (s) => {
-    s.border = `0.06cm solid ${varCBackground}`;
-    s.backgroundColor = varCEditButtonFreeHover;
-    s.color = varCForeground;
-  },
-  ":hover:active": (s) => {
-    s.border = `0.06cm solid ${varCBackground}`;
-    s.backgroundColor = varCEditButtonFreeClick;
-    s.color = varCForeground;
-  },
-});
-const leafButtonFreeEndStyle = s(uniq("leaf_button_free_incoming"), {
-  "": (s) => {
-    s.alignSelf = "center";
-  },
-});
 /** @type { (id: string, nodeHint: string, nodeType: string, node: string) => HTMLElement} */
 const newLeafEditNode = (id, nodeHint, nodeType, node) => {
-  /** @type { (icon: string, hint: string) => HTMLElement} */
-  const newButton = (icon, hint) =>
-    e("button", {
-      title: hint,
-      styles_: [leafButtonFreeStyle, leafIconStyle],
-      textContent: icon,
-    });
   const inputSelect = /** @type {HTMLSelectElement} */ (
     newLeafInputSelect(`${id}_type`, [
       e("option", { textContent: "Value", value: "value" }),
@@ -487,8 +714,8 @@ const newLeafEditNode = (id, nodeHint, nodeType, node) => {
         children_: [
           inputSelect,
           newLeafSpace(),
-          newButton("\ue15b", "Delete"),
-          newButton("\ue166", "Revert"),
+          newLeafButtonEditFree("\ue15b", "Delete"),
+          newLeafButtonEditFree("\ue166", "Revert"),
         ],
       }),
       inputText,
@@ -707,7 +934,7 @@ addEventListener("DOMContentLoaded", (_) => {
       s.color = varCForeground;
     },
   });
-  document.body.parentElement.classList.add(htmlStyle);
+  notnull(document.body.parentElement).classList.add(htmlStyle);
   const bodyStyle = s(uniq("body"), {
     "": (s) => {
       s.display = "grid";
@@ -721,10 +948,12 @@ addEventListener("DOMContentLoaded", (_) => {
   document.body.appendChild(
     newContTitle({
       left: newLeafTitle("Music"),
-      right: e("button", {
-        styles_: [
+      right: newLeafButton(
+        "Menu",
+        "\ue5d2",
+        [
           leafIconStyle,
-          s(uniq("cont_main_title_admenu"), {
+          ss(uniq("cont_main_title_admenu"), {
             "": (s) => {
               s.gridColumn = "3";
               s.gridRow = "1";
@@ -732,16 +961,9 @@ addEventListener("DOMContentLoaded", (_) => {
               s.width = varSCol3Width;
               s.height = varSCol3Width;
             },
-            ":hover": (s) => {
-              s.backgroundColor = varCBackgroundMenuButtonHover;
-            },
-            ":hover:active": (s) => {
-              s.backgroundColor = varCBackgroundMenuButtonClick;
-            },
           }),
         ],
-        textContent: "\ue5d2",
-        onclick: (() => {
+        (() => {
           let state = false;
           return () => {
             state = !state;
@@ -751,96 +973,134 @@ addEventListener("DOMContentLoaded", (_) => {
               e.classList.toggle(classMenuStateOpen, state);
             }
           };
-        })(),
-      }),
+        })()
+      ),
     })
   );
   document.body.appendChild(
-    newContBar(
+    newContBarMainTransport(
+      [newLeafTransportButton("Share", "\ue80d")],
+      [],
       [
-        classMenuWantStateOpen,
-        ss(uniq("cont_bar_main"), {
-          "": (s) => {
-            s.position = "fixed";
-            s.bottom = "0.7cm";
-            s.backdropFilter = "brightness(1.1) blur(0.2cm)";
-            s.transition = "0.03s opacity";
-            s.opacity = "1";
-            s.width = "100%";
-            s.gridTemplateColumns = `${varSCol1Width} auto ${varSCol3Width}`;
-          },
-          [`.${classMenuStateOpen}`]: (s) => {
-            s.opacity = "0";
-          },
+        newLeafTransportButton("Previous", "\ue5cb"),
+        e("div", {
+          styles_: [
+            contStackStyle,
+            ss(uniq("transport_seekbar"), {
+              "": (s) => {
+                // Hack around https://github.com/w3c/csswg-drafts/issues/12081 to
+                // set a default size without affecting min-content
+                s.gridTemplateColumns = "minmax(min-content, 8cm)";
+
+                s.alignItems = "center";
+              },
+            }),
+          ],
+          children_: [
+            e("div", {
+              styles_: [
+                ss(uniq("transport_gutter"), {
+                  "": (s) => {
+                    s.height = "0.15cm";
+                    s.borderRadius = "0.05cm";
+                    s.backgroundColor = varCSeekbarEmpty;
+                  },
+                }),
+              ],
+              children_: [
+                e("div", {
+                  styles_: [
+                    ss(uniq("transport_gutter_fill"), {
+                      "": (s) => {
+                        s.height = "100%";
+                        s.width = "30%";
+                        s.borderRadius = "0.05cm";
+                        s.backgroundColor = varCSeekbarFill;
+                      },
+                    }),
+                  ],
+                }),
+              ],
+            }),
+            e("span", {
+              textContent: "00:00",
+              styles_: [
+                ss(uniq("transport_time"), {
+                  "": (s) => {
+                    s.opacity = "50%";
+                    s.justifySelf = "end";
+                    s.margin = "0 0.2cm";
+                  },
+                }),
+              ],
+            }),
+          ],
         }),
+        newLeafTransportButton("Next", "\ue5cc"),
       ],
-      [e("button", { textContent: "Save" })]
+      [newLeafTransportButton("Play", "\ue037")],
+      // [e("button", { textContent: "Save" })]
+      []
     )
   );
+  document.body.appendChild(newContPageView([]));
+  /*
   document.body.appendChild(
-    newContPageForm([
-      newLeafInputPairText("item1", "Title", "ABCD"),
-      newLeafInputPairText("item2", "Text", "WXYC"),
-      newLeafSpace(),
-    ])
+    newContBarMainForm([], [], [], [], [newLeafBarButtonBig("Save", "Save")])
   );
   //   document.body.appendChild(
-  //     newContPageEdit([
-  //       newLeafEditRowIncoming([
-  //         e("button", {
-  //           styles_: [leafIconStyle, leafButtonFreeStyle, leafButtonFreeEndStyle],
-  //           textContent: "\ue145",
-  //         }),
-  //       ]),
-  //       e("div", {
-  //         styles_: [contVBoxStyle, contPageEditStyle],
-  //         children_: [
-  //           newLeafEditRowIncoming([
-  //             newLeafEditNode(uniq(), "Subject", "value", "WXYZ-9999"),
-  //             newLeafEditPredicate(uniq(), "sunwet/1/is"),
-  //           ]),
-  //           newLeafEditRowIncoming([
-  //             newLeafEditNode(uniq(), "Subject", "file", "LMNO-4567"),
-  //             newLeafEditPredicate(uniq(), "sunwet/1/has"),
-  //           ]),
-  //         ],
-  //       }),
-  //       e("div", {
-  //         styles_: [
-  //           s(uniq("cont_page_edit_center"), {
-  //             "": (s) => {
-  //               s.padding = "0.2cm";
-  //               s.backgroundColor = varCEditCenter;
-  //               s.borderRadius = "0.2cm";
-  //               s.margin = "0.4cm 0";
-  //             },
-  //           }),
-  //         ],
-  //         children_: [
-  //           newLeafEditNode(uniq(), "Current node", "value", "ABCD-01234"),
-  //         ],
-  //       }),
-  //       e("div", {
-  //         styles_: [contVBoxStyle, contPageEditStyle],
-  //         children_: [
-  //           newLeafEditRowOutgoing([
-  //             newLeafEditNode(uniq(), "Subject", "file", "WXYZ-9999"),
-  //             newLeafEditPredicate(uniq(), "sunwet/1/is"),
-  //           ]),
-  //           newLeafEditRowOutgoing([
-  //             newLeafEditNode(uniq(), "Subject", "value", "LMNO-4567"),
-  //             newLeafEditPredicate(uniq(), "sunwet/1/has"),
-  //           ]),
-  //         ],
-  //       }),
-  //       newLeafEditRowOutgoing([
-  //         e("button", {
-  //           styles_: [leafIconStyle, leafButtonFreeStyle, leafButtonFreeEndStyle],
-  //           textContent: "\ue145",
-  //         }),
-  //       ]),
+  //     newContPageForm([
+  //       newLeafInputPairText("item1", "Title", "ABCD"),
+  //       newLeafInputPairText("item2", "Text", "WXYC"),
+  //       newLeafSpace(),
   //     ])
   //   );
+  document.body.appendChild(
+    newContPageEdit([
+      newLeafEditRowIncoming([
+        newLeafButtonEditFree("\ue145", "Add incoming triple"),
+      ]),
+      newContPageEditSectionRel([
+        newLeafEditRowIncoming([
+          newLeafEditNode(uniq(), "Subject", "value", "WXYZ-9999"),
+          newLeafEditPredicate(uniq(), "sunwet/1/is"),
+        ]),
+        newLeafEditRowIncoming([
+          newLeafEditNode(uniq(), "Subject", "file", "LMNO-4567"),
+          newLeafEditPredicate(uniq(), "sunwet/1/has"),
+        ]),
+      ]),
+      e("div", {
+        styles_: [
+          s(uniq("cont_page_edit_center"), {
+            "": (s) => {
+              s.padding = "0.2cm";
+              s.backgroundColor = varCEditCenter;
+              s.borderRadius = "0.2cm";
+              s.margin = "0.4cm 0";
+            },
+          }),
+        ],
+        children_: [
+          newLeafEditNode(uniq(), "Current node", "value", "ABCD-01234"),
+        ],
+      }),
+      newContPageEditSectionRel([
+        newLeafEditRowOutgoing([
+          newLeafEditNode(uniq(), "Subject", "file", "WXYZ-9999"),
+          newLeafEditPredicate(uniq(), "sunwet/1/is"),
+        ]),
+        newLeafEditRowOutgoing([
+          newLeafEditNode(uniq(), "Subject", "value", "LMNO-4567"),
+          newLeafEditPredicate(uniq(), "sunwet/1/has"),
+        ]),
+      ]),
+      newLeafEditRowOutgoing([
+        newLeafButtonEditFree("\ue145", "Add outgoing triple"),
+      ]),
+    ])
+  );
+  */
 
   document.body.appendChild(
     e("div", {
@@ -853,7 +1113,7 @@ addEventListener("DOMContentLoaded", (_) => {
             s.gridRow = "1/4";
             s.gridColumn = "1/3";
             s.backgroundColor = varCBackgroundMenu;
-            s.filter = "drop-shadow(0.05cm 0px 0.05cm rgba(0, 0, 0, 0.1))";
+            s.filter = "drop-shadow(0.05cm 0px 0.05cm rgba(0, 0, 0, 0.06))";
             s.overflow = "hidden";
             s.display = "grid";
             s.gridTemplateColumns = "subgrid";
@@ -915,49 +1175,19 @@ addEventListener("DOMContentLoaded", (_) => {
                 ]),
               ],
             }),
-            newContBar(
-              [
-                ss(uniq("cont_bar_menu"), {
-                  "": (s) => {
-                    s.gridColumn = "1/3";
-
-                    s.backgroundColor = varCBackgroundMenuButtons;
-                    s.margin = "0.5cm 0";
-
-                    s.display = "grid";
-                    s.gridTemplateColumns = "subgrid";
-                  },
-                }),
-              ],
-              [
-                e("span", {
-                  styles_: [
-                    s(uniq("cont_bar_menu_user"), {
-                      "": (s) => {
-                        s.opacity = "0.5";
-                      },
-                    }),
-                  ],
-                  textContent: "Guest",
-                }),
-                e("button", {
-                  styles_: [
-                    s(uniq("cont_bar_menu_button"), {
-                      "": (s) => {
-                        s.backgroundColor = varCBackgroundMenuButtons;
-                      },
-                      ":hover": (s) => {
-                        s.backgroundColor = varCBackgroundMenuButtonsHover;
-                      },
-                      ":hover:active": (s) => {
-                        s.backgroundColor = varCBackgroundMenuButtonsClick;
-                      },
-                    }),
-                  ],
-                  textContent: "Login",
-                }),
-              ]
-            ),
+            newContBarMenu([
+              e("span", {
+                styles_: [
+                  ss(uniq("cont_bar_menu_user"), {
+                    "": (s) => {
+                      s.opacity = "0.5";
+                    },
+                  }),
+                ],
+                textContent: "Guest",
+              }),
+              newLeafBarButtonBig("Login", "Login"),
+            ]),
             newLeafSpace(),
           ],
         }),

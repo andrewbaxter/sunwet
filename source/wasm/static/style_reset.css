@@ -58,6 +58,15 @@ summary {
   flex-grow: 1;
 }
 
+.stack {
+  display: grid;
+  grid-template-columns: 1fr;
+  &>* {
+    grid-column: 1;
+    grid-row: 1;
+  }
+}
+
 /** Basic stuff */
 @font-face {
   font-family: "I";
