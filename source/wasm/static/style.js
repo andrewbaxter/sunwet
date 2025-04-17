@@ -1,5 +1,43 @@
+/// <reference path="style.d.ts" />
+
 ///////////////////////////////////////////////////////////////////////////////
 // xx Utility, globals
+
+/** @type { (o: Orientation)=>Direction } */
+const conv = (o) => {
+  switch (o) {
+    case "up_left":
+    case "up_right":
+      return "up";
+    case "down_left":
+    case "down_right":
+      return "down";
+    case "left_up":
+    case "left_down":
+      return "left";
+    case "right_up":
+    case "right_down":
+      return "right";
+  }
+};
+
+/** @type { (o: Orientation)=>Direction } */
+const trans = (o) => {
+  switch (o) {
+    case "up_left":
+    case "down_left":
+      return "left";
+    case "up_right":
+    case "down_right":
+      return "right";
+    case "left_up":
+    case "right_up":
+      return "up";
+    case "left_down":
+    case "right_down":
+      return "down";
+  }
+};
 
 /** @type { <T>(x: T|null|undefined) => T } */
 const notnull = (x) => {
@@ -15,7 +53,7 @@ const uniq = (...args) => {
   for (const e of notnull(new Error().stack).matchAll(/(\d+):\d+/g)) {
     uniq.push(e[1]);
   }
-  uniq.push(args);
+  uniq.push(...args);
   return `r${uniq.join("_")}`;
 };
 
@@ -130,7 +168,7 @@ const s = (id, f) => {
 };
 
 const staticStyles = new Map();
-// Static style - the constructor mustn't close on anything. This guarantees the style is only built once, even if called multiple times.
+// Static style - the id must be unique for every value closed on (i.e. put all the arguments in the id).
 /** @type { (id: string, f: {[s: string]: (r: CSSStyleDeclaration) => void}) => string } */
 const ss = (id, f) => {
   if (staticStyles.has(id)) {
@@ -558,6 +596,13 @@ const newLeafInputSelect = (id, children) =>
 ///////////////////////////////////////////////////////////////////////////////
 // xx Components, styles: page, view
 
+const classViewTransverseStart = "trans_start";
+const classViewTransverseMiddle = "trans_middle";
+const classViewTransverseEnd = "trans_end";
+const classViewConverseStart = "conv_start";
+const classViewConverseMiddle = "conv_middle";
+const classViewConverseEnd = "conv_end";
+
 /** @type { (entries: HTMLElement[]) => HTMLElement} */
 const newContPageView = (entries) =>
   e("div", {
@@ -579,6 +624,336 @@ const newLeafTransportButton = (title, icon) =>
       },
     }),
   ]);
+
+const contViewListStyle = ss(uniq("cont_view_list"), {
+  "": (s) => {
+    s.display = "flex";
+  },
+  [`>.${classViewTransverseStart}`]: (s) => {
+    s.alignSelf = "first baseline";
+  },
+  [`>.${classViewTransverseMiddle}`]: (s) => {
+    s.alignSelf = "middle";
+  },
+  [`>.${classViewTransverseEnd}`]: (s) => {
+    s.alignSelf = "last baseline";
+  },
+});
+/** @type { (args: {direction: Direction, xScroll?: boolean, children: HTMLElement[] }) => HTMLElement} */
+const newContViewList = (args) => {
+  const out = e("div", {
+    styles_: [
+      contViewListStyle,
+      ss(
+        uniq("cont_view_list", args.direction),
+        /** @type { () => ({[prefix: string]: (s: CSSStyleDeclaration) => void}) } */ (
+          () => {
+            switch (args.direction) {
+              case "up":
+                return {
+                  "": (s) => {
+                    s.flexDirection = "column-reverse";
+                  },
+                };
+              case "down":
+                return {
+                  "": (s) => {
+                    s.flexDirection = "column";
+                  },
+                };
+              case "left":
+                return {
+                  "": (s) => {
+                    s.flexDirection = "row-reverse";
+                  },
+                  [`>.${classViewTransverseStart}`]: (s) => {
+                    s.alignSelf = "first baseline";
+                  },
+                  [`>.${classViewTransverseMiddle}`]: (s) => {
+                    s.alignSelf = "middle";
+                  },
+                  [`>.${classViewTransverseEnd}`]: (s) => {
+                    s.alignSelf = "last baseline";
+                  },
+                };
+              case "right":
+                return {
+                  "": (s) => {
+                    s.flexDirection = "row";
+                  },
+                  [`>.${classViewTransverseStart}`]: (s) => {
+                    s.alignSelf = "first baseline";
+                  },
+                  [`>.${classViewTransverseMiddle}`]: (s) => {
+                    s.alignSelf = "middle";
+                  },
+                  [`>.${classViewTransverseEnd}`]: (s) => {
+                    s.alignSelf = "last baseline";
+                  },
+                };
+            }
+          }
+        )()
+      ),
+    ],
+    children_: args.children,
+  });
+  if (args.xScroll) {
+    out.style.overflowX = "scroll";
+  }
+  return out;
+};
+
+/** @type { (args: {orientation: Orientation, xScroll?: boolean, children: HTMLElement[][] }) => HTMLElement} */
+const newContViewTable = (args) => {
+  const children1 = [];
+  for (let j0 = 0; j0 < args.children.length; ++j0) {
+    const j = j0 + 1;
+    const row = args.children[j0];
+    for (let i0 = 0; i0 < row.length; ++i0) {
+      const child = row[i0];
+      const i = i0 + 1;
+      switch (conv(args.orientation)) {
+        case "up":
+          child.style.gridRow = `${args.children.length - j0}`;
+          break;
+        case "down":
+          child.style.gridRow = `${j}`;
+          break;
+        case "left":
+          child.style.gridColumn = `${args.children.length - j0}`;
+          break;
+        case "right":
+          child.style.gridColumn = `${j}`;
+          break;
+      }
+      switch (trans(args.orientation)) {
+        case "up":
+          child.style.gridRow = `${row.length - i0}`;
+          break;
+        case "down":
+          child.style.gridRow = `${i}`;
+          break;
+        case "left":
+          child.style.gridColumn = `${row.length - i0}`;
+          break;
+        case "right":
+          child.style.gridColumn = `${i}`;
+          break;
+      }
+      children1.push(child);
+    }
+  }
+  const out = e("div", {
+    styles_: [
+      ss(uniq("cont_view_table"), {
+        "": (s) => {
+          s.display = "grid";
+        },
+        [`>.${contViewListStyle}`]: (s) => {
+          s.display = "contents";
+        },
+      }),
+      ss(
+        uniq("cont_view_table", args.orientation),
+        /** @type { () => ({[prefix: string]: (s: CSSStyleDeclaration) => void}) } */ (
+          () => {
+            switch (conv(args.orientation)) {
+              case "up":
+              case "down":
+                return {
+                  "": (s) => {},
+                  [`>.${classViewTransverseStart}`]: (s) => {
+                    s.alignSelf = "first baseline";
+                  },
+                  [`>.${classViewTransverseMiddle}`]: (s) => {
+                    s.alignSelf = "middle";
+                  },
+                  [`>.${classViewTransverseEnd}`]: (s) => {
+                    s.alignSelf = "last baseline";
+                  },
+                };
+              case "left":
+              case "right":
+                return {
+                  "": (s) => {},
+                  [`>.${classViewTransverseStart}`]: (s) => {
+                    s.justifySelf = "first baseline";
+                  },
+                  [`>.${classViewTransverseMiddle}`]: (s) => {
+                    s.justifySelf = "middle";
+                  },
+                  [`>.${classViewTransverseEnd}`]: (s) => {
+                    s.justifySelf = "last baseline";
+                  },
+                };
+            }
+          }
+        )()
+      ),
+    ],
+    children_: children1,
+  });
+  if (args.xScroll) {
+    out.style.overflowX = "scroll";
+  }
+  return out;
+};
+
+/** @type { (args: {align: Align, url: string, text?: string, width?: string, height?: string }) => HTMLElement} */
+const newLeafViewImage = (args) => {
+  const out = e("img", {
+    src: args.url,
+    alt: args.text,
+    styles_: [
+      ss(uniq("leaf_view_image"), {
+        "": (s) => {
+          s.objectFit = "contain";
+        },
+      }),
+      (() => {
+        switch (args.align) {
+          case "start":
+            return classViewTransverseStart;
+          case "middle":
+            return classViewTransverseMiddle;
+          case "end":
+            return classViewTransverseEnd;
+        }
+      })(),
+    ],
+  });
+  if (args.width) {
+    out.style.width = args.width;
+  }
+  if (args.height) {
+    out.style.height = args.height;
+  }
+  return out;
+};
+
+/** @type { (args: {align: Align, orientation: Orientation, text: string, maxSize?: number, url?: string }) => HTMLElement} */
+const newLeafViewText = (args) => {
+  const baseStyle = ss(uniq("leaf_view_text"), {
+    "": (s) => {
+      s.pointerEvents = "initial";
+    },
+  });
+  const dirStyle = ss(uniq("leaf_view_text_dir", args.orientation), {
+    "": /** @type { () => ((s: CSSStyleDeclaration) => void) } */ (
+      () => {
+        switch (args.orientation) {
+          case "up_left":
+          case "down_left":
+            return (s) => {
+              s.writingMode = "vertical-rl";
+            };
+          case "up_right":
+          case "down_right":
+            return (s) => {
+              s.writingMode = "vertical-lr";
+            };
+          case "left_up":
+          case "left_down":
+          case "right_up":
+          case "right_down":
+            return (s) => {
+              s.writingMode = "horizontal-tb";
+            };
+        }
+      }
+    )(),
+  });
+  const alignStyle = (() => {
+    switch (args.align) {
+      case "start":
+        return classViewTransverseStart;
+      case "middle":
+        return classViewTransverseMiddle;
+      case "end":
+        return classViewTransverseEnd;
+    }
+  })();
+  const out = (() => {
+    if (args.url == null) {
+      return e("span", {
+        styles_: [
+          baseStyle,
+          dirStyle,
+          alignStyle,
+          ss(uniq("leaf_view_text_url"), { "": (s) => {} }),
+        ],
+        textContent: args.text,
+      });
+    } else {
+      return e("a", {
+        styles_: [
+          baseStyle,
+          dirStyle,
+          alignStyle,
+          ss(uniq("leaf_view_text_nourl"), { "": (s) => {} }),
+        ],
+        textContent: args.text,
+        href: args.url,
+      });
+    }
+  })();
+  return out;
+};
+
+/** @type { (args: {align: Align, direction: Direction }) => HTMLElement} */
+const newLeafViewPlay = (args) => {
+  const out = e("button", {
+    styles_: [
+      leafIconStyle,
+      ss(uniq("leaf_view_play"), {
+        "": (s) => {
+          s.fontSize = "24pt";
+          s.fontWeight = "100";
+          const size = "1cm";
+          s.width = size;
+          s.height = size;
+        },
+      }),
+      ss(uniq("leaf_view_play", args.direction), {
+        "": /** @type { () => ((s: CSSStyleDeclaration) => void) } */ (
+          () => {
+            switch (args.direction) {
+              case "up":
+                return (s) => {
+                  s.rotate = "270deg";
+                };
+              case "down":
+                return (s) => {
+                  s.rotate = "90deg";
+                };
+              case "left":
+                return (s) => {
+                  s.rotate = "180deg";
+                };
+              case "right":
+                return (s) => {
+                  s.rotate = "0deg";
+                };
+            }
+          }
+        )(),
+      }),
+      (() => {
+        switch (args.align) {
+          case "start":
+            return classViewTransverseStart;
+          case "middle":
+            return classViewTransverseMiddle;
+          case "end":
+            return classViewTransverseEnd;
+        }
+      })(),
+    ],
+    textContent: "\ue037",
+  });
+  return out;
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 // xx Components, styles: page, form
@@ -977,130 +1352,297 @@ addEventListener("DOMContentLoaded", (_) => {
       ),
     })
   );
-  document.body.appendChild(
-    newContBarMainTransport(
-      [newLeafTransportButton("Share", "\ue80d")],
-      [],
-      [
-        newLeafTransportButton("Previous", "\ue5cb"),
-        e("div", {
-          styles_: [
-            contStackStyle,
-            ss(uniq("transport_seekbar"), {
-              "": (s) => {
-                // Hack around https://github.com/w3c/csswg-drafts/issues/12081 to
-                // set a default size without affecting min-content
-                s.gridTemplateColumns = "minmax(min-content, 8cm)";
 
-                s.alignItems = "center";
-              },
-            }),
-          ],
-          children_: [
-            e("div", {
-              styles_: [
-                ss(uniq("transport_gutter"), {
-                  "": (s) => {
-                    s.height = "0.15cm";
-                    s.borderRadius = "0.05cm";
-                    s.backgroundColor = varCSeekbarEmpty;
-                  },
+  const hash = location.hash;
+  if (hash == "#view") {
+    document.body.appendChild(
+      newContBarMainTransport(
+        [newLeafTransportButton("Share", "\ue80d")],
+        [],
+        [
+          newLeafTransportButton("Previous", "\ue5cb"),
+          e("div", {
+            styles_: [
+              contStackStyle,
+              ss(uniq("transport_seekbar"), {
+                "": (s) => {
+                  // Hack around https://github.com/w3c/csswg-drafts/issues/12081 to
+                  // set a default size without affecting min-content
+                  s.gridTemplateColumns = "minmax(min-content, 8cm)";
+
+                  s.alignItems = "center";
+                },
+              }),
+            ],
+            children_: [
+              e("div", {
+                styles_: [
+                  ss(uniq("transport_gutter"), {
+                    "": (s) => {
+                      s.height = "0.15cm";
+                      s.borderRadius = "0.05cm";
+                      s.backgroundColor = varCSeekbarEmpty;
+                    },
+                  }),
+                ],
+                children_: [
+                  e("div", {
+                    styles_: [
+                      ss(uniq("transport_gutter_fill"), {
+                        "": (s) => {
+                          s.height = "100%";
+                          s.width = "30%";
+                          s.borderRadius = "0.05cm";
+                          s.backgroundColor = varCSeekbarFill;
+                        },
+                      }),
+                    ],
+                  }),
+                ],
+              }),
+              e("span", {
+                textContent: "00:00",
+                styles_: [
+                  ss(uniq("transport_time"), {
+                    "": (s) => {
+                      s.opacity = "50%";
+                      s.justifySelf = "end";
+                      s.margin = "0 0.2cm";
+                    },
+                  }),
+                ],
+              }),
+            ],
+          }),
+          newLeafTransportButton("Next", "\ue5cc"),
+        ],
+        [newLeafTransportButton("Play", "\ue037")],
+        []
+      )
+    );
+    document.body.appendChild(
+      e("div", {
+        styles_: [
+          contStackStyle,
+          classMenuWantStateOpen,
+          ss(uniq("cont_view_body"), {
+            "": (s) => {
+              s.gridColumn = "1/4";
+              s.gridRow = "2";
+            },
+            [`.${classMenuStateOpen}`]: (s) => {
+              s.display = "none";
+            },
+          }),
+        ],
+        children_: [
+          newContPageView([
+            newContViewList({
+              direction: "down",
+              children: [
+                newContViewList({
+                  direction: "right",
+                  children: [
+                    newLeafViewImage({
+                      align: "start",
+                      url: "testcover.jpg",
+                      width: "6cm",
+                    }),
+                    newContViewList({
+                      direction: "down",
+                      children: [
+                        newLeafViewText({
+                          align: "start",
+                          orientation: "right_down",
+                          text: "Harmônicos",
+                        }),
+                        newContViewTable({
+                          orientation: "right_down",
+                          xScroll: true,
+                          children: [
+                            [
+                              newLeafViewPlay({
+                                align: "start",
+                                direction: "down",
+                              }),
+                              newLeafViewText({
+                                align: "start",
+                                orientation: "down_left",
+                                text: "1. ",
+                              }),
+                              newLeafViewText({
+                                align: "start",
+                                orientation: "down_left",
+                                text: "Fabiano do Nascimento and Shin Sasakubo",
+                                url: "abcd-xyzg",
+                              }),
+                              newLeafViewText({
+                                align: "start",
+                                orientation: "down_left",
+                                text: " - ",
+                              }),
+                              newLeafViewText({
+                                align: "start",
+                                orientation: "down_left",
+                                text: "Primeiro Encontro",
+                              }),
+                            ],
+                            [
+                              newLeafViewPlay({
+                                align: "start",
+                                direction: "down",
+                              }),
+                              newLeafViewText({
+                                align: "start",
+                                orientation: "down_left",
+                                text: "2. ",
+                              }),
+                              newLeafViewText({
+                                align: "start",
+                                orientation: "down_left",
+                                text: "Fabiano do Nascimento and Shin Sasakubo",
+                                url: "abcd-xyzg",
+                              }),
+                              newLeafViewText({
+                                align: "start",
+                                orientation: "down_left",
+                                text: " - ",
+                              }),
+                              newLeafViewText({
+                                align: "start",
+                                orientation: "down_left",
+                                text: "Primeiro Encontro",
+                              }),
+                            ],
+                          ],
+                        }),
+                      ],
+                    }),
+                  ],
                 }),
-              ],
-              children_: [
-                e("div", {
-                  styles_: [
-                    ss(uniq("transport_gutter_fill"), {
-                      "": (s) => {
-                        s.height = "100%";
-                        s.width = "30%";
-                        s.borderRadius = "0.05cm";
-                        s.backgroundColor = varCSeekbarFill;
-                      },
+
+                newContViewList({
+                  direction: "right",
+                  children: [
+                    newLeafViewImage({
+                      align: "start",
+                      url: "testcover.jpg",
+                      width: "6cm",
+                    }),
+                    newContViewList({
+                      direction: "down",
+                      children: [
+                        newLeafViewText({
+                          align: "start",
+                          orientation: "right_down",
+                          text: "Harmônicos",
+                        }),
+                        newContViewTable({
+                          orientation: "right_down",
+                          xScroll: true,
+                          children: [
+                            [
+                              newLeafViewPlay({
+                                align: "start",
+                                direction: "down",
+                              }),
+                              newLeafViewText({
+                                align: "start",
+                                orientation: "down_left",
+                                text: "1. ",
+                              }),
+                              newLeafViewText({
+                                align: "start",
+                                orientation: "down_left",
+                                text: "Fabiano do Nascimento and Shin Sasakubo",
+                                url: "abcd-xyzg",
+                              }),
+                              newLeafViewText({
+                                align: "start",
+                                orientation: "down_left",
+                                text: " - ",
+                              }),
+                              newLeafViewText({
+                                align: "start",
+                                orientation: "down_left",
+                                text: "Primeiro Encontro",
+                              }),
+                            ],
+                          ],
+                        }),
+                      ],
                     }),
                   ],
                 }),
               ],
             }),
-            e("span", {
-              textContent: "00:00",
-              styles_: [
-                ss(uniq("transport_time"), {
-                  "": (s) => {
-                    s.opacity = "50%";
-                    s.justifySelf = "end";
-                    s.margin = "0 0.2cm";
-                  },
-                }),
-              ],
+          ]),
+        ],
+      })
+    );
+  } else if (hash == "#form") {
+    document.body.appendChild(
+      newContBarMainForm([], [], [], [], [newLeafBarButtonBig("Save", "Save")])
+    );
+    document.body.appendChild(
+      newContPageForm([
+        newLeafInputPairText("item1", "Title", "ABCD"),
+        newLeafInputPairText("item2", "Text", "WXYC"),
+        newLeafSpace(),
+      ])
+    );
+  } else if (hash == "#edit") {
+    document.body.appendChild(
+      newContBarMainForm([], [], [], [], [newLeafBarButtonBig("Save", "Save")])
+    );
+    document.body.appendChild(
+      newContPageEdit([
+        newLeafEditRowIncoming([
+          newLeafButtonEditFree("\ue145", "Add incoming triple"),
+        ]),
+        newContPageEditSectionRel([
+          newLeafEditRowIncoming([
+            newLeafEditNode(uniq(), "Subject", "value", "WXYZ-9999"),
+            newLeafEditPredicate(uniq(), "sunwet/1/is"),
+          ]),
+          newLeafEditRowIncoming([
+            newLeafEditNode(uniq(), "Subject", "file", "LMNO-4567"),
+            newLeafEditPredicate(uniq(), "sunwet/1/has"),
+          ]),
+        ]),
+        e("div", {
+          styles_: [
+            s(uniq("cont_page_edit_center"), {
+              "": (s) => {
+                s.padding = "0.2cm";
+                s.backgroundColor = varCEditCenter;
+                s.borderRadius = "0.2cm";
+                s.margin = "0.4cm 0";
+              },
             }),
           ],
+          children_: [
+            newLeafEditNode(uniq(), "Current node", "value", "ABCD-01234"),
+          ],
         }),
-        newLeafTransportButton("Next", "\ue5cc"),
-      ],
-      [newLeafTransportButton("Play", "\ue037")],
-      // [e("button", { textContent: "Save" })]
-      []
-    )
-  );
-  document.body.appendChild(newContPageView([]));
-  /*
-  document.body.appendChild(
-    newContBarMainForm([], [], [], [], [newLeafBarButtonBig("Save", "Save")])
-  );
-  //   document.body.appendChild(
-  //     newContPageForm([
-  //       newLeafInputPairText("item1", "Title", "ABCD"),
-  //       newLeafInputPairText("item2", "Text", "WXYC"),
-  //       newLeafSpace(),
-  //     ])
-  //   );
-  document.body.appendChild(
-    newContPageEdit([
-      newLeafEditRowIncoming([
-        newLeafButtonEditFree("\ue145", "Add incoming triple"),
-      ]),
-      newContPageEditSectionRel([
-        newLeafEditRowIncoming([
-          newLeafEditNode(uniq(), "Subject", "value", "WXYZ-9999"),
-          newLeafEditPredicate(uniq(), "sunwet/1/is"),
-        ]),
-        newLeafEditRowIncoming([
-          newLeafEditNode(uniq(), "Subject", "file", "LMNO-4567"),
-          newLeafEditPredicate(uniq(), "sunwet/1/has"),
-        ]),
-      ]),
-      e("div", {
-        styles_: [
-          s(uniq("cont_page_edit_center"), {
-            "": (s) => {
-              s.padding = "0.2cm";
-              s.backgroundColor = varCEditCenter;
-              s.borderRadius = "0.2cm";
-              s.margin = "0.4cm 0";
-            },
-          }),
-        ],
-        children_: [
-          newLeafEditNode(uniq(), "Current node", "value", "ABCD-01234"),
-        ],
-      }),
-      newContPageEditSectionRel([
-        newLeafEditRowOutgoing([
-          newLeafEditNode(uniq(), "Subject", "file", "WXYZ-9999"),
-          newLeafEditPredicate(uniq(), "sunwet/1/is"),
+        newContPageEditSectionRel([
+          newLeafEditRowOutgoing([
+            newLeafEditNode(uniq(), "Subject", "file", "WXYZ-9999"),
+            newLeafEditPredicate(uniq(), "sunwet/1/is"),
+          ]),
+          newLeafEditRowOutgoing([
+            newLeafEditNode(uniq(), "Subject", "value", "LMNO-4567"),
+            newLeafEditPredicate(uniq(), "sunwet/1/has"),
+          ]),
         ]),
         newLeafEditRowOutgoing([
-          newLeafEditNode(uniq(), "Subject", "value", "LMNO-4567"),
-          newLeafEditPredicate(uniq(), "sunwet/1/has"),
+          newLeafButtonEditFree("\ue145", "Add outgoing triple"),
         ]),
-      ]),
-      newLeafEditRowOutgoing([
-        newLeafButtonEditFree("\ue145", "Add outgoing triple"),
-      ]),
-    ])
-  );
-  */
+      ])
+    );
+  } else {
+    throw new Error();
+  }
 
   document.body.appendChild(
     e("div", {

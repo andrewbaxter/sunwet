@@ -101,36 +101,6 @@ impl Default for Align {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct WidgetNest {
-    pub orientation: Orientation,
-    #[serde(default)]
-    pub align: Align,
-    pub children: Vec<Widget>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct LayoutIndividual {
-    pub orientation: Orientation,
-    #[serde(default)]
-    pub align: Align,
-    #[serde(default)]
-    pub x_scroll: bool,
-    pub item: WidgetNest,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct LayoutTable {
-    pub orientation: Orientation,
-    pub align: Align,
-    #[serde(default)]
-    pub x_scroll: bool,
-    pub columns: Vec<Widget>,
-}
-
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum LineSizeMode {
@@ -176,6 +146,7 @@ pub struct WidgetTextLine {
     pub orientation: Orientation,
     #[serde(default)]
     pub align: Align,
+    pub link: Option<FieldOrLiteral>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
@@ -192,7 +163,7 @@ pub struct WidgetImage {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct WidgetMediaButton {
+pub struct WidgetPlayButton {
     pub field: String,
     /// The media type (ex `sunwet/1/video`, `sunwet/1/audio`)
     pub media_field: FieldOrLiteral,
@@ -208,35 +179,56 @@ pub struct WidgetMediaButton {
     pub align: Align,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema, Default)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum DataRowsLayout {
+    /// Rows are laid out independently.
+    #[default]
+    List,
+    /// When using table rows layout, the row widget must be a layout, where each
+    /// element of the layout will become a cell in a row(/column) of the table.
+    /// Corresponding cells of different rows will be aligned.
+    Table,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct ViewPartList {
+pub struct WidgetDataRows {
     /// Where to get the data for the sublist.
     pub data: QueryOrField,
     /// A field of the returned data that can be used as a unique key for
     /// saving/restoring position in playback.
     pub key_field: String,
-    /// How to display the received data.
-    pub layout: Layout,
+    /// How the data rows are displayed.
+    pub rows_layout: DataRowsLayout,
+    pub orientation: Orientation,
+    #[serde(default)]
+    pub align: Align,
+    #[serde(default)]
+    pub x_scroll: bool,
+    /// How to display an individual row of the received data.
+    pub row_widget: Box<Widget>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub enum Layout {
-    /// Each row is layed out with independent sizing.
-    Individual(LayoutIndividual),
-    /// Rows are laid out as a grid/table.
-    Table(LayoutTable),
+pub struct WidgetLayout {
+    pub orientation: Orientation,
+    #[serde(default)]
+    pub align: Align,
+    #[serde(default)]
+    pub x_scroll: bool,
+    pub elements: Vec<Widget>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Widget {
-    Nest(WidgetNest),
+    Layout(WidgetLayout),
+    DataRows(WidgetDataRows),
     TextLine(WidgetTextLine),
     Image(WidgetImage),
-    MediaButton(WidgetMediaButton),
-    Sublist(ViewPartList),
+    PlayButton(WidgetPlayButton),
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, JsonSchema)]
@@ -254,7 +246,7 @@ pub struct View {
     pub id: String,
     pub name: String,
     /// How to display the queried data
-    pub display: ViewPartList,
+    pub display: WidgetDataRows,
     /// Queries used to prepare data for displaying
     pub queries: BTreeMap<QueryId, Query>,
     /// Prepare a form or accept parameters in url to use in the queries
