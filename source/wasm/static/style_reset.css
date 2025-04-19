@@ -19,7 +19,7 @@ Baseline un-styling.
   color: inherit;
   font-family: inherit;
   font-size: inherit;
-  white-space: pre-wrap;
+  overflow: hidden;
 }
 
 html {
@@ -48,11 +48,13 @@ summary {
 .vbox {
     display: flex;
     flex-direction: column;
+    justify-content: stretch;
 }
 
 .hbox {
     display : flex;
     flex-direction: row;
+    justify-content: stretch;
 }
 
 .hbox > input {

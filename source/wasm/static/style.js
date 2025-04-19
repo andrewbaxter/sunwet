@@ -49,6 +49,16 @@ const notnull = (x) => {
 
 /** @type { (...args: string[]) => string} */
 const uniq = (...args) => {
+  var uniq = [""];
+  for (const e of notnull(new Error().stack).matchAll(/(\d+):\d+/g)) {
+    uniq[0] = `${e[1]}`;
+  }
+  uniq.push(...args);
+  return `r${uniq.join("_")}`;
+};
+
+/** @type { (...args: string[]) => string} */
+const uniqn = (...args) => {
   const uniq = [];
   for (const e of notnull(new Error().stack).matchAll(/(\d+):\d+/g)) {
     uniq.push(e[1]);
@@ -182,12 +192,30 @@ const ss = (id, f) => {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+// xx Constants
+
+const textIconPlay = "\ue037";
+const textIconDelete = "\ue15b";
+const textIconRevert = "\ue166";
+const textIconAdd = "\ue145";
+const textIconNext = "\ue5cc";
+const textIconPrev = "\ue5cb";
+const textIconShare = "\ue80d";
+const textIconMenu = "\ue5d2";
+const textIconMenuLink = "\ue5c8";
+const textIconFoldClosed = "\ue316";
+const textIconFoldOpened = "\ue313";
+const textIconClose = "\ue5cd";
+
 // xx Variables
 
 const varSPadTitle = v("0.4cm");
+const varSPadViewOuter = varSPadTitle;
 const varSFontTitle = v("24pt");
 const varSFontAdmenu = v("20pt");
 const varSFontMenu = v("20pt");
+const varSNarrow = v("20cm");
+const varSModalHeight = v("20cm");
 const varSCol1Width = v("min(0.8cm, 5dvw)");
 const varSCol3Width = v("1.4cm");
 const varSMenuColWidth = v("min(100%, 12cm)");
@@ -226,8 +254,8 @@ const classMenuStateOpen = "state_open";
 ///////////////////////////////////////////////////////////////////////////////
 // xx Components, styles: all
 
-const contVBoxStyle = "vbox";
-const contHBoxStyle = "hbox";
+const contVboxStyle = "vbox";
+const contHboxStyle = "hbox";
 const contStackStyle = "stack";
 
 const contTitleStyle = s(uniq("cont_title"), {
@@ -268,12 +296,16 @@ const newLeafTitle = (text) =>
 
 const leafIconStyle = s(uniq("icon"), {
   "": (s) => {
-    s.display = "grid";
+    s.display = "inline-grid";
     s.fontFamily = "I";
     s.gridTemplateColumns = "1fr";
     s.gridTemplateRows = "1fr";
     s.justifyItems = "center";
     s.alignItems = "center";
+  },
+  ">*": (s) => {
+    s.gridColumn = "1";
+    s.gridRow = "1";
   },
 });
 
@@ -297,7 +329,7 @@ const newContBar = (
   const newHbox = (children) =>
     e("div", {
       styles_: [
-        contHBoxStyle,
+        contHboxStyle,
         ss(uniq("cont_bar_hbox"), {
           "": (s) => {
             s.alignItems = "center";
@@ -415,20 +447,8 @@ const newContBarMainForm = (
     rightChildren
   );
 
-/** @type { (
- *    leftChildren: HTMLElement[],
- *    leftMidChildren: HTMLElement[],
- *    midChildren: HTMLElement[],
- *    rightMidChildren: HTMLElement[],
- *    rightChildren: HTMLElement[]
- * ) => HTMLElement} */
-const newContBarMainTransport = (
-  leftChildren,
-  leftMidChildren,
-  midChildren,
-  rightMidChildren,
-  rightChildren
-) =>
+/** @type { () => HTMLElement} */
+const newContBarMainTransport = () =>
   newContBar(
     [
       classMenuWantStateOpen,
@@ -439,11 +459,69 @@ const newContBarMainTransport = (
         },
       }),
     ],
-    leftChildren,
-    leftMidChildren,
-    midChildren,
-    rightMidChildren,
-    rightChildren
+    [newLeafTransportButton("Share", textIconShare)],
+    [],
+    [
+      newLeafTransportButton("Previous", textIconPrev),
+      e("div", {
+        styles_: [
+          contStackStyle,
+          ss(uniq("transport_seekbar"), {
+            "": (s) => {
+              // Hack around https://github.com/w3c/csswg-drafts/issues/12081 to
+              // set a default size without affecting min-content
+              s.gridTemplateColumns = "minmax(min-content, 8cm)";
+
+              s.pointerEvents = "initial";
+
+              s.alignItems = "center";
+            },
+          }),
+        ],
+        children_: [
+          e("div", {
+            styles_: [
+              ss(uniq("transport_gutter"), {
+                "": (s) => {
+                  s.height = "0.15cm";
+                  s.borderRadius = "0.05cm";
+                  s.backgroundColor = varCSeekbarEmpty;
+                },
+              }),
+            ],
+            children_: [
+              e("div", {
+                styles_: [
+                  ss(uniq("transport_gutter_fill"), {
+                    "": (s) => {
+                      s.height = "100%";
+                      s.width = "30%";
+                      s.borderRadius = "0.05cm";
+                      s.backgroundColor = varCSeekbarFill;
+                    },
+                  }),
+                ],
+              }),
+            ],
+          }),
+          e("span", {
+            textContent: "00:00",
+            styles_: [
+              ss(uniq("transport_time"), {
+                "": (s) => {
+                  s.opacity = "50%";
+                  s.justifySelf = "end";
+                  s.margin = "0 0.2cm";
+                },
+              }),
+            ],
+          }),
+        ],
+      }),
+      newLeafTransportButton("Next", textIconNext),
+    ],
+    [newLeafTransportButton("Play", textIconPlay)],
+    []
   );
 
 /** @type { (children: HTMLElement[]) => HTMLElement} */
@@ -507,20 +585,18 @@ const leafSpaceStyle = s(uniq("leaf_space"), {
 /** @type { () => HTMLElement} */
 const newLeafSpace = () => e("div", { styles_: [leafSpaceStyle] });
 
+const leafButtonStyle = ss(uniq("leaf_button"), {
+  ":hover": (s) => {
+    s.backgroundColor = varCButtonHover;
+  },
+  ":hover:active": (s) => {
+    s.backgroundColor = varCButtonClick;
+  },
+});
 /** @type { (title: string, text: string, extraStyles: string[], onclick?: ()=>void) => HTMLElement} */
 const newLeafButton = (title, text, extraStyles, onclick) =>
   e("button", {
-    styles_: [
-      ss(uniq("leaf_button"), {
-        ":hover": (s) => {
-          s.backgroundColor = varCButtonHover;
-        },
-        ":hover:active": (s) => {
-          s.backgroundColor = varCButtonClick;
-        },
-      }),
-      ...extraStyles,
-    ],
+    styles_: [leafButtonStyle, ...extraStyles],
     title: title,
     textContent: text,
     onclick: onclick,
@@ -597,48 +673,232 @@ const newLeafInputSelect = (id, children) =>
 // xx Components, styles: page, view
 
 const classViewTransverseStart = "trans_start";
-const classViewTransverseMiddle = "trans_middle";
 const classViewTransverseEnd = "trans_end";
 const classViewConverseStart = "conv_start";
-const classViewConverseMiddle = "conv_middle";
 const classViewConverseEnd = "conv_end";
-
-/** @type { (entries: HTMLElement[]) => HTMLElement} */
-const newContPageView = (entries) =>
-  e("div", {
-    styles_: [classMenuWantStateOpen, contVBoxStyle],
-    children_: entries,
-  });
-
-/** @type { (title: string, icon: string) => HTMLElement} */
-const newLeafTransportButton = (title, icon) =>
-  newLeafButton(title, icon, [
-    leafIconStyle,
-    ss(uniq("leaf_transport_button"), {
-      "": (s) => {
-        s.fontSize = "24pt";
-        s.fontWeight = "100";
-        const size = "1cm";
-        s.width = size;
-        s.height = size;
-      },
-    }),
-  ]);
 
 const contViewListStyle = ss(uniq("cont_view_list"), {
   "": (s) => {
+    s.flexGrow = "1";
     s.display = "flex";
+    s.gap = "0.3cm";
   },
   [`>.${classViewTransverseStart}`]: (s) => {
     s.alignSelf = "first baseline";
-  },
-  [`>.${classViewTransverseMiddle}`]: (s) => {
-    s.alignSelf = "middle";
   },
   [`>.${classViewTransverseEnd}`]: (s) => {
     s.alignSelf = "last baseline";
   },
 });
+
+/** @type { (entries: HTMLElement[]) => HTMLElement} */
+const newContPageView = (entries) =>
+  e("div", {
+    styles_: [
+      classMenuWantStateOpen,
+      contVboxStyle,
+      ss(uniq("cont_view_body"), {
+        "": (s) => {
+          s.gridColumn = "1/4";
+          s.gridRow = "2";
+          s.padding = `0 max(0.3cm, min(${varSCol1Width}, 100dvw / 20))`;
+        },
+        [`.${classMenuStateOpen}`]: (s) => {
+          s.display = "none";
+        },
+        [`>.${contViewListStyle}`]: (s) => {
+          s.gap = "0.8cm";
+        },
+      }),
+    ],
+    children_: entries,
+  });
+
+/** @type { (media: HTMLElement) => HTMLElement} */
+const newContMediaFullscreen = (media) =>
+  e("div", {
+    styles_: [
+      contVboxStyle,
+      ss(uniq("cont_fullscreen"), {
+        "": (s) => {
+          s.backgroundColor = "black";
+          s.justifyContent = "stretch";
+        },
+        ">*:nth-child(1)": (s) => {
+          s.flexGrow = "1";
+        },
+      }),
+    ],
+    children_: [
+      media,
+      e("div", {
+        styles_: [
+          contHboxStyle,
+          ss(uniq("cont_media_fullscreen_close_bar"), {
+            "": (s) => {
+              s.justifyContent = "end";
+            },
+          }),
+        ],
+        children_: [
+          e("button", {
+            styles_: [
+              leafIconStyle,
+              leafButtonStyle,
+              ss(uniq("cont_media_fullscreen_close"), {
+                "": (s) => {
+                  s.color = "white";
+                  const size = "1cm";
+                  s.width = size;
+                  s.height = size;
+                  s.fontSize = "20pt";
+                },
+              }),
+            ],
+            textContent: textIconClose,
+          }),
+        ],
+      }),
+    ],
+  });
+
+/** @type { (title: string, child: HTMLElement) => HTMLElement} */
+const newContModal = (title, child) =>
+  e("div", {
+    styles_: [
+      contStackStyle,
+      ss(uniq("cont_modal_outer"), {
+        "": (s) => {
+          s.position = "fixed";
+          s.zIndex = "3";
+          s.top = "0";
+          s.bottom = "0";
+          s.left = "0";
+          s.right = "0";
+        },
+      }),
+    ],
+    children_: [
+      e("div", {
+        styles_: [
+          ss(uniq("cont_modal_bg"), {
+            "": (s) => {
+              s.backgroundColor = "rgba(0,0,0,0.3)";
+              s.pointerEvents = "initial";
+            },
+          }),
+        ],
+      }),
+      e("div", {
+        styles_: [
+          contVboxStyle,
+          ss(uniq("cont_modal"), {
+            "": (s) => {
+              s.justifySelf = "center";
+              s.alignSelf = "center";
+              /** @type { (min: string, pad: string, max: string) => string } */
+              const threeState = (min, pad, max) => {
+                return `max(min(${min}, 100%), min(100% - ${pad}, ${max}))`;
+              };
+              s.width = threeState("6cm", "1cm", varSNarrow);
+              s.height = threeState("10cm", "1cm", varSModalHeight);
+              s.background = varCBackground;
+              s.borderRadius = "0.2cm";
+            },
+          }),
+        ],
+        children_: [
+          e("div", {
+            styles_: [
+              contHboxStyle,
+              ss(uniq("cont_modal_title_bar"), {
+                "": (s) => {
+                  s.alignItems = "center";
+                },
+              }),
+            ],
+            children_: [
+              e("h1", {
+                textContent: title,
+                styles_: [
+                  ss(uniq("cont_modal_title"), {
+                    "": (s) => {
+                      s.marginLeft = "0.5cm";
+                      s.fontSize = "24pt";
+                    },
+                  }),
+                ],
+              }),
+              newLeafSpace(),
+              e("button", {
+                styles_: [
+                  leafIconStyle,
+                  leafButtonStyle,
+                  ss(uniq("cont_modal_close"), {
+                    "": (s) => {
+                      s.fontSize = "20pt";
+                      const size = "1.4cm";
+                      s.width = size;
+                      s.height = size;
+                      s.borderTopRightRadius = "0.2cm";
+                    },
+                  }),
+                ],
+                textContent: textIconClose,
+              }),
+            ],
+          }),
+          child,
+        ],
+      }),
+    ],
+  });
+
+/** @type { (title: string, icon: string) => HTMLElement} */
+const newLeafTransportButton = (title, icon) => {
+  const size = "1cm";
+  const svgId = window.crypto.randomUUID();
+  const div = e("div");
+  div.style.clipPath = `url(#${svgId})`;
+  return e("button", {
+    styles_: [
+      leafButtonStyle,
+      ss(uniq("leaf_transport_button"), {
+        "": (s) => {
+          s.width = size;
+          s.height = size;
+        },
+        ">div": (s) => {
+          s.display = "inline-block";
+          s.width = "100%";
+          s.height = "100%";
+          s.backdropFilter = "grayscale() brightness(0.8) invert(1)";
+        },
+      }),
+    ],
+    title: title,
+    children_: [
+      // Debug by adding 0-1 viewbox and moving text outside of defs/clipPath; y is scaled by scale so 100x it
+      et(`
+        <svg width="0" height="0">
+          <defs>
+            <clipPath id="${svgId}" clipPathUnits="objectBoundingBox">
+              <text x="50" y="96" style="
+                text-anchor: middle;
+                font-family: I;
+                font-weight: 100;
+                font-size: 90px;
+                scale: 1%;
+              ">${icon}</text>
+            </clipPath>
+          </defs>
+        </svg>
+      `),
+      div,
+    ],
+  });
+};
+
 /** @type { (args: {direction: Direction, xScroll?: boolean, children: HTMLElement[] }) => HTMLElement} */
 const newContViewList = (args) => {
   const out = e("div", {
@@ -669,9 +929,6 @@ const newContViewList = (args) => {
                   [`>.${classViewTransverseStart}`]: (s) => {
                     s.alignSelf = "first baseline";
                   },
-                  [`>.${classViewTransverseMiddle}`]: (s) => {
-                    s.alignSelf = "middle";
-                  },
                   [`>.${classViewTransverseEnd}`]: (s) => {
                     s.alignSelf = "last baseline";
                   },
@@ -683,9 +940,6 @@ const newContViewList = (args) => {
                   },
                   [`>.${classViewTransverseStart}`]: (s) => {
                     s.alignSelf = "first baseline";
-                  },
-                  [`>.${classViewTransverseMiddle}`]: (s) => {
-                    s.alignSelf = "middle";
                   },
                   [`>.${classViewTransverseEnd}`]: (s) => {
                     s.alignSelf = "last baseline";
@@ -706,6 +960,7 @@ const newContViewList = (args) => {
 
 /** @type { (args: {orientation: Orientation, xScroll?: boolean, children: HTMLElement[][] }) => HTMLElement} */
 const newContViewTable = (args) => {
+  const template = [];
   const children1 = [];
   for (let j0 = 0; j0 < args.children.length; ++j0) {
     const j = j0 + 1;
@@ -743,6 +998,7 @@ const newContViewTable = (args) => {
       }
       children1.push(child);
     }
+    template.push("auto");
   }
   const out = e("div", {
     styles_: [
@@ -755,7 +1011,7 @@ const newContViewTable = (args) => {
         },
       }),
       ss(
-        uniq("cont_view_table", args.orientation),
+        uniq("cont_view_table_conv", conv(args.orientation)),
         /** @type { () => ({[prefix: string]: (s: CSSStyleDeclaration) => void}) } */ (
           () => {
             switch (conv(args.orientation)) {
@@ -765,9 +1021,6 @@ const newContViewTable = (args) => {
                   "": (s) => {},
                   [`>.${classViewTransverseStart}`]: (s) => {
                     s.alignSelf = "first baseline";
-                  },
-                  [`>.${classViewTransverseMiddle}`]: (s) => {
-                    s.alignSelf = "middle";
                   },
                   [`>.${classViewTransverseEnd}`]: (s) => {
                     s.alignSelf = "last baseline";
@@ -780,11 +1033,31 @@ const newContViewTable = (args) => {
                   [`>.${classViewTransverseStart}`]: (s) => {
                     s.justifySelf = "first baseline";
                   },
-                  [`>.${classViewTransverseMiddle}`]: (s) => {
-                    s.justifySelf = "middle";
-                  },
                   [`>.${classViewTransverseEnd}`]: (s) => {
                     s.justifySelf = "last baseline";
+                  },
+                };
+            }
+          }
+        )()
+      ),
+      ss(
+        uniq("cont_view_table_trans", trans(args.orientation)),
+        /** @type { () => ({[prefix: string]: (s: CSSStyleDeclaration) => void}) } */ (
+          () => {
+            switch (trans(args.orientation)) {
+              case "up":
+              case "left":
+                return {
+                  "": (s) => {
+                    s.justifyItems = "end";
+                  },
+                };
+              case "down":
+              case "right":
+                return {
+                  "": (s) => {
+                    s.justifyItems = "start";
                   },
                 };
             }
@@ -794,6 +1067,20 @@ const newContViewTable = (args) => {
     ],
     children_: children1,
   });
+  switch (conv(args.orientation)) {
+    case "up":
+      out.style.gridTemplateRows = `1fr ${template.join(" ")}`;
+      break;
+    case "down":
+      out.style.gridTemplateRows = `${template.join(" ")} 1fr`;
+      break;
+    case "left":
+      out.style.gridTemplateColumns = `1fr ${template.join(" ")}`;
+      break;
+    case "right":
+      out.style.gridTemplateColumns = `${template.join(" ")} 1fr`;
+      break;
+  }
   if (args.xScroll) {
     out.style.overflowX = "scroll";
   }
@@ -809,14 +1096,14 @@ const newLeafViewImage = (args) => {
       ss(uniq("leaf_view_image"), {
         "": (s) => {
           s.objectFit = "contain";
+          s.aspectRatio = "auto";
+          s.flexShrink = "0";
         },
       }),
       (() => {
         switch (args.align) {
           case "start":
             return classViewTransverseStart;
-          case "middle":
-            return classViewTransverseMiddle;
           case "end":
             return classViewTransverseEnd;
         }
@@ -832,11 +1119,12 @@ const newLeafViewImage = (args) => {
   return out;
 };
 
-/** @type { (args: {align: Align, orientation: Orientation, text: string, maxSize?: number, url?: string }) => HTMLElement} */
+/** @type { (args: {align: Align, orientation: Orientation, text: string, fontSize?: string, maxSize?: string, url?: string }) => HTMLElement} */
 const newLeafViewText = (args) => {
   const baseStyle = ss(uniq("leaf_view_text"), {
     "": (s) => {
       s.pointerEvents = "initial";
+      s.whiteSpace = "pre-wrap";
     },
   });
   const dirStyle = ss(uniq("leaf_view_text_dir", args.orientation), {
@@ -847,11 +1135,17 @@ const newLeafViewText = (args) => {
           case "down_left":
             return (s) => {
               s.writingMode = "vertical-rl";
+              if (args.maxSize != null) {
+                s.maxHeight = args.maxSize;
+              }
             };
           case "up_right":
           case "down_right":
             return (s) => {
               s.writingMode = "vertical-lr";
+              if (args.maxSize != null) {
+                s.maxHeight = args.maxSize;
+              }
             };
           case "left_up":
           case "left_down":
@@ -859,6 +1153,9 @@ const newLeafViewText = (args) => {
           case "right_down":
             return (s) => {
               s.writingMode = "horizontal-tb";
+              if (args.maxSize != null) {
+                s.maxWidth = args.maxSize;
+              }
             };
         }
       }
@@ -868,8 +1165,6 @@ const newLeafViewText = (args) => {
     switch (args.align) {
       case "start":
         return classViewTransverseStart;
-      case "middle":
-        return classViewTransverseMiddle;
       case "end":
         return classViewTransverseEnd;
     }
@@ -898,59 +1193,91 @@ const newLeafViewText = (args) => {
       });
     }
   })();
+  if (args.fontSize != null) {
+    out.style.fontSize = args.fontSize;
+  }
   return out;
 };
 
 /** @type { (args: {align: Align, direction: Direction }) => HTMLElement} */
 const newLeafViewPlay = (args) => {
+  const size = "1cm";
   const out = e("button", {
     styles_: [
-      leafIconStyle,
+      leafButtonStyle,
       ss(uniq("leaf_view_play"), {
         "": (s) => {
-          s.fontSize = "24pt";
-          s.fontWeight = "100";
-          const size = "1cm";
           s.width = size;
           s.height = size;
+          // Hack to override baseline using inline-block weirdness...
+          // https://stackoverflow.com/questions/39373787/css-set-baseline-of-inline-block-element-manually-and-have-it-take-the-expected
+          s.display = "inline-block";
+          s.textWrapMode = "nowrap";
         },
       }),
-      ss(uniq("leaf_view_play", args.direction), {
-        "": /** @type { () => ((s: CSSStyleDeclaration) => void) } */ (
+      ss(
+        uniq("leaf_view_play", args.direction),
+        /** @type { () => ({[suffix: string]: (s: CSSStyleDeclaration) => void}) } */ (
           () => {
             switch (args.direction) {
               case "up":
-                return (s) => {
-                  s.rotate = "270deg";
+                return {
+                  "": (s) => {
+                    s.writingMode = "vertical-rl";
+                  },
+                  ">*:nth-child(1)": (s) => {
+                    s.rotate = "270deg";
+                  },
                 };
               case "down":
-                return (s) => {
-                  s.rotate = "90deg";
+                return {
+                  "": (s) => {
+                    s.writingMode = "vertical-rl";
+                  },
+                  ">*:nth-child(1)": (s) => {
+                    s.rotate = "90deg";
+                  },
                 };
               case "left":
-                return (s) => {
-                  s.rotate = "180deg";
+                return {
+                  ">*:nth-child(1)": (s) => {
+                    s.rotate = "180deg";
+                  },
                 };
               case "right":
-                return (s) => {
-                  s.rotate = "0deg";
+                return {
+                  ">*:nth-child(1)": (s) => {},
                 };
             }
           }
-        )(),
-      }),
+        )()
+      ),
       (() => {
         switch (args.align) {
           case "start":
             return classViewTransverseStart;
-          case "middle":
-            return classViewTransverseMiddle;
           case "end":
             return classViewTransverseEnd;
         }
       })(),
     ],
-    textContent: "\ue037",
+    children_: [
+      e("div", {
+        styles_: [
+          leafIconStyle,
+          ss(uniq("leaf_view_play_inner"), {
+            "": (s) => {
+              s.width = "100%";
+              s.height = "100%";
+              s.writingMode = "horizontal-tb";
+              s.fontSize = "24pt";
+              s.fontWeight = "100";
+            },
+          }),
+        ],
+        textContent: textIconPlay,
+      }),
+    ],
   });
   return out;
 };
@@ -962,7 +1289,7 @@ const contBodyNarrowStyle = s(uniq("cont_body_narrow"), {
   "": (s) => {
     s.gridRow = "2";
     s.gridColumn = "1/4";
-    s.width = `min(20cm, 100% - ${varSCol1Width} * 2)`;
+    s.width = `min(${varSNarrow}, 100% - ${varSCol1Width} * 2)`;
     s.justifySelf = "center";
     s.marginBottom = "2.5cm";
   },
@@ -973,7 +1300,7 @@ const contBodyNarrowStyle = s(uniq("cont_body_narrow"), {
 /** @type { (entries: HTMLElement[]) => HTMLElement} */
 const newContPageForm = (entries) =>
   e("div", {
-    styles_: [classMenuWantStateOpen, contBodyNarrowStyle, contVBoxStyle],
+    styles_: [classMenuWantStateOpen, contBodyNarrowStyle, contVboxStyle],
     children_: [
       e("div", {
         styles_: [
@@ -1010,7 +1337,7 @@ const newContPageEdit = (children) =>
     styles_: [
       classMenuWantStateOpen,
       contBodyNarrowStyle,
-      contVBoxStyle,
+      contVboxStyle,
       ss(uniq("page_edit"), {
         "": (s) => {
           s.gap = varSEditGap;
@@ -1024,7 +1351,7 @@ const newContPageEdit = (children) =>
 const newContPageEditSectionRel = (children) =>
   e("div", {
     styles_: [
-      contVBoxStyle,
+      contVboxStyle,
       ss(uniq("cont_page_edit_section_rel"), {
         "": (s) => {
           s.gap = varSEditGap;
@@ -1082,15 +1409,15 @@ const newLeafEditNode = (id, nodeHint, nodeType, node) => {
     newLeafInputText(id, nodeHint, node)
   );
   return e("div", {
-    styles_: [contVBoxStyle, contEditNodeVboxStyle],
+    styles_: [contVboxStyle, contEditNodeVboxStyle],
     children_: [
       e("div", {
-        styles_: [contHBoxStyle, contEditNodeHboxStyle],
+        styles_: [contHboxStyle, contEditNodeHboxStyle],
         children_: [
           inputSelect,
           newLeafSpace(),
-          newLeafButtonEditFree("\ue15b", "Delete"),
-          newLeafButtonEditFree("\ue166", "Revert"),
+          newLeafButtonEditFree(textIconDelete, "Delete"),
+          newLeafButtonEditFree(textIconRevert, "Revert"),
         ],
       }),
       inputText,
@@ -1145,10 +1472,10 @@ const leafEditRelOutgoingStyle = s(uniq("leaf_edit_rel_incoming"), {
 /** @type { (children: HTMLElement[]) => HTMLElement} */
 const newLeafEditRowIncoming = (children) =>
   e("div", {
-    styles_: [contHBoxStyle, leafEditHBoxStyle],
+    styles_: [contHboxStyle, leafEditHBoxStyle],
     children_: [
       e("div", {
-        styles_: [contVBoxStyle, leafEditVBoxStyle],
+        styles_: [contVboxStyle, leafEditVBoxStyle],
         children_: children,
       }),
       e("div", {
@@ -1161,14 +1488,14 @@ const newLeafEditRowIncoming = (children) =>
 /** @type { (children: HTMLElement[]) => HTMLElement} */
 const newLeafEditRowOutgoing = (children) =>
   e("div", {
-    styles_: [contHBoxStyle, leafEditHBoxStyle],
+    styles_: [contHboxStyle, leafEditHBoxStyle],
     children_: [
       e("div", {
         textContent: "\uf72e",
         styles_: [leafIconStyle, leafEditRelStyle, leafEditRelOutgoingStyle],
       }),
       e("div", {
-        styles_: [contVBoxStyle, leafEditVBoxStyle],
+        styles_: [contVboxStyle, leafEditVBoxStyle],
         children_: children,
       }),
     ],
@@ -1188,7 +1515,7 @@ const contMenuGroupVBoxStyle = s(uniq("cont_menu_group0"), {
 const newContBodyMenu = () =>
   e("div", {
     styles_: [
-      contVBoxStyle,
+      contVboxStyle,
       contMenuGroupVBoxStyle,
       ss(uniq("cont_body_menu"), {
         "": (s) => {
@@ -1244,17 +1571,17 @@ const newContMenuGroup = (title, children) =>
         children_: [
           e("div", {
             styles_: ["closed", leafIconStyle],
-            textContent: "\ue316",
+            textContent: textIconFoldClosed,
           }),
           e("div", {
             styles_: ["open", leafIconStyle],
-            textContent: "\ue313",
+            textContent: textIconFoldOpened,
           }),
           e("span", { textContent: title }),
         ],
       }),
       e("div", {
-        styles_: [contVBoxStyle, contMenuGroupVBoxStyle],
+        styles_: [contVboxStyle, contMenuGroupVBoxStyle],
         children_: children,
       }),
     ],
@@ -1292,7 +1619,7 @@ const newLeafMenuLink = (title, href) =>
           e("span", { textContent: title }),
           e("div", {
             styles_: [leafIconStyle],
-            textContent: "\ue5c8",
+            textContent: textIconMenuLink,
           }),
         ],
       }),
@@ -1310,22 +1637,27 @@ addEventListener("DOMContentLoaded", (_) => {
     },
   });
   notnull(document.body.parentElement).classList.add(htmlStyle);
-  const bodyStyle = s(uniq("body"), {
-    "": (s) => {
-      s.display = "grid";
-      s.overflowX = "hidden";
-      s.maxWidth = "100dvw";
-      s.gridTemplateColumns = `${varSCol1Width} 1fr auto`;
-      s.gridTemplateRows = "auto 1fr";
-    },
+  document.body.classList.add(contStackStyle);
+  const innerBody = e("div", {
+    styles_: [
+      ss(uniq("body"), {
+        "": (s) => {
+          s.display = "grid";
+          s.overflowX = "hidden";
+          s.maxWidth = "100dvw";
+          s.gridTemplateColumns = `${varSCol1Width} 1fr auto`;
+          s.gridTemplateRows = "auto 1fr";
+        },
+      }),
+    ],
   });
-  document.body.classList.add(bodyStyle);
-  document.body.appendChild(
+  document.body.appendChild(innerBody);
+  innerBody.appendChild(
     newContTitle({
       left: newLeafTitle("Music"),
       right: newLeafButton(
         "Menu",
-        "\ue5d2",
+        textIconMenu,
         [
           leafIconStyle,
           ss(uniq("cont_main_title_admenu"), {
@@ -1355,236 +1687,232 @@ addEventListener("DOMContentLoaded", (_) => {
 
   const hash = location.hash;
   if (hash == "#view") {
-    document.body.appendChild(
-      newContBarMainTransport(
-        [newLeafTransportButton("Share", "\ue80d")],
-        [],
-        [
-          newLeafTransportButton("Previous", "\ue5cb"),
-          e("div", {
-            styles_: [
-              contStackStyle,
-              ss(uniq("transport_seekbar"), {
-                "": (s) => {
-                  // Hack around https://github.com/w3c/csswg-drafts/issues/12081 to
-                  // set a default size without affecting min-content
-                  s.gridTemplateColumns = "minmax(min-content, 8cm)";
-
-                  s.alignItems = "center";
-                },
-              }),
-            ],
-            children_: [
-              e("div", {
-                styles_: [
-                  ss(uniq("transport_gutter"), {
-                    "": (s) => {
-                      s.height = "0.15cm";
-                      s.borderRadius = "0.05cm";
-                      s.backgroundColor = varCSeekbarEmpty;
-                    },
-                  }),
-                ],
-                children_: [
-                  e("div", {
-                    styles_: [
-                      ss(uniq("transport_gutter_fill"), {
-                        "": (s) => {
-                          s.height = "100%";
-                          s.width = "30%";
-                          s.borderRadius = "0.05cm";
-                          s.backgroundColor = varCSeekbarFill;
-                        },
-                      }),
-                    ],
-                  }),
-                ],
-              }),
-              e("span", {
-                textContent: "00:00",
-                styles_: [
-                  ss(uniq("transport_time"), {
-                    "": (s) => {
-                      s.opacity = "50%";
-                      s.justifySelf = "end";
-                      s.margin = "0 0.2cm";
-                    },
-                  }),
-                ],
-              }),
-            ],
-          }),
-          newLeafTransportButton("Next", "\ue5cc"),
-        ],
-        [newLeafTransportButton("Play", "\ue037")],
-        []
-      )
-    );
-    document.body.appendChild(
-      e("div", {
-        styles_: [
-          contStackStyle,
-          classMenuWantStateOpen,
-          ss(uniq("cont_view_body"), {
-            "": (s) => {
-              s.gridColumn = "1/4";
-              s.gridRow = "2";
-            },
-            [`.${classMenuStateOpen}`]: (s) => {
-              s.display = "none";
-            },
-          }),
-        ],
-        children_: [
-          newContPageView([
+    innerBody.appendChild(newContBarMainTransport());
+    innerBody.appendChild(
+      newContPageView([
+        newContViewList({
+          direction: "down",
+          children: [
             newContViewList({
-              direction: "down",
+              direction: "right",
               children: [
-                newContViewList({
-                  direction: "right",
-                  children: [
-                    newLeafViewImage({
-                      align: "start",
-                      url: "testcover.jpg",
-                      width: "6cm",
-                    }),
-                    newContViewList({
-                      direction: "down",
-                      children: [
-                        newLeafViewText({
-                          align: "start",
-                          orientation: "right_down",
-                          text: "Harmônicos",
-                        }),
-                        newContViewTable({
-                          orientation: "right_down",
-                          xScroll: true,
-                          children: [
-                            [
-                              newLeafViewPlay({
-                                align: "start",
-                                direction: "down",
-                              }),
-                              newLeafViewText({
-                                align: "start",
-                                orientation: "down_left",
-                                text: "1. ",
-                              }),
-                              newLeafViewText({
-                                align: "start",
-                                orientation: "down_left",
-                                text: "Fabiano do Nascimento and Shin Sasakubo",
-                                url: "abcd-xyzg",
-                              }),
-                              newLeafViewText({
-                                align: "start",
-                                orientation: "down_left",
-                                text: " - ",
-                              }),
-                              newLeafViewText({
-                                align: "start",
-                                orientation: "down_left",
-                                text: "Primeiro Encontro",
-                              }),
-                            ],
-                            [
-                              newLeafViewPlay({
-                                align: "start",
-                                direction: "down",
-                              }),
-                              newLeafViewText({
-                                align: "start",
-                                orientation: "down_left",
-                                text: "2. ",
-                              }),
-                              newLeafViewText({
-                                align: "start",
-                                orientation: "down_left",
-                                text: "Fabiano do Nascimento and Shin Sasakubo",
-                                url: "abcd-xyzg",
-                              }),
-                              newLeafViewText({
-                                align: "start",
-                                orientation: "down_left",
-                                text: " - ",
-                              }),
-                              newLeafViewText({
-                                align: "start",
-                                orientation: "down_left",
-                                text: "Primeiro Encontro",
-                              }),
-                            ],
-                          ],
-                        }),
-                      ],
-                    }),
-                  ],
+                newLeafViewImage({
+                  align: "start",
+                  url: "testcover.jpg",
+                  width: "min(6cm, 40%)",
                 }),
-
                 newContViewList({
-                  direction: "right",
+                  direction: "down",
                   children: [
-                    newLeafViewImage({
+                    newLeafViewText({
                       align: "start",
-                      url: "testcover.jpg",
-                      width: "6cm",
+                      orientation: "right_down",
+                      text: "Harmônicos",
+                      fontSize: "20pt",
                     }),
-                    newContViewList({
-                      direction: "down",
+                    newContViewTable({
+                      orientation: "right_down",
+                      xScroll: true,
                       children: [
-                        newLeafViewText({
-                          align: "start",
-                          orientation: "right_down",
-                          text: "Harmônicos",
-                        }),
-                        newContViewTable({
-                          orientation: "right_down",
-                          xScroll: true,
-                          children: [
-                            [
-                              newLeafViewPlay({
-                                align: "start",
-                                direction: "down",
-                              }),
-                              newLeafViewText({
-                                align: "start",
-                                orientation: "down_left",
-                                text: "1. ",
-                              }),
-                              newLeafViewText({
-                                align: "start",
-                                orientation: "down_left",
-                                text: "Fabiano do Nascimento and Shin Sasakubo",
-                                url: "abcd-xyzg",
-                              }),
-                              newLeafViewText({
-                                align: "start",
-                                orientation: "down_left",
-                                text: " - ",
-                              }),
-                              newLeafViewText({
-                                align: "start",
-                                orientation: "down_left",
-                                text: "Primeiro Encontro",
-                              }),
-                            ],
-                          ],
-                        }),
+                        [
+                          newLeafViewPlay({
+                            align: "start",
+                            direction: "down",
+                          }),
+                          newLeafViewText({
+                            align: "start",
+                            orientation: "down_left",
+                            text: "1. ",
+                          }),
+                          newLeafViewText({
+                            align: "start",
+                            orientation: "down_left",
+                            text: "Fabiano do Nascimento and Shin Sasakubo",
+                            url: "abcd-xyzg",
+                            maxSize: "6cm",
+                          }),
+                          newLeafViewText({
+                            align: "start",
+                            orientation: "down_left",
+                            text: " - ",
+                          }),
+                          newLeafViewText({
+                            align: "start",
+                            orientation: "down_left",
+                            text: "Primeiro Encontro",
+                            maxSize: "6cm",
+                          }),
+                        ],
+                        [
+                          newLeafViewPlay({
+                            align: "start",
+                            direction: "down",
+                          }),
+                          newLeafViewText({
+                            align: "start",
+                            orientation: "down_left",
+                            text: "2. ",
+                          }),
+                          newLeafViewText({
+                            align: "start",
+                            orientation: "down_left",
+                            text: "Fabiano do Nascimento and Shin Sasakubo",
+                            url: "abcd-xyzg",
+                            maxSize: "6cm",
+                          }),
+                          newLeafViewText({
+                            align: "start",
+                            orientation: "down_left",
+                            text: " - ",
+                          }),
+                          newLeafViewText({
+                            align: "start",
+                            orientation: "down_left",
+                            text: "Primeiro Encontro",
+                            maxSize: "6cm",
+                          }),
+                        ],
                       ],
                     }),
                   ],
                 }),
               ],
             }),
-          ]),
-        ],
-      })
+
+            newContViewList({
+              direction: "right",
+              children: [
+                newLeafViewImage({
+                  align: "start",
+                  url: "testcover.jpg",
+                  width: "6cm",
+                }),
+                newContViewList({
+                  direction: "down",
+                  children: [
+                    newLeafViewText({
+                      align: "start",
+                      orientation: "right_down",
+                      text: "Harmônicos",
+                    }),
+                    newContViewTable({
+                      orientation: "right_down",
+                      xScroll: true,
+                      children: [
+                        [
+                          newLeafViewPlay({
+                            align: "start",
+                            direction: "down",
+                          }),
+                          newLeafViewText({
+                            align: "start",
+                            orientation: "down_left",
+                            text: "1. ",
+                          }),
+                          newLeafViewText({
+                            align: "start",
+                            orientation: "down_left",
+                            text: "Fabiano do Nascimento and Shin Sasakubo",
+                            url: "abcd-xyzg",
+                          }),
+                          newLeafViewText({
+                            align: "start",
+                            orientation: "down_left",
+                            text: " - ",
+                          }),
+                          newLeafViewText({
+                            align: "start",
+                            orientation: "down_left",
+                            text: "Primeiro Encontro",
+                          }),
+                        ],
+                      ],
+                    }),
+                  ],
+                }),
+              ],
+            }),
+          ],
+        }),
+      ])
+    );
+    document.body.appendChild(
+      newContModal(
+        "Volume",
+        e("div", {
+          styles_: [
+            contVboxStyle,
+            ss(uniq("cont_modal_volume"), {
+              "": (s) => {
+                s.gap = "0.5cm";
+                s.flexGrow = "1";
+                s.margin = "0.2cm";
+              },
+            }),
+          ],
+          children_: [
+            e("div", {
+              styles_: [
+                contStackStyle,
+                ss(uniq("cont_modal_volume_cont"), {
+                  "": (s) => {
+                    s.flexGrow = "1";
+                    s.aspectRatio = "1/1";
+                    s.alignSelf = "center";
+                  },
+                }),
+              ],
+              children_: [
+                e("div", {
+                  styles_: [
+                    ss(uniq("cont_modal_volume_bg_horiz"), { "": (s) => {} }),
+                  ],
+                }),
+                e("div", {
+                  styles_: [
+                    ss(uniq("cont_modal_volume_bg_vert"), { "": (s) => {} }),
+                  ],
+                }),
+                e("div", {
+                  styles_: [
+                    ss(uniq("cont_modal_volume_puck"), { "": (s) => {} }),
+                  ],
+                }),
+              ],
+            }),
+            e("span", {
+              styles_: [
+                ss(uniq("cont_modal_volume_text"), {
+                  "": (s) => {
+                    s.textAlign = "center";
+                  },
+                }),
+              ],
+              textContent: "0%",
+            }),
+          ],
+        })
+      )
+    );
+  } else if (hash == "#fullscreen") {
+    document.body.appendChild(
+      newContMediaFullscreen(
+        e("div", {
+          styles_: [
+            ss(uniq("test"), {
+              "": (s) => {
+                s.border = "1px solid blue";
+              },
+            }),
+          ],
+        })
+      )
     );
   } else if (hash == "#form") {
-    document.body.appendChild(
+    innerBody.appendChild(
       newContBarMainForm([], [], [], [], [newLeafBarButtonBig("Save", "Save")])
     );
-    document.body.appendChild(
+    innerBody.appendChild(
       newContPageForm([
         newLeafInputPairText("item1", "Title", "ABCD"),
         newLeafInputPairText("item2", "Text", "WXYC"),
@@ -1592,13 +1920,13 @@ addEventListener("DOMContentLoaded", (_) => {
       ])
     );
   } else if (hash == "#edit") {
-    document.body.appendChild(
+    innerBody.appendChild(
       newContBarMainForm([], [], [], [], [newLeafBarButtonBig("Save", "Save")])
     );
-    document.body.appendChild(
+    innerBody.appendChild(
       newContPageEdit([
         newLeafEditRowIncoming([
-          newLeafButtonEditFree("\ue145", "Add incoming triple"),
+          newLeafButtonEditFree(textIconAdd, "Add incoming triple"),
         ]),
         newContPageEditSectionRel([
           newLeafEditRowIncoming([
@@ -1636,7 +1964,7 @@ addEventListener("DOMContentLoaded", (_) => {
           ]),
         ]),
         newLeafEditRowOutgoing([
-          newLeafButtonEditFree("\ue145", "Add outgoing triple"),
+          newLeafButtonEditFree(textIconAdd, "Add outgoing triple"),
         ]),
       ])
     );
@@ -1644,7 +1972,7 @@ addEventListener("DOMContentLoaded", (_) => {
     throw new Error();
   }
 
-  document.body.appendChild(
+  innerBody.appendChild(
     e("div", {
       id: "menu",
       styles_: [
@@ -1691,7 +2019,7 @@ addEventListener("DOMContentLoaded", (_) => {
             e("div", {
               styles_: [
                 classMenuWantStateOpen,
-                contVBoxStyle,
+                contVboxStyle,
                 contMenuGroupVBoxStyle,
                 ss(uniq("cont_menu_body"), {
                   "": (s) => {

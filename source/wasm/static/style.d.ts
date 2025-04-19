@@ -8,7 +8,7 @@ declare type Orientation =
   | "left_down"
   | "right_up"
   | "right_down";
-declare type Align = "start" | "middle" | "end";
+declare type Align = "start" | "end";
 declare interface Window {
   _wongus: {
     stream_cbs: Map<number, (line: string) => void>;
