@@ -1627,18 +1627,11 @@ const newLeafMenuLink = (title, href) =>
   });
 
 ///////////////////////////////////////////////////////////////////////////////
-// xx Components, styles: staging
-addEventListener("DOMContentLoaded", (_) => {
-  const htmlStyle = s(uniq("html"), {
-    "": (s) => {
-      s.fontFamily = "X";
-      s.backgroundColor = varCBackground;
-      s.color = varCForeground;
-    },
-  });
-  notnull(document.body.parentElement).classList.add(htmlStyle);
-  document.body.classList.add(contStackStyle);
-  const innerBody = e("div", {
+// xx Components, styles: Main
+
+/** @type { (children: HTMLElement[]) => HTMLElement } */
+const newAppMain = (children) =>
+  e("div", {
     styles_: [
       ss(uniq("body"), {
         "": (s) => {
@@ -1650,249 +1643,311 @@ addEventListener("DOMContentLoaded", (_) => {
         },
       }),
     ],
-  });
-  document.body.appendChild(innerBody);
-  innerBody.appendChild(
-    newContTitle({
-      left: newLeafTitle("Music"),
-      right: newLeafButton(
-        "Menu",
-        textIconMenu,
-        [
-          leafIconStyle,
-          ss(uniq("cont_main_title_admenu"), {
-            "": (s) => {
-              s.gridColumn = "3";
-              s.gridRow = "1";
-              s.fontSize = varSFontAdmenu;
-              s.width = varSCol3Width;
-              s.height = varSCol3Width;
-            },
-          }),
-        ],
-        (() => {
-          let state = false;
-          return () => {
-            state = !state;
-            for (const e of document.getElementsByClassName(
-              classMenuWantStateOpen
-            )) {
-              e.classList.toggle(classMenuStateOpen, state);
-            }
-          };
-        })()
-      ),
-    })
-  );
-
-  const hash = location.hash;
-  if (hash == "#view") {
-    innerBody.appendChild(newContBarMainTransport());
-    innerBody.appendChild(
-      newContPageView([
-        newContViewList({
-          direction: "down",
-          children: [
-            newContViewList({
-              direction: "right",
-              children: [
-                newLeafViewImage({
-                  align: "start",
-                  url: "testcover.jpg",
-                  width: "min(6cm, 40%)",
-                }),
-                newContViewList({
-                  direction: "down",
-                  children: [
-                    newLeafViewText({
-                      align: "start",
-                      orientation: "right_down",
-                      text: "Harmônicos",
-                      fontSize: "20pt",
-                    }),
-                    newContViewTable({
-                      orientation: "right_down",
-                      xScroll: true,
-                      children: [
-                        [
-                          newLeafViewPlay({
-                            align: "start",
-                            direction: "down",
-                          }),
-                          newLeafViewText({
-                            align: "start",
-                            orientation: "down_left",
-                            text: "1. ",
-                          }),
-                          newLeafViewText({
-                            align: "start",
-                            orientation: "down_left",
-                            text: "Fabiano do Nascimento and Shin Sasakubo",
-                            url: "abcd-xyzg",
-                            maxSize: "6cm",
-                          }),
-                          newLeafViewText({
-                            align: "start",
-                            orientation: "down_left",
-                            text: " - ",
-                          }),
-                          newLeafViewText({
-                            align: "start",
-                            orientation: "down_left",
-                            text: "Primeiro Encontro",
-                            maxSize: "6cm",
-                          }),
-                        ],
-                        [
-                          newLeafViewPlay({
-                            align: "start",
-                            direction: "down",
-                          }),
-                          newLeafViewText({
-                            align: "start",
-                            orientation: "down_left",
-                            text: "2. ",
-                          }),
-                          newLeafViewText({
-                            align: "start",
-                            orientation: "down_left",
-                            text: "Fabiano do Nascimento and Shin Sasakubo",
-                            url: "abcd-xyzg",
-                            maxSize: "6cm",
-                          }),
-                          newLeafViewText({
-                            align: "start",
-                            orientation: "down_left",
-                            text: " - ",
-                          }),
-                          newLeafViewText({
-                            align: "start",
-                            orientation: "down_left",
-                            text: "Primeiro Encontro",
-                            maxSize: "6cm",
-                          }),
-                        ],
-                      ],
-                    }),
-                  ],
-                }),
-              ],
-            }),
-
-            newContViewList({
-              direction: "right",
-              children: [
-                newLeafViewImage({
-                  align: "start",
-                  url: "testcover.jpg",
-                  width: "6cm",
-                }),
-                newContViewList({
-                  direction: "down",
-                  children: [
-                    newLeafViewText({
-                      align: "start",
-                      orientation: "right_down",
-                      text: "Harmônicos",
-                    }),
-                    newContViewTable({
-                      orientation: "right_down",
-                      xScroll: true,
-                      children: [
-                        [
-                          newLeafViewPlay({
-                            align: "start",
-                            direction: "down",
-                          }),
-                          newLeafViewText({
-                            align: "start",
-                            orientation: "down_left",
-                            text: "1. ",
-                          }),
-                          newLeafViewText({
-                            align: "start",
-                            orientation: "down_left",
-                            text: "Fabiano do Nascimento and Shin Sasakubo",
-                            url: "abcd-xyzg",
-                          }),
-                          newLeafViewText({
-                            align: "start",
-                            orientation: "down_left",
-                            text: " - ",
-                          }),
-                          newLeafViewText({
-                            align: "start",
-                            orientation: "down_left",
-                            text: "Primeiro Encontro",
-                          }),
-                        ],
-                      ],
-                    }),
-                  ],
-                }),
-              ],
-            }),
-          ],
-        }),
-      ])
-    );
-    document.body.appendChild(
-      newContModal(
-        "Volume",
-        e("div", {
-          styles_: [
-            contVboxStyle,
-            ss(uniq("cont_modal_volume"), {
+    children_: [
+      newContTitle({
+        left: newLeafTitle("Music"),
+        right: newLeafButton(
+          "Menu",
+          textIconMenu,
+          [
+            leafIconStyle,
+            ss(uniq("cont_main_title_admenu"), {
               "": (s) => {
-                s.gap = "0.5cm";
-                s.flexGrow = "1";
-                s.margin = "0.2cm";
+                s.gridColumn = "3";
+                s.gridRow = "1";
+                s.fontSize = varSFontAdmenu;
+                s.width = varSCol3Width;
+                s.height = varSCol3Width;
               },
             }),
           ],
-          children_: [
-            e("div", {
-              styles_: [
-                contStackStyle,
-                ss(uniq("cont_modal_volume_cont"), {
-                  "": (s) => {
-                    s.flexGrow = "1";
-                    s.aspectRatio = "1/1";
-                    s.alignSelf = "center";
-                  },
-                }),
-              ],
-              children_: [
-                e("div", {
+          (() => {
+            let state = false;
+            return () => {
+              state = !state;
+              for (const e of document.getElementsByClassName(
+                classMenuWantStateOpen
+              )) {
+                e.classList.toggle(classMenuStateOpen, state);
+              }
+            };
+          })()
+        ),
+      }),
+      ...children,
+      e("div", {
+        id: "menu",
+        styles_: [
+          classMenuWantStateOpen,
+          s(uniq("cont_menu"), {
+            "": (s) => {
+              s.zIndex = "3";
+              s.gridRow = "1/4";
+              s.gridColumn = "1/3";
+              s.backgroundColor = varCBackgroundMenu;
+              s.filter = "drop-shadow(0.05cm 0px 0.05cm rgba(0, 0, 0, 0.06))";
+              s.overflow = "hidden";
+              s.display = "grid";
+              s.gridTemplateColumns = "subgrid";
+              s.gridTemplateRows = "subgrid";
+              s.position = "relative";
+              s.transition = "0.03s left";
+              s.pointerEvents = "initial";
+            },
+            [`.${classMenuStateOpen}`]: (s) => {
+              s.left = "0";
+            },
+            [`:not(.${classMenuStateOpen})`]: (s) => {
+              s.left = "-110dvw";
+            },
+          }),
+        ],
+        children_: [
+          newContTitle({
+            left: newLeafTitle("Menu"),
+          }),
+          e("div", {
+            styles_: [
+              ss(uniq("cont_menu1"), {
+                "": (s) => {
+                  s.gridColumn = "1/3";
+                  s.display = "grid";
+                  s.gridTemplateColumns = "subgrid";
+                  s.gridTemplateRows = "auto auto 1fr";
+                },
+              }),
+            ],
+            children_: [
+              e("div", {
+                styles_: [
+                  classMenuWantStateOpen,
+                  contVboxStyle,
+                  contMenuGroupVBoxStyle,
+                  ss(uniq("cont_menu_body"), {
+                    "": (s) => {
+                      s.gridColumn = "2";
+                      s.columns = "min(100%, 12cm)";
+                      s.columnGap = "0.5cm";
+                      s.justifyContent = "start";
+                      s.minHeight = `calc(100dvh - 5cm)`;
+                    },
+                    ">*": (s) => {
+                      s.maxWidth = varSMenuColWidth;
+                    },
+                  }),
+                ],
+                children_: [
+                  newLeafMenuLink("Thing 1", "x"),
+                  newLeafMenuLink("Thing 2", "x"),
+                  newLeafMenuLink("Thing 3", "x"),
+                  newContMenuGroup("Group 1", [
+                    newLeafMenuLink("Thing 1", "x"),
+                    newLeafMenuLink("Thing 2", "x"),
+                    newLeafMenuLink("Thing 3", "x"),
+                  ]),
+                ],
+              }),
+              newContBarMenu([
+                e("span", {
                   styles_: [
-                    ss(uniq("cont_modal_volume_bg_horiz"), { "": (s) => {} }),
+                    ss(uniq("cont_bar_menu_user"), {
+                      "": (s) => {
+                        s.opacity = "0.5";
+                      },
+                    }),
                   ],
+                  textContent: "Guest",
                 }),
-                e("div", {
-                  styles_: [
-                    ss(uniq("cont_modal_volume_bg_vert"), { "": (s) => {} }),
-                  ],
-                }),
-                e("div", {
-                  styles_: [
-                    ss(uniq("cont_modal_volume_puck"), { "": (s) => {} }),
-                  ],
-                }),
-              ],
-            }),
-            e("span", {
-              styles_: [
-                ss(uniq("cont_modal_volume_text"), {
-                  "": (s) => {
-                    s.textAlign = "center";
-                  },
-                }),
-              ],
-              textContent: "0%",
-            }),
-          ],
-        })
-      )
+                newLeafBarButtonBig("Login", "Login"),
+              ]),
+              newLeafSpace(),
+            ],
+          }),
+        ],
+      }),
+    ],
+  });
+
+///////////////////////////////////////////////////////////////////////////////
+// xx Components, styles: staging
+addEventListener("DOMContentLoaded", (_) => {
+  const htmlStyle = s(uniq("html"), {
+    "": (s) => {
+      s.fontFamily = "X";
+      s.backgroundColor = varCBackground;
+      s.color = varCForeground;
+    },
+  });
+  notnull(document.body.parentElement).classList.add(htmlStyle);
+  document.body.classList.add(contStackStyle);
+
+  const hash = location.hash;
+  if (hash == "#view") {
+    document.body.appendChild(
+      newAppMain([
+        newContBarMainTransport(),
+        newContPageView([
+          newContViewList({
+            direction: "down",
+            children: [
+              newContViewList({
+                direction: "right",
+                children: [
+                  newLeafViewImage({
+                    align: "start",
+                    url: "testcover.jpg",
+                    width: "min(6cm, 40%)",
+                  }),
+                  newContViewList({
+                    direction: "down",
+                    children: [
+                      newLeafViewText({
+                        align: "start",
+                        orientation: "right_down",
+                        text: "Harmônicos",
+                        fontSize: "20pt",
+                      }),
+                      newContViewTable({
+                        orientation: "right_down",
+                        xScroll: true,
+                        children: [
+                          [
+                            newLeafViewPlay({
+                              align: "start",
+                              direction: "down",
+                            }),
+                            newLeafViewText({
+                              align: "start",
+                              orientation: "down_left",
+                              text: "1. ",
+                            }),
+                            newLeafViewText({
+                              align: "start",
+                              orientation: "down_left",
+                              text: "Fabiano do Nascimento and Shin Sasakubo",
+                              url: "abcd-xyzg",
+                              maxSize: "6cm",
+                            }),
+                            newLeafViewText({
+                              align: "start",
+                              orientation: "down_left",
+                              text: " - ",
+                            }),
+                            newLeafViewText({
+                              align: "start",
+                              orientation: "down_left",
+                              text: "Primeiro Encontro",
+                              maxSize: "6cm",
+                            }),
+                          ],
+                          [
+                            newLeafViewPlay({
+                              align: "start",
+                              direction: "down",
+                            }),
+                            newLeafViewText({
+                              align: "start",
+                              orientation: "down_left",
+                              text: "2. ",
+                            }),
+                            newLeafViewText({
+                              align: "start",
+                              orientation: "down_left",
+                              text: "Fabiano do Nascimento and Shin Sasakubo",
+                              url: "abcd-xyzg",
+                              maxSize: "6cm",
+                            }),
+                            newLeafViewText({
+                              align: "start",
+                              orientation: "down_left",
+                              text: " - ",
+                            }),
+                            newLeafViewText({
+                              align: "start",
+                              orientation: "down_left",
+                              text: "Primeiro Encontro",
+                              maxSize: "6cm",
+                            }),
+                          ],
+                        ],
+                      }),
+                    ],
+                  }),
+                ],
+              }),
+
+              newContViewList({
+                direction: "right",
+                children: [
+                  newLeafViewImage({
+                    align: "start",
+                    url: "testcover.jpg",
+                    width: "6cm",
+                  }),
+                  newContViewList({
+                    direction: "down",
+                    children: [
+                      newLeafViewText({
+                        align: "start",
+                        orientation: "right_down",
+                        text: "Harmônicos",
+                      }),
+                      newContViewTable({
+                        orientation: "right_down",
+                        xScroll: true,
+                        children: [
+                          [
+                            newLeafViewPlay({
+                              align: "start",
+                              direction: "down",
+                            }),
+                            newLeafViewText({
+                              align: "start",
+                              orientation: "down_left",
+                              text: "1. ",
+                            }),
+                            newLeafViewText({
+                              align: "start",
+                              orientation: "down_left",
+                              text: "Fabiano do Nascimento and Shin Sasakubo",
+                              url: "abcd-xyzg",
+                            }),
+                            newLeafViewText({
+                              align: "start",
+                              orientation: "down_left",
+                              text: " - ",
+                            }),
+                            newLeafViewText({
+                              align: "start",
+                              orientation: "down_left",
+                              text: "Primeiro Encontro",
+                            }),
+                          ],
+                        ],
+                      }),
+                    ],
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ]),
+        newContModal(
+          "Share",
+          e("div", {
+            styles_: [
+              contStackStyle,
+              ss(uniq("cont_modal_share_qr"), {
+                "": (s) => {
+                  s.flexGrow = "1";
+                  s.aspectRatio = "1/1";
+                  s.alignSelf = "center";
+                },
+              }),
+            ],
+          })
+        ),
+      ])
     );
   } else if (hash == "#fullscreen") {
     document.body.appendChild(
@@ -1909,159 +1964,78 @@ addEventListener("DOMContentLoaded", (_) => {
       )
     );
   } else if (hash == "#form") {
-    innerBody.appendChild(
-      newContBarMainForm([], [], [], [], [newLeafBarButtonBig("Save", "Save")])
-    );
-    innerBody.appendChild(
-      newContPageForm([
-        newLeafInputPairText("item1", "Title", "ABCD"),
-        newLeafInputPairText("item2", "Text", "WXYC"),
-        newLeafSpace(),
+    document.body.appendChild(
+      newAppMain([
+        newContBarMainForm(
+          [],
+          [],
+          [],
+          [],
+          [newLeafBarButtonBig("Save", "Save")]
+        ),
+        newContPageForm([
+          newLeafInputPairText("item1", "Title", "ABCD"),
+          newLeafInputPairText("item2", "Text", "WXYC"),
+          newLeafSpace(),
+        ]),
       ])
     );
   } else if (hash == "#edit") {
-    innerBody.appendChild(
-      newContBarMainForm([], [], [], [], [newLeafBarButtonBig("Save", "Save")])
-    );
-    innerBody.appendChild(
-      newContPageEdit([
-        newLeafEditRowIncoming([
-          newLeafButtonEditFree(textIconAdd, "Add incoming triple"),
-        ]),
-        newContPageEditSectionRel([
+    document.body.appendChild(
+      newAppMain([
+        newContBarMainForm(
+          [],
+          [],
+          [],
+          [],
+          [newLeafBarButtonBig("Save", "Save")]
+        ),
+        newContPageEdit([
           newLeafEditRowIncoming([
-            newLeafEditNode(uniq(), "Subject", "value", "WXYZ-9999"),
-            newLeafEditPredicate(uniq(), "sunwet/1/is"),
+            newLeafButtonEditFree(textIconAdd, "Add incoming triple"),
           ]),
-          newLeafEditRowIncoming([
-            newLeafEditNode(uniq(), "Subject", "file", "LMNO-4567"),
-            newLeafEditPredicate(uniq(), "sunwet/1/has"),
+          newContPageEditSectionRel([
+            newLeafEditRowIncoming([
+              newLeafEditNode(uniq(), "Subject", "value", "WXYZ-9999"),
+              newLeafEditPredicate(uniq(), "sunwet/1/is"),
+            ]),
+            newLeafEditRowIncoming([
+              newLeafEditNode(uniq(), "Subject", "file", "LMNO-4567"),
+              newLeafEditPredicate(uniq(), "sunwet/1/has"),
+            ]),
           ]),
-        ]),
-        e("div", {
-          styles_: [
-            s(uniq("cont_page_edit_center"), {
-              "": (s) => {
-                s.padding = "0.2cm";
-                s.backgroundColor = varCEditCenter;
-                s.borderRadius = "0.2cm";
-                s.margin = "0.4cm 0";
-              },
-            }),
-          ],
-          children_: [
-            newLeafEditNode(uniq(), "Current node", "value", "ABCD-01234"),
-          ],
-        }),
-        newContPageEditSectionRel([
+          e("div", {
+            styles_: [
+              s(uniq("cont_page_edit_center"), {
+                "": (s) => {
+                  s.padding = "0.2cm";
+                  s.backgroundColor = varCEditCenter;
+                  s.borderRadius = "0.2cm";
+                  s.margin = "0.4cm 0";
+                },
+              }),
+            ],
+            children_: [
+              newLeafEditNode(uniq(), "Current node", "value", "ABCD-01234"),
+            ],
+          }),
+          newContPageEditSectionRel([
+            newLeafEditRowOutgoing([
+              newLeafEditNode(uniq(), "Subject", "file", "WXYZ-9999"),
+              newLeafEditPredicate(uniq(), "sunwet/1/is"),
+            ]),
+            newLeafEditRowOutgoing([
+              newLeafEditNode(uniq(), "Subject", "value", "LMNO-4567"),
+              newLeafEditPredicate(uniq(), "sunwet/1/has"),
+            ]),
+          ]),
           newLeafEditRowOutgoing([
-            newLeafEditNode(uniq(), "Subject", "file", "WXYZ-9999"),
-            newLeafEditPredicate(uniq(), "sunwet/1/is"),
+            newLeafButtonEditFree(textIconAdd, "Add outgoing triple"),
           ]),
-          newLeafEditRowOutgoing([
-            newLeafEditNode(uniq(), "Subject", "value", "LMNO-4567"),
-            newLeafEditPredicate(uniq(), "sunwet/1/has"),
-          ]),
-        ]),
-        newLeafEditRowOutgoing([
-          newLeafButtonEditFree(textIconAdd, "Add outgoing triple"),
         ]),
       ])
     );
   } else {
     throw new Error();
   }
-
-  innerBody.appendChild(
-    e("div", {
-      id: "menu",
-      styles_: [
-        classMenuWantStateOpen,
-        s(uniq("cont_menu"), {
-          "": (s) => {
-            s.zIndex = "3";
-            s.gridRow = "1/4";
-            s.gridColumn = "1/3";
-            s.backgroundColor = varCBackgroundMenu;
-            s.filter = "drop-shadow(0.05cm 0px 0.05cm rgba(0, 0, 0, 0.06))";
-            s.overflow = "hidden";
-            s.display = "grid";
-            s.gridTemplateColumns = "subgrid";
-            s.gridTemplateRows = "subgrid";
-            s.position = "relative";
-            s.transition = "0.03s left";
-            s.pointerEvents = "initial";
-          },
-          [`.${classMenuStateOpen}`]: (s) => {
-            s.left = "0";
-          },
-          [`:not(.${classMenuStateOpen})`]: (s) => {
-            s.left = "-110dvw";
-          },
-        }),
-      ],
-      children_: [
-        newContTitle({
-          left: newLeafTitle("Menu"),
-        }),
-        e("div", {
-          styles_: [
-            ss(uniq("cont_menu1"), {
-              "": (s) => {
-                s.gridColumn = "1/3";
-                s.display = "grid";
-                s.gridTemplateColumns = "subgrid";
-                s.gridTemplateRows = "auto auto 1fr";
-              },
-            }),
-          ],
-          children_: [
-            e("div", {
-              styles_: [
-                classMenuWantStateOpen,
-                contVboxStyle,
-                contMenuGroupVBoxStyle,
-                ss(uniq("cont_menu_body"), {
-                  "": (s) => {
-                    s.gridColumn = "2";
-                    s.columns = "min(100%, 12cm)";
-                    s.columnGap = "0.5cm";
-                    s.justifyContent = "start";
-                    s.minHeight = `calc(100dvh - 5cm)`;
-                  },
-                  ">*": (s) => {
-                    s.maxWidth = varSMenuColWidth;
-                  },
-                }),
-              ],
-              children_: [
-                newLeafMenuLink("Thing 1", "x"),
-                newLeafMenuLink("Thing 2", "x"),
-                newLeafMenuLink("Thing 3", "x"),
-                newContMenuGroup("Group 1", [
-                  newLeafMenuLink("Thing 1", "x"),
-                  newLeafMenuLink("Thing 2", "x"),
-                  newLeafMenuLink("Thing 3", "x"),
-                ]),
-              ],
-            }),
-            newContBarMenu([
-              e("span", {
-                styles_: [
-                  ss(uniq("cont_bar_menu_user"), {
-                    "": (s) => {
-                      s.opacity = "0.5";
-                    },
-                  }),
-                ],
-                textContent: "Guest",
-              }),
-              newLeafBarButtonBig("Login", "Login"),
-            ]),
-            newLeafSpace(),
-          ],
-        }),
-      ],
-    })
-  );
 });
