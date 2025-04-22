@@ -1,4 +1,6 @@
+/// <reference path="style_import.d.ts" />
 /// <reference path="style_export.d.ts" />
+/// <reference path="style_shared.d.ts" />
 /// <reference path="plugin_view_list.d.ts" />
 /// <reference path="plugin.d.ts" />
 
@@ -41,8 +43,6 @@ const trans = (o) => {
 const classViewTransverseStart = "trans_start";
 const classViewTransverseMiddle = "trans_middle";
 const classViewTransverseEnd = "trans_end";
-const classViewConverseStart = "conv_start";
-const classViewConverseEnd = "conv_end";
 
 const contViewListStyle = ss(uniq("cont_view_list"), {
   "": (s) => {
@@ -293,6 +293,7 @@ const newLeafViewImage = /** @type {
             s.objectFit = "contain";
             s.aspectRatio = "auto";
             s.flexShrink = "0";
+            s.borderRadius = "0.2cm";
           },
         }),
         (() => {
@@ -426,142 +427,52 @@ const maybe = (x, f) => {
   return f(x);
 };
 
-const newLeafViewPlay = /** @type {
-    (args: { align: TransAlign; direction: Direction }) => {
-    root: HTMLElement;
-    button: HTMLElement;
-  }
-} */ (args) => {
-  const size = "1cm";
-  const out = e(
-    "button",
-    {},
-    {
-      styles_: [
-        leafButtonStyle,
-        ss(uniq("leaf_view_play"), {
-          "": (s) => {
-            s.width = size;
-            s.height = size;
-            // Hack to override baseline using inline-block weirdness...
-            // https://stackoverflow.com/questions/39373787/css-set-baseline-of-inline-block-element-manually-and-have-it-take-the-expected
-            s.display = "inline-block";
-            s.textWrapMode = "nowrap";
-          },
-        }),
-        ss(
-          uniq("leaf_view_play", args.direction),
-          /** @type { () => ({[suffix: string]: (s: CSSStyleDeclaration) => void}) } */ (
-            () => {
-              switch (args.direction) {
-                case "up":
-                  return {
-                    "": (s) => {
-                      s.writingMode = "vertical-rl";
-                    },
-                    ">*:nth-child(1)": (s) => {
-                      s.rotate = "270deg";
-                    },
-                  };
-                case "down":
-                  return {
-                    "": (s) => {
-                      s.writingMode = "vertical-rl";
-                    },
-                    ">*:nth-child(1)": (s) => {
-                      s.rotate = "90deg";
-                    },
-                  };
-                case "left":
-                  return {
-                    ">*:nth-child(1)": (s) => {
-                      s.rotate = "180deg";
-                    },
-                  };
-                case "right":
-                  return {
-                    ">*:nth-child(1)": (s) => {},
-                  };
-              }
-            }
-          )()
-        ),
-        (() => {
-          switch (args.align) {
-            case "start":
-              return classViewTransverseStart;
-            case "middle":
-              return classViewTransverseMiddle;
-            case "end":
-              return classViewTransverseEnd;
-          }
-        })(),
-      ],
-      children_: [
-        e(
-          "div",
-          {
-            textContent: textIconPlay,
-          },
-          {
-            styles_: [
-              leafIconStyle,
-              ss(uniq("leaf_view_play_inner"), {
-                "": (s) => {
-                  s.width = "100%";
-                  s.height = "100%";
-                  s.writingMode = "horizontal-tb";
-                  s.fontSize = "24pt";
-                  s.fontWeight = "100";
-                },
-              }),
-            ],
-          }
-        ),
-      ],
-    }
-  );
-  return { root: out, button: out };
-};
-
 class Build1 {
+  constructor() {
+    /** @type { [number[], PlaylistEntry][] } */
+    this.playlist = [];
+    /** @type { Map<string, number> } */
+    this.playlistLookup = new Map();
+    /** @type { Map<string, HTMLElement> } */
+    this.buttonLookup = new Map();
+  }
+
+  /** @type { (data: TreeNode, f: string) => TreeNode } */
+  field(data, f) {
+    if (data.type != "record") {
+      throw new Error(`Data isn't a record, can't resolve field \`${f}\``);
+    }
+    const found = data.value[f];
+    if (found == null) {
+      throw new Error(`No field ${f} in data.`);
+    }
+    return found;
+  }
+
   /** @type { (data: TreeNode, q: QueryOrField) => Promise<TreeNode[]> } */
   async queryOrField(data, q) {
     switch (q.type) {
       case "field":
-        if (data.type != "record") {
-          throw new Error(
-            `Data isn't a record, can't resolve field \`${q.value}\``
-          );
-        }
-        const found = data.value[q.value];
+        const found = this.field(data, q.value);
         if (found.type != "array") {
           throw new Error(`Specified field must be an array`);
         }
         return found.value;
       case "query":
-        const params = new Map();
+        /** @type {{[s: string]: TreeNode}} */
+        const params = {};
         for (const [paramId, paramDef] of Object.entries(q.value.params)) {
-          params.set(paramId, this.fieldOrLiteral(data, paramDef));
+          params[paramId] = this.fieldOrLiteral(data, paramDef);
         }
         return await window.sunwet.query(q.value.query, params);
     }
   }
 
-  /** @type { (data: TreeNode, q: FieldOrLiteral) => TreeNode} */
+  /** @type { (data: TreeNode, def: FieldOrLiteral) => TreeNode} */
   fieldOrLiteral(data, def) {
     switch (def.type) {
       case "field":
-        if (data.type != "record") {
-          throw new Error(
-            `Data isn't a record, can't resolve field \`${def.value}\``
-          );
-        }
-        const found = data.value[def.value];
-        if (found == null) {
-          throw new Error(`No field ${def.value} in data.`);
-        }
-        return found;
+        return this.field(data, def.value);
       case "literal":
         return { type: "scalar", value: { t: "v", v: def.value } };
     }
@@ -588,11 +499,14 @@ class Build1 {
     }
   }
 
-  /** @type { (data: TreeNode) => string } */
-  valueToUrl(data) {
+  /** @type { (data: TreeNode, toNode: boolean) => string } */
+  valueToUrl(data, toNode) {
     switch (data.type) {
       case "scalar":
         const v = data.value;
+        if (toNode) {
+          return window.sunwet.editUrl(v);
+        }
         switch (v.t) {
           case "f":
             return window.sunwet.fileUrl(v.v);
@@ -609,39 +523,90 @@ class Build1 {
     }
   }
 
-  /** @type { (data: TreeNode, view: Widget )=>HTMLElement} */
-  widget(data, view) {
+  /** @type { (data: TreeNode, field: string) => string } */
+  fieldToFileHash(data, field) {
+    const value = this.field(data, field);
+    switch (value.type) {
+      case "scalar":
+        const v = value.value;
+        switch (v.t) {
+          case "f":
+            return v.v;
+          case "v":
+            throw new Error(`Value in field [${field}] is not a file hash`);
+        }
+      case "array":
+        throw new Error(
+          `Value in field [${field}] is an array not a file hash`
+        );
+      case "record":
+        throw new Error(
+          `Value in field [${field}] is a record not a file hash`
+        );
+    }
+  }
+
+  /** @type { (dataId: number[], data: TreeNode, view: Widget )=>HTMLElement} */
+  widget(dataId, data, view) {
     switch (view.type) {
       case "layout":
         return newContViewList({
           direction: view.widget.direction,
           xScroll: view.widget.x_scroll || false,
-          children: view.widget.elements.map((e) => this.widget(data, e)),
+          children: view.widget.elements.map((e) =>
+            this.widget(dataId, data, e)
+          ),
           gap: view.widget.gap,
         }).root;
       case "data_rows":
-        return window.sunwet_presentation.leafAsyncBlock(async () => {
-          const data1 = await this.queryOrField(data, view.widget.data);
-          const row_widget = view.widget.row_widget;
-          switch (row_widget.type) {
-            case "other":
-              return newContViewList({
-                gap: row_widget.gap,
-                direction: row_widget.direction,
-                xScroll: view.widget.x_scroll,
-                children: data1.map((row) =>
-                  this.widget(row, row_widget.widget)
-                ),
-              }).root;
-            case "table":
-              return newContViewTable({
-                orientation: row_widget.orientation,
-                children: data1.map((row) =>
-                  row_widget.elements.map((e) => this.widget(row, e))
-                ),
-              }).root;
-          }
-        }).root;
+        return window.sunwet_presentation.leafAsyncBlock(
+          (async () => {
+            const initialPlaylistLength = this.playlist.length;
+            const data1 = await this.queryOrField(data, view.widget.data);
+            const row_widget = view.widget.row_widget;
+            const out = (() => {
+              switch (row_widget.type) {
+                case "other": {
+                  const children = [];
+                  for (const row of data1) {
+                    const id = dataId.slice();
+                    id.push(children.length);
+                    children.push(this.widget(id, row, row_widget.widget));
+                  }
+                  return newContViewList({
+                    gap: row_widget.gap,
+                    direction: row_widget.direction,
+                    xScroll: view.widget.x_scroll,
+                    children: children,
+                  }).root;
+                }
+                case "table": {
+                  const children = [];
+                  for (const row of data1) {
+                    const id = dataId.slice();
+                    id.push(children.length);
+                    children.push(
+                      row_widget.elements.map((e) => this.widget(id, row, e))
+                    );
+                  }
+                  return newContViewTable({
+                    orientation: row_widget.orientation,
+                    children: children,
+                  }).root;
+                }
+              }
+            })();
+            if (this.playlist.length != initialPlaylistLength) {
+              this.playlist.sort();
+              this.playlistLookup.clear();
+              for (let i = 0; i < this.playlist.length; ++i) {
+                this.playlistLookup.set(this.playlist[i][1].file, i);
+              }
+              window.sunwet.setPlaylist(this.playlist.map((e) => e[1]));
+            }
+            return out;
+          })()
+        ).root;
       case "text":
         const text = this.valueToString(
           this.fieldOrLiteral(data, view.widget.data)
@@ -651,7 +616,10 @@ class Build1 {
           orientation: view.widget.orientation,
           text: `${view.widget.prefix || ""}${text}${view.widget.suffix || ""}`,
           url: maybe(view.widget.link, (v) =>
-            this.valueToUrl(this.fieldOrLiteral(data, v))
+            this.valueToUrl(
+              this.fieldOrLiteral(data, v),
+              view.widget.linkToNode == null ? false : view.widget.linkToNode
+            )
           ),
           maxSize: view.widget.size_max,
           fontSize: view.widget.size,
@@ -659,26 +627,165 @@ class Build1 {
       case "image":
         return newLeafViewImage({
           align: view.widget.trans_align || "start",
-          url: this.valueToUrl(this.fieldOrLiteral(data, view.widget.data)),
+          url: this.valueToUrl(
+            this.fieldOrLiteral(data, view.widget.data),
+            false
+          ),
           width: view.widget.width,
           height: view.widget.height,
         }).root;
       case "play":
-        return newLeafViewPlay({
-          align: view.widget.trans_align || "start",
-          direction: view.widget.direction || "right",
-        }).root;
+        /** @type {{[s: string]: PlaylistEntryMediaType}} */
+        const mediaTypeLookup = {};
+        for (const t of /** @type { PlaylistEntryMediaType[] } */ ([
+          "audio",
+          "video",
+          "image",
+        ])) {
+          mediaTypeLookup[t] = t;
+        }
+        const mediaType1 = this.valueToString(
+          this.fieldOrLiteral(data, view.widget.media_field)
+        );
+        const mediaType = mediaTypeLookup[mediaType1];
+        if (mediaType == null) {
+          throw new Error(`Invalid media type [${mediaType1}]`);
+        }
+        const file = this.fieldToFileHash(data, view.widget.field);
+        this.playlist.push([
+          dataId,
+          {
+            name: maybe(view.widget.name_field, (f) =>
+              this.valueToString(this.field(data, f))
+            ),
+            album: maybe(view.widget.album_field, (f) =>
+              this.valueToString(this.field(data, f))
+            ),
+            artist: maybe(view.widget.artist_field, (f) =>
+              this.valueToString(this.field(data, f))
+            ),
+            cover: maybe(view.widget.cover_field, (f) =>
+              this.valueToUrl(this.field(data, f), false)
+            ),
+            file: file,
+            media_type: mediaType,
+          },
+        ]);
+
+        const transAlign = view.widget.trans_align || "start";
+        const direction = view.widget.direction || "right";
+
+        const size = "1cm";
+        const out = e(
+          "button",
+          {},
+          {
+            styles_: [
+              leafButtonStyle,
+              ss(uniq("leaf_view_play"), {
+                "": (s) => {
+                  s.width = size;
+                  s.height = size;
+                  // Hack to override baseline using inline-block weirdness...
+                  // https://stackoverflow.com/questions/39373787/css-set-baseline-of-inline-block-element-manually-and-have-it-take-the-expected
+                  s.display = "inline-block";
+                  s.textWrapMode = "nowrap";
+                },
+              }),
+              ss(
+                uniq("leaf_view_play", direction),
+                /** @type { () => ({[suffix: string]: (s: CSSStyleDeclaration) => void}) } */ (
+                  () => {
+                    switch (direction) {
+                      case "up":
+                        return {
+                          "": (s) => {
+                            s.writingMode = "vertical-rl";
+                          },
+                          ">*:nth-child(1)": (s) => {
+                            s.rotate = "270deg";
+                          },
+                        };
+                      case "down":
+                        return {
+                          "": (s) => {
+                            s.writingMode = "vertical-rl";
+                          },
+                          ">*:nth-child(1)": (s) => {
+                            s.rotate = "90deg";
+                          },
+                        };
+                      case "left":
+                        return {
+                          ">*:nth-child(1)": (s) => {
+                            s.rotate = "180deg";
+                          },
+                        };
+                      case "right":
+                        return {
+                          ">*:nth-child(1)": (s) => {},
+                        };
+                    }
+                  }
+                )()
+              ),
+              (() => {
+                switch (transAlign) {
+                  case "start":
+                    return classViewTransverseStart;
+                  case "middle":
+                    return classViewTransverseMiddle;
+                  case "end":
+                    return classViewTransverseEnd;
+                }
+              })(),
+            ],
+            children_: [
+              e(
+                "div",
+                {
+                  textContent: textIconPlay,
+                },
+                {
+                  styles_: [
+                    leafIconStyle,
+                    ss(uniq("leaf_view_play_inner"), {
+                      "": (s) => {
+                        s.width = "100%";
+                        s.height = "100%";
+                        s.writingMode = "horizontal-tb";
+                        s.fontSize = "24pt";
+                        s.fontWeight = "100";
+                      },
+                    }),
+                  ],
+                }
+              ),
+            ],
+          }
+        );
+        this.buttonLookup.set(file, out);
+        out.onclick = () => {
+          const index = this.playlistLookup.get(file);
+          if (index == null) {
+            console.log(
+              `Play button references entry [${file}] not in playlist`
+            );
+            return;
+          }
+          window.sunwet.togglePlay(index);
+        };
+        return out;
     }
   }
 }
-const build1 = new Build1();
 
 /** @type {() => TreeNode} */
 const testDataTrack = () => ({
   type: "record",
   value: {
     index: { type: "scalar", value: { t: "v", v: "1" } },
-    file: { type: "scalar", value: { t: "v", v: "" } },
+    file: { type: "scalar", value: { t: "f", v: "abcd-1234" } },
     artist: {
       type: "scalar",
       value: {
@@ -766,7 +873,8 @@ const testDef = {
                           type: "play",
                           widget: {
                             direction: "down",
-                            media_field: { type: "field", value: "file" },
+                            field: "file",
+                            media_field: { type: "literal", value: "audio" },
                           },
                         },
                         {
@@ -815,6 +923,19 @@ const testDef = {
 
 export const build = /** @type {BuildFn} */ (args0) => {
   const args = /** @type {WidgetDataRows} */ (args0);
+  const build1 = new Build1();
+  /** @type {number|null} */
+  window.sunwet_presentation_shared.setOnPlaylistStateChanged(
+    (playing, index) => {
+      for (const [file, button] of build1.buttonLookup) {
+        if (playing && build1.playlistLookup.get(file) == index) {
+          button.textContent = window.sunwet_presentation_shared.textIconPause;
+        } else {
+          button.textContent = window.sunwet_presentation_shared.textIconPlay;
+        }
+      }
+    }
+  );
   return window.sunwet_presentation.contPageView([
     window.sunwet_presentation.contBarViewTransport().root,
     e(
@@ -822,9 +943,9 @@ export const build = /** @type {BuildFn} */ (args0) => {
       {},
       {
         styles_: [
-          window.sunwet_presentation.contStackStyle,
-          window.sunwet_presentation.ss(
-            window.sunwet_presentation.uniq("view_list_body"),
+          window.sunwet_presentation_shared.contStackStyle,
+          window.sunwet_presentation_shared.ss(
+            window.sunwet_presentation_shared.uniq("view_list_body"),
             {
               "": (s) => {
                 s.padding = `0 max(0.3cm, min(${varSCol1Width}, 100dvw / 20))`;
@@ -835,7 +956,10 @@ export const build = /** @type {BuildFn} */ (args0) => {
           ),
         ],
         children_: [
-          build1.widget(testData, { type: "data_rows", widget: testDef }),
+          build1.widget([], testData, {
+            type: "data_rows",
+            widget: testDef,
+          }),
         ],
       }
     ),

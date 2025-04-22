@@ -1,31 +1,67 @@
 /// <reference path="style_export.d.ts" />
+/// <reference path="style_export2.d.ts" />
+/// <reference path="style_shared.d.ts" />
+/// <reference path="plugin.d.ts" />
 
 const presentation = {};
+const presentationShared = {};
+
+///////////////////////////////////////////////////////////////////////////////
+// xx Playlist
+
+/** @type { ((playing: boolean, index: number)=>void)|undefined } */
+let onPlaylistStateChangedCb;
+{
+  presentationShared.setOnPlaylistStateChanged =
+    /** @type {PresentationShared["setOnPlaylistStateChanged"]} */ (cb) => {
+      onPlaylistStateChangedCb = cb;
+    };
+
+  let playing = false;
+  let playingIndex = 0;
+  presentation.playlistStateChanged =
+    /** @type { Presentation["playlistStateChanged"] } */ (
+      newPlaying,
+      newIndex
+    ) => {
+      playing = newPlaying;
+      playingIndex = newIndex;
+      if (onPlaylistStateChangedCb != null) {
+        onPlaylistStateChangedCb(playing, playingIndex);
+      }
+    };
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // xx Utility, globals
 
 /** @type { <T>(x: T|null|undefined) => T } */
-presentation.notnull = /** @type {Presentation["notnull"]} */ (x) => {
+presentationShared.notnull = /** @type {PresentationShared["notnull"]} */ (
+  x
+) => {
   if (x == null) {
     throw Error();
   }
   return x;
 };
-const notnull = presentation.notnull;
+const notnull = presentationShared.notnull;
 
-presentation.uniq = /** @type {Presentation["uniq"]} */ (...args) => {
-  var uniq = [""];
+presentationShared.uniq = /** @type {PresentationShared["uniq"]} */ (
+  ...args
+) => {
+  let uniq = [""];
   for (const e of notnull(new Error().stack).matchAll(/(\d+):\d+/g)) {
     uniq[0] = `${e[1]}`;
   }
   uniq.push(...args);
   return `r${uniq.join("_")}`;
 };
-const uniq = presentation.uniq;
+const uniq = presentationShared.uniq;
 
 /** @type { (...args: string[]) => string} */
-presentation.uniqn = /** @type {Presentation["uniqn"] } */ (...args) => {
+presentationShared.uniqn = /** @type {PresentationShared["uniqn"] } */ (
+  ...args
+) => {
   const uniq = [];
   for (const e of notnull(new Error().stack).matchAll(/(\d+):\d+/g)) {
     uniq.push(e[1]);
@@ -34,7 +70,11 @@ presentation.uniqn = /** @type {Presentation["uniqn"] } */ (...args) => {
   return `r${uniq.join("_")}`;
 };
 
-presentation.e = /** @type {Presentation["e"]} */ (name, args1, args2) => {
+presentationShared.e = /** @type {PresentationShared["e"]} */ (
+  name,
+  args1,
+  args2
+) => {
   const out = document.createElement(name);
   if (args1 != null) {
     for (const [k, v] of Object.entries(args1)) {
@@ -54,9 +94,9 @@ presentation.e = /** @type {Presentation["e"]} */ (name, args1, args2) => {
   }
   return out;
 };
-const e = presentation.e;
+const e = presentationShared.e;
 
-presentation.et = /** @type { Presentation["et"]} */ (t, args) => {
+presentationShared.et = /** @type { PresentationShared["et"]} */ (t, args) => {
   const out = /** @type {HTMLElement} */ (
     new DOMParser().parseFromString(t, "text/html").body.firstElementChild
   );
@@ -74,7 +114,7 @@ presentation.et = /** @type { Presentation["et"]} */ (t, args) => {
   }
   return out;
 };
-const et = presentation.et;
+const et = presentationShared.et;
 
 const resetStyle = e(
   "link",
@@ -112,33 +152,36 @@ const globalStyleDark =
   (globalStyleMediaDark.cssRules[globalStyleMediaDark.insertRule(":root {}")])
     .style;
 
-presentation.v = /** @type {Presentation["v"]} */ (val) => {
+presentationShared.v = /** @type {PresentationShared["v"]} */ (val) => {
   const name = `--${uniq()}`;
   globalStyleRoot.setProperty(name, val);
   return `var(${name})`;
 };
-const v = presentation.v;
+const v = presentationShared.v;
 
-presentation.vs = /** @type {Presentation["vs"]} */ (light, dark) => {
+presentationShared.vs = /** @type {PresentationShared["vs"]} */ (
+  light,
+  dark
+) => {
   const name = `--${uniq()}`;
   globalStyleLight.setProperty(name, light);
   globalStyleDark.setProperty(name, dark);
   return `var(${name})`;
 };
-const vs = presentation.vs;
+const vs = presentationShared.vs;
 
-presentation.s = /** @type {Presentation["s"]} */ (id, f) => {
+presentationShared.s = /** @type {PresentationShared["s"]} */ (id, f) => {
   for (const [suffix, f1] of Object.entries(f)) {
     globalStyle.insertRule(`.${id}${suffix} {}`, 0);
     f1(/** @type { CSSStyleRule } */ (globalStyle.cssRules[0]).style);
   }
   return id;
 };
-const s = presentation.s;
+const s = presentationShared.s;
 
 const staticStyles = new Map();
 // Static style - the id must be unique for every value closed on (i.e. put all the arguments in the id).
-presentation.ss = /** @type {Presentation["ss"]} */ (id, f) => {
+presentationShared.ss = /** @type {PresentationShared["ss"]} */ (id, f) => {
   if (staticStyles.has(id)) {
     return id;
   }
@@ -148,12 +191,15 @@ presentation.ss = /** @type {Presentation["ss"]} */ (id, f) => {
   }
   return id;
 };
-const ss = presentation.ss;
+const ss = presentationShared.ss;
 
 ///////////////////////////////////////////////////////////////////////////////
 // xx Constants
 
 const textIconPlay = "\ue037";
+presentationShared.textIconPlay = textIconPlay;
+const textIconPause = "\ue034";
+presentationShared.textIconPause = textIconPause;
 const textIconDelete = "\ue15b";
 const textIconRevert = "\ue166";
 const textIconAdd = "\ue145";
@@ -217,13 +263,13 @@ const classMenuStateOpen = "state_open";
 // xx Components, styles: all
 
 const contGroupStyle = "group";
-presentation.contGroupStyle = contGroupStyle;
+presentationShared.contGroupStyle = contGroupStyle;
 const contVboxStyle = "vbox";
-presentation.contVboxStyle = contVboxStyle;
+presentationShared.contVboxStyle = contVboxStyle;
 const contHboxStyle = "hbox";
-presentation.contHboxStyle = contHboxStyle;
+presentationShared.contHboxStyle = contHboxStyle;
 const contStackStyle = "stack";
-presentation.contStackStyle = contStackStyle;
+presentationShared.contStackStyle = contStackStyle;
 
 const contTitleStyle = s(uniq("cont_title"), {
   "": (s) => {
@@ -489,8 +535,8 @@ presentation.leafAsyncBlock = /** @type {Presentation["leafAsyncBlock"]} */ (
   );
   (async () => {
     try {
-      await new Promise((r) => setTimeout(() => r(null), 5000));
-      const r = await cb();
+      //await new Promise((r) => setTimeout(() => r(null), 5000));
+      const r = await cb;
       out.innerHTML = "";
       out.appendChild(r);
     } catch (e) {
@@ -546,15 +592,13 @@ const leafButtonStyle = ss(uniq("leaf_button"), {
 presentation.leafButton = /** @type {Presentation["leafButton"]} */ (
   title,
   text,
-  extraStyles,
-  onclick
+  extraStyles
 ) => {
   const out = e(
     "button",
     {
       title: title,
       textContent: text,
-      onclick: onclick,
     },
     {
       styles_: [leafButtonStyle, ...extraStyles],
@@ -1105,7 +1149,7 @@ presentation.contPageForm = /** @type {Presentation["contPageForm"]} */ (
 ///////////////////////////////////////////////////////////////////////////////
 // xx Components, styles: page, edit
 
-var varSEditGap = v("0.5cm");
+let varSEditGap = v("0.5cm");
 
 presentation.contPageEdit = /** @type {Presentation["contPageEdit"]} */ (
   children
@@ -1560,10 +1604,8 @@ presentation.appMain = /** @type {Presentation["appMain"]} */ (children) => ({
       children_: [
         presentation.contTitle({
           left: presentation.leafTitle("Music").root,
-          right: presentation.leafButton(
-            "Menu",
-            textIconMenu,
-            [
+          right: (() => {
+            const out = presentation.leafButton("Menu", textIconMenu, [
               leafIconStyle,
               ss(uniq("cont_main_title_admenu"), {
                 "": (s) => {
@@ -1574,19 +1616,18 @@ presentation.appMain = /** @type {Presentation["appMain"]} */ (children) => ({
                   s.height = varSCol3Width;
                 },
               }),
-            ],
-            (() => {
-              let state = false;
-              return () => {
-                state = !state;
-                for (const e of document.getElementsByClassName(
-                  classMenuWantStateOpen
-                )) {
-                  e.classList.toggle(classMenuStateOpen, state);
-                }
-              };
-            })()
-          ).root,
+            ]).root;
+            let state = false;
+            out.onclick = () => {
+              state = !state;
+              for (const e of document.getElementsByClassName(
+                classMenuWantStateOpen
+              )) {
+                e.classList.toggle(classMenuStateOpen, state);
+              }
+            };
+            return out;
+          })(),
         }).root,
         ...children,
         e(
@@ -1710,6 +1751,8 @@ presentation.buildView = /** @type {Presentation["buildView"]} */ async (
   pluginPath,
   args
 ) => {
+  onPlaylistStateChangedCb = undefined;
+  window.sunwet.setPlaylist([]);
   const plugin = await import(`./${pluginPath}`);
   return { root: plugin.build(args) };
 };
@@ -1718,6 +1761,7 @@ presentation.buildView = /** @type {Presentation["buildView"]} */ async (
 // xx Assemble
 
 window.sunwet_presentation = presentation;
+window.sunwet_presentation_shared = presentationShared;
 
 ///////////////////////////////////////////////////////////////////////////////
 // xx Components, styles: staging
@@ -1734,6 +1778,19 @@ addEventListener("DOMContentLoaded", async (_) => {
 
   const hash = location.hash;
   if (hash == "#view") {
+    window.sunwet = {
+      query: async (id, data) => {
+        return [];
+      },
+      fileUrl: (file) => {
+        return `http-test-${file}`;
+      },
+      editUrl: (node) => {
+        return `http-test-edit-${JSON.stringify(node)}`;
+      },
+      setPlaylist: (playlist) => {},
+      togglePlay: (index) => {},
+    };
     document.body.appendChild(
       presentation.appMain([
         (await presentation.buildView("plugin_view_list.js", {})).root,

@@ -35,6 +35,7 @@ declare type WidgetTextLine = {
   orientation: Orientation;
   trans_align?: TransAlign;
   link?: FieldOrLiteral;
+  linkToNode?: boolean;
 };
 
 declare type WidgetImage = {
@@ -45,6 +46,7 @@ declare type WidgetImage = {
 };
 
 declare type WidgetPlayButton = {
+  field: string;
   /// The media type (ex `sunwet/1/video`, `sunwet/1/audio`)
   media_field: FieldOrLiteral;
   name_field?: string;

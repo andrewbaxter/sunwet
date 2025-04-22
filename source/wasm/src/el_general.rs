@@ -41,6 +41,158 @@ pub fn get_dom_octothorpe() -> Option<String> {
     return Some(s.to_string());
 }
 
+pub mod style_export {
+    use {
+        wasm_bindgen::{
+            JsCast,
+            JsValue,
+        },
+        web_sys::{
+            HtmlElement,
+            HtmlInputElement,
+            HtmlSelectElement,
+        },
+    };
+
+    trait JsExport {
+        fn from_js(v: &JsValue) -> Self;
+        fn to_js(&self) -> JsValue;
+    }
+
+    impl JsExport for JsValue {
+        fn from_js(v: &JsValue) -> Self {
+            return v.clone();
+        }
+
+        fn to_js(&self) -> JsValue {
+            return self.clone();
+        }
+    }
+
+    impl JsExport for usize {
+        fn from_js(v: &JsValue) -> Self {
+            return v.as_f64().unwrap() as Self;
+        }
+
+        fn to_js(&self) -> JsValue {
+            return JsValue::from_f64(*self as f64);
+        }
+    }
+
+    impl JsExport for bool {
+        fn from_js(v: &JsValue) -> Self {
+            return v.as_bool().unwrap();
+        }
+
+        fn to_js(&self) -> JsValue {
+            return JsValue::from_bool(*self);
+        }
+    }
+
+    impl JsExport for String {
+        fn from_js(v: &JsValue) -> Self {
+            return v.as_string().unwrap();
+        }
+
+        fn to_js(&self) -> JsValue {
+            return JsValue::from(self);
+        }
+    }
+
+    impl<'a> JsExport for &'a str {
+        fn from_js(_v: &JsValue) -> Self {
+            unimplemented!();
+        }
+
+        fn to_js(&self) -> JsValue {
+            return JsValue::from(*self);
+        }
+    }
+
+    impl JsExport for HtmlElement {
+        fn from_js(v: &JsValue) -> Self {
+            return v.dyn_ref::<Self>().unwrap().clone();
+        }
+
+        fn to_js(&self) -> JsValue {
+            return JsValue::from(self);
+        }
+    }
+
+    impl JsExport for HtmlInputElement {
+        fn from_js(v: &JsValue) -> Self {
+            return v.dyn_ref::<Self>().unwrap().clone();
+        }
+
+        fn to_js(&self) -> JsValue {
+            return JsValue::from(self);
+        }
+    }
+
+    impl JsExport for HtmlSelectElement {
+        fn from_js(v: &JsValue) -> Self {
+            return v.dyn_ref::<Self>().unwrap().clone();
+        }
+
+        fn to_js(&self) -> JsValue {
+            return JsValue::from(self);
+        }
+    }
+
+    impl<T: JsExport> JsExport for Vec<T> {
+        fn from_js(v: &JsValue) -> Self {
+            let v = v.dyn_ref::<js_sys::Array>().unwrap();
+            let mut out = vec![];
+            for v in v.iter() {
+                out.push(T::from_js(&v));
+            }
+            return out;
+        }
+
+        fn to_js(&self) -> JsValue {
+            let v = js_sys::Array::new_with_length(self.len() as u32);
+            for (i, e) in self.iter().enumerate() {
+                v.set(i as u32, e.to_js());
+            }
+            return v.into();
+        }
+    }
+
+    impl<T: JsExport> JsExport for Option<T> {
+        fn from_js(v: &JsValue) -> Self {
+            if v.is_undefined() || v.is_null() {
+                return None;
+            }
+            return Some(T::from_js(v));
+        }
+
+        fn to_js(&self) -> JsValue {
+            match self {
+                Some(v) => {
+                    return v.to_js();
+                },
+                None => {
+                    return JsValue::undefined();
+                },
+            }
+        }
+    }
+
+    fn js_get<T: JsExport>(o: &JsValue, p: &str) -> T {
+        return T::from_js(&js_sys::Reflect::get(o, &JsValue::from(p)).unwrap());
+    }
+
+    fn js_set<T: JsExport>(o: &JsValue, p: &str, v: &T) {
+        js_sys::Reflect::set(o, &JsValue::from(p), &v.to_js()).unwrap();
+    }
+
+    fn js_call(o: &JsValue, args: &js_sys::Object) -> JsValue {
+        return o.dyn_ref::<js_sys::Function>().unwrap().call1(o, args).unwrap();
+    }
+
+    include!(concat!(env!("OUT_DIR"), "/style_export.rs"));
+}
+
 #[derive(Clone, Copy)]
 pub struct CssIcon(pub &'static str);
 

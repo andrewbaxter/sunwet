@@ -1,52 +1,12 @@
+// Style/presentation methonds callable from rust
+
 declare type Presentation = {
-  ///////////////////////////////////////////////////////////////////////////////
-  // xx Utility, globals
-  contGroupStyle: string;
-  contVboxStyle: string;
-  contHboxStyle: string;
-  contStackStyle: string;
-
-  notnull: <T>(x: T | null | undefined) => T;
-
-  uniq: (...args: string[]) => string;
-
-  uniqn: (...args: string[]) => string;
-
-  e: <N extends keyof HTMLElementTagNameMap>(
-    name: N,
-    args: Partial<HTMLElementTagNameMap[N]>,
-    args2: {
-      styles_?: string[];
-      children_?: HTMLElement[];
-    }
-  ) => HTMLElementTagNameMap[N];
-
-  et: (
-    markup: string,
-    args?: {
-      styles_?: string[];
-      children_?: HTMLElement[];
-    }
-  ) => HTMLElement;
-
-  v: (v: string) => string;
-
-  vs: (light: string, dark: string) => string;
-
-  s: (
-    id: string,
-    f: { [s: string]: (r: CSSStyleDeclaration) => void }
-  ) => string;
-
-  ss: (
-    id: string,
-    f: { [s: string]: (r: CSSStyleDeclaration) => void }
-  ) => string;
+  playlistStateChanged: (playing: boolean, index: number) => void;
 
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: all
 
-  leafAsyncBlock: (cb: () => Promise<HTMLElement>) => { root: HTMLElement };
+  leafAsyncBlock: (cb: Promise<HTMLElement>) => { root: HTMLElement };
 
   leafErrBlock: (data: Error) => { root: HTMLElement };
 
@@ -82,8 +42,7 @@ declare type Presentation = {
   leafButton: (
     title: string,
     text: string,
-    extraStyles: string[],
-    onclick?: () => void
+    extraStyles: string[]
   ) => { root: HTMLElement; button: HTMLElement };
 
   leafBarButtonBig: (
@@ -208,7 +167,3 @@ declare type Presentation = {
     arguments: any
   ) => Promise<{ root: HTMLElement }>;
 };
-
-declare interface Window {
-  sunwet_presentation: Presentation;
-}

@@ -49,3 +49,9 @@ serde_urlencoded = "0.7"
 async-trait = "0.1"
 flowcontrol = "0.2"
 structre = "0.2"
+
+[build-dependencies]
+convert_case = "0.8.0"
+genemichaels-lib = "0.7.2"
+proc-macro2 = "1.0.95"
+quote = "1.0.40"
