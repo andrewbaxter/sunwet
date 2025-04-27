@@ -2,12 +2,10 @@ use {
     crate::{
         el_general::{
             async_event,
+            el_async,
             el_audio,
-            el_hbox,
-            el_icon,
-            el_vbox,
             el_video,
-            ICON_VOLUME,
+            style_export,
         },
         websocket::Ws,
         world::file_url,
@@ -20,12 +18,12 @@ use {
     },
     gloo::timers::future::TimeoutFuture,
     lunk::{
-        link,
         Prim,
         ProcessingContext,
     },
     rooting::{
         el,
+        el_from_raw,
         scope_any,
         set_root,
         spawn_rooted,
@@ -44,10 +42,7 @@ use {
         rc::Rc,
     },
     wasm_bindgen::JsCast,
-    web_sys::{
-        HtmlInputElement,
-        HtmlMediaElement,
-    },
+    web_sys::HtmlMediaElement,
 };
 
 trait PlaylistMedia {
@@ -135,6 +130,7 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
 struct State_ {
     base_url: String,
     display: El,
+    display_over: El,
     album: El,
     artist: El,
     name: El,
@@ -146,17 +142,14 @@ struct State_ {
 struct State(Rc<State_>);
 
 pub fn main_link(pc: &mut ProcessingContext, base_url: String, link_id: String) {
-    let display = el("div").classes(&["s_display"]);
-    let album = el("span").classes(&["s_album"]);
-    let artist = el("span").classes(&["s_author"]);
-    let name = el("span").classes(&["s_name"]);
-    let volume = Prim::new(1.);
+    let style_res = style_export::app_link();
     let state = State(Rc::new(State_ {
         base_url: base_url,
-        display: display.clone(),
-        album: album.clone(),
-        artist: artist.clone(),
-        name: name.clone(),
+        display: el_from_raw(style_res.display.into()),
+        display_over: el_from_raw(style_res.display_over.into()).clone(),
+        album: el_from_raw(style_res.album.into()).clone(),
+        artist: el_from_raw(style_res.artist.into()).clone(),
+        name: el_from_raw(style_res.title.into()).clone(),
         message_bg: Cell::new(scope_any(())),
         media: Prim::new(None),
     }));
@@ -175,6 +168,7 @@ pub fn main_link(pc: &mut ProcessingContext, base_url: String, link_id: String) 
                             state.0.artist.ref_text(&prepare.artist);
                             state.0.name.ref_text(&prepare.name);
                             state.0.display.ref_clear();
+                            state.0.display_over.ref_clear();
                             let media: Rc<dyn PlaylistMedia>;
                             match prepare.media {
                                 PrepareMedia::Audio(audio) => {
@@ -213,10 +207,13 @@ pub fn main_link(pc: &mut ProcessingContext, base_url: String, link_id: String) 
                             eg.event(|pc| {
                                 state.0.media.set(pc, Some(media.clone()));
                             });
-                            media.wait_until_seekable().await;
-                            media.seek(prepare.media_time);
-                            media.wait_until_buffered().await;
-                            ws.send(WsL2S::Ready(Utc::now())).await;
+                            state.0.display_over.ref_push(el_async(async move {
+                                media.wait_until_seekable().await;
+                                media.seek(prepare.media_time);
+                                media.wait_until_buffered().await;
+                                ws.send(WsL2S::Ready(Utc::now())).await;
+                                return Ok(el("div")) as Result<_, String>;
+                            }));
                         },
                         WsS2L::Play(play_at) => {
                             if let Some(media) = &*state.0.media.borrow() {
@@ -234,28 +231,5 @@ pub fn main_link(pc: &mut ProcessingContext, base_url: String, link_id: String) 
             })));
         }
     });
-    set_root(vec![
-        //. .
-        el_vbox().extend(vec![
-            //. .
-            display,
-            album,
-            el_hbox().extend(vec![artist, name]),
-            el_hbox().extend(
-                vec![el_icon(ICON_VOLUME).attr("title", "Volume"), el("input").attr("type", "range").on("input", {
-                    let volume = volume.clone();
-                    let eg = pc.eg();
-                    move |ev| eg.event(|pc| {
-                        let input = ev.dyn_ref::<HtmlInputElement>().unwrap();
-                        volume.set(pc, input.value_as_number());
-                    })
-                })],
-            )
-        ]).own(|_| (ws, link!((_pc = pc), (volume = volume, media = state.0.media.clone()), (), () {
-            let Some(media) = &*media.borrow() else {
-                return None;
-            };
-            media.set_volume(*volume.borrow());
-        })))
-    ]);
+    set_root(vec![el_from_raw(style_res.root.into()).own(|_| ws)]);
 }

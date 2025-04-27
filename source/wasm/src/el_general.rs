@@ -11,10 +11,15 @@ use {
     },
     rooting::{
         el,
+        el_from_raw,
+        spawn_rooted,
         El,
         WeakEl,
     },
-    std::fmt::Display,
+    std::{
+        fmt::Display,
+        future::Future,
+    },
     wasm_bindgen::{
         JsCast,
         JsValue,
@@ -25,6 +30,26 @@ use {
         HtmlElement,
     },
 };
+
+pub fn log(x: impl Display) {
+    web_sys::console::log_1(&JsValue::from_str(&x.to_string()));
+}
+
+pub fn log_js(x: impl Display, v: &JsValue) {
+    web_sys::console::log_2(&JsValue::from_str(&x.to_string()), v);
+}
+
+pub fn log_js2(x: impl Display, v: &JsValue, v2: &JsValue) {
+    web_sys::console::log_3(&JsValue::from_str(&x.to_string()), v, v2);
+}
+
+pub async fn async_event(e: &EventTarget, event: &str) -> Event {
+    let (tx, rx) = channel();
+    let _l = EventListener::once(e, event.to_string(), move |ev| {
+        _ = tx.send(ev.clone());
+    });
+    return rx.await.unwrap();
+}
 
 pub fn get_dom_octothorpe() -> Option<String> {
     let hash = window().location().hash().unwrap();
@@ -41,8 +66,13 @@ pub fn get_dom_octothorpe() -> Option<String> {
     return Some(s.to_string());
 }
 
+pub const CSS_STATE_THINKING: &str = "thinking";
+pub const CSS_STATE_INVALID: &str = "invalid";
+pub const CSS_STATE_DELETED: &str = "deleted";
+
 pub mod style_export {
     use {
+        std::collections::HashMap,
         wasm_bindgen::{
             JsCast,
             JsValue,
@@ -66,6 +96,16 @@ pub mod style_export {
 
         fn to_js(&self) -> JsValue {
             return self.clone();
+        }
+    }
+
+    impl JsExport for js_sys::Promise {
+        fn from_js(v: &JsValue) -> Self {
+            return v.dyn_ref::<js_sys::Promise>().unwrap().clone();
+        }
+
+        fn to_js(&self) -> JsValue {
+            return self.into();
         }
     }
 
@@ -178,6 +218,27 @@ pub mod style_export {
         }
     }
 
+    impl JsExport for HashMap<String, String> {
+        fn from_js(v: &JsValue) -> Self {
+            let mut out = Self::new();
+            for kv in js_sys::Object::entries(v.dyn_ref().unwrap()) {
+                let mut kv = kv.dyn_into::<js_sys::Array>().unwrap().into_iter();
+                let k = kv.next().unwrap();
+                let v = kv.next().unwrap();
+                out.insert(k.as_string().unwrap(), v.as_string().unwrap());
+            }
+            return out;
+        }
+
+        fn to_js(&self) -> JsValue {
+            let out = js_sys::Object::new().into();
+            for (k, v) in self {
+                js_set(&out, k, v);
+            }
+            return out;
+        }
+    }
+
     fn js_get<T: JsExport>(o: &JsValue, p: &str) -> T {
         return T::from_js(&js_sys::Reflect::get(o, &JsValue::from(p)).unwrap());
     }
@@ -193,316 +254,34 @@ pub mod style_export {
     include!(concat!(env!("OUT_DIR"), "/style_export.rs"));
 }
 
-#[derive(Clone, Copy)]
-pub struct CssIcon(pub &'static str);
-
-pub static ICON_TRANSPORT_PLAY: CssIcon = CssIcon("\u{e037}");
-pub static ICON_TRANSPORT_PAUSE: CssIcon = CssIcon("\u{e034}");
-pub static ICON_TRANSPORT_NEXT: CssIcon = CssIcon("\u{e5cc}");
-pub static ICON_TRANSPORT_PREVIOUS: CssIcon = CssIcon("\u{e5cb}");
-pub static ICON_MENU: CssIcon = CssIcon("\u{e5d2}");
-pub static ICON_NOMENU: CssIcon = CssIcon("\u{e9bd}");
-pub static ICON_EDIT: CssIcon = CssIcon("\u{e3c9}");
-pub static ICON_NOEDIT: CssIcon = CssIcon("\u{e8f4}");
-pub static ICON_SAVE: CssIcon = CssIcon("\u{e161}");
-pub static ICON_ADD: CssIcon = CssIcon("\u{e145}");
-pub static ICON_REMOVE: CssIcon = CssIcon("\u{e15b}");
-pub static ICON_FILL: CssIcon = CssIcon("\u{e877}");
-pub static ICON_RESET: CssIcon = CssIcon("\u{e166}");
-pub static ICON_SELECT_ALL: CssIcon = CssIcon("\u{e837}");
-pub static ICON_SELECT_NONE: CssIcon = CssIcon("\u{e836}");
-pub static ICON_VOLUME: CssIcon = CssIcon("\u{e050}");
-pub static ICON_SHARE: CssIcon = CssIcon("\u{e80d}");
-pub static ICON_NOSHARE: CssIcon = CssIcon("\u{f6cb}");
-pub static ICON_CLOSE: CssIcon = CssIcon("\u{e5cd}");
-pub static ICON_FILTER: CssIcon = CssIcon("\u{e152}");
-pub static ICON_LOGIN: CssIcon = CssIcon("\u{ea77}");
-pub static ICON_LOGOUT: CssIcon = CssIcon("\u{e9ba}");
-
-// Stack elements
-pub static CSS_S_MENU: &'static str = "s_menu";
-pub static CSS_S_PAGE: &'static str = "s_page";
-pub static CSS_MODAL: &'static str = "g_modal";
-
-// Functional
-pub static CSS_VBOX: &'static str = "g_vbox";
-pub static CSS_HBOX: &'static str = "g_hbox";
-pub static CSS_SPACER: &'static str = "g_space";
-pub static CSS_HSCROLL: &'static str = "g_hscroll";
-pub static CSS_GROUP: &'static str = "g_group";
-pub static CSS_STACK: &'static str = "g_stack";
-
-// General (may be freely composed)
-pub static CSS_ICON: &'static str = "g_icon";
-pub static CSS_BUTTON: &'static str = "g_button";
-pub static CSS_BUTTON_ICON: &'static str = "g_button_icon";
-pub static CSS_BUTTON_ICON_TEXT: &'static str = "g_button_icon_text";
-pub static CSS_BUTTON_TEXT: &'static str = "g_button_text";
-pub static CSS_ERROR: &'static str = "g_error";
-pub static CSS_BUTTONBOX: &'static str = "g_buttonbox";
-pub static CSS_ASYNC: &'static str = "g_async";
-pub static CSS_FORM_SECTION: &str = "g_form_section";
-pub static CSS_SVGICON: &'static str = "g_svgicon";
-
-// Specific-use case (used in one specific composition)
-pub static CSS_S_TITLE: &'static str = "s_title";
-pub static CSS_S_TITLE_ICON: &'static str = "s_title_icon";
-pub static CSS_S_TITLE_ICON_SPACER: &'static str = "s_title_icon_spacer";
-pub static CSS_S_BODY: &'static str = "s_body";
-pub static CSS_S_SVGICON_LOGO: &'static str = "s_svgicon_logo";
-pub static CSS_S_SVGICON_SPINNER: &'static str = "s_svgicon_spinner";
-pub static CSS_MODAL_BG: &'static str = "modal_bg";
-pub static CSS_MODAL_CONTENT: &'static str = "modal_content";
-pub static CSS_MODAL_TITLE: &'static str = "modal_title";
-pub static CSS_MODAL_BODY: &'static str = "modal_body";
-pub static CSS_S_MENU_ITEMS: &'static str = "s_menu_items";
-pub static CSS_S_EDIT_FORM_BOTTOM: &str = "s_edit_form_bottom";
-pub static CSS_S_EDIT_FORM_TOP: &str = "s_edit_form_top";
-pub static CSS_S_LISTVIEW_BODY: &str = "s_listview_body";
-pub static CSS_S_FORM: &'static str = "s_form";
-
-// Single-widget modifiers, not used alone in queries
-pub static CSS_ON: &'static str = "on";
-pub static CSS_OFF: &'static str = "off";
-pub static CSS_STATE_GROW: &'static str = "grow";
-pub static CSS_STATE_PRESSED: &'static str = "pressed";
-pub static CSS_STATE_INVALID: &'static str = "invalid";
-pub static CSS_STATE_DELETED: &'static str = "deleted";
-
-pub fn el_err_span(text: impl AsRef<str>) -> El {
-    return el("span").classes(&[CSS_ERROR]).text(text.as_ref());
-}
-
-pub fn el_err_block(text: impl AsRef<str>) -> El {
-    return el("div").classes(&[CSS_ERROR]).text(text.as_ref());
-}
-
-pub fn el_hscroll(child: El) -> El {
-    return el("div").classes(&[CSS_HSCROLL]).push(child);
-}
-
-pub fn el_group() -> El {
-    return el("div").classes(&[CSS_GROUP]);
-}
-
-pub fn el_stack() -> El {
-    return el("div").classes(&[CSS_STACK]);
-}
-
-pub fn el_icon(icon: CssIcon) -> El {
-    return el("div").classes(&[CSS_ICON]).text(icon.0);
-}
-
-pub fn el_svgicon_logo() -> El {
-    return el("div").classes(&[CSS_SVGICON, CSS_S_SVGICON_LOGO]);
-}
-
-pub fn el_svgicon_spinner() -> El {
-    return el("div").classes(&[CSS_SVGICON, CSS_S_SVGICON_SPINNER]);
-}
-
-pub fn el_buttonbox() -> El {
-    return el_hbox().classes(&[CSS_BUTTONBOX]);
-}
-
-pub fn el_button_text(
-    pc: &mut ProcessingContext,
-    text: &str,
-    mut f: impl 'static + FnMut(&mut ProcessingContext) -> (),
-) -> El {
-    return el("button").classes(&[CSS_BUTTON, CSS_BUTTON_TEXT]).text(text).on("click", {
-        let eg = pc.eg();
-        move |_| eg.event(|pc| f(pc))
-    });
-}
-
-pub fn el_button_icon_blank(
-    pc: &mut ProcessingContext,
-    mut f: impl 'static + FnMut(&mut ProcessingContext) -> (),
-) -> El {
-    return el("button").classes(&[CSS_BUTTON, CSS_BUTTON_ICON]).on("click", {
-        let eg = pc.eg();
-        move |_| eg.event(|pc| f(pc))
-    });
-}
-
-pub fn el_button_icon(
-    pc: &mut ProcessingContext,
-    icon: El,
-    help: &str,
-    mut f: impl 'static + FnMut(&mut ProcessingContext) -> (),
-) -> El {
-    return el("button").classes(&[CSS_BUTTON, CSS_BUTTON_ICON]).push(icon).attr("title", help).on("click", {
-        let eg = pc.eg();
-        move |_| eg.event(|pc| f(pc))
-    });
-}
-
-pub fn el_button_icon_toggle_auto(
-    pc: &mut ProcessingContext,
-    icon: CssIcon,
-    help: &str,
-    state: &HistPrim<bool>,
-) -> El {
-    return el("button")
-        .classes(&[CSS_BUTTON, CSS_BUTTON_ICON])
-        .push(el_icon(icon))
-        .attr("title", help)
-        .on("click", {
-            let eg = pc.eg();
-            let state = state.clone();
-            move |ev| eg.event(|pc| {
-                let new_state = !state.get();
-                state.set(pc, new_state);
-                ev
-                    .target()
-                    .unwrap()
-                    .dyn_into::<HtmlElement>()
-                    .unwrap()
-                    .class_list()
-                    .toggle_with_force(&CSS_STATE_PRESSED, new_state)
-                    .unwrap();
-            })
-        });
-}
-
-pub fn el_button_icon_switch(
-    pc: &mut ProcessingContext,
-    off_icon: CssIcon,
-    off_help: &str,
-    on_icon: CssIcon,
-    on_help: &str,
-    state: &HistPrim<bool>,
-) -> El {
-    return el("button")
-        .classes(&[CSS_BUTTON, CSS_BUTTON_ICON])
-        .own(
-            |e| link!(
-                (_pc = pc),
-                (state = state.clone()),
-                (),
-                (
-                    e = e.weak(),
-                    off_icon = off_icon,
-                    off_help = off_help.to_string(),
-                    on_icon = on_icon,
-                    on_help = on_help.to_string()
-                ) {
-                    let e = e.upgrade()?;
-                    if *state.borrow() {
-                        e.ref_clear().ref_push(el_icon(*on_icon));
-                        e.ref_attr("title", on_help);
-                    } else {
-                        e.ref_clear().ref_push(el_icon(*off_icon));
-                        e.ref_attr("title", off_help);
-                    }
-                }
-            ),
-        );
-}
-
-pub fn el_button_icon_switch_auto(
-    pc: &mut ProcessingContext,
-    off_icon: CssIcon,
-    off_help: &str,
-    on_icon: CssIcon,
-    on_help: &str,
-    state: &HistPrim<bool>,
-) -> El {
-    return el_button_icon_switch(pc, off_icon, off_help, on_icon, on_help, state).on("click", {
-        let eg = pc.eg();
-        let state = state.clone();
-        move |_| eg.event(|pc| {
-            let new_value = !*state.borrow();
-            state.set(pc, new_value);
-        })
-    });
-}
-
-pub fn el_button_icon_text(
-    pc: &mut ProcessingContext,
-    icon: CssIcon,
-    text: &str,
-    mut f: impl 'static + FnMut(&mut ProcessingContext) -> (),
-) -> El {
-    return el("button")
-        .classes(&[CSS_BUTTON, CSS_BUTTON_ICON_TEXT])
-        .push(el_icon(icon))
-        .push(el("span").text(text))
-        .on("click", {
-            let eg = pc.eg();
-            move |_| eg.event(|pc| f(pc))
-        });
-}
-
-pub fn el_hbox() -> El {
-    return el("div").classes(&[CSS_HBOX]);
-}
-
-pub fn el_vbox() -> El {
-    return el("div").classes(&[CSS_VBOX]);
-}
-
-pub fn el_spacer() -> El {
-    return el("div").classes(&[CSS_SPACER]);
-}
-
-pub fn log(x: impl Display) {
-    web_sys::console::log_1(&JsValue::from_str(&x.to_string()));
-}
-
-pub fn log_js(x: impl Display, v: &JsValue) {
-    web_sys::console::log_2(&JsValue::from_str(&x.to_string()), v);
-}
-
-pub fn log_js2(x: impl Display, v: &JsValue, v2: &JsValue) {
-    web_sys::console::log_3(&JsValue::from_str(&x.to_string()), v, v2);
-}
-
-pub fn el_async() -> El {
-    return el("span").classes(&[CSS_ASYNC]).push(el_svgicon_spinner());
-}
-
-pub fn el_async_block() -> El {
-    return el("div").classes(&[CSS_ASYNC]).push(el_svgicon_spinner());
-}
-
-pub fn el_modal(
-    pc: &mut ProcessingContext,
-    title: &str,
-    body: impl Fn(&mut ProcessingContext, WeakEl) -> Vec<El>,
-) -> El {
-    let root = el_stack().classes(&[CSS_MODAL]);
-    root.ref_extend(vec![
-        //. .
-        el("div").classes(&[CSS_MODAL_BG]),
-        el_vbox().classes(&[CSS_MODAL_CONTENT]).extend(vec![
-            //. .
-            el_hbox().classes(&[CSS_MODAL_TITLE]).extend(vec![
-                //. .
-                el("h1").text(title),
-                el_button_icon(pc, el_icon(ICON_CLOSE), "Close", {
-                    let out = root.weak();
-                    move |_pc| {
-                        let Some(out) = out.upgrade() else {
-                            return;
-                        };
-                        out.ref_replace(vec![]);
-                    }
-                })
-            ]),
-            el_vbox().classes(&[CSS_MODAL_BODY]).extend(body(pc, root.weak()))
-        ])
-    ]);
-    root
-}
-
-pub async fn async_event(e: &EventTarget, event: &str) -> Event {
-    let (tx, rx) = channel();
-    let _l = EventListener::once(e, event.to_string(), move |ev| {
-        _ = tx.send(ev.clone());
-    });
-    return rx.await.unwrap();
+pub fn el_async<E: ToString, F: 'static + Future<Output = Result<El, E>>>(f: F) -> El {
+    let out = el_from_raw(style_export::leaf_async_block().root.into());
+    out.ref_own(|_| spawn_rooted({
+        let out = out.weak();
+        async move {
+            let res = f.await;
+            let Some(out) = out.upgrade() else {
+                return;
+            };
+            out.raw().set_inner_html("");
+            match res {
+                Ok(v) => {
+                    out.ref_push(v);
+                },
+                Err(e) => {
+                    out.ref_push(
+                        el_from_raw(
+                            style_export::leaf_err_block(style_export::LeafErrBlockArgs { data: e.to_string() })
+                                .root
+                                .dyn_into()
+                                .unwrap(),
+                        ),
+                    );
+                },
+            }
+        }
+    }));
+    return out;
 }
 
 pub fn el_video(src: &str) -> El {

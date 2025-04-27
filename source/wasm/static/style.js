@@ -20,12 +20,9 @@ let onPlaylistStateChangedCb;
   let playing = false;
   let playingIndex = 0;
   presentation.playlistStateChanged =
-    /** @type { Presentation["playlistStateChanged"] } */ (
-      newPlaying,
-      newIndex
-    ) => {
-      playing = newPlaying;
-      playingIndex = newIndex;
+    /** @type { Presentation["playlistStateChanged"] } */ (args) => {
+      playing = args.playing;
+      playingIndex = args.index;
       if (onPlaylistStateChangedCb != null) {
         onPlaylistStateChangedCb(playing, playingIndex);
       }
@@ -179,7 +176,8 @@ presentationShared.s = /** @type {PresentationShared["s"]} */ (id, f) => {
 };
 const s = presentationShared.s;
 
-const staticStyles = new Map();
+/** @type { Set<string> } */
+const staticStyles = new Set();
 // Static style - the id must be unique for every value closed on (i.e. put all the arguments in the id).
 presentationShared.ss = /** @type {PresentationShared["ss"]} */ (id, f) => {
   if (staticStyles.has(id)) {
@@ -189,6 +187,7 @@ presentationShared.ss = /** @type {PresentationShared["ss"]} */ (id, f) => {
     globalStyle.insertRule(`.${id}${suffix} {}`, 0);
     f1(/** @type { CSSStyleRule } */ (globalStyle.cssRules[0]).style);
   }
+  staticStyles.add(id);
   return id;
 };
 const ss = presentationShared.ss;
@@ -230,6 +229,7 @@ const varSEditRelWidth = v("1.5cm");
 //const varCBackground = vs("rgb(205, 207, 212)", "rgb(0,0,0)");
 const varCBackground = vs("rgb(230, 232, 238)", "rgb(0,0,0)");
 const varCBg2 = vs("rgb(218, 220, 226)", "rgb(0,0,0)");
+const varCBackgroundDark = v("rgb(45, 45, 46)");
 //const varCBackgroundMenu = vs("rgb(173, 177, 188)", "rgb(0,0,0)");
 const varCBackgroundMenu = vs("rgb(205, 208, 217)", "rgb(0,0,0)");
 const varCBackgroundMenuButtons = vs("rgb(219, 223, 232)", "rgb(0,0,0)");
@@ -243,6 +243,9 @@ const varCSeekbarFill = vs("rgb(197, 196, 209)", "rgb(0,0,0)");
 const varSButtonPad = v("0.3cm");
 
 const varCForeground = vs("rgb(0, 0, 0)", "rgb(0,0,0)");
+const varCForegroundDark = v("rgb(249, 248, 240)");
+const varCForegroundError = vs("rgb(154, 60, 74)", "rgb(0,0,0)");
+const varCBorderError = vs("rgb(192, 61, 80)", "rgb(0,0,0)");
 const varCInputBorder = vs("rgb(154, 157, 168)", "rgb(0,0,0)");
 const varCInputBackground = vs(varCBg2, "rgb(0,0,0)");
 const varCHighlightNode = varCBg2;
@@ -258,6 +261,7 @@ const varCEditButtonFreeClick = varCBg2;
 
 const classMenuWantStateOpen = "want_state_open";
 const classMenuStateOpen = "state_open";
+const classInputStateInvalid = "invalid";
 
 ///////////////////////////////////////////////////////////////////////////////
 // xx Components, styles: all
@@ -270,6 +274,14 @@ const contHboxStyle = "hbox";
 presentationShared.contHboxStyle = contHboxStyle;
 const contStackStyle = "stack";
 presentationShared.contStackStyle = contStackStyle;
+
+presentation.contGroup = /** @type {Presentation["contGroup"]} */ (args) => ({
+  root: e("div", {}, { styles_: [contGroupStyle], children_: args.children }),
+});
+
+presentation.contStack = /** @type {Presentation["contStack"]} */ (args) => ({
+  root: e("div", {}, { styles_: [contStackStyle], children_: args.children }),
+});
 
 const contTitleStyle = s(uniq("cont_title"), {
   "": (s) => {
@@ -305,11 +317,11 @@ const leafTitleStyle = s(uniq("leaf_title"), {
     s.gridRow = "1";
   },
 });
-presentation.leafTitle = /** @type {Presentation["leafTitle"]} */ (text) => ({
+presentation.leafTitle = /** @type {Presentation["leafTitle"]} */ (args) => ({
   root: e(
     "h1",
     {
-      textContent: text,
+      textContent: args.text,
     },
     {
       styles_: [leafTitleStyle],
@@ -332,14 +344,7 @@ const leafIconStyle = s(uniq("icon"), {
   },
 });
 
-presentation.contBar = /** @type {Presentation["contBar"]} */ (
-  extraStyles,
-  leftChildren,
-  leftMidChildren,
-  midChildren,
-  rightMidChildren,
-  rightChildren
-) => {
+presentation.contBar = /** @type {Presentation["contBar"]} */ (args) => {
   /** @type { (children: HTMLElement[]) => HTMLElement} */
   const newHbox = (children) =>
     e(
@@ -386,10 +391,10 @@ presentation.contBar = /** @type {Presentation["contBar"]} */ (
               s.justifySelf = "end";
             },
           }),
-          ...extraStyles,
+          ...args.extraStyles,
         ],
         children_: [
-          newHbox(leftChildren),
+          newHbox(args.leftChildren),
           e(
             "div",
             {},
@@ -418,13 +423,13 @@ presentation.contBar = /** @type {Presentation["contBar"]} */ (
                 }),
               ],
               children_: [
-                newHbox(leftMidChildren),
-                newHbox(midChildren),
-                newHbox(rightMidChildren),
+                newHbox(args.leftMidChildren),
+                newHbox(args.midChildren),
+                newHbox(args.rightMidChildren),
               ],
             }
           ),
-          newHbox(rightChildren),
+          newHbox(args.rightChildren),
         ],
       }
     ),
@@ -446,14 +451,10 @@ const contBarMainStyle = ss(uniq("cont_bar_main"), {
 });
 
 presentation.contBarMainForm = /** @type {Presentation["contBarMainForm"]} */ (
-  leftChildren,
-  leftMidChildren,
-  midChildren,
-  rightMidChildren,
-  rightChildren
+  args
 ) =>
-  presentation.contBar(
-    [
+  presentation.contBar({
+    extraStyles: [
       classMenuWantStateOpen,
       contBarMainStyle,
       ss(uniq("cont_bar_main_form"), {
@@ -462,12 +463,12 @@ presentation.contBarMainForm = /** @type {Presentation["contBarMainForm"]} */ (
         },
       }),
     ],
-    leftChildren,
-    leftMidChildren,
-    midChildren,
-    rightMidChildren,
-    rightChildren
-  );
+    leftChildren: args.leftChildren,
+    leftMidChildren: args.leftMidChildren,
+    midChildren: args.midChildren,
+    rightMidChildren: args.rightMidChildren,
+    rightChildren: args.rightChildren,
+  });
 
 presentation.contSpinner = /** @type {Presentation["contSpinner"]} */ () => ({
   root: et(
@@ -505,10 +506,11 @@ presentation.contSpinner = /** @type {Presentation["contSpinner"]} */ () => ({
     }
   ),
 });
+
 presentation.leafAsyncBlock = /** @type {Presentation["leafAsyncBlock"]} */ (
-  cb
-) => {
-  const out = e(
+  args
+) => ({
+  root: e(
     "div",
     {},
     {
@@ -527,28 +529,36 @@ presentation.leafAsyncBlock = /** @type {Presentation["leafAsyncBlock"]} */ (
                 },
               }),
             ],
-            children_: [presentation.contSpinner().root],
+            children_: [presentation.contSpinner({}).root],
           }
         ),
       ],
     }
-  );
-  (async () => {
-    try {
-      //await new Promise((r) => setTimeout(() => r(null), 5000));
-      const r = await cb;
-      out.innerHTML = "";
-      out.appendChild(r);
-    } catch (e) {
-      out.innerHTML = "";
-      out.appendChild(presentation.leafErrBlock(/** @type {Error} */ (e)).root);
-    }
-  })();
-  return { root: out };
-};
+  ),
+});
+
+presentationShared.leafAsyncBlock =
+  /** @type {PresentationShared["leafAsyncBlock"]} */ (cb) => {
+    const out = presentation.leafAsyncBlock({}).root;
+    (async () => {
+      try {
+        //await new Promise((r) => setTimeout(() => r(null), 5000));
+        const r = await cb;
+        out.innerHTML = "";
+        out.appendChild(r);
+      } catch (e) {
+        out.innerHTML = "";
+        out.appendChild(
+          presentation.leafErrBlock({ data: /** @type {Error} */ (e).message })
+            .root
+        );
+      }
+    })();
+    return out;
+  };
 
 presentation.leafErrBlock = /** @type {Presentation["leafErrBlock"]} */ (
-  e1
+  args
 ) => ({
   root: e(
     "div",
@@ -563,11 +573,11 @@ presentation.leafErrBlock = /** @type {Presentation["leafErrBlock"]} */ (
             s.alignItems = "center";
           },
           ">span": (s) => {
-            s.color = "rgb(154, 60, 74)";
+            s.color = varCForegroundError;
           },
         }),
       ],
-      children_: [e("span", { textContent: e1.message }, {})],
+      children_: [e("span", { textContent: args.data }, {})],
     }
   ),
 });
@@ -580,6 +590,7 @@ const leafSpaceStyle = s(uniq("leaf_space"), {
 presentation.leafSpace = /** @type {Presentation["leafSpace"]} */ () => ({
   root: e("div", {}, { styles_: [leafSpaceStyle] }),
 });
+const leafSpace = presentation.leafSpace;
 
 const leafButtonStyle = ss(uniq("leaf_button"), {
   ":hover": (s) => {
@@ -588,34 +599,37 @@ const leafButtonStyle = ss(uniq("leaf_button"), {
   ":hover:active": (s) => {
     s.backgroundColor = varCButtonClick;
   },
+  ".thinking": (s) => {
+    // TODO horiz line with marching dashes instead
+    s.opacity = "0.5";
+  },
 });
-presentation.leafButton = /** @type {Presentation["leafButton"]} */ (
-  title,
-  text,
-  extraStyles
-) => {
-  const out = e(
+presentation.leafButton = /** @type {Presentation["leafButton"]} */ (args) => ({
+  root: e(
     "button",
     {
-      title: title,
-      textContent: text,
+      title: args.title,
+      textContent: args.text,
     },
     {
-      styles_: [leafButtonStyle, ...extraStyles],
+      styles_: [leafButtonStyle, ...args.extraStyles],
     }
-  );
-  return { root: out, button: out };
-};
+  ),
+});
 
 presentation.leafBarButtonBig =
-  /** @type {Presentation["leafBarButtonBig"]} */ (title, text) =>
-    presentation.leafButton(title, text, [
-      ss(uniq("leaf_button_bar_big"), {
-        "": (s) => {
-          s.padding = varSButtonPad;
-        },
-      }),
-    ]);
+  /** @type {Presentation["leafBarButtonBig"]} */ (args) =>
+    presentation.leafButton({
+      title: args.title,
+      text: args.text,
+      extraStyles: [
+        ss(uniq("leaf_button_bar_big"), {
+          "": (s) => {
+            s.padding = varSButtonPad;
+          },
+        }),
+      ],
+    });
 
 ///////////////////////////////////////////////////////////////////////////////
 // xx Components, styles: page, form + edit
@@ -631,9 +645,7 @@ const leafInputPairStyle = s(uniq("leaf_form_input_pair"), {
   },
 });
 presentation.leafInputPair = /** @type {Presentation["leafInputPair"]} */ (
-  label,
-  inputId,
-  input
+  args
 ) => ({
   root: e(
     "div",
@@ -644,12 +656,12 @@ presentation.leafInputPair = /** @type {Presentation["leafInputPair"]} */ (
         e(
           "label",
           {
-            textContent: label,
-            htmlFor: inputId,
+            textContent: args.label,
+            htmlFor: args.inputId,
           },
           {}
         ),
-        input,
+        args.input,
       ],
     }
   ),
@@ -661,12 +673,33 @@ const leafInputStyle = s(uniq("leaf_form_input_text"), {
     s.padding = "0.1cm";
     s.maxWidth = "9999cm";
   },
+  [`.${classInputStateInvalid}`]: (s) => {
+    s.borderColor = varCBorderError;
+    s.borderBottomStyle = "dashed";
+    s.borderBottomWidth = "0.06cm";
+  },
 });
 
 presentation.leafInputText = /** @type {Presentation["leafInputText"]} */ (
-  id,
-  title,
-  value
+  args
+) => ({
+  root: e(
+    "input",
+    {
+      type: "text",
+      placeholder: args.title,
+      title: args.title,
+      name: args.id,
+      value: args.value,
+    },
+    {
+      styles_: [leafInputStyle],
+    }
+  ),
+});
+
+presentation.leafInputNumber = /** @type {Presentation["leafInputNumber"]} */ (
+  args
 ) => {
   const out =
     /** @type {HTMLInputElement} */
@@ -674,52 +707,285 @@ presentation.leafInputText = /** @type {Presentation["leafInputText"]} */ (
       e(
         "input",
         {
-          type: "text",
-          placeholder: title,
-          title: title,
-          name: id,
-          value: value,
+          type: "number",
+          placeholder: args.title,
+          title: args.title,
+          name: args.id,
+          value: args.value,
         },
         {
           styles_: [leafInputStyle],
         }
       )
     );
-  return { root: out, input: out };
+  return { root: out };
 };
+presentation.leafInputBool = /** @type {Presentation["leafInputBool"]} */ (
+  args
+) => {
+  const out =
+    /** @type {HTMLInputElement} */
+    (
+      e(
+        "input",
+        {
+          type: "checkbox",
+          placeholder: args.title,
+          title: args.title,
+          name: args.id,
+        },
+        {
+          styles_: [leafInputStyle],
+        }
+      )
+    );
+  out.checked = args.value;
+  return { root: out };
+};
+presentation.leafInputDate = /** @type {Presentation["leafInputDate"]} */ (
+  args
+) => {
+  const out =
+    /** @type {HTMLInputElement} */
+    (
+      e(
+        "input",
+        {
+          type: "date",
+          placeholder: args.title,
+          title: args.title,
+          name: args.id,
+          value: args.value,
+        },
+        {
+          styles_: [leafInputStyle],
+        }
+      )
+    );
+  return { root: out };
+};
+presentation.leafInputTime = /** @type {Presentation["leafInputTime"]} */ (
+  args
+) => {
+  const out =
+    /** @type {HTMLInputElement} */
+    (
+      e(
+        "input",
+        {
+          type: "time",
+          placeholder: args.title,
+          title: args.title,
+          name: args.id,
+          value: args.value,
+        },
+        {
+          styles_: [leafInputStyle],
+        }
+      )
+    );
+  return { root: out };
+};
+presentation.leafInputDatetime =
+  /** @type {Presentation["leafInputDatetime"]} */ (args) => {
+    const out =
+      /** @type {HTMLInputElement} */
+      (
+        e(
+          "input",
+          {
+            type: "datetime-local",
+            placeholder: args.title,
+            title: args.title,
+            name: args.id,
+            value: args.value,
+          },
+          {
+            styles_: [leafInputStyle],
+          }
+        )
+      );
+    return { root: out };
+  };
+presentation.leafInputColor = /** @type {Presentation["leafInputColor"]} */ (
+  args
+) => {
+  const out =
+    /** @type {HTMLInputElement} */
+    (
+      e(
+        "input",
+        {
+          type: "color",
+          placeholder: args.title,
+          title: args.title,
+          name: args.id,
+          value: args.value,
+        },
+        {
+          styles_: [leafInputStyle],
+        }
+      )
+    );
+  return { root: out };
+};
+presentation.leafInputEnum = /** @type {Presentation["leafInputEnum"]} */ (
+  args
+) => {
+  const children = [];
+  for (const [k, v] of Object.entries(args.options)) {
+    children.push(e("option", { textContent: v, value: v }, {}));
+  }
+  const out = e(
+    "select",
+    {
+      title: args.title,
+      name: args.id,
+      value: args.value,
+    },
+    {
+      styles_: [leafInputStyle],
+      children_: children,
+    }
+  );
+  return { root: out };
+};
+
 presentation.leafInputPairText =
-  /** @type {Presentation["leafInputPairText"]} */ (id, title, value) => {
-    const input = presentation.leafInputText(id, title, value);
+  /** @type {Presentation["leafInputPairText"]} */ (args) => {
+    const input = presentation.leafInputText({
+      id: args.id,
+      title: args.title,
+      value: args.value,
+    });
     return {
-      root: presentation.leafInputPair(title, id, input.root).root,
-      input: input.input,
+      root: presentation.leafInputPair({
+        label: args.title,
+        inputId: args.id,
+        input: input.root,
+      }).root,
+      input: input.root,
     };
   };
-
-presentation.leafInputSelect = /** @type {Presentation["leafInputSelect"]} */ (
-  id,
-  children
-) => {
-  const out = /** @type {HTMLSelectElement} */ (
-    e(
-      "select",
-      {
-        name: id,
-      },
-      {
-        styles_: [leafInputStyle],
-        children_: children,
-      }
-    )
-  );
-  return { root: out, input: out };
-};
+presentation.leafInputPairBool =
+  /** @type {Presentation["leafInputPairBool"]} */ (args) => {
+    const input = presentation.leafInputBool({
+      id: args.id,
+      title: args.title,
+      value: args.value,
+    });
+    return {
+      root: presentation.leafInputPair({
+        label: args.title,
+        inputId: args.id,
+        input: input.root,
+      }).root,
+      input: input.root,
+    };
+  };
+presentation.leafInputPairNumber =
+  /** @type {Presentation["leafInputPairNumber"]} */ (args) => {
+    const input = presentation.leafInputNumber({
+      id: args.id,
+      title: args.title,
+      value: args.value,
+    });
+    return {
+      root: presentation.leafInputPair({
+        label: args.title,
+        inputId: args.id,
+        input: input.root,
+      }).root,
+      input: input.root,
+    };
+  };
+presentation.leafInputPairDate =
+  /** @type {Presentation["leafInputPairDate"]} */ (args) => {
+    const input = presentation.leafInputDate({
+      id: args.id,
+      title: args.title,
+      value: args.value,
+    });
+    return {
+      root: presentation.leafInputPair({
+        label: args.title,
+        inputId: args.id,
+        input: input.root,
+      }).root,
+      input: input.root,
+    };
+  };
+presentation.leafInputPairTime =
+  /** @type {Presentation["leafInputPairTime"]} */ (args) => {
+    const input = presentation.leafInputTime({
+      id: args.id,
+      title: args.title,
+      value: args.value,
+    });
+    return {
+      root: presentation.leafInputPair({
+        label: args.title,
+        inputId: args.id,
+        input: input.root,
+      }).root,
+      input: input.root,
+    };
+  };
+presentation.leafInputPairDatetime =
+  /** @type {Presentation["leafInputPairDatetime"]} */ (args) => {
+    const input = presentation.leafInputDatetime({
+      id: args.id,
+      title: args.title,
+      value: args.value,
+    });
+    return {
+      root: presentation.leafInputPair({
+        label: args.title,
+        inputId: args.id,
+        input: input.root,
+      }).root,
+      input: input.root,
+    };
+  };
+presentation.leafInputPairColor =
+  /** @type {Presentation["leafInputPairColor"]} */ (args) => {
+    const input = presentation.leafInputColor({
+      id: args.id,
+      title: args.title,
+      value: args.value,
+    });
+    return {
+      root: presentation.leafInputPair({
+        label: args.title,
+        inputId: args.id,
+        input: input.root,
+      }).root,
+      input: input.root,
+    };
+  };
+presentation.leafInputPairEnum =
+  /** @type {Presentation["leafInputPairEnum"]} */ (args) => {
+    const input = presentation.leafInputEnum({
+      id: args.id,
+      title: args.title,
+      options: args.options,
+      value: args.value,
+    });
+    return {
+      root: presentation.leafInputPair({
+        label: args.title,
+        inputId: args.id,
+        input: input.root,
+      }).root,
+      input: input.root,
+    };
+  };
 
 ///////////////////////////////////////////////////////////////////////////////
 // xx Components, styles: page, view
 
 presentation.contPageView = /** @type {Presentation["contPageView"]} */ (
-  entries
+  args
 ) => ({
   root: e(
     "div",
@@ -738,21 +1004,21 @@ presentation.contPageView = /** @type {Presentation["contPageView"]} */ (
           },
         }),
       ],
-      children_: entries,
+      children_: args.entries,
     }
   ),
 });
 
-presentation.contBarViewTransport =
-  /** @type {Presentation["contBarViewTransport"]} */ () => {
-    const buttonShare = presentation.leafTransportButton(
-      "Share",
-      textIconShare
-    );
-    const buttonPrev = presentation.leafTransportButton(
-      "Previous",
-      textIconPrev
-    );
+const contBarViewTransport =
+  /** @type {(args: {  }) => { root: HTMLElement, buttonShare: HTMLElement, buttonPrev: HTMLElement, buttonNext: HTMLElement, buttonPlay: HTMLElement, seekbar: HTMLElement, seekbarFill: HTMLElement }} */ () => {
+    const buttonShare = presentation.leafTransportButton({
+      title: "Share",
+      icon: textIconShare,
+    });
+    const buttonPrev = presentation.leafTransportButton({
+      title: "Previous",
+      icon: textIconPrev,
+    });
     const seekbarFill = e(
       "div",
       {},
@@ -824,11 +1090,17 @@ presentation.contBarViewTransport =
         ],
       }
     );
-    const buttonNext = presentation.leafTransportButton("Next", textIconNext);
-    const buttonPlay = presentation.leafTransportButton("Play", textIconPlay);
+    const buttonNext = presentation.leafTransportButton({
+      title: "Next",
+      icon: textIconNext,
+    });
+    const buttonPlay = presentation.leafTransportButton({
+      title: "Play",
+      icon: textIconPlay,
+    });
     return {
-      root: presentation.contBar(
-        [
+      root: presentation.contBar({
+        extraStyles: [
           classMenuWantStateOpen,
           contBarMainStyle,
           ss(uniq("cont_bar_main_transport"), {
@@ -837,23 +1109,23 @@ presentation.contBarViewTransport =
             },
           }),
         ],
-        [buttonShare.root],
-        [],
-        [buttonPrev.root, seekbar, buttonNext.root],
-        [buttonPlay.root],
-        []
-      ).root,
-      buttonShare: buttonShare.button,
-      buttonNext: buttonNext.button,
-      buttonPlay: buttonPlay.button,
-      buttonPrev: buttonPrev.button,
+        leftChildren: [buttonShare.root],
+        leftMidChildren: [],
+        midChildren: [buttonPrev.root, seekbar, buttonNext.root],
+        rightMidChildren: [buttonPlay.root],
+        rightChildren: [],
+      }).root,
+      buttonShare: buttonShare.root,
+      buttonNext: buttonNext.root,
+      buttonPlay: buttonPlay.root,
+      buttonPrev: buttonPrev.root,
       seekbar: seekbar,
       seekbarFill: seekbarFill,
     };
   };
 
 presentation.contMediaFullscreen =
-  /** @type {Presentation["contMediaFullscreen"]} */ (media) => {
+  /** @type {Presentation["contMediaFullscreen"]} */ (args) => {
     const buttonClose = e(
       "button",
       {
@@ -894,7 +1166,7 @@ presentation.contMediaFullscreen =
             }),
           ],
           children_: [
-            media,
+            args.media,
             e(
               "div",
               {},
@@ -916,10 +1188,7 @@ presentation.contMediaFullscreen =
     };
   };
 
-presentation.contModal = /** @type {Presentation["contModal"]} */ (
-  title,
-  child
-) => {
+presentation.contModal = /** @type {Presentation["contModal"]} */ (args) => {
   const buttonClose = e(
     "button",
     {
@@ -1012,7 +1281,7 @@ presentation.contModal = /** @type {Presentation["contModal"]} */ (
                       e(
                         "h1",
                         {
-                          textContent: title,
+                          textContent: args.title,
                         },
                         {
                           styles_: [
@@ -1025,12 +1294,12 @@ presentation.contModal = /** @type {Presentation["contModal"]} */ (
                           ],
                         }
                       ),
-                      presentation.leafSpace().root,
+                      presentation.leafSpace({}).root,
                       buttonClose,
                     ],
                   }
                 ),
-                child,
+                args.child,
               ],
             }
           ),
@@ -1042,7 +1311,7 @@ presentation.contModal = /** @type {Presentation["contModal"]} */ (
 };
 
 presentation.leafTransportButton =
-  /** @type {Presentation["leafTransportButton"]} */ (title, icon) => {
+  /** @type {Presentation["leafTransportButton"]} */ (args) => {
     const size = "1cm";
     const svgId = window.crypto.randomUUID();
     const div = e("div", {}, {});
@@ -1050,7 +1319,7 @@ presentation.leafTransportButton =
     const out = e(
       "button",
       {
-        title: title,
+        title: args.title,
       },
       {
         styles_: [
@@ -1080,7 +1349,7 @@ presentation.leafTransportButton =
                 font-weight: 100;
                 font-size: 90px;
                 scale: 1%;
-              ">${icon}</text>
+              ">${args.icon}</text>
             </clipPath>
           </defs>
         </svg>
@@ -1089,7 +1358,7 @@ presentation.leafTransportButton =
         ],
       }
     );
-    return { root: out, button: out };
+    return { root: out };
   };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1108,39 +1377,68 @@ const contBodyNarrowStyle = s(uniq("cont_body_narrow"), {
   },
 });
 presentation.contPageForm = /** @type {Presentation["contPageForm"]} */ (
-  entries
+  args
+) => ({
+  root: presentation.contGroup({
+    children: [
+      presentation.contBarMainForm({
+        leftChildren: [],
+        leftMidChildren: [],
+        midChildren: [],
+        rightMidChildren: [],
+        rightChildren: args.barChildren,
+      }).root,
+      e(
+        "div",
+        {},
+        {
+          styles_: [classMenuWantStateOpen, contBodyNarrowStyle, contVboxStyle],
+          children_: [
+            e(
+              "div",
+              {},
+              {
+                styles_: [
+                  ss(uniq("cont_page_form"), {
+                    "": (s) => {
+                      s.display = "grid";
+                      s.gridTemplateColumns = "auto 1fr";
+                      s.alignItems = "first baseline";
+                      s.columnGap = "0.2cm";
+                      s.rowGap = "0.2cm";
+                    },
+                    ">label": (s) => {
+                      s.gridColumn = "1";
+                    },
+                    ">input": (s) => {
+                      s.gridColumn = "2";
+                    },
+                  }),
+                ],
+                children_: args.entries,
+              }
+            ),
+            presentation.leafSpace({}).root,
+          ],
+        }
+      ),
+    ],
+  }).root,
+});
+presentation.leafFormComment = /** @type {Presentation["leafFormComment"]} */ (
+  args
 ) => ({
   root: e(
-    "div",
-    {},
+    "p",
+    { textContent: args.text },
     {
-      styles_: [classMenuWantStateOpen, contBodyNarrowStyle, contVboxStyle],
-      children_: [
-        e(
-          "div",
-          {},
-          {
-            styles_: [
-              ss(uniq("cont_page_form"), {
-                "": (s) => {
-                  s.display = "grid";
-                  s.gridTemplateColumns = "auto 1fr";
-                  s.alignItems = "first baseline";
-                  s.columnGap = "0.2cm";
-                  s.rowGap = "0.2cm";
-                },
-                ">label": (s) => {
-                  s.gridColumn = "1";
-                },
-                ">input": (s) => {
-                  s.gridColumn = "2";
-                },
-              }),
-            ],
-            children_: entries,
-          }
-        ),
-        presentation.leafSpace().root,
+      styles_: [
+        ss(uniq("leaf_form_comment"), {
+          "": (s) => {
+            s.gridColumn = "1/3";
+            s.marginTop = "0.3cm";
+          },
+        }),
       ],
     }
   ),
@@ -1152,29 +1450,40 @@ presentation.contPageForm = /** @type {Presentation["contPageForm"]} */ (
 let varSEditGap = v("0.5cm");
 
 presentation.contPageEdit = /** @type {Presentation["contPageEdit"]} */ (
-  children
+  args
 ) => ({
-  root: e(
-    "div",
-    {},
-    {
-      styles_: [
-        classMenuWantStateOpen,
-        contBodyNarrowStyle,
-        contVboxStyle,
-        ss(uniq("page_edit"), {
-          "": (s) => {
-            s.gap = varSEditGap;
-          },
-        }),
-      ],
-      children_: children,
-    }
-  ),
+  root: presentation.contGroup({
+    children: [
+      presentation.contBarMainForm({
+        leftChildren: [],
+        leftMidChildren: [],
+        midChildren: [],
+        rightMidChildren: [],
+        rightChildren: args.barChildren,
+      }).root,
+      e(
+        "div",
+        {},
+        {
+          styles_: [
+            classMenuWantStateOpen,
+            contBodyNarrowStyle,
+            contVboxStyle,
+            ss(uniq("page_edit"), {
+              "": (s) => {
+                s.gap = varSEditGap;
+              },
+            }),
+          ],
+          children_: args.children,
+        }
+      ),
+    ],
+  }).root,
 });
 
 presentation.contPageEditSectionRel =
-  /** @type {Presentation["contPageEditSectionRel"]} */ (children) => ({
+  /** @type {Presentation["contPageEditSectionRel"]} */ (args) => ({
     root: e(
       "div",
       {},
@@ -1187,33 +1496,43 @@ presentation.contPageEditSectionRel =
             },
           }),
         ],
-        children_: children,
+        children_: args.children,
       }
     ),
   });
 
-presentation.leafButtonEditFree =
-  /** @type {Presentation["leafButtonEditFree"]} */ (icon, hint) =>
-    presentation.leafButton(hint, icon, [
-      leafIconStyle,
-      ss(uniq("leaf_button_free"), {
-        "": (s) => {
-          s.fontSize = "22pt";
-          s.fontWeight = "300";
-          const size = "1.2cm";
-          s.width = size;
-          s.height = size;
-          s.borderRadius = "0.2cm";
-          s.color = `color-mix(in srgb, ${varCForeground}, transparent 30%)`;
-        },
-        ":hover": (s) => {
-          s.color = varCForeground;
-        },
-        ":hover:active": (s) => {
-          s.color = varCForeground;
-        },
-      }),
-    ]);
+const leafButtonEditFree =
+  /** @type { (args: { icon: string, hint: string }) => { root: HTMLElement } } */ (
+    args
+  ) =>
+    presentation.leafButton({
+      title: args.hint,
+      text: args.icon,
+      extraStyles: [
+        leafIconStyle,
+        ss(uniq("leaf_button_free"), {
+          "": (s) => {
+            s.fontSize = "22pt";
+            s.fontWeight = "300";
+            const size = "1.2cm";
+            s.width = size;
+            s.height = size;
+            s.borderRadius = "0.2cm";
+            s.color = `color-mix(in srgb, ${varCForeground}, transparent 30%)`;
+          },
+          ":hover": (s) => {
+            s.color = varCForeground;
+          },
+          ":hover:active": (s) => {
+            s.color = varCForeground;
+          },
+        }),
+      ],
+    });
+
+presentation.leafButtonEditAdd =
+  /** @type {Presentation["leafButtonEditAdd"]} */ (args) =>
+    leafButtonEditFree({ icon: textIconAdd, hint: args.hint });
 
 const contEditNodeVboxStyle = s(uniq("cont_edit_node_vbox"), {
   "": (s) => {
@@ -1228,25 +1547,16 @@ const contEditNodeHboxStyle = s(uniq("cont_edit_node_hbox"), {
   },
 });
 presentation.leafEditNode = /** @type {Presentation["leafEditNode"]} */ (
-  id,
-  nodeHint,
-  nodeType,
-  node
+  args
 ) => {
-  const inputType = presentation.leafInputSelect(`${id}_type`, [
-    e("option", { textContent: "Value", value: "value" }, {}),
-    e("option", { textContent: "File", value: "file" }, {}),
-  ]);
-  inputType.input.value = nodeType;
-  const inputValue = presentation.leafInputText(id, nodeHint, node);
-  const buttonDelete = presentation.leafButtonEditFree(
-    textIconDelete,
-    "Delete"
-  );
-  const buttonRevert = presentation.leafButtonEditFree(
-    textIconRevert,
-    "Revert"
-  );
+  const buttonDelete = leafButtonEditFree({
+    icon: textIconDelete,
+    hint: "Delete",
+  });
+  const buttonRevert = leafButtonEditFree({
+    icon: textIconRevert,
+    hint: "Revert",
+  });
   return {
     root: e(
       "div",
@@ -1260,27 +1570,29 @@ presentation.leafEditNode = /** @type {Presentation["leafEditNode"]} */ (
             {
               styles_: [contHboxStyle, contEditNodeHboxStyle],
               children_: [
-                inputType.root,
-                presentation.leafSpace().root,
+                args.inputType,
+                presentation.leafSpace({}).root,
                 buttonDelete.root,
                 buttonRevert.root,
               ],
             }
           ),
-          inputValue.root,
+          args.inputValue,
         ],
       }
     ),
-    inputType: inputType.input,
-    inputValue: inputValue.input,
-    buttonDelete: buttonDelete.button,
-    buttonRevert: buttonRevert.button,
+    buttonDelete: buttonDelete.root,
+    buttonRevert: buttonRevert.root,
   };
 };
 
 presentation.leafEditPredicate =
-  /** @type {Presentation["leafEditPredicate"]} */ (id, value) =>
-    presentation.leafInputText(id, "Predicate", value);
+  /** @type {Presentation["leafEditPredicate"]} */ (args) =>
+    presentation.leafInputText({
+      id: undefined,
+      title: "Predicate",
+      value: args.value,
+    });
 
 const leafEditHBoxStyle = s(uniq("leaf_edit_incoming_hbox"), {
   "": (s) => {
@@ -1322,8 +1634,8 @@ const leafEditRelOutgoingStyle = s(uniq("leaf_edit_rel_incoming"), {
   },
 });
 
-presentation.leafEditRowIncoming =
-  /** @type {Presentation["leafEditRowIncoming"]} */ (children) => ({
+presentation.contEditRowIncoming =
+  /** @type {Presentation["contEditRowIncoming"]} */ (args) => ({
     root: e(
       "div",
       {},
@@ -1335,7 +1647,7 @@ presentation.leafEditRowIncoming =
             {},
             {
               styles_: [contVboxStyle, leafEditVBoxStyle],
-              children_: children,
+              children_: args.children,
             }
           ),
           e(
@@ -1356,8 +1668,8 @@ presentation.leafEditRowIncoming =
     ),
   });
 
-presentation.leafEditRowOutgoing =
-  /** @type {Presentation["leafEditRowOutgoing"]} */ (children) => ({
+presentation.contEditRowOutgoing =
+  /** @type {Presentation["contEditRowOutgoing"]} */ (args) => ({
     root: e(
       "div",
       {},
@@ -1382,10 +1694,31 @@ presentation.leafEditRowOutgoing =
             {},
             {
               styles_: [contVboxStyle, leafEditVBoxStyle],
-              children_: children,
+              children_: args.children,
             }
           ),
         ],
+      }
+    ),
+  });
+
+presentation.contEditSectionCenter =
+  /** @type {Presentation["contEditSectionCenter"]} */ (args) => ({
+    root: e(
+      "div",
+      {},
+      {
+        styles_: [
+          s(uniq("cont_page_edit_center"), {
+            "": (s) => {
+              s.padding = "0.2cm";
+              s.backgroundColor = varCEditCenter;
+              s.borderRadius = "0.2cm";
+              s.margin = "0.4cm 0";
+            },
+          }),
+        ],
+        children_: [args.child],
       }
     ),
   });
@@ -1400,7 +1733,7 @@ const contMenuGroupVBoxStyle = s(uniq("cont_menu_group0"), {
   },
 });
 
-presentation.contBodyMenu = /** @type {Presentation["contBodyMenu"]} */ () => ({
+presentation.contBodyMenu = /** @type {Presentation["contMenuBody"]} */ () => ({
   root: e(
     "div",
     {},
@@ -1422,11 +1755,9 @@ presentation.contBodyMenu = /** @type {Presentation["contBodyMenu"]} */ () => ({
   ),
 });
 
-presentation.contBarMenu = /** @type {Presentation["contBarMenu"]} */ (
-  children
-) =>
-  presentation.contBar(
-    [
+presentation.contBarMenu = /** @type {Presentation["contBarMenu"]} */ (args) =>
+  presentation.contBar({
+    extraStyles: [
       ss(uniq("cont_bar_menu"), {
         "": (s) => {
           s.gridColumn = "1/3";
@@ -1436,16 +1767,15 @@ presentation.contBarMenu = /** @type {Presentation["contBarMenu"]} */ (
         },
       }),
     ],
-    [],
-    [],
-    [],
-    [],
-    children
-  );
+    leftChildren: [],
+    leftMidChildren: [],
+    midChildren: [],
+    rightMidChildren: [],
+    rightChildren: args.children,
+  });
 
 presentation.contMenuGroup = /** @type {Presentation["contMenuGroup"]} */ (
-  title,
-  children
+  args
 ) => ({
   root: e(
     "details",
@@ -1509,7 +1839,7 @@ presentation.contMenuGroup = /** @type {Presentation["contMenuGroup"]} */ (
                   styles_: ["open", leafIconStyle],
                 }
               ),
-              e("span", { textContent: title }, {}),
+              e("span", { textContent: args.title }, {}),
             ],
           }
         ),
@@ -1518,7 +1848,7 @@ presentation.contMenuGroup = /** @type {Presentation["contMenuGroup"]} */ (
           {},
           {
             styles_: [contVboxStyle, contMenuGroupVBoxStyle],
-            children_: children,
+            children_: args.children,
           }
         ),
       ],
@@ -1527,8 +1857,7 @@ presentation.contMenuGroup = /** @type {Presentation["contMenuGroup"]} */ (
 });
 
 presentation.leafMenuLink = /** @type {Presentation["leafMenuLink"]} */ (
-  title,
-  href
+  args
 ) => ({
   root: e(
     "div",
@@ -1538,7 +1867,7 @@ presentation.leafMenuLink = /** @type {Presentation["leafMenuLink"]} */ (
         e(
           "a",
           {
-            href: href,
+            href: args.href,
           },
           {
             styles_: [
@@ -1564,7 +1893,7 @@ presentation.leafMenuLink = /** @type {Presentation["leafMenuLink"]} */ (
               }),
             ],
             children_: [
-              e("span", { textContent: title }, {}),
+              e("span", { textContent: args.title }, {}),
               e(
                 "div",
                 {
@@ -1585,7 +1914,78 @@ presentation.leafMenuLink = /** @type {Presentation["leafMenuLink"]} */ (
 ///////////////////////////////////////////////////////////////////////////////
 // xx Components, styles: Main
 
-presentation.appMain = /** @type {Presentation["appMain"]} */ (children) => ({
+presentation.contMenuBody = /** @type {Presentation["contMenuBody"]} */ (
+  args
+) => ({
+  root: e(
+    "div",
+    {},
+    {
+      styles_: [
+        ss(uniq("cont_menu1"), {
+          "": (s) => {
+            s.gridColumn = "1/3";
+            s.display = "grid";
+            s.gridTemplateColumns = "subgrid";
+            s.gridTemplateRows = "auto auto 1fr";
+          },
+        }),
+      ],
+      children_: [
+        e(
+          "div",
+          {},
+          {
+            styles_: [
+              classMenuWantStateOpen,
+              contVboxStyle,
+              contMenuGroupVBoxStyle,
+              ss(uniq("cont_menu_body"), {
+                "": (s) => {
+                  s.gridColumn = "2";
+                  s.columns = "min(100%, 12cm)";
+                  s.columnGap = "0.5cm";
+                  s.justifyContent = "start";
+                  s.minHeight = `calc(100dvh - 5cm)`;
+                },
+                ">*": (s) => {
+                  s.maxWidth = varSMenuColWidth;
+                },
+              }),
+            ],
+            children_: args.children,
+          }
+        ),
+        presentation.contBarMenu({
+          children: [
+            e(
+              "span",
+              {
+                textContent: "Guest",
+              },
+              {
+                styles_: [
+                  ss(uniq("cont_bar_menu_user"), {
+                    "": (s) => {
+                      s.opacity = "0.5";
+                    },
+                  }),
+                ],
+              }
+            ),
+            presentation.leafBarButtonBig({
+              title: "Login",
+              text: "Login",
+            }).root,
+          ],
+        }).root,
+        presentation.leafSpace({}).root,
+      ],
+    }
+  ),
+});
+
+presentation.appMain = /** @type {Presentation["appMain"]} */ (args) => ({
   root: e(
     "div",
     {},
@@ -1603,20 +2003,24 @@ presentation.appMain = /** @type {Presentation["appMain"]} */ (children) => ({
       ],
       children_: [
         presentation.contTitle({
-          left: presentation.leafTitle("Music").root,
+          left: args.mainTitle,
           right: (() => {
-            const out = presentation.leafButton("Menu", textIconMenu, [
-              leafIconStyle,
-              ss(uniq("cont_main_title_admenu"), {
-                "": (s) => {
-                  s.gridColumn = "3";
-                  s.gridRow = "1";
-                  s.fontSize = varSFontAdmenu;
-                  s.width = varSCol3Width;
-                  s.height = varSCol3Width;
-                },
-              }),
-            ]).root;
+            const out = presentation.leafButton({
+              title: "Menu",
+              text: textIconMenu,
+              extraStyles: [
+                leafIconStyle,
+                ss(uniq("cont_main_title_admenu"), {
+                  "": (s) => {
+                    s.gridColumn = "3";
+                    s.gridRow = "1";
+                    s.fontSize = varSFontAdmenu;
+                    s.width = varSCol3Width;
+                    s.height = varSCol3Width;
+                  },
+                }),
+              ],
+            }).root;
             let state = false;
             out.onclick = () => {
               state = !state;
@@ -1629,7 +2033,7 @@ presentation.appMain = /** @type {Presentation["appMain"]} */ (children) => ({
             return out;
           })(),
         }).root,
-        ...children,
+        args.mainBody,
         e(
           "div",
           {
@@ -1664,78 +2068,9 @@ presentation.appMain = /** @type {Presentation["appMain"]} */ (children) => ({
             ],
             children_: [
               presentation.contTitle({
-                left: presentation.leafTitle("Menu").root,
+                left: presentation.leafTitle({ text: "Menu" }).root,
               }).root,
-              e(
-                "div",
-                {},
-                {
-                  styles_: [
-                    ss(uniq("cont_menu1"), {
-                      "": (s) => {
-                        s.gridColumn = "1/3";
-                        s.display = "grid";
-                        s.gridTemplateColumns = "subgrid";
-                        s.gridTemplateRows = "auto auto 1fr";
-                      },
-                    }),
-                  ],
-                  children_: [
-                    e(
-                      "div",
-                      {},
-                      {
-                        styles_: [
-                          classMenuWantStateOpen,
-                          contVboxStyle,
-                          contMenuGroupVBoxStyle,
-                          ss(uniq("cont_menu_body"), {
-                            "": (s) => {
-                              s.gridColumn = "2";
-                              s.columns = "min(100%, 12cm)";
-                              s.columnGap = "0.5cm";
-                              s.justifyContent = "start";
-                              s.minHeight = `calc(100dvh - 5cm)`;
-                            },
-                            ">*": (s) => {
-                              s.maxWidth = varSMenuColWidth;
-                            },
-                          }),
-                        ],
-                        children_: [
-                          presentation.leafMenuLink("Thing 1", "x").root,
-                          presentation.leafMenuLink("Thing 2", "x").root,
-                          presentation.leafMenuLink("Thing 3", "x").root,
-                          presentation.contMenuGroup("Group 1", [
-                            presentation.leafMenuLink("Thing 1", "x").root,
-                            presentation.leafMenuLink("Thing 2", "x").root,
-                            presentation.leafMenuLink("Thing 3", "x").root,
-                          ]).root,
-                        ],
-                      }
-                    ),
-                    presentation.contBarMenu([
-                      e(
-                        "span",
-                        {
-                          textContent: "Guest",
-                        },
-                        {
-                          styles_: [
-                            ss(uniq("cont_bar_menu_user"), {
-                              "": (s) => {
-                                s.opacity = "0.5";
-                              },
-                            }),
-                          ],
-                        }
-                      ),
-                      presentation.leafBarButtonBig("Login", "Login").root,
-                    ]).root,
-                    presentation.leafSpace().root,
-                  ],
-                }
-              ),
+              args.menuBody,
             ],
           }
         ),
@@ -1748,13 +2083,121 @@ presentation.appMain = /** @type {Presentation["appMain"]} */ (children) => ({
 // xx PLUGINS
 
 presentation.buildView = /** @type {Presentation["buildView"]} */ async (
-  pluginPath,
   args
 ) => {
   onPlaylistStateChangedCb = undefined;
   window.sunwet.setPlaylist([]);
-  const plugin = await import(`./${pluginPath}`);
-  return { root: plugin.build(args) };
+  const plugin = await import(`./${args.pluginPath}`);
+  return { root: plugin.build(args.arguments) };
+};
+
+///////////////////////////////////////////////////////////////////////////////
+// xx Components, styles: Main
+
+presentation.appLink = /** @type {Presentation["appLink"]} */ (args) => {
+  const display = e(
+    "div",
+    {},
+    {
+      styles_: [
+        ss(uniq("cont_app_link_display"), {
+          "": (s) => {
+            s.backgroundColor = "rgb(35, 35, 36)";
+            s.paddingTop = "0.2cm";
+            s.paddingBottom = "0.2cm";
+          },
+        }),
+      ],
+      children_: [presentation.leafAsyncBlock({}).root],
+    }
+  );
+  const displayOver = e("div", {}, { styles_: [contGroupStyle] });
+  const displayStack = e(
+    "div",
+    {},
+    { styles_: [contStackStyle], children_: [display, displayOver] }
+  );
+  const textStyle = ss(uniq("leaf_app_link_text"), {
+    "": (s) => {
+      s.color = varCForegroundDark;
+      s.pointerEvents = "initial";
+    },
+  });
+  /** @type { (text:string)=>HTMLElement} */
+  const bigText = (text) =>
+    e(
+      "span",
+      { textContent: text },
+      {
+        styles_: [
+          textStyle,
+          ss(uniq("leaf_app_link_bigtext"), {
+            "": (s) => {
+              s.fontSize = "14pt";
+            },
+          }),
+        ],
+      }
+    );
+  /** @type { (children:HTMLElement[])=>HTMLElement} */
+  const horiz = (children) =>
+    e(
+      "div",
+      {},
+      {
+        styles_: [
+          contHboxStyle,
+          ss(uniq("cont_app_link_horiz"), {
+            "": (s) => {
+              s.paddingLeft = "0.4cm";
+              s.paddingRight = "0.4cm";
+              s.gap = "0.2cm";
+            },
+          }),
+        ],
+        children_: children,
+      }
+    );
+  const artist = bigText("Linking...");
+  const title = bigText("linking...");
+  const album = e(
+    "span",
+    { textContent: "Linking..." },
+    { styles_: [textStyle] }
+  );
+  return {
+    root: e(
+      "div",
+      {},
+      {
+        styles_: [
+          contVboxStyle,
+          ss(uniq("app_link"), {
+            "": (s) => {
+              s.backgroundColor = varCBackgroundDark;
+              s.gap = "0.3cm";
+            },
+          }),
+        ],
+        children_: [
+          leafSpace({}).root,
+          displayStack,
+          horiz([
+            artist,
+            e("span", { textContent: " - " }, { styles_: [textStyle] }),
+            title,
+          ]),
+          horiz([album]),
+          leafSpace({}).root,
+        ],
+      }
+    ),
+    display: display,
+    display_over: displayOver,
+    album: album,
+    artist: artist,
+    title: title,
+  };
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1762,315 +2205,3 @@ presentation.buildView = /** @type {Presentation["buildView"]} */ async (
 
 window.sunwet_presentation = presentation;
 window.sunwet_presentation_shared = presentationShared;
-
-///////////////////////////////////////////////////////////////////////////////
-// xx Components, styles: staging
-addEventListener("DOMContentLoaded", async (_) => {
-  const htmlStyle = s(uniq("html"), {
-    "": (s) => {
-      s.fontFamily = "X";
-      s.backgroundColor = varCBackground;
-      s.color = varCForeground;
-    },
-  });
-  notnull(document.body.parentElement).classList.add(htmlStyle);
-  document.body.classList.add(contStackStyle);
-
-  const hash = location.hash;
-  if (hash == "#view") {
-    window.sunwet = {
-      query: async (id, data) => {
-        return [];
-      },
-      fileUrl: (file) => {
-        return `http-test-${file}`;
-      },
-      editUrl: (node) => {
-        return `http-test-edit-${JSON.stringify(node)}`;
-      },
-      setPlaylist: (playlist) => {},
-      togglePlay: (index) => {},
-    };
-    document.body.appendChild(
-      presentation.appMain([
-        (await presentation.buildView("plugin_view_list.js", {})).root,
-      ]).root
-      /*
-      presentation.appMain([
-        presentation.contBarViewTransport().root,
-        presentation.contPageView([
-          presentation.contViewList({
-            direction: "down",
-            children: [
-              presentation.contViewList({
-                direction: "right",
-                children: [
-                  presentation.leafViewImage({
-                    align: "start",
-                    url: "testcover.jpg",
-                    width: "min(6cm, 40%)",
-                  }).root,
-                  presentation.contViewList({
-                    direction: "down",
-                    children: [
-                      presentation.leafViewText({
-                        align: "start",
-                        orientation: "right_down",
-                        text: "Harmônicos",
-                        fontSize: "20pt",
-                      }).root,
-                      presentation.contViewTable({
-                        orientation: "right_down",
-                        xScroll: true,
-                        children: [
-                          [
-                            presentation.leafViewPlay({
-                              align: "start",
-                              direction: "down",
-                            }).root,
-                            presentation.leafViewText({
-                              align: "start",
-                              orientation: "down_left",
-                              text: "1. ",
-                            }).root,
-                            presentation.leafViewText({
-                              align: "start",
-                              orientation: "down_left",
-                              text: "Fabiano do Nascimento and Shin Sasakubo",
-                              url: "abcd-xyzg",
-                              maxSize: "6cm",
-                            }).root,
-                            presentation.leafViewText({
-                              align: "start",
-                              orientation: "down_left",
-                              text: " - ",
-                            }).root,
-                            presentation.leafViewText({
-                              align: "start",
-                              orientation: "down_left",
-                              text: "Primeiro Encontro",
-                              maxSize: "6cm",
-                            }).root,
-                          ],
-                          [
-                            presentation.leafViewPlay({
-                              align: "start",
-                              direction: "down",
-                            }).root,
-                            presentation.leafViewText({
-                              align: "start",
-                              orientation: "down_left",
-                              text: "2. ",
-                            }).root,
-                            presentation.leafViewText({
-                              align: "start",
-                              orientation: "down_left",
-                              text: "Fabiano do Nascimento and Shin Sasakubo",
-                              url: "abcd-xyzg",
-                              maxSize: "6cm",
-                            }).root,
-                            presentation.leafViewText({
-                              align: "start",
-                              orientation: "down_left",
-                              text: " - ",
-                            }).root,
-                            presentation.leafViewText({
-                              align: "start",
-                              orientation: "down_left",
-                              text: "Primeiro Encontro",
-                              maxSize: "6cm",
-                            }).root,
-                          ],
-                        ],
-                      }).root,
-                    ],
-                  }).root,
-                ],
-              }).root,
-              presentation.contViewList({
-                direction: "right",
-                children: [
-                  presentation.leafViewImage({
-                    align: "start",
-                    url: "testcover.jpg",
-                    width: "6cm",
-                  }).root,
-                  presentation.contViewList({
-                    direction: "down",
-                    children: [
-                      presentation.leafViewText({
-                        align: "start",
-                        orientation: "right_down",
-                        text: "Harmônicos",
-                      }).root,
-                      presentation.contViewTable({
-                        orientation: "right_down",
-                        xScroll: true,
-                        children: [
-                          [
-                            presentation.leafViewPlay({
-                              align: "start",
-                              direction: "down",
-                            }).root,
-                            presentation.leafViewText({
-                              align: "start",
-                              orientation: "down_left",
-                              text: "1. ",
-                            }).root,
-                            presentation.leafViewText({
-                              align: "start",
-                              orientation: "down_left",
-                              text: "Fabiano do Nascimento and Shin Sasakubo",
-                              url: "abcd-xyzg",
-                            }).root,
-                            presentation.leafViewText({
-                              align: "start",
-                              orientation: "down_left",
-                              text: " - ",
-                            }).root,
-                            presentation.leafViewText({
-                              align: "start",
-                              orientation: "down_left",
-                              text: "Primeiro Encontro",
-                            }).root,
-                          ],
-                        ],
-                      }).root,
-                    ],
-                  }).root,
-                ],
-              }).root,
-            ],
-          }).root,
-        ]).root,
-        presentation.contModal(
-          "Share",
-          e(
-            "div",
-            {},
-            {
-              styles_: [
-                contStackStyle,
-                ss(uniq("cont_modal_share_qr"), {
-                  "": (s) => {
-                    s.flexGrow = "1";
-                    s.aspectRatio = "1/1";
-                    s.alignSelf = "center";
-                  },
-                }),
-              ],
-            }
-          )
-        ).root,
-      ]).root
-      */
-    );
-  } else if (hash == "#fullscreen") {
-    document.body.appendChild(
-      presentation.contMediaFullscreen(
-        e(
-          "div",
-          {},
-          {
-            styles_: [
-              ss(uniq("test"), {
-                "": (s) => {
-                  s.border = "1px solid blue";
-                },
-              }),
-            ],
-          }
-        )
-      ).root
-    );
-  } else if (hash == "#form") {
-    document.body.appendChild(
-      presentation.appMain([
-        presentation.contBarMainForm(
-          [],
-          [],
-          [],
-          [],
-          [presentation.leafBarButtonBig("Save", "Save").root]
-        ).root,
-        presentation.contPageForm([
-          presentation.leafInputPairText("item1", "Title", "ABCD").root,
-          presentation.leafInputPairText("item2", "Text", "WXYC").root,
-          presentation.leafSpace().root,
-        ]).root,
-      ]).root
-    );
-  } else if (hash == "#edit") {
-    document.body.appendChild(
-      presentation.appMain([
-        presentation.contBarMainForm(
-          [],
-          [],
-          [],
-          [],
-          [presentation.leafBarButtonBig("Save", "Save").root]
-        ).root,
-        presentation.contPageEdit([
-          presentation.leafEditRowIncoming([
-            presentation.leafButtonEditFree(textIconAdd, "Add incoming triple")
-              .root,
-          ]).root,
-          presentation.contPageEditSectionRel([
-            presentation.leafEditRowIncoming([
-              presentation.leafEditNode(uniq(), "Subject", "value", "WXYZ-9999")
-                .root,
-              presentation.leafEditPredicate(uniq(), "sunwet/1/is").root,
-            ]).root,
-            presentation.leafEditRowIncoming([
-              presentation.leafEditNode(uniq(), "Subject", "file", "LMNO-4567")
-                .root,
-              presentation.leafEditPredicate(uniq(), "sunwet/1/has").root,
-            ]).root,
-          ]).root,
-          e(
-            "div",
-            {},
-            {
-              styles_: [
-                s(uniq("cont_page_edit_center"), {
-                  "": (s) => {
-                    s.padding = "0.2cm";
-                    s.backgroundColor = varCEditCenter;
-                    s.borderRadius = "0.2cm";
-                    s.margin = "0.4cm 0";
-                  },
-                }),
-              ],
-              children_: [
-                presentation.leafEditNode(
-                  uniq(),
-                  "Current node",
-                  "value",
-                  "ABCD-01234"
-                ).root,
-              ],
-            }
-          ),
-          presentation.contPageEditSectionRel([
-            presentation.leafEditRowOutgoing([
-              presentation.leafEditNode(uniq(), "Subject", "file", "WXYZ-9999")
-                .root,
-              presentation.leafEditPredicate(uniq(), "sunwet/1/is").root,
-            ]).root,
-            presentation.leafEditRowOutgoing([
-              presentation.leafEditNode(uniq(), "Subject", "value", "LMNO-4567")
-                .root,
-              presentation.leafEditPredicate(uniq(), "sunwet/1/has").root,
-            ]).root,
-          ]).root,
-          presentation.leafEditRowOutgoing([
-            presentation.leafButtonEditFree(textIconAdd, "Add outgoing triple")
-              .root,
-          ]).root,
-        ]).root,
-      ]).root
-    );
-  } else {
-    throw new Error();
-  }
-});

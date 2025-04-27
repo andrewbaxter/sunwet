@@ -50,6 +50,8 @@ declare type PresentationShared = {
     id: string,
     f: { [s: string]: (r: CSSStyleDeclaration) => void }
   ) => string;
+
+  leafAsyncBlock: (cb: Promise<HTMLElement>) => HTMLElement;
 };
 
 declare interface Window {

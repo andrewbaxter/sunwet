@@ -1,13 +1,13 @@
 use {
     super::{
-        config::menu::MenuItem,
+        config::{
+            ClientConfig,
+        },
         query::Query,
     },
-    crate::interface::{
-        triple::{
-            FileHash,
-            Node,
-        },
+    crate::interface::triple::{
+        FileHash,
+        Node,
     },
     chrono::{
         DateTime,
@@ -221,16 +221,16 @@ impl C2SReqTrait for ReqHistory {
 // # Get Menu
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct ReqGetMenu;
+pub struct ReqGetClientConfig;
 
-impl Into<C2SReq> for ReqGetMenu {
+impl Into<C2SReq> for ReqGetClientConfig {
     fn into(self) -> C2SReq {
-        return C2SReq::GetMenu(self);
+        return C2SReq::GetClientConfig(self);
     }
 }
 
-impl C2SReqTrait for ReqGetMenu {
-    type Resp = Vec<MenuItem>;
+impl C2SReqTrait for ReqGetClientConfig {
+    type Resp = ClientConfig;
 }
 
 // # Assemble
@@ -248,7 +248,7 @@ pub enum C2SReq {
     ViewQuery(ReqViewQuery),
     GetTriplesAround(ReqGetTriplesAround),
     History(ReqHistory),
-    GetMenu(ReqGetMenu),
+    GetClientConfig(ReqGetClientConfig),
 }
 
 // # ?

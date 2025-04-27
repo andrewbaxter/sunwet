@@ -256,7 +256,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
 
                             impl ReqResp for shared::interface::wire::ReqFormCommit { }
 
-                            impl ReqResp for shared::interface::wire::ReqGetMenu { }
+                            impl ReqResp for shared::interface::wire::ReqGetClientConfig { }
 
                             impl ReqResp for shared::interface::wire::ReqQuery { }
 
@@ -461,7 +461,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     }).collect(),
                                 });
                             },
-                            C2SReq::GetMenu(req) => {
+                            C2SReq::GetClientConfig(req) => {
                                 resp = req.respond()(handle_get_menu(state, &identity).await.err_internal()?);
                             },
                         }

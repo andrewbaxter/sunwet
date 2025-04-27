@@ -9,7 +9,10 @@ use {
         Serialize,
     },
     shared::interface::triple::Node,
-    wasm_bindgen::JsValue,
+    wasm_bindgen::{
+        prelude::wasm_bindgen,
+        JsValue,
+    },
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,7 +52,7 @@ pub struct MinistateEdit {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Ministate {
     Home,
-    List(MinistateView),
+    View(MinistateView),
     Form(MinistateForm),
     Edit(MinistateEdit),
 }
@@ -58,8 +61,25 @@ pub fn ministate_octothorpe(s: &Ministate) -> String {
     return format!("#{}", serde_json::to_string(&s).unwrap());
 }
 
+pub fn ministate_title(s: &Ministate) -> String {
+    match s {
+        Ministate::Home => return format!("Home"),
+        Ministate::View(s) => return s.title.clone(),
+        Ministate::Form(s) => return s.title.clone(),
+        Ministate::Edit(s) => return s.title.clone(),
+    }
+}
+
 pub fn record_new_ministate(s: &Ministate) {
-    window().history().unwrap().push_state_with_url(&JsValue::null(), "", Some(&ministate_octothorpe(s))).unwrap();
+    window()
+        .history()
+        .unwrap()
+        .push_state_with_url(
+            &JsValue::null(),
+            &format!("{} - Sunwet", ministate_title(s)),
+            Some(&ministate_octothorpe(s)),
+        )
+        .unwrap();
 }
 
 pub fn record_replace_ministate(s: &Ministate) {

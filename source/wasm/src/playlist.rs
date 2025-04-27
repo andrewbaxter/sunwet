@@ -141,7 +141,7 @@ impl PlaylistMedia for AudioPlaylistMedia {
     }
 
     fn pm_get_ministate(&self) -> Ministate {
-        return Ministate::List(MinistateView {
+        return Ministate::View(MinistateView {
             id: self.ministate_id.clone(),
             title: self.ministate_title.clone(),
             pos: match self.ministate_path.as_ref() {
@@ -228,7 +228,7 @@ impl PlaylistMedia for VideoPlaylistMedia {
     }
 
     fn pm_get_ministate(&self) -> Ministate {
-        return Ministate::List(MinistateView {
+        return Ministate::View(MinistateView {
             id: self.ministate_id.clone(),
             title: self.ministate_title.clone(),
             pos: match self.ministate_path.as_ref() {
@@ -299,7 +299,7 @@ impl PlaylistMedia for ImagePlaylistMedia {
     }
 
     fn pm_get_ministate(&self) -> Ministate {
-        return Ministate::List(MinistateView {
+        return Ministate::View(MinistateView {
             id: self.ministate_id.clone(),
             title: self.ministate_title.clone(),
             pos: match self.ministate_path.as_ref() {
@@ -400,7 +400,8 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
     // # Media control
     fn media_fn(pc: &mut ProcessingContext, f: impl 'static + Fn(&mut ProcessingContext, JsValue) -> ()) -> Function {
         let eg = pc.eg();
-        let fn1 = Closure::<dyn Fn(JsValue) -> ()>::wrap(Box::new(move |args| eg.event(|pc| f(pc, args))));
+        let fn1 =
+            Closure::<dyn Fn(JsValue) -> ()>::wrap(Box::new(move |args| eg.event(|pc| f(pc, args)).unwrap()));
         let fn2: Function = fn1.as_ref().unchecked_ref::<Function>().to_owned();
         fn1.forget();
         return fn2;

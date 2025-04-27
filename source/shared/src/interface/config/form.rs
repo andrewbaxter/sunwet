@@ -149,8 +149,6 @@ pub struct FormOutput {
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct Form {
-    /// Form id, used in url
-    pub id: String,
     /// Form title, for human consumption
     pub name: String,
     /// Form fields and generated data (ids)
