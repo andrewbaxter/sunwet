@@ -59,12 +59,14 @@ pub fn get_dom_octothorpe() -> Option<String> {
     return Some(s.to_string());
 }
 
-pub const CSS_STATE_THINKING: &str = "thinking";
-pub const CSS_STATE_INVALID: &str = "invalid";
-pub const CSS_STATE_DELETED: &str = "deleted";
-
 pub mod style_export {
     use {
+        gloo::utils::format::JsValueSerdeExt,
+        shared::interface::config::view::{
+            Direction,
+            Orientation,
+            TransAlign,
+        },
         std::collections::HashMap,
         wasm_bindgen::{
             JsCast,
@@ -229,6 +231,36 @@ pub mod style_export {
                 js_set(&out, k, v);
             }
             return out;
+        }
+    }
+
+    impl JsExport for Direction {
+        fn from_js(v: &JsValue) -> Self {
+            return <JsValue as JsValueSerdeExt>::into_serde(v).unwrap();
+        }
+
+        fn to_js(&self) -> JsValue {
+            return <JsValue as JsValueSerdeExt>::from_serde(self).unwrap();
+        }
+    }
+
+    impl JsExport for Orientation {
+        fn from_js(v: &JsValue) -> Self {
+            return <JsValue as JsValueSerdeExt>::into_serde(v).unwrap();
+        }
+
+        fn to_js(&self) -> JsValue {
+            return <JsValue as JsValueSerdeExt>::from_serde(self).unwrap();
+        }
+    }
+
+    impl JsExport for TransAlign {
+        fn from_js(v: &JsValue) -> Self {
+            return <JsValue as JsValueSerdeExt>::into_serde(v).unwrap();
+        }
+
+        fn to_js(&self) -> JsValue {
+            return <JsValue as JsValueSerdeExt>::from_serde(self).unwrap();
         }
     }
 

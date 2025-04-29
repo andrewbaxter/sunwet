@@ -20,6 +20,7 @@ enum TypeMod {
     None,
     Opt,
     Arr,
+    Arr2,
 }
 
 struct Type {
@@ -44,6 +45,14 @@ fn type_arr(t: &Type) -> Type {
     };
 }
 
+fn type_arr2(t: &Type) -> Type {
+    return Type {
+        mod_: TypeMod::Arr2,
+        rust_type: t.rust_type.clone(),
+        ts_type: t.ts_type.clone(),
+    };
+}
+
 struct Func<'a> {
     name: &'a str,
     args: Vec<(&'a str, &'a Type)>,
@@ -59,11 +68,6 @@ fn main() {
         rust_type: quote!(bool),
         ts_type: "boolean".to_string(),
     };
-    let usize_ = Type {
-        mod_: TypeMod::None,
-        rust_type: quote!(usize),
-        ts_type: "number".to_string(),
-    };
     let string_ = Type {
         mod_: TypeMod::None,
         rust_type: quote!(String),
@@ -78,6 +82,7 @@ fn main() {
     };
     let optel_ = type_opt(&el_);
     let arrel_ = type_arr(&el_);
+    let arrarrel_ = type_arr2(&el_);
     let inpel_ = Type {
         mod_: TypeMod::None,
         rust_type: quote!(web_sys::HtmlInputElement),
@@ -93,26 +98,45 @@ fn main() {
         rust_type: quote!(std::collections::HashMap < String, String >),
         ts_type: "{[k: string]: string}".to_string(),
     };
-    let any_ = Type {
+    let direction = Type {
         mod_: TypeMod::None,
-        rust_type: quote!(wasm_bindgen::JsValue),
-        ts_type: "any".to_string(),
+        rust_type: quote!(Direction),
+        ts_type: "Direction".to_string(),
     };
-    let promiseview_ = Type {
+    let orientation = Type {
         mod_: TypeMod::None,
-        rust_type: quote!(js_sys::Promise),
-        ts_type: "Promise<{root: HTMLElement, want_transport: bool}>".to_string(),
+        rust_type: quote!(Orientation),
+        ts_type: "Orientation".to_string(),
+    };
+    let transalign = Type {
+        mod_: TypeMod::None,
+        rust_type: quote!(TransAlign),
+        ts_type: "TransAlign".to_string(),
     };
 
     //. .
     let mut ts = vec![];
     let mut rust = vec![];
     for method in [
-        //. .
         Func {
-            name: "playlistStateChanged",
-            args: vec![("playing", &bool_), ("index", &usize_)],
-            returns: vec![],
+            name: "classStateThinking",
+            args: vec![],
+            returns: vec![("value", &string_)],
+        },
+        Func {
+            name: "classStateInvalid",
+            args: vec![],
+            returns: vec![("value", &string_)],
+        },
+        Func {
+            name: "classStateDeleted",
+            args: vec![],
+            returns: vec![("value", &string_)],
+        },
+        Func {
+            name: "classStatePlaying",
+            args: vec![],
+            returns: vec![("value", &string_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: all
@@ -185,13 +209,13 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         Func {
-            name: "leafButton",
-            args: vec![("title", &string_), ("text", &string_), ("extraStyles", &arrstring_)],
+            name: "leafButtonBig",
+            args: vec![("title", &string_), ("icon", &optstring_), ("text", &optstring_)],
             returns: vec![("root", &el_)],
         },
         Func {
-            name: "leafBarButtonBig",
-            args: vec![("title", &string_), ("text", &string_)],
+            name: "leafButtonBigSave",
+            args: vec![],
             returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
@@ -289,6 +313,11 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         Func {
+            name: "contPageViewList",
+            args: vec![("transport", &optel_), ("rows", &el_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
             name: "contBarViewTransport",
             args: vec![],
             returns: vec![
@@ -308,13 +337,61 @@ fn main() {
             returns: vec![("root", &el_), ("buttonClose", &el_)],
         },
         Func {
-            name: "contModal",
-            args: vec![("title", &string_), ("child", &el_)],
-            returns: vec![("root", &el_), ("buttonClose", &el_)],
-        },
-        Func {
             name: "leafTransportButton",
             args: vec![("title", &string_), ("icon", &string_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "contModalViewShare",
+            args: vec![("qr", &el_), ("link", &string_)],
+            returns: vec![("root", &el_), ("bg", &el_), ("buttonClose", &el_), ("buttonUnshare", &el_)],
+        },
+        Func {
+            name: "contViewList",
+            args: vec![
+                ("direction", &direction),
+                ("xScroll", &bool_),
+                ("children", &arrel_),
+                ("gap", &optstring_)
+            ],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "contViewTable",
+            args: vec![
+                ("orientation", &orientation),
+                ("xScroll", &bool_),
+                ("children", &arrarrel_),
+                ("gap", &optstring_)
+            ],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafViewImage",
+            args: vec![
+                ("transAlign", &transalign),
+                ("url", &optstring_),
+                ("text", &optstring_),
+                ("width", &optstring_),
+                ("height", &optstring_)
+            ],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafViewText",
+            args: vec![
+                ("transAlign", &transalign),
+                ("orientation", &orientation),
+                ("text", &string_),
+                ("fontSize", &optstring_),
+                ("maxSize", &optstring_),
+                ("url", &optstring_)
+            ],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafViewPlayButton",
+            args: vec![("transAlign", &transalign), ("direction", &direction)],
             returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
@@ -396,13 +473,6 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
-        // xx PLUGINS: View
-        Func {
-            name: "buildView",
-            args: vec![("pluginPath", &string_), ("arguments", &any_)],
-            returns: vec![("root", &promiseview_)],
-        },
-        // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: Link
         Func {
             name: "appLink",
@@ -433,6 +503,9 @@ fn main() {
                     TypeMod::Arr => {
                         spec.push(format!("{}: {}[]", ts_name, type_.ts_type))
                     },
+                    TypeMod::Arr2 => {
+                        spec.push(format!("{}: {}[][]", ts_name, type_.ts_type))
+                    },
                 }
             }
             spec.join(", ")
@@ -450,6 +523,9 @@ fn main() {
                     },
                     TypeMod::Arr => {
                         spec.push(format!("{}: {}[]", ts_name, type_.ts_type))
+                    },
+                    TypeMod::Arr2 => {
+                        spec.push(format!("{}: {}[][]", ts_name, type_.ts_type))
                     },
                 }
             }
@@ -483,6 +559,10 @@ fn main() {
                     TypeMod::Arr => {
                         let rust_type1 = &type_.rust_type;
                         rust_type = quote!(Vec <#rust_type1 >);
+                    },
+                    TypeMod::Arr2 => {
+                        let rust_type1 = &type_.rust_type;
+                        rust_type = quote!(Vec < Vec <#rust_type1 >>);
                     },
                 };
                 spec.push(quote!(pub #rust_name: #rust_type));
@@ -531,6 +611,10 @@ fn main() {
                     TypeMod::Arr => {
                         let rust_type1 = &type_.rust_type;
                         rust_type = quote!(Vec <#rust_type1 >);
+                    },
+                    TypeMod::Arr2 => {
+                        let rust_type1 = &type_.rust_type;
+                        rust_type = quote!(Vec < Vec <#rust_type1 >>);
                     },
                 };
                 spec.push(quote!(pub #rust_name: #rust_type));

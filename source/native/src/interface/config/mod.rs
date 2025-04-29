@@ -5,7 +5,10 @@ use {
         Serialize,
     },
     shared::interface::{
-        config::form::ClientForm,
+        config::{
+            form::ClientForm,
+            view::WidgetDataRows,
+        },
         iam::UserIdentityId,
         query::Query,
         triple::Node,
@@ -65,7 +68,7 @@ pub struct MenuItem {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct View {
     pub queries: BTreeMap<String, Query>,
-    pub config: serde_json::Value,
+    pub config: WidgetDataRows,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, JsonSchema)]

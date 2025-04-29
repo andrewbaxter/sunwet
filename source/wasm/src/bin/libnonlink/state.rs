@@ -44,6 +44,7 @@ pub struct State_ {
     pub main_title: El,
     pub main_body: El,
     pub menu_body: El,
+    pub modal_stack: El,
 }
 
 thread_local!{
@@ -57,6 +58,7 @@ pub fn state() -> Rc<State_> {
 pub fn set_page(title: &str, body: El) {
     document().set_title(&format!("{} - Sunwet", title));
     let state = state();
+    state.modal_stack.ref_clear();
     state.main_title.ref_text(title);
     state.main_body.ref_clear();
     state.main_body.ref_push(body);

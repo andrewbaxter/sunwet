@@ -49,7 +49,6 @@ use {
     wasm::el_general::{
         el_async,
         style_export,
-        CSS_STATE_THINKING,
     },
     wasm_bindgen::JsCast,
     web_sys::{
@@ -473,10 +472,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, form_title: &str, form_
                     },
                 }
             }
-            let button_save = el_from_raw(style_export::leaf_bar_button_big(style_export::LeafBarButtonBigArgs {
-                title: "Save".into(),
-                text: "Save".into(),
-            }).root.into());
+            let button_save = el_from_raw(style_export::leaf_button_big_save().root.into());
             let save_thinking = Rc::new(RefCell::new(None));
             button_save.ref_own(|_| save_thinking.clone());
             button_save.ref_on("click", {
@@ -492,7 +488,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, form_title: &str, form_
                         error_slot.ref_clear();
                     }
                     let button = ev.target().unwrap().dyn_into::<HtmlElement>().unwrap();
-                    button.class_list().add_1(CSS_STATE_THINKING).unwrap();
+                    button.class_list().add_1(&style_export::class_state_thinking().value).unwrap();
                     *fs.0.draft_debounce.borrow_mut() = None;
                     LocalStorage::set(
                         fs.0.draft_id.clone(),
@@ -574,7 +570,10 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, form_title: &str, form_
                                                 .into(),
                                         ),
                                     );
-                                    button.class_list().remove_1(CSS_STATE_THINKING).unwrap();
+                                    button
+                                        .class_list()
+                                        .remove_1(&style_export::class_state_thinking().value)
+                                        .unwrap();
                                     return;
                                 },
                             }

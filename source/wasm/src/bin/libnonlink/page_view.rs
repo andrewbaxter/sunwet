@@ -4,24 +4,65 @@ use {
             PlaylistEntryPath,
             PlaylistPos,
         },
+        playlist::PlaylistIndex,
         state::{
             set_page,
             state,
         },
     },
-    crate::libnonlink::playlist::{
-        playlist_next,
-        playlist_previous,
-        playlist_seek,
-        playlist_toggle_play,
+    crate::libnonlink::{
+        api::req_post_json,
+        ministate::{
+            ministate_octothorpe,
+            Ministate,
+            MinistateEdit,
+        },
+        playlist::{
+            playlist_extend,
+            playlist_next,
+            playlist_previous,
+            playlist_seek,
+            playlist_toggle_play,
+            PlaylistEntryMediaType,
+            PlaylistPushArg,
+        },
+    },
+    flowcontrol::{
+        shed,
+        ta_return,
     },
     lunk::{
         link,
         Prim,
         ProcessingContext,
     },
-    rooting::el_from_raw,
-    shared::interface::triple::Node,
+    qrcode::QrCode,
+    rooting::{
+        el_from_raw,
+        El,
+    },
+    shared::interface::{
+        config::view::{
+            Direction,
+            FieldOrLiteral,
+            QueryOrField,
+            Widget,
+            WidgetDataRows,
+            WidgetImage,
+            WidgetLayout,
+            WidgetPlayButton,
+            WidgetText,
+        },
+        triple::{
+            FileHash,
+            Node,
+        },
+        wire::{
+            ReqViewQuery,
+            TreeNode,
+        },
+    },
+    std::collections::HashMap,
     uuid::Uuid,
     wasm::{
         constants::LINK_HASH_PREFIX,
@@ -29,17 +70,14 @@ use {
             el_async,
             style_export::{
                 self,
-                js_get,
             },
         },
         websocket::Ws,
+        world::file_url,
     },
-    wasm_bindgen::{
-        JsCast,
-        JsValue,
-    },
-    wasm_bindgen_futures::JsFuture,
+    wasm_bindgen::JsCast,
     web_sys::{
+        DomParser,
         Element,
         Event,
         HtmlElement,
@@ -71,227 +109,672 @@ impl BuildPlaylistPos {
     }
 }
 
+fn maybe<I, O>(v: &Option<I>, f: impl FnOnce(&I) -> Result<O, String>) -> Result<Option<O>, String> {
+    match v {
+        Some(v) => match f(v) {
+            Ok(v) => Ok(Some(v)),
+            Err(v) => Err(v),
+        },
+        None => return Ok(None),
+    }
+}
+
+fn get_field(config_at: &String, data_at: &TreeNode) -> Result<TreeNode, String> {
+    let TreeNode::Record(data_at) = data_at else {
+        return Err(format!("Data isn't a record, can't resolve field `{}`", config_at));
+    };
+    let Some(data_at) = data_at.get(config_at) else {
+        return Err(format!("No field `{}` in data.", config_at));
+    };
+    return Ok(data_at.clone());
+}
+
+fn get_field_or_literal(config_at: &FieldOrLiteral, data_at: &TreeNode) -> Result<TreeNode, String> {
+    match config_at {
+        FieldOrLiteral::Field(config_at) => return Ok(get_field(config_at, data_at)?),
+        FieldOrLiteral::Literal(config_at) => return Ok(TreeNode::Scalar(config_at.clone())),
+    }
+}
+
+fn get_value_string(data_at: &TreeNode) -> String {
+    match data_at {
+        TreeNode::Array(v) => return serde_json::to_string(v).unwrap(),
+        TreeNode::Record(v) => return serde_json::to_string(v).unwrap(),
+        TreeNode::Scalar(v) => match v {
+            Node::File(v) => return v.to_string(),
+            Node::Value(v) => match v {
+                serde_json::Value::String(v) => return v.clone(),
+                _ => return serde_json::to_string(v).unwrap(),
+            },
+        },
+    }
+}
+
+fn get_value_file_hash(data_at: &TreeNode) -> Result<FileHash, String> {
+    let TreeNode::Scalar(data_at) = data_at else {
+        return Err(format!("Data is not a scalar"));
+    };
+    let Node::File(data_at) = data_at else {
+        return Err(format!("Data is not a file hash"));
+    };
+    return Ok(data_at.clone());
+}
+
+fn get_value_url(title: &FieldOrLiteral, data_at: &TreeNode, to_node: bool) -> Result<String, String> {
+    match data_at {
+        TreeNode::Array(v) => return Ok(serde_json::to_string(v).unwrap()),
+        TreeNode::Record(v) => return Ok(serde_json::to_string(v).unwrap()),
+        TreeNode::Scalar(v) => {
+            if to_node {
+                return Ok(ministate_octothorpe(&Ministate::Edit(MinistateEdit {
+                    title: get_value_string(&get_field_or_literal(title, data_at)?),
+                    node: v.clone(),
+                })));
+            }
+            match v {
+                Node::File(v) => return Ok(file_url(&state().base_url, v)),
+                Node::Value(v) => match v {
+                    serde_json::Value::String(v) => return Ok(v.clone()),
+                    _ => return Ok(serde_json::to_string(v).unwrap()),
+                },
+            }
+        },
+    }
+}
+
+struct Build {
+    menu_item_id: String,
+    playlist_add: Vec<(PlaylistIndex, PlaylistPushArg)>,
+    have_media: bool,
+    transport_slot: El,
+}
+
+impl Build {
+    fn build_widget_layout(
+        &mut self,
+        pc: &mut ProcessingContext,
+        build_playlist_pos: &Option<BuildPlaylistPos>,
+        restore_playlist_pos: &Option<PlaylistPos>,
+        config_at: &WidgetLayout,
+        data_id: &Vec<usize>,
+        data_at: &TreeNode,
+    ) -> El {
+        let mut children_raw = vec![];
+        let mut children = vec![];
+        for config_at in &config_at.elements {
+            let child_el =
+                self.build_widget(pc, build_playlist_pos, restore_playlist_pos, config_at, data_id, data_at);
+            children_raw.push(child_el.raw().dyn_into::<HtmlElement>().unwrap());
+            children.push(child_el);
+        }
+        return el_from_raw(style_export::cont_view_list(style_export::ContViewListArgs {
+            direction: config_at.direction,
+            x_scroll: config_at.x_scroll,
+            children: children_raw,
+            gap: config_at.gap.clone(),
+        }).root.into()).own(|_| children);
+    }
+
+    fn build_widget_data_rows(
+        &mut self,
+        pc: &mut ProcessingContext,
+        build_playlist_pos: &Option<BuildPlaylistPos>,
+        restore_playlist_pos: &Option<PlaylistPos>,
+        config_at: &WidgetDataRows,
+        data_id: &Vec<usize>,
+        data_at: &TreeNode,
+    ) -> El {
+        return el_async({
+            let menu_item_id = self.menu_item_id.clone();
+            let eg = pc.eg();
+            let transport_slot = self.transport_slot.clone();
+            let old_have_media = self.have_media;
+            let config_at = config_at.clone();
+            let data_id = data_id.clone();
+            let data_at = data_at.clone();
+            let build_playlist_pos = build_playlist_pos.clone();
+            let restore_playlist_pos = restore_playlist_pos.clone();
+            async move {
+                let data_at = match config_at.data {
+                    QueryOrField::Field(config_at) => {
+                        let TreeNode::Array(res) = get_field(&config_at, &data_at)? else {
+                            return Err(format!("Data rows field [{}] must be an array, but it is not", config_at));
+                        };
+                        res
+                    },
+                    QueryOrField::Query(config_at) => {
+                        let mut params = HashMap::new();
+                        for (k, config_at) in &config_at.params {
+                            let TreeNode::Scalar(v) = get_field_or_literal(config_at, &data_at)? else {
+                                return Err(
+                                    format!(
+                                        "Parameters must be scalars, but query paramter [{}] is not a scalar",
+                                        serde_json::to_string(&config_at).unwrap()
+                                    ),
+                                );
+                            };
+                            params.insert(k.clone(), v);
+                        }
+                        let res = req_post_json(&state().base_url, ReqViewQuery {
+                            menu_item_id: menu_item_id.clone(),
+                            query: config_at.query.clone(),
+                            parameters: params,
+                        }).await?;
+                        let mut out = vec![];
+                        for v in res.records {
+                            out.push(TreeNode::Record(v));
+                        }
+                        out
+                    },
+                };
+                return eg.event(move |pc| {
+                    let mut build = Build {
+                        menu_item_id: menu_item_id,
+                        playlist_add: Default::default(),
+                        have_media: false,
+                        transport_slot: transport_slot,
+                    };
+                    let out;
+                    let walk_playlist_pos = |data_at| {
+                        let key_value = match trans_data.get(key) {
+                            Some(TreeNode::Scalar(v)) => v,
+                            _ => {
+                                log(
+                                    format!(
+                                        "Row missing key field [{}], skipping (has fields {:?})",
+                                        key,
+                                        trans_data.keys().collect::<Vec<_>>()
+                                    ),
+                                );
+                                return (None, None);
+                            },
+                        };
+                        let subrestore_playlist_pos = shed!{
+                            'found_pos _;
+                            shed!{
+                                let Some(init) = &restore_playlist_pos else {
+                                    break;
+                                };
+                                let Some((path_first, path_remainder)) = init.entry_path.0.split_first() else {
+                                    break;
+                                };
+                                if key_value != path_first {
+                                    break;
+                                };
+                                break 'found_pos Some(PlaylistPos {
+                                    entry_path: PlaylistEntryPath(path_remainder.to_vec()),
+                                    time: init.time,
+                                });
+                            }
+                            break 'found_pos None;
+                        };
+                        return (Some(build_playlist_pos.add(Some(key_value.clone()))), subrestore_playlist_pos);
+                    };
+                    match &config_at.row_widget {
+                        shared::interface::config::view::DataRowsLayout::Unaligned(row_widget) => {
+                            let mut children = vec![];
+                            let mut children_raw = vec![];
+                            for (i, data_at) in data_at.into_iter().enumerate() {
+                                let mut data_id = data_id.clone();
+                                data_id.push(i);
+                                let (build_playlist_pos, restore_playlist_pos) = walk_playlist_pos(&data_at);
+                                let child =
+                                    build.build_widget(
+                                        pc,
+                                        &build_playlist_pos,
+                                        &restore_playlist_pos,
+                                        &row_widget.widget,
+                                        &data_id,
+                                        &data_at,
+                                    );
+                                children_raw.push(child.raw().dyn_into::<HtmlElement>().unwrap());
+                                children.push(child);
+                            }
+                            out = el_from_raw(style_export::cont_view_list(style_export::ContViewListArgs {
+                                direction: row_widget.direction.unwrap_or(Direction::Down),
+                                x_scroll: row_widget.x_scroll,
+                                children: children_raw,
+                                gap: row_widget.gap.clone(),
+                            }).root.into()).own(|_| children);
+                        },
+                        shared::interface::config::view::DataRowsLayout::Table(row_widget) => {
+                            let mut rows = vec![];
+                            let mut rows_raw = vec![];
+                            for (i, data_at) in data_at.into_iter().enumerate() {
+                                let mut data_id = data_id.clone();
+                                data_id.push(i);
+                                let mut columns = vec![];
+                                let mut columns_raw = vec![];
+                                for config_at in &row_widget.elements {
+                                    let column =
+                                        build.build_widget(
+                                            pc,
+                                            &build_playlist_pos,
+                                            &restore_playlist_pos,
+                                            config_at,
+                                            &data_id,
+                                            &data_at,
+                                        );
+                                    columns_raw.push(column.raw().dyn_into::<HtmlElement>().unwrap());
+                                    columns.push(column);
+                                }
+                                rows.push(columns);
+                                rows_raw.push(columns_raw);
+                            }
+                            out = el_from_raw(style_export::cont_view_table(style_export::ContViewTableArgs {
+                                orientation: row_widget.orientation,
+                                x_scroll: row_widget.x_scroll,
+                                children: rows_raw,
+                                gap: row_widget.gap.clone(),
+                            }).root.into()).own(|_| rows);
+                        },
+                    }
+                    if build.have_media && !old_have_media {
+                        build.transport_slot.ref_push(build_transport(pc));
+                    }
+                    return Ok(out);
+                }).unwrap();
+            }
+        });
+    }
+
+    fn build_widget_text(&mut self, config_at: &WidgetText, data_at: &TreeNode) -> El {
+        match (|| {
+            ta_return!(El, String);
+            return Ok(el_from_raw(style_export::leaf_view_text(style_export::LeafViewTextArgs {
+                trans_align: config_at.trans_align,
+                orientation: config_at.orientation,
+                text: get_value_string(&get_field_or_literal(&config_at.data, data_at)?),
+                font_size: config_at.font_size.clone(),
+                max_size: config_at.cons_size_max.clone(),
+                url: config_at
+                    .link
+                    .as_ref()
+                    .map(
+                        |l| Ok(get_value_url(&l.title, &get_field_or_literal(&l.value, &data_at)?, l.to_node)?) as
+                            Result<_, String>,
+                    )
+                    .transpose()?,
+            }).root.into()));
+        })() {
+            Ok(e) => return e,
+            Err(e) => return el_from_raw(
+                style_export::leaf_err_block(style_export::LeafErrBlockArgs { data: e }).root.into(),
+            ),
+        }
+    }
+
+    fn build_widget_image(&mut self, config_at: &WidgetImage, data_at: &TreeNode) -> El {
+        match (|| {
+            ta_return!(El, String);
+            return Ok(el_from_raw(style_export::leaf_view_image(style_export::LeafViewImageArgs {
+                trans_align: config_at.trans_align,
+                url: maybe(
+                    &config_at.link,
+                    |l| Ok(get_value_url(&l.title, &get_field_or_literal(&l.value, &data_at)?, l.to_node)?),
+                )?,
+                text: maybe(
+                    &config_at.alt,
+                    |v| Ok(get_value_string(&get_field_or_literal(v, data_at)?)) as Result<_, String>,
+                )?,
+                width: config_at.width.clone(),
+                height: config_at.height.clone(),
+            }).root.into()));
+        })() {
+            Ok(e) => return e,
+            Err(e) => return el_from_raw(
+                style_export::leaf_err_block(style_export::LeafErrBlockArgs { data: e }).root.into(),
+            ),
+        }
+    }
+
+    fn build_widget_play_button(
+        &mut self,
+        pc: &mut ProcessingContext,
+        build_playlist_pos: &Option<BuildPlaylistPos>,
+        restore_playlist_pos: &Option<PlaylistPos>,
+        config_at: &WidgetPlayButton,
+        data_id: &Vec<usize>,
+        data_at: &TreeNode,
+    ) -> El {
+        match (|| {
+            ta_return!(El, String);
+            self.have_media = true;
+            let media_type =
+                serde_json::from_value::<PlaylistEntryMediaType>(
+                    serde_json::Value::String(
+                        get_value_string(&get_field_or_literal(&config_at.media_type_field, data_at)?),
+                    ),
+                ).map_err(|e| format!("Invalid media type: {}", e))?;
+            let file = get_value_file_hash(&get_field(&config_at.media_file_field, data_at)?)?;
+            self.playlist_add.push((data_id.clone(), PlaylistPushArg {
+                name: maybe(
+                    &config_at.name_field,
+                    |config_at| Ok(get_value_string(&get_field(config_at, data_at)?)),
+                )?,
+                album: maybe(
+                    &config_at.album_field,
+                    |config_at| Ok(get_value_string(&get_field(config_at, data_at)?)),
+                )?,
+                artist: maybe(
+                    &config_at.artist_field,
+                    |config_at| Ok(get_value_string(&get_field(config_at, data_at)?)),
+                )?,
+                cover: maybe(
+                    &config_at.cover_field,
+                    |config_at| Ok(get_value_file_hash(&get_field(config_at, data_at)?)?),
+                )?,
+                file: file,
+                media_type: media_type,
+            }));
+            let out = el_from_raw(style_export::leaf_view_play_button(style_export::LeafViewPlayButtonArgs {
+                trans_align: config_at.trans_align,
+                direction: config_at.direction.unwrap_or(Direction::Right),
+            }).root.into());
+            out.ref_on("click", {
+                let data_id = data_id.clone();
+                let eg = pc.eg();
+                move |_| eg.event(|pc| {
+                    playlist_toggle_play(pc, &state().playlist, Some(data_id.clone()));
+                }).unwrap()
+            });
+            return Ok(out);
+        })() {
+            Ok(e) => return e,
+            Err(e) => return el_from_raw(
+                style_export::leaf_err_block(style_export::LeafErrBlockArgs { data: e }).root.into(),
+            ),
+        }
+    }
+
+    fn build_widget(
+        &mut self,
+        pc: &mut ProcessingContext,
+        build_playlist_pos: &Option<BuildPlaylistPos>,
+        restore_playlist_pos: &Option<PlaylistPos>,
+        config_at: &Widget,
+        data_id: &Vec<usize>,
+        data_at: &TreeNode,
+    ) -> El {
+        match config_at {
+            Widget::Layout(config_at) => return self.build_widget_layout(
+                pc,
+                build_playlist_pos,
+                restore_playlist_pos,
+                config_at,
+                data_id,
+                data_at,
+            ),
+            Widget::DataRows(config_at) => return self.build_widget_data_rows(
+                pc,
+                build_playlist_pos,
+                restore_playlist_pos,
+                config_at,
+                data_id,
+                data_at,
+            ),
+            Widget::Text(config_at) => return self.build_widget_text(config_at, data_at),
+            Widget::Image(config_at) => return self.build_widget_image(config_at, data_at),
+            Widget::PlayButton(config_at) => return self.build_widget_play_button(
+                pc,
+                build_playlist_pos,
+                restore_playlist_pos,
+                config_at,
+                data_id,
+                data_at,
+            ),
+        }
+    }
+}
+
+fn build_transport(pc: &mut ProcessingContext) -> El {
+    let hover_time = Prim::new(None);
+
+    fn get_mouse_pct(ev: &Event) -> (f64, f64, MouseEvent) {
+        let element = ev.target().unwrap().dyn_into::<Element>().unwrap();
+        let ev = ev.dyn_ref::<MouseEvent>().unwrap();
+        let element_rect = element.get_bounding_client_rect();
+        let percent_x = ((ev.client_x() as f64 - element_rect.x()) / element_rect.width().max(0.001)).clamp(0., 1.);
+        let percent_y = ((ev.client_y() as f64 - element_rect.y()) / element_rect.width().max(0.001)).clamp(0., 1.);
+        return (percent_x, percent_y, ev.clone());
+    }
+
+    fn get_mouse_time(ev: &Event) -> Option<f64> {
+        let Some(max_time) = *state().playlist.0.playing_max_time.borrow() else {
+            return None;
+        };
+        let percent = get_mouse_pct(ev).0;
+        return Some(max_time * percent);
+    }
+
+    let transport_res = style_export::cont_bar_view_transport();
+    let button_share = el_from_raw(transport_res.button_share.into());
+    button_share.ref_on("click", {
+        let eg = pc.eg();
+        move |_| eg.event(|pc| {
+            let sess_id = state().playlist.0.share.borrow().as_ref().map(|x| x.0.clone());
+            let sess_id = match sess_id {
+                Some(sess_id) => {
+                    sess_id.clone()
+                },
+                None => {
+                    let id = Uuid::new_v4().to_string();
+                    state()
+                        .playlist
+                        .0
+                        .share
+                        .set(pc, Some((id.clone(), Ws::new(format!("main/{}", id), |_, _| unreachable!()))));
+                    id
+                },
+            };
+            let link = format!("{}#{}{}", state().base_url, LINK_HASH_PREFIX, sess_id);
+            let modal_res = style_export::cont_modal_view_share(style_export::ContModalViewShareArgs {
+                qr: DomParser::new()
+                    .unwrap()
+                    .parse_from_string(
+                        &QrCode::new(&link)
+                            .unwrap()
+                            .render::<qrcode::render::svg::Color>()
+                            .quiet_zone(false)
+                            .build(),
+                        web_sys::SupportedType::ImageSvgXml,
+                    )
+                    .unwrap()
+                    .first_element_child()
+                    .unwrap()
+                    .dyn_into()
+                    .unwrap(),
+                link: link,
+            });
+            let bg_el = el_from_raw(modal_res.bg.into());
+            let button_close_el = el_from_raw(modal_res.button_close.into());
+            let button_unshare_el = el_from_raw(modal_res.button_unshare.into());
+            let modal_el =
+                el_from_raw(
+                    modal_res.root.into(),
+                ).own(|_| (bg_el.clone(), button_close_el.clone(), button_unshare_el.clone()));
+            button_close_el.ref_on("click", {
+                let modal_el = modal_el.weak();
+                let eg = pc.eg();
+                move |_| eg.event(|_pc| {
+                    let Some(modal_el) = modal_el.upgrade() else {
+                        return;
+                    };
+                    modal_el.ref_replace(vec![]);
+                }).unwrap()
+            });
+            bg_el.ref_on("click", {
+                let modal_el = modal_el.weak();
+                let eg = pc.eg();
+                move |_| eg.event(|_pc| {
+                    let Some(modal_el) = modal_el.upgrade() else {
+                        return;
+                    };
+                    modal_el.ref_replace(vec![]);
+                }).unwrap()
+            });
+            button_unshare_el.ref_on("click", {
+                let modal_el = modal_el.weak();
+                let eg = pc.eg();
+                move |_| eg.event(|pc| {
+                    let Some(modal_el) = modal_el.upgrade() else {
+                        return;
+                    };
+                    modal_el.ref_replace(vec![]);
+                    state().playlist.0.share.set(pc, None);
+                }).unwrap()
+            });
+            state().modal_stack.ref_push(modal_el.clone());
+        }).unwrap()
+    });
+
+    // Prev
+    let button_prev = el_from_raw(transport_res.button_prev.into());
+    button_prev.ref_on("click", {
+        let eg = pc.eg();
+        move |_| eg.event(|pc| {
+            playlist_previous(pc, &state().playlist, None);
+        }).unwrap()
+    });
+
+    // Next
+    let button_next = el_from_raw(transport_res.button_next.into());
+    button_next.ref_on("click", {
+        let eg = pc.eg();
+        move |_| eg.event(|pc| {
+            playlist_next(pc, &state().playlist, None);
+        }).unwrap()
+    });
+
+    // Play
+    let button_play = el_from_raw(transport_res.button_play.into());
+    button_play.ref_on("click", {
+        let eg = pc.eg();
+        move |_| eg.event(|pc| {
+            playlist_toggle_play(pc, &state().playlist, None);
+        }).unwrap()
+    });
+
+    // Seekbar
+    let seekbar = el_from_raw(transport_res.seekbar.into());
+    seekbar.ref_on("mousemove", {
+        let eg = pc.eg();
+        let hover_time = hover_time.clone();
+        move |ev| eg.event(|pc| {
+            hover_time.set(pc, get_mouse_time(ev));
+        }).unwrap()
+    });
+    seekbar.ref_on("mouseleave", {
+        let eg = pc.eg();
+        let hover_time = hover_time.clone();
+        move |_| eg.event(|pc| {
+            hover_time.set(pc, None);
+        }).unwrap()
+    });
+    seekbar.ref_on("click", {
+        let eg = pc.eg();
+        move |ev| eg.event(|pc| {
+            let Some(time) = get_mouse_time(ev) else {
+                return;
+            };
+            playlist_seek(pc, &state().playlist, time);
+        }).unwrap()
+    });
+    let seekbar_fill = el_from_raw(transport_res.seekbar_fill.into());
+    seekbar_fill.ref_own(|fill| link!(
+        //. .
+        (_pc = pc),
+        (time = state().playlist.0.playing_time.clone(), max_time = state().playlist.0.playing_max_time.clone()),
+        (),
+        (fill = fill.weak()) {
+            let Some(max_time) = *max_time.borrow() else {
+                return None;
+            };
+            let fill = fill.upgrade()?;
+            fill.ref_attr("style", &format!("width: {}%;", *time.borrow() / max_time.max(0.0001) * 100.));
+        }
+    ));
+    let seekbar_label = el_from_raw(transport_res.seekbar_label.into());
+    seekbar_label.ref_own(|label| link!(
+        //. .
+        (_pc = pc),
+        (playing_time = state().playlist.0.playing_time.clone(), hover_time = hover_time.clone()),
+        (),
+        (label = label.weak()) {
+            let label = label.upgrade()?;
+            let time: f64;
+            if let Some(t) = *hover_time.borrow() {
+                time = t;
+            } else {
+                time = *playing_time.borrow();
+            }
+            let time = time as u64;
+            let seconds = time % 60;
+            let time = time / 60;
+            let minutes = time % 60;
+            let time = time / 60;
+            let hours = time % 24;
+            let days = time / 24;
+            if days > 0 {
+                label.text(&format!("{:02}:{:02}:{:02}:{:02}", days, hours, minutes, seconds));
+            } else if hours > 0 {
+                label.text(&format!("{:02}:{:02}:{:02}", hours, minutes, seconds));
+            } else {
+                label.text(&format!("{:02}:{:02}", minutes, seconds));
+            }
+        }
+    ));
+
+    // Assemble
+    return el_from_raw(
+        transport_res.root.into(),
+    ).own(|_| (button_share, button_prev, button_next, button_play, seekbar, seekbar_fill));
+}
+
 pub fn build_page_view(
     pc: &mut ProcessingContext,
-    list_title: &str,
-    list_id: &str,
-    build_playlist_pos: &BuildPlaylistPos,
+    menu_item_title: &str,
+    menu_item_id: &str,
+    build_playlist_pos: &Option<BuildPlaylistPos>,
     restore_playlist_pos: &Option<PlaylistPos>,
 ) {
-    set_page(list_title, el_async({
-        let view_id = list_id.to_string();
+    set_page(menu_item_title, el_async({
+        let menu_item_id = menu_item_id.to_string();
+        let build_playlist_pos = build_playlist_pos.clone();
+        let restore_playlist_pos = restore_playlist_pos.clone();
+        let eg = pc.eg();
         async move {
             // # Async
             let client_config = state().client_config.get().await?;
-            let Some(view) = client_config.views.get(&view_id) else {
-                return Err(format!("No view with id [{}] in config", view_id));
+            let Some(view) = client_config.views.get(&menu_item_id) else {
+                return Err(format!("No view with id [{}] in config", menu_item_id));
             };
-            let build_res = style_export::build_view(style_export::BuildViewArgs {
-                plugin_path: format!("{}.js", view_id),
-                arguments: <JsValue as gloo::utils::format::JsValueSerdeExt>::from_serde(&view.config).unwrap(),
-            });
-            let build_res =
-                JsFuture::from(build_res.root)
-                    .await
-                    .map_err(|_| format!("Error building view, check browser console"))?;
 
-            // # Sync, assembly
-            let hover_time = Prim::new(None);
-
-            fn get_mouse_pct(ev: &Event) -> (f64, f64, MouseEvent) {
-                let element = ev.target().unwrap().dyn_into::<Element>().unwrap();
-                let ev = ev.dyn_ref::<MouseEvent>().unwrap();
-                let element_rect = element.get_bounding_client_rect();
-                let percent_x =
-                    ((ev.client_x() as f64 - element_rect.x()) / element_rect.width().max(0.001)).clamp(0., 1.);
-                let percent_y =
-                    ((ev.client_y() as f64 - element_rect.y()) / element_rect.width().max(0.001)).clamp(0., 1.);
-                return (percent_x, percent_y, ev.clone());
-            }
-
-            fn get_mouse_time(ev: &Event) -> Option<f64> {
-                let Some(max_time) = *state().playlist.0.playing_max_time.borrow() else {
-                    return None;
-                };
-                let percent = get_mouse_pct(ev).0;
-                return Some(max_time * percent);
-            }
-
-            let root = el_from_raw(js_get::<HtmlElement>(&build_res, "root").into());
-            let want_transport = js_get::<bool>(&build_res, "want_transport");
-            let mut children = vec![];
-            if want_transport {
-                let transport_res = style_export::cont_bar_view_transport();
-                let button_share = el_from_raw(transport_res.button_share.into());
-                button_share.ref_on("click", {
-                    let eg = pc.eg();
-                    move |_| eg.event(|pc| {
-                        let sess_id = state().playlist.0.share.borrow().as_ref().map(|x| x.0.clone());
-                        let sess_id = match sess_id {
-                            Some(sess_id) => {
-                                sess_id.clone()
-                            },
-                            None => {
-                                let id = Uuid::new_v4().to_string();
-                                state()
-                                    .playlist
-                                    .0
-                                    .share
-                                    .set(
-                                        pc,
-                                        Some((id.clone(), Ws::new(format!("main/{}", id), |_, _| unreachable!()))),
-                                    );
-                                id
-                            },
-                        };
-                        let link = format!("{}#{}{}", state().base_url, LINK_HASH_PREFIX, sess_id);
-                        stack.ref_push(el_modal(pc, "Share", |pc, root| {
-                            return vec![
-                                //. .
-                                el("a").classes(&["g_qr"]).attr("href", &link).push(el_from_raw(
-                                    //. .
-                                    DomParser::new()
-                                        .unwrap()
-                                        .parse_from_string(
-                                            &QrCode::new(&link)
-                                                .unwrap()
-                                                .render::<qrcode::render::svg::Color>()
-                                                .quiet_zone(false)
-                                                .build(),
-                                            SupportedType::ImageSvgXml,
-                                        )
-                                        .unwrap()
-                                        .first_element_child()
-                                        .unwrap(),
-                                )),
-                                el_button_icon_text(pc, ICON_NOSHARE, "Stop sharing", {
-                                    let state = state.clone();
-                                    let root = root.clone();
-                                    move |pc| {
-                                        let Some(root) = root.upgrade() else {
-                                            return;
-                                        };
-                                        state().playlist.0.share.set(pc, None);
-                                        root.ref_replace(vec![]);
-                                    }
-                                })
-                            ];
-                        }));
-                    }).unwrap()
-                });
-
-                // Prev
-                let button_prev = el_from_raw(transport_res.button_prev.into());
-                button_prev.ref_on("click", {
-                    let eg = pc.eg();
-                    move |_| eg.event(|pc| {
-                        playlist_previous(pc, &state().playlist, None);
-                    }).unwrap()
-                });
-
-                // Next
-                let button_next = el_from_raw(transport_res.button_next.into());
-                button_next.ref_on("click", {
-                    let eg = pc.eg();
-                    move |_| eg.event(|pc| {
-                        playlist_next(pc, &state().playlist, None);
-                    }).unwrap()
-                });
-
-                // Play
-                let button_play = el_from_raw(transport_res.button_play.into());
-                button_play.ref_on("click", {
-                    let eg = pc.eg();
-                    move |_| eg.event(|pc| {
-                        playlist_toggle_play(pc, &state().playlist, None);
-                    }).unwrap()
-                });
-
-                // Seekbar
-                let seekbar = el_from_raw(transport_res.seekbar.into());
-                seekbar.ref_on("mousemove", {
-                    let eg = pc.eg();
-                    let hover_time = hover_time.clone();
-                    move |ev| eg.event(|pc| {
-                        hover_time.set(pc, get_mouse_time(ev));
-                    }).unwrap()
-                });
-                seekbar.ref_on("mouseleave", {
-                    let eg = pc.eg();
-                    let hover_time = hover_time.clone();
-                    move |_| eg.event(|pc| {
-                        hover_time.set(pc, None);
-                    }).unwrap()
-                });
-                seekbar.ref_on("click", {
-                    let eg = pc.eg();
-                    move |ev| eg.event(|pc| {
-                        let Some(time) = get_mouse_time(ev) else {
-                            return;
-                        };
-                        playlist_seek(pc, &state().playlist, time);
-                    }).unwrap()
-                });
-                let seekbar_fill = el_from_raw(transport_res.seekbar_fill.into());
-                seekbar_fill.ref_own(|fill| link!(
-                    //. .
-                    (_pc = pc),
-                    (
-                        time = state().playlist.0.playing_time.clone(),
-                        max_time = state().playlist.0.playing_max_time.clone(),
+            // # Content
+            return eg.event(|pc| {
+                let mut build = Build {
+                    menu_item_id: menu_item_id.clone(),
+                    playlist_add: Default::default(),
+                    have_media: false,
+                    transport_slot: el_from_raw(
+                        style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root.into(),
                     ),
-                    (),
-                    (fill = fill.weak()) {
-                        let Some(max_time) = *max_time.borrow() else {
-                            return None;
-                        };
-                        let fill = fill.upgrade()?;
-                        fill.ref_attr(
-                            "style",
-                            &format!("width: {}%;", *time.borrow() / max_time.max(0.0001) * 100.),
-                        );
-                    }
-                ));
-                let seekbar_label = el_from_raw(transport_res.seekbar_label.into());
-                seekbar_label.ref_own(|label| link!(
-                    //. .
-                    (_pc = pc),
-                    (playing_time = state().playlist.0.playing_time.clone(), hover_time = hover_time.clone()),
-                    (),
-                    (label = label.weak()) {
-                        let label = label.upgrade()?;
-                        let time: f64;
-                        if let Some(t) = *hover_time.borrow() {
-                            time = t;
-                        } else {
-                            time = *playing_time.borrow();
-                        }
-                        let time = time as u64;
-                        let seconds = time % 60;
-                        let time = time / 60;
-                        let minutes = time % 60;
-                        let time = time / 60;
-                        let hours = time % 24;
-                        let days = time / 24;
-                        if days > 0 {
-                            label.text(&format!("{:02}:{:02}:{:02}:{:02}", days, hours, minutes, seconds));
-                        } else if hours > 0 {
-                            label.text(&format!("{:02}:{:02}:{:02}", hours, minutes, seconds));
-                        } else {
-                            label.text(&format!("{:02}:{:02}", minutes, seconds));
-                        }
-                    }
-                ));
-
-                // Assemble
-                children.push(
-                    el_from_raw(
-                        transport_res.root.into(),
-                    ).own(|_| (button_share, button_prev, button_next, button_play, seekbar, seekbar_fill)),
-                );
-            }
-            children.push(root);
-            return Ok(el_from_raw(build_res.dyn_into::<Element>().unwrap()));
+                };
+                let data_rows_res =
+                    build.build_widget_data_rows(
+                        pc,
+                        &build_playlist_pos,
+                        &restore_playlist_pos,
+                        &view.config,
+                        &vec![],
+                        &TreeNode::Record(Default::default()),
+                    );
+                playlist_extend(pc, &state().playlist, build.playlist_add);
+                return Ok(el_from_raw(style_export::cont_page_view_list(style_export::ContPageViewListArgs {
+                    transport: Some(build.transport_slot.raw().dyn_into().unwrap()),
+                    rows: data_rows_res.raw().dyn_into().unwrap(),
+                }).root.into()).own(|_| (build.transport_slot, data_rows_res)));
+            }).unwrap();
         }
     }));
 }

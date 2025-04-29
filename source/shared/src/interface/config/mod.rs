@@ -1,5 +1,6 @@
 pub mod form;
 pub mod menu;
+pub mod view;
 
 use {
     form::ClientForm,
@@ -9,15 +10,14 @@ use {
         Deserialize,
         Serialize,
     },
-    std::collections::{
-        HashMap,
-    },
+    std::collections::HashMap,
+    view::WidgetDataRows,
 };
 
 #[derive(Clone, Serialize, Deserialize, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ClientView {
-    pub config: serde_json::Value,
+    pub config: WidgetDataRows,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]

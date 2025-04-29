@@ -66,7 +66,6 @@ trait PlaylistMedia {
     fn wait_until_seekable(&self) -> Pin<Box<dyn Future<Output = ()>>>;
     fn wait_until_buffered(&self) -> Pin<Box<dyn Future<Output = ()>>>;
     fn seek(&self, time: f64);
-    fn set_volume(&self, volume: f64);
     fn play(&self);
     fn pause(&self);
 }
@@ -84,10 +83,6 @@ impl PlaylistMedia for PlaylistMediaImage {
     }
 
     fn seek(&self, _time: f64) {
-        // nop
-    }
-
-    fn set_volume(&self, _volume: f64) {
         // nop
     }
 
@@ -129,10 +124,6 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
 
     fn seek(&self, time: f64) {
         self.media.set_current_time(time);
-    }
-
-    fn set_volume(&self, volume: f64) {
-        self.media.set_volume(volume);
     }
 
     fn play(&self) {

@@ -46,9 +46,6 @@ use {
         el_general::{
             el_async,
             style_export,
-            CSS_STATE_DELETED,
-            CSS_STATE_INVALID,
-            CSS_STATE_THINKING,
         },
     },
     wasm_bindgen::JsCast,
@@ -327,7 +324,12 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> BuildEditNod
                             {
                                 let input_el = input_el.upgrade()?;
                                 input_el.ref_modify_classes(
-                                    &[(CSS_STATE_INVALID, !validate(input_value.borrow().as_str()))],
+                                    &[
+                                        (
+                                            &style_export::class_state_invalid().value,
+                                            !validate(input_value.borrow().as_str()),
+                                        ),
+                                    ],
                                 );
                             }
                         ),
@@ -524,7 +526,9 @@ fn build_edit_triple(pc: &mut ProcessingContext, triple: &TripleState) -> El {
                     (out = out.weak()),
                     {
                         let out = out.upgrade()?;
-                        out.ref_modify_classes(&[(CSS_STATE_DELETED, deleted.get() | deleted_all.get())]);
+                        out.ref_modify_classes(
+                            &[(&style_export::class_state_deleted().value, deleted.get() | deleted_all.get())],
+                        );
                     }
                 ),
             );
@@ -677,7 +681,9 @@ pub fn build_page_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node
                                 style_res.root,
                                 link!((_pc = pc), (deleted = pivot_state.0.delete.clone()), (), (ele = ele.weak()), {
                                     let pivot_root = ele.upgrade()?;
-                                    pivot_root.ref_modify_classes(&[(CSS_STATE_DELETED, deleted.get())]);
+                                    pivot_root.ref_modify_classes(
+                                        &[(&style_export::class_state_deleted().value, deleted.get())],
+                                    );
                                 }),
                             ),
                         ),
@@ -727,10 +733,7 @@ pub fn build_page_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node
                 }
 
                 // Edit form controls
-                let button_save = el_from_raw(style_export::leaf_bar_button_big(style_export::LeafBarButtonBigArgs {
-                    title: "Save".into(),
-                    text: "Save".into(),
-                }).root.into());
+                let button_save = el_from_raw(style_export::leaf_button_big_save().root.into());
                 let save_thinking = Rc::new(RefCell::new(None));
                 button_save.ref_own(|_| save_thinking.clone());
                 button_save.ref_on("click", {
@@ -745,7 +748,7 @@ pub fn build_page_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node
                             error_slot.ref_clear();
                         }
                         let button = ev.target().unwrap().dyn_into::<web_sys::HtmlElement>().unwrap();
-                        button.class_list().add_1(CSS_STATE_THINKING).unwrap();
+                        button.class_list().add_1(&style_export::class_state_thinking().value).unwrap();
                         *save_thinking.borrow_mut() = Some(spawn_rooted({
                             let triple_states = triple_states.clone();
                             let pivot_state = pivot_state.clone();
@@ -812,7 +815,7 @@ pub fn build_page_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node
                                     }).await?;
                                     return Ok(());
                                 }.await;
-                                button.class_list().remove_1(CSS_STATE_THINKING).unwrap();
+                                button.class_list().remove_1(&style_export::class_state_thinking().value).unwrap();
                                 match res {
                                     Ok(_) => {
                                         *pivot_state.0.initial.borrow_mut() = pivot_node;

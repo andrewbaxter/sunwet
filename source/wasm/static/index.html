@@ -14,26 +14,8 @@
     />
     <link rel="modulepreload" href="static/nonlink.js" />
     <script type="module">
-      /// <reference path="plugin_import.d.ts" />
-      import init, {
-        importQuery,
-        importFileUrl,
-        importEditUrl,
-        importSetPlaylist,
-        importTogglePlay,
-        main,
-      } from "./static/nonlink.js";
-      (async () => {
-        await init("./static/nonlink_bg.wasm");
-        window.sunwet = {
-          query: importQuery,
-          fileUrl: importFileUrl,
-          editUrl: importEditUrl,
-          setPlaylist: importSetPlaylist,
-          togglePlay: importTogglePlay,
-        };
-        main();
-      })();
+      import init from "./static/nonlink.js";
+      init("./static/nonlink_bg.wasm");
       // Console errors due to https://github.com/rustwasm/wasm-bindgen/issues/2470
     </script>
   </head>
