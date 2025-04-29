@@ -1,5 +1,5 @@
 use {
-    crate::el_general::{
+    wasm::el_general::{
         get_dom_octothorpe,
         log,
     },
@@ -10,7 +10,6 @@ use {
     },
     shared::interface::triple::Node,
     wasm_bindgen::{
-        prelude::wasm_bindgen,
         JsValue,
     },
 };
@@ -26,29 +25,29 @@ pub struct PlaylistPos {
     pub time: f64,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct MinistateView {
-    pub id: String,
+    pub menu_item_id: String,
     pub title: String,
     pub pos: Option<PlaylistPos>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct MinistateForm {
-    pub id: String,
+    pub menu_item_id: String,
     pub title: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct MinistateEdit {
     pub title: String,
     pub node: Node,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Ministate {
     Home,
@@ -90,16 +89,16 @@ pub fn record_replace_ministate(s: &Ministate) {
         .unwrap();
 }
 
-pub fn read_ministate() -> Option<Ministate> {
+pub fn read_ministate() -> Ministate {
     let Some(s) = get_dom_octothorpe() else {
-        return None;
+        return Ministate::Home;
     };
     let s = match serde_json::from_str::<Ministate>(s.as_ref()) {
         Ok(s) => s,
         Err(e) => {
             log(format!("Unable to parse url anchor state: {:?}\nAnchor: {}", e, s));
-            return None;
+            return Ministate::Home;
         },
     };
-    return Some(s);
+    return s;
 }

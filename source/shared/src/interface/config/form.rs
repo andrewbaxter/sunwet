@@ -148,9 +148,7 @@ pub struct FormOutput {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct Form {
-    /// Form title, for human consumption
-    pub name: String,
+pub struct ClientForm {
     /// Form fields and generated data (ids)
     pub fields: Vec<FormField>,
     /// Triples to generate from the inputs

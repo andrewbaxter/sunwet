@@ -113,16 +113,10 @@ fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, TreeNode)]], query
     }
     let got = execute_sql_query(&db, query, query_values).unwrap();
     let want =
-        TreeNode::Array(
-            want
-                .into_iter()
-                .map(
-                    |m| TreeNode::Record(
-                        m.into_iter().map(|(k, v)| (k.to_string(), v.clone())).collect::<BTreeMap<_, _>>(),
-                    ),
-                )
-                .collect::<Vec<_>>(),
-        );
+        want
+            .into_iter()
+            .map(|m| m.into_iter().map(|(k, v)| (k.to_string(), v.clone())).collect::<BTreeMap<_, _>>())
+            .collect::<Vec<_>>();
     assert_eq!(want, got);
 }
 

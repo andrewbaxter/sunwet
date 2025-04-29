@@ -1,8 +1,8 @@
-/// <reference path="style_import.d.ts" />
+/// <reference path="plugin_import.d.ts" />
+/// <reference path="plugin_export.d.ts" />
 /// <reference path="style_export.d.ts" />
 /// <reference path="style_shared.d.ts" />
 /// <reference path="plugin_view_list.d.ts" />
-/// <reference path="plugin.d.ts" />
 
 /** @type { (o: Orientation)=>Direction } */
 const conv = (o) => {
@@ -559,7 +559,7 @@ class Build1 {
           gap: view.widget.gap,
         }).root;
       case "data_rows":
-        return window.sunwet_presentation.leafAsyncBlock(
+        return window.sunwetPresentation.leafAsyncBlock(
           (async () => {
             const initialPlaylistLength = this.playlist.length;
             const data1 = await this.queryOrField(data, view.widget.data);
@@ -925,43 +925,45 @@ export const build = /** @type {BuildFn} */ (args0) => {
   const args = /** @type {WidgetDataRows} */ (args0);
   const build1 = new Build1();
   /** @type {number|null} */
-  window.sunwet_presentation_shared.setOnPlaylistStateChanged(
+  window.sunwetPresentationShared.setOnPlaylistStateChanged(
     (playing, index) => {
       for (const [file, button] of build1.buttonLookup) {
         if (playing && build1.playlistLookup.get(file) == index) {
-          button.textContent = window.sunwet_presentation_shared.textIconPause;
+          button.textContent = window.sunwetPresentationShared.textIconPause;
         } else {
-          button.textContent = window.sunwet_presentation_shared.textIconPlay;
+          button.textContent = window.sunwetPresentationShared.textIconPlay;
         }
       }
     }
   );
-  return window.sunwet_presentation.contPageView([
-    window.sunwet_presentation.contBarViewTransport().root,
-    e(
-      "div",
-      {},
-      {
-        styles_: [
-          window.sunwet_presentation_shared.contStackStyle,
-          window.sunwet_presentation_shared.ss(
-            window.sunwet_presentation_shared.uniq("view_list_body"),
-            {
-              "": (s) => {
-                s.padding = `0 max(0.3cm, min(${varSCol1Width}, 100dvw / 20))`;
-                s.paddingBottom = "2cm";
-                s.flexGrow = "1";
-              },
-            }
-          ),
-        ],
-        children_: [
-          build1.widget([], testData, {
-            type: "data_rows",
-            widget: testDef,
-          }),
-        ],
-      }
-    ),
-  ]).root;
+  return window.sunwetPresentation.contPageView({
+    entries: [
+      window.sunwetPresentation.contBarViewTransport({}).root,
+      e(
+        "div",
+        {},
+        {
+          styles_: [
+            window.sunwetPresentationShared.contStackStyle,
+            window.sunwetPresentationShared.ss(
+              window.sunwetPresentationShared.uniq("view_list_body"),
+              {
+                "": (s) => {
+                  s.padding = `0 max(0.3cm, min(${varSCol1Width}, 100dvw / 20))`;
+                  s.paddingBottom = "2cm";
+                  s.flexGrow = "1";
+                },
+              }
+            ),
+          ],
+          children_: [
+            build1.widget([], testData, {
+              type: "data_rows",
+              widget: testDef,
+            }),
+          ],
+        }
+      ),
+    ],
+  }).root;
 };

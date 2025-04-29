@@ -5,15 +5,7 @@ use {
         PlaylistEntryPath,
         PlaylistPos,
     },
-    crate::{
-        el_general::{
-            async_event,
-            log,
-        },
-        ministate::record_replace_ministate,
-        websocket::Ws,
-        world::file_url,
-    },
+    crate::libnonlink::ministate::record_replace_ministate,
     chrono::{
         DateTime,
         Utc,
@@ -41,6 +33,7 @@ use {
         spawn_rooted,
         El,
     },
+    serde::Deserialize,
     shared::interface::{
         triple::FileHash,
         wire::link::{
@@ -61,6 +54,14 @@ use {
             Rc,
             Weak,
         },
+    },
+    wasm::{
+        el_general::{
+            async_event,
+            log,
+        },
+        websocket::Ws,
+        world::file_url,
     },
     wasm_bindgen::{
         closure::Closure,
@@ -142,7 +143,7 @@ impl PlaylistMedia for AudioPlaylistMedia {
 
     fn pm_get_ministate(&self) -> Ministate {
         return Ministate::View(MinistateView {
-            id: self.ministate_id.clone(),
+            menu_item_id: self.ministate_id.clone(),
             title: self.ministate_title.clone(),
             pos: match self.ministate_path.as_ref() {
                 Some(path) => Some(PlaylistPos {
@@ -229,7 +230,7 @@ impl PlaylistMedia for VideoPlaylistMedia {
 
     fn pm_get_ministate(&self) -> Ministate {
         return Ministate::View(MinistateView {
-            id: self.ministate_id.clone(),
+            menu_item_id: self.ministate_id.clone(),
             title: self.ministate_title.clone(),
             pos: match self.ministate_path.as_ref() {
                 Some(path) => Some(PlaylistPos {
@@ -300,7 +301,7 @@ impl PlaylistMedia for ImagePlaylistMedia {
 
     fn pm_get_ministate(&self) -> Ministate {
         return Ministate::View(MinistateView {
-            id: self.ministate_id.clone(),
+            menu_item_id: self.ministate_id.clone(),
             title: self.ministate_title.clone(),
             pos: match self.ministate_path.as_ref() {
                 Some(path) => Some(PlaylistPos {
@@ -333,6 +334,7 @@ impl PlaylistMedia for ImagePlaylistMedia {
     }
 }
 
+#[derive(Deserialize, Clone, Copy)]
 pub enum PlaylistEntryMediaType {
     Audio,
     Video,

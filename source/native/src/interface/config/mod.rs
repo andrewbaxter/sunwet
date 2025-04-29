@@ -1,16 +1,18 @@
 use {
-    good_ormning_runtime::sqlite::GoodOrmningCustomString,
     schemars::JsonSchema,
     serde::{
         Deserialize,
         Serialize,
     },
     shared::interface::{
-        config::menu::MenuItem,
+        config::form::ClientForm,
         iam::UserIdentityId,
+        query::Query,
+        triple::Node,
     },
     std::{
         collections::{
+            BTreeMap,
             HashMap,
             HashSet,
         },
@@ -19,21 +21,51 @@ use {
     },
 };
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, JsonSchema)]
+pub type MenuItemId = String;
+
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub enum PageAccess {
-    View(String),
-    Form(String),
+pub struct MenuItemSection {
+    pub name: String,
+    pub children: Vec<MenuItem>,
 }
 
-impl GoodOrmningCustomString<PageAccess> for PageAccess {
-    fn to_sql<'a>(value: &'a Self) -> String {
-        return serde_json::to_string(&value).unwrap();
-    }
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct MenuItemView {
+    pub name: String,
+    pub view_id: String,
+    pub arguments: HashMap<String, Node>,
+}
 
-    fn from_sql(value: String) -> Result<Self, String> {
-        return Ok(serde_json::from_str::<Self>(&value).map_err(|e| e.to_string())?);
-    }
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct MenuItemForm {
+    pub name: String,
+    pub form_id: String,
+    pub arguments: HashMap<String, Node>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum MenuItemSub {
+    Section(MenuItemSection),
+    View(MenuItemView),
+    Form(MenuItemForm),
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct MenuItem {
+    pub id: MenuItemId,
+    pub sub: MenuItemSub,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, Hash, JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct View {
+    pub queries: BTreeMap<String, Query>,
+    pub config: serde_json::Value,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, JsonSchema)]
@@ -41,15 +73,35 @@ impl GoodOrmningCustomString<PageAccess> for PageAccess {
 pub struct GlobalConfig {
     pub admin_token: Option<String>,
     #[serde(default)]
-    pub public_iam_grants: HashSet<PageAccess>,
+    pub public_iam_grants: HashSet<MenuItemId>,
     pub menu: Vec<MenuItem>,
+    pub views: HashMap<String, View>,
+    pub forms: HashMap<String, ClientForm>,
 }
 
 #[derive(Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum IamGrants {
     Admin,
-    Limited(HashSet<PageAccess>),
+    Limited(HashSet<MenuItemId>),
+}
+
+impl IamGrants {
+    pub fn match_set(&self, target_set: &HashSet<MenuItemId>) -> bool {
+        match self {
+            IamGrants::Admin => {
+                return true;
+            },
+            IamGrants::Limited(self_set) => {
+                for target_id in target_set {
+                    if self_set.contains(target_id) {
+                        return true;
+                    }
+                }
+            },
+        }
+        return false;
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, JsonSchema)]

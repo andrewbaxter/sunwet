@@ -55,5 +55,5 @@ declare type PresentationShared = {
 };
 
 declare interface Window {
-  sunwet_presentation_shared: PresentationShared;
+  sunwetPresentationShared: PresentationShared;
 }

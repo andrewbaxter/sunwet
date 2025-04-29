@@ -58,7 +58,7 @@ fn main() {
     let node_type = type_str().custom("crate::interface::triple::DbNode").build();
     let node_array_type = type_str().custom("crate::interface::triple::DbNode").array().build();
     let filehash_type = type_str().custom("crate::interface::triple::DbFileHash").build();
-    let file_access_type = type_str().custom("crate::interface::config::PageAccess").build();
+    let file_access_type = type_str().build();
 
     // Triple
     let triple_table;

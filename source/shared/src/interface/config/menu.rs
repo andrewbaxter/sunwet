@@ -10,14 +10,14 @@ use {
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct MenuItemSection {
+pub struct ClientMenuItemSection {
     pub name: String,
-    pub children: Vec<MenuItem>,
+    pub children: Vec<ClientMenuItem>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct MenuItemView {
+pub struct ClientMenuItemView {
     pub name: String,
     pub id: String,
     pub arguments: HashMap<String, Node>,
@@ -25,15 +25,15 @@ pub struct MenuItemView {
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct MenuItemForm {
+pub struct ClientMenuItemForm {
     pub name: String,
     pub id: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub enum MenuItem {
-    Section(MenuItemSection),
-    View(MenuItemView),
-    Form(MenuItemForm),
+pub enum ClientMenuItem {
+    Section(ClientMenuItemSection),
+    View(ClientMenuItemView),
+    Form(ClientMenuItemForm),
 }

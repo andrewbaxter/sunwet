@@ -8,7 +8,9 @@ use {
             self,
             config::{
                 IamGrants,
+                MenuItemId,
                 UserConfig,
+                View,
             },
         },
         ScopeValue,
@@ -24,9 +26,8 @@ use {
     moka::future::Cache,
     shared::interface::{
         config::{
-            form::Form,
-            menu::MenuItem,
-            view::View,
+            form::ClientForm,
+            menu,
         },
         iam::UserIdentityId,
         triple::FileHash,
@@ -40,6 +41,7 @@ use {
             HashMap,
             HashSet,
         },
+        os::linux::net,
         path::PathBuf,
         sync::{
             atomic::AtomicU8,
@@ -68,12 +70,103 @@ pub struct FdapState {
     pub fdap_client: fdap::Client,
 }
 
-#[derive(Default)]
+pub struct MenuItemSection {
+    pub name: String,
+    pub self_and_ancestors: HashSet<String>,
+    pub children: Vec<String>,
+}
+
+pub struct MenuItemView {
+    pub item: interface::config::MenuItemView,
+    pub self_and_ancestors: HashSet<String>,
+}
+
+pub struct MenuItemForm {
+    pub item: interface::config::MenuItemForm,
+    pub self_and_ancestors: HashSet<String>,
+}
+
+pub enum MenuItem {
+    Section(MenuItemSection),
+    View(MenuItemView),
+    Form(MenuItemForm),
+}
+
 pub struct GlobalConfig {
-    pub config: interface::config::GlobalConfig,
-    pub admin_token: Option<AuthTokenHash>,
-    pub forms: HashMap<String, Form>,
+    pub public_iam_grants: HashSet<MenuItemId>,
+    pub menu: Vec<String>,
+    pub menu_items: HashMap<String, MenuItem>,
     pub views: HashMap<String, View>,
+    pub forms: HashMap<String, ClientForm>,
+    pub admin_token: Option<AuthTokenHash>,
+}
+
+pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<Arc<GlobalConfig>, loga::Error> {
+    fn build_menu_items(
+        config0: &interface::config::GlobalConfig,
+        menu_out: &mut Vec<String>,
+        menu_items_out: &mut HashMap<String, MenuItem>,
+        ancestry: &HashSet<String>,
+        seen: &mut HashSet<String>,
+        at: &interface::config::MenuItem,
+    ) -> Result<(), loga::Error> {
+        if !seen.insert(at.id.clone()) {
+            return Err(loga::err(format!("Multiple menu items with id {}", at.id)));
+        }
+        let mut ancestry = ancestry.clone();
+        ancestry.insert(at.id.clone());
+        match &at.sub {
+            interface::config::MenuItemSub::Section(sub) => {
+                let mut out = vec![];
+                for child in &sub.children {
+                    build_menu_items(config0, &mut out, menu_items_out, &ancestry, seen, child);
+                }
+                menu_items_out.insert(at.id.clone(), MenuItem::Section(MenuItemSection {
+                    name: sub.name.clone(),
+                    children: out,
+                    self_and_ancestors: ancestry,
+                }));
+            },
+            interface::config::MenuItemSub::View(sub) => {
+                if !config0.views.contains_key(&sub.view_id) {
+                    return Err(
+                        loga::err(format!("Menu item [{}] references missing view [{}]", at.id, sub.view_id)),
+                    );
+                }
+                menu_items_out.insert(at.id.clone(), MenuItem::View(MenuItemView {
+                    item: sub.clone(),
+                    self_and_ancestors: ancestry,
+                }));
+            },
+            interface::config::MenuItemSub::Form(sub) => {
+                if !config0.forms.contains_key(&sub.form_id) {
+                    return Err(
+                        loga::err(format!("Menu item [{}] references missing form [{}]", at.id, sub.form_id)),
+                    );
+                }
+                menu_items_out.insert(at.id.clone(), MenuItem::Form(MenuItemForm {
+                    item: sub.clone(),
+                    self_and_ancestors: ancestry,
+                }));
+            },
+        }
+        menu_out.push(at.id.clone());
+        return Ok(());
+    }
+
+    let mut menu = vec![];
+    let mut menu_items = HashMap::new();
+    for item in &config0.menu {
+        build_menu_items(&config0, &mut menu, &mut menu_items, &HashSet::new(), &mut HashSet::new(), item)?;
+    }
+    return Ok(Arc::new(GlobalConfig {
+        public_iam_grants: config0.public_iam_grants.clone(),
+        menu: menu,
+        menu_items: menu_items,
+        views: config0.views.clone(),
+        forms: config0.forms.clone(),
+        admin_token: config0.admin_token.as_ref().map(|t| htwrap::htserve::auth::hash_auth_token(&t)),
+    }));
 }
 
 pub struct FdapGlobalState {
@@ -123,32 +216,6 @@ pub struct State {
     pub link_session: Mutex<Option<String>>,
 }
 
-pub fn gather_pages(config: &interface::config::GlobalConfig) -> (HashMap<String, Form>, HashMap<String, View>) {
-    let mut forms = HashMap::new();
-    let mut views = HashMap::new();
-
-    fn gather_pages(forms: &mut HashMap<String, Form>, views: &mut HashMap<String, View>, m: &MenuItem) {
-        match m {
-            MenuItem::Section(s) => {
-                for child in &s.children {
-                    gather_pages(forms, views, child);
-                }
-            },
-            MenuItem::View(v) => {
-                views.insert(v.id.clone(), v.clone());
-            },
-            MenuItem::Form(f) => {
-                forms.insert(f.id.clone(), f.clone());
-            },
-        }
-    }
-
-    for m in &config.menu {
-        gather_pages(&mut forms, &mut views, m);
-    }
-    return (forms, views);
-}
-
 pub async fn get_global_config(state: &State) -> Result<Arc<GlobalConfig>, loga::Error> {
     match &state.global_state {
         GlobalState::Fdap(f) => {
@@ -167,21 +234,14 @@ pub async fn get_global_config(state: &State) -> Result<Arc<GlobalConfig>, loga:
                     .get(f.subpath.iter(), 100 * 1024 * 1024)
                     .await
                     .context("Error making request to FDAP server")? else {
-                    let config = Arc::new(GlobalConfig::default());
-                    *f.cache.lock().unwrap() = Some((Instant::now(), config.clone()));
-                    return Ok(config);
+                    return Err(loga::err(format!("No config found in FDAP server at [{:?}]", f.subpath)))
                 };
-            let config0 =
-                serde_json::from_value::<interface::config::GlobalConfig>(
-                    json,
-                ).context("Global config in FDAP doesn't match expected schema")?;
-            let (forms, views) = gather_pages(&config0);
-            let config = Arc::new(GlobalConfig {
-                admin_token: config0.admin_token.as_ref().map(|t| htwrap::htserve::auth::hash_auth_token(&t)),
-                config: config0,
-                forms: forms,
-                views: views,
-            });
+            let config =
+                build_global_config(
+                    &serde_json::from_value::<interface::config::GlobalConfig>(
+                        json,
+                    ).context("Global config in FDAP doesn't match expected schema")?,
+                )?;
             *f.cache.lock().unwrap() = Some((Instant::now(), config.clone()));
             return Ok(config);
         },
@@ -249,7 +309,7 @@ pub async fn get_iam_grants(state: &State, identity: &Identity) -> Result<IamGra
             }
         },
         Identity::Public => {
-            return Ok(IamGrants::Limited(get_global_config(state).await?.config.public_iam_grants.clone()));
+            return Ok(IamGrants::Limited(get_global_config(state).await?.public_iam_grants.clone()));
         },
     }
 }

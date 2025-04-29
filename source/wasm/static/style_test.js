@@ -152,7 +152,7 @@ addEventListener("DOMContentLoaded", async (_) => {
   } else if (hash == "#edit") {
     /** @type { (args: {hint: string, value: string})=> HTMLSelectElement} */
     const nodeTypeSel = (args) =>
-      window.sunwet_presentation.leafInputEnum({
+      window.sunwetPresentation.leafInputEnum({
         title: `${args.hint} type`,
         value: args.value,
         options: {

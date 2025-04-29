@@ -78,11 +78,6 @@ fn main() {
     };
     let optel_ = type_opt(&el_);
     let arrel_ = type_arr(&el_);
-    let promiseel_ = Type {
-        mod_: TypeMod::None,
-        rust_type: quote!(js_sys::Promise),
-        ts_type: "Promise<HTMLElement>".to_string(),
-    };
     let inpel_ = Type {
         mod_: TypeMod::None,
         rust_type: quote!(web_sys::HtmlInputElement),
@@ -102,6 +97,11 @@ fn main() {
         mod_: TypeMod::None,
         rust_type: quote!(wasm_bindgen::JsValue),
         ts_type: "any".to_string(),
+    };
+    let promiseview_ = Type {
+        mod_: TypeMod::None,
+        rust_type: quote!(js_sys::Promise),
+        ts_type: "Promise<{root: HTMLElement, want_transport: bool}>".to_string(),
     };
 
     //. .
@@ -285,8 +285,22 @@ fn main() {
         // xx Components, styles: page, view
         Func {
             name: "contPageView",
-            args: vec![("entries", &arrel_), ("bar", &bool_)],
+            args: vec![("entries", &arrel_)],
             returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "contBarViewTransport",
+            args: vec![],
+            returns: vec![
+                ("root", &el_),
+                ("buttonShare", &el_),
+                ("buttonPrev", &el_),
+                ("buttonNext", &el_),
+                ("buttonPlay", &el_),
+                ("seekbar", &el_),
+                ("seekbarFill", &el_),
+                ("seekbarLabel", &el_)
+            ],
         },
         Func {
             name: "contMediaFullscreen",
@@ -386,7 +400,7 @@ fn main() {
         Func {
             name: "buildView",
             args: vec![("pluginPath", &string_), ("arguments", &any_)],
-            returns: vec![("root", &promiseel_)],
+            returns: vec![("root", &promiseview_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: Link

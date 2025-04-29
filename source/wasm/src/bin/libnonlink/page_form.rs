@@ -1,15 +1,9 @@
 use {
-    super::state::State,
-    crate::{
-        el_general::{
-            el_async,
-            style_export,
-            CSS_STATE_THINKING,
-        },
-        state::set_page,
-        world::{
-            self,
-            req_post_json,
+    super::{
+        api::req_post_json,
+        state::{
+            set_page,
+            state,
         },
     },
     chrono::{
@@ -34,7 +28,7 @@ use {
     },
     shared::interface::{
         config::form::{
-            Form,
+            ClientForm,
             FormField,
             InputOrInline,
             InputOrInlineText,
@@ -52,6 +46,11 @@ use {
         collections::HashMap,
         rc::Rc,
     },
+    wasm::el_general::{
+        el_async,
+        style_export,
+        CSS_STATE_THINKING,
+    },
     wasm_bindgen::JsCast,
     web_sys::{
         HtmlElement,
@@ -62,7 +61,7 @@ use {
 struct FormState_ {
     draft_id: String,
     form_id: String,
-    form: Form,
+    form: ClientForm,
     data: RefCell<HashMap<String, Node>>,
     draft_debounce: RefCell<Option<Timeout>>,
 }
@@ -121,15 +120,14 @@ fn build_field_enum(
     })));
 }
 
-pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, form_title: &str, form_id: &str) {
+pub fn build_page_form_by_id(pc: &mut ProcessingContext, form_title: &str, form_id: &str) {
     let draft_id = format!("form-draft-{}", form_id);
-    set_page(outer_state, form_title, el_async({
+    set_page(form_title, el_async({
         let eg = pc.eg();
-        let outer_state = outer_state.clone();
         let form_id = form_id.to_string();
         let form_title = form_title.to_string();
         async move {
-            let client_config = outer_state.client_config.get().await?;
+            let client_config = state().client_config.get().await?;
             let Some(form) = client_config.forms.get(&form_id) else {
                 return Err(format!("No form in config with id [{}]", form_id));
             };
@@ -435,23 +433,14 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                     FormField::QueryEnum(field) => {
                         let async_ = el_async({
                             let fs = fs.clone();
-                            let outer_state = outer_state.clone();
                             let field = field.clone();
                             async move {
-                                let res = req_post_json(&outer_state.base_url, ReqQuery {
+                                let res = req_post_json(&state().base_url, ReqQuery {
                                     query: field.query.clone(),
                                     parameters: HashMap::new(),
                                 }).await?;
-                                let TreeNode::Array(res) = res.records else {
-                                    return Err(format!("Result is not an array of choices (likely bug)"));
-                                };
                                 let mut choices = vec![];
-                                for choice in res {
-                                    let TreeNode::Record(mut choice) = choice else {
-                                        return Err(
-                                            format!("Query result array element is not a record (likely bug)"),
-                                        );
-                                    };
+                                for mut choice in res.records {
                                     let Some(value) = choice.remove("value") else {
                                         return Err(format!("Query result array element is missing `id` field"));
                                     };
@@ -492,7 +481,6 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
             button_save.ref_own(|_| save_thinking.clone());
             button_save.ref_on("click", {
                 let eg = eg.clone();
-                let outer_state = outer_state.clone();
                 let form_title = form_title.to_string();
                 let error_slot = error_slot.weak();
                 let fs = fs.clone();
@@ -513,7 +501,6 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                     *save_thinking.borrow_mut() = Some(spawn_rooted({
                         let eg = eg.clone();
                         let fs = fs.clone();
-                        let outer_state = outer_state.clone();
                         let form_title = form_title.clone();
                         let error_slot = error_slot.clone();
                         async move {
@@ -564,7 +551,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                                     });
                                 }
                                 drop(data);
-                                world::req_post_json(&outer_state.base_url, ReqCommit {
+                                req_post_json(&state().base_url, ReqCommit {
                                     add: add,
                                     remove: vec![],
                                     files: vec![],
@@ -573,9 +560,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, outer_state: &State, fo
                             }.await {
                                 Ok(_) => {
                                     LocalStorage::delete(&fs.0.draft_id);
-                                    eg.event(
-                                        |pc| build_page_form_by_id(pc, &outer_state, &form_title, &fs.0.form_id),
-                                    );
+                                    eg.event(|pc| build_page_form_by_id(pc, &form_title, &fs.0.form_id));
                                     return;
                                 },
                                 Err(e) => {

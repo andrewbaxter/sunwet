@@ -1,7 +1,7 @@
 /// <reference path="style_export.d.ts" />
 /// <reference path="style_export2.d.ts" />
 /// <reference path="style_shared.d.ts" />
-/// <reference path="plugin.d.ts" />
+/// <reference path="plugin_export.d.ts" />
 
 const presentation = {};
 const presentationShared = {};
@@ -1009,8 +1009,8 @@ presentation.contPageView = /** @type {Presentation["contPageView"]} */ (
   ),
 });
 
-const contBarViewTransport =
-  /** @type {(args: {  }) => { root: HTMLElement, buttonShare: HTMLElement, buttonPrev: HTMLElement, buttonNext: HTMLElement, buttonPlay: HTMLElement, seekbar: HTMLElement, seekbarFill: HTMLElement }} */ () => {
+presentation.contBarViewTransport =
+  /** @type {Presentation["contBarViewTransport"]} */ () => {
     const buttonShare = presentation.leafTransportButton({
       title: "Share",
       icon: textIconShare,
@@ -2203,5 +2203,5 @@ presentation.appLink = /** @type {Presentation["appLink"]} */ (args) => {
 ///////////////////////////////////////////////////////////////////////////////
 // xx Assemble
 
-window.sunwet_presentation = presentation;
-window.sunwet_presentation_shared = presentationShared;
+window.sunwetPresentation = presentation;
+window.sunwetPresentationShared = presentationShared;

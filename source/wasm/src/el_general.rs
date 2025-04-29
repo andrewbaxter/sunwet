@@ -4,17 +4,11 @@ use {
         events::EventListener,
         utils::window,
     },
-    lunk::{
-        link,
-        HistPrim,
-        ProcessingContext,
-    },
     rooting::{
         el,
         el_from_raw,
         spawn_rooted,
         El,
-        WeakEl,
     },
     std::{
         fmt::Display,
@@ -27,7 +21,6 @@ use {
     web_sys::{
         Event,
         EventTarget,
-        HtmlElement,
     },
 };
 
@@ -84,7 +77,7 @@ pub mod style_export {
         },
     };
 
-    trait JsExport {
+    pub trait JsExport {
         fn from_js(v: &JsValue) -> Self;
         fn to_js(&self) -> JsValue;
     }
@@ -239,7 +232,7 @@ pub mod style_export {
         }
     }
 
-    fn js_get<T: JsExport>(o: &JsValue, p: &str) -> T {
+    pub fn js_get<T: JsExport>(o: &JsValue, p: &str) -> T {
         return T::from_js(&js_sys::Reflect::get(o, &JsValue::from(p)).unwrap());
     }
 

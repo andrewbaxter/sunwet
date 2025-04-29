@@ -6,7 +6,6 @@ use {
                 Config,
                 IamGrants,
                 MaybeFdap,
-                PageAccess,
             },
             triple::{
                 DbFileHash,
@@ -24,7 +23,10 @@ use {
     },
     chrono::DateTime,
     dbutil::tx,
-    flowcontrol::ta_return,
+    flowcontrol::{
+        shed,
+        ta_return,
+    },
     fsutil::create_dirs,
     handlers::{
         handle_files::{
@@ -41,7 +43,7 @@ use {
             handle_ws_link,
             handle_ws_main,
         },
-        handle_menu::handle_get_menu,
+        handle_menu::handle_get_filtered_client_config,
         handle_oidc,
         handle_static,
     },
@@ -99,7 +101,7 @@ use {
         },
     },
     state::{
-        gather_pages,
+        build_global_config,
         get_global_config,
         get_iam_grants,
         FdapGlobalState,
@@ -108,6 +110,7 @@ use {
         GlobalConfig,
         GlobalState,
         LocalUsersState,
+        MenuItem,
         State,
         UsersState,
     },
@@ -284,7 +287,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 match get_iam_grants(&state, &identity).await.err_internal()? {
                                     IamGrants::Admin => { },
                                     IamGrants::Limited(grants) => {
-                                        if !grants.contains(&PageAccess::Form(req.form.clone())) {
+                                        if !grants.contains(&req.menu_item_id) {
                                             return Ok(response_401());
                                         }
                                     },
@@ -317,22 +320,41 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 match get_iam_grants(&state, &identity).await.err_internal()? {
                                     IamGrants::Admin => { },
                                     IamGrants::Limited(grants) => {
-                                        if !grants.contains(&PageAccess::View(req.view.clone())) {
+                                        if !grants.contains(&req.menu_item_id) {
                                             return Ok(response_401());
                                         }
                                     },
                                 }
                                 let global_config = get_global_config(&state).await.err_internal()?;
-                                let Some(view) = global_config.views.get(&req.view) else {
-                                    return Err(
-                                        loga::err_with("No known view with id", ea!(view = req.view)),
-                                    ).err_external();
-                                };
+                                let Some(MenuItem::View(menu_item)) =
+                                    global_config.menu_items.get(&req.menu_item_id) else {
+                                        return Err(
+                                            loga::err_with(
+                                                "No known view menu_item with id",
+                                                ea!(menu_item = req.menu_item_id),
+                                            ),
+                                        ).err_external();
+                                    };
+                                shed!{
+                                    'granted _;
+                                    match get_iam_grants(&state, &identity).await.err_internal()? {
+                                        IamGrants::Admin => break 'granted,
+                                        IamGrants::Limited(grants) => {
+                                            for id in &menu_item.self_and_ancestors {
+                                                if grants.contains(id) {
+                                                    break 'granted;
+                                                }
+                                            }
+                                        },
+                                    }
+                                    return Ok(response_401());
+                                }
+                                let view = global_config.views.get(&req.menu_item_id).unwrap();
                                 let Some(query) = view.queries.get(&req.query) else {
                                     return Err(
                                         loga::err_with(
                                             "No known query with id in view",
-                                            ea!(view = req.view, query = req.query),
+                                            ea!(view = menu_item.item.view_id, query = req.query),
                                         ),
                                     ).err_external();
                                 };
@@ -365,16 +387,19 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 }
 
                                 let mut files = vec![];
-                                gather_files(&mut files, &records);
+                                for record in &records {
+                                    for v in record.values() {
+                                        gather_files(&mut files, v);
+                                    }
+                                }
                                 tx(&state.db, {
-                                    let page_access = PageAccess::View(req.view.clone());
                                     move |txn| {
-                                        db::file_access_clear_nonversion(txn, &page_access, view_hash as i64)?;
+                                        db::file_access_clear_nonversion(txn, &req.menu_item_id, view_hash as i64)?;
                                         for file in files {
                                             db::file_access_insert(
                                                 txn,
                                                 &DbFileHash(file.clone()),
-                                                &page_access,
+                                                &req.menu_item_id,
                                                 view_hash as i64,
                                             )?;
                                         }
@@ -462,7 +487,10 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 });
                             },
                             C2SReq::GetClientConfig(req) => {
-                                resp = req.respond()(handle_get_menu(state, &identity).await.err_internal()?);
+                                resp =
+                                    req.respond()(
+                                        handle_get_filtered_client_config(state, &identity).await.err_internal()?,
+                                    );
                             },
                         }
                         return Ok(resp.1);
@@ -605,17 +633,7 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
                     })
                 },
                 MaybeFdap::Local(global_config) => {
-                    let (forms, views) = gather_pages(&global_config);
-                    GlobalState::Local(Arc::new(GlobalConfig {
-                        config: global_config.clone(),
-                        forms: forms,
-                        views: views,
-                        admin_token: global_config
-                            .admin_token
-                            .as_ref()
-                            .map(|x| x.as_str())
-                            .map(htserve::auth::hash_auth_token),
-                    }))
+                    GlobalState::Local(build_global_config(global_config)?)
                 },
             };
             let users_state = match &config.user {

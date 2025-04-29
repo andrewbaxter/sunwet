@@ -3,7 +3,7 @@ use {
         interface::{
             config::{
                 IamGrants,
-                PageAccess,
+                MenuItemId,
             },
             triple::{
                 DbFileHash,
@@ -11,9 +11,7 @@ use {
             },
         },
         server::{
-            access::{
-                Identity,
-            },
+            access::Identity,
             db::{
                 self,
             },
@@ -27,6 +25,7 @@ use {
             state::{
                 get_global_config,
                 get_iam_grants,
+                MenuItem,
                 State,
             },
         },
@@ -123,7 +122,7 @@ async fn get_meta(state: &Arc<State>, hash: &FileHash) -> Result<Option<db::Meta
 async fn commit(
     state: Arc<State>,
     c: ReqCommit,
-    update_access_reqs: Option<(PageAccess, u64)>,
+    update_access_reqs: Option<(MenuItemId, u64)>,
 ) -> Result<RespCommit, loga::Error> {
     for info in &c.files {
         if file_path(&state.files_dir, &info.hash)?.exists() {
@@ -231,16 +230,17 @@ pub async fn handle_commit(state: Arc<State>, c: ReqCommit) -> Result<RespCommit
 
 pub async fn handle_form_commit(state: Arc<State>, c: ReqFormCommit) -> Result<RespCommit, VisErr<loga::Error>> {
     let global_config = get_global_config(&state).await.err_internal()?;
-    let Some(form) = global_config.forms.get(&c.form) else {
-        return Err(loga::err_with("No known form with id", ea!(id = c.form))).err_external();
+    let Some(MenuItem::Form(menu_item_form)) = global_config.menu_items.get(&c.menu_item_id) else {
+        return Err(loga::err_with("No known form menu item with id", ea!(id = c.menu_item_id))).err_external();
     };
+    let form = global_config.forms.get(&menu_item_form.item.form_id).unwrap();
     let mut form_hash = DefaultHasher::new();
     form.hash(&mut form_hash);
     return Ok(
         commit(
             state,
             build_form_commit(form, &c.parameters).map_err(loga::err).err_external()?,
-            Some((PageAccess::Form(c.form), form_hash.finish())),
+            Some((c.menu_item_id, form_hash.finish())),
         )
             .await
             .err_internal()?,
@@ -463,7 +463,7 @@ pub async fn handle_finish_upload(
     return Ok(Some(RespUploadFinish { done: done }));
 }
 
-async fn get_file_page_reqs(state: &State, file: &FileHash) -> Result<HashSet<PageAccess>, loga::Error> {
+async fn get_file_page_reqs(state: &State, file: &FileHash) -> Result<HashSet<MenuItemId>, loga::Error> {
     let file = DbFileHash(file.clone());
     let access = tx(&state.db, move |txn| Ok(db::file_access_get(txn, &file)?)).await?;
     return Ok(access.into_iter().collect());

@@ -1,19 +1,11 @@
 use {
-    super::state::State,
-    crate::{
-        el_general::{
-            el_async,
-            style_export,
-            CSS_STATE_DELETED,
-            CSS_STATE_INVALID,
-            CSS_STATE_THINKING,
-        },
-        state::set_page,
-        world::{
-            self,
-            req_post_json,
+    super::{
+        api::req_post_json,
+        state::{
+            set_page,
         },
     },
+    crate::libnonlink::state::state,
     flowcontrol::{
         exenum,
         ta_return,
@@ -50,10 +42,17 @@ use {
         rc::Rc,
         str::FromStr,
     },
-    wasm_bindgen::JsCast,
-    web_sys::{
-        HtmlInputElement,
+    wasm::{
+        el_general::{
+            el_async,
+            style_export,
+            CSS_STATE_DELETED,
+            CSS_STATE_INVALID,
+            CSS_STATE_THINKING,
+        },
     },
+    wasm_bindgen::JsCast,
+    web_sys::HtmlInputElement,
 };
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -517,10 +516,18 @@ fn build_edit_triple(pc: &mut ProcessingContext, triple: &TripleState) -> El {
         });
         style_res
             .button_delete
-            .ref_own(|out| link!((_pc = pc), (deleted = triple.0.delete.clone()), (), (out = out.weak()), {
-                let out = out.upgrade()?;
-                out.ref_modify_classes(&[(CSS_STATE_DELETED, deleted.get())]);
-            }));
+            .ref_own(
+                |out| link!(
+                    (_pc = pc),
+                    (deleted = triple.0.delete.clone(), deleted_all = triple.0.delete_all.clone()),
+                    (),
+                    (out = out.weak()),
+                    {
+                        let out = out.upgrade()?;
+                        out.ref_modify_classes(&[(CSS_STATE_DELETED, deleted.get() | deleted_all.get())]);
+                    }
+                ),
+            );
         style_res.root
     };
     let predicate_el = {
@@ -577,14 +584,13 @@ fn build_edit_triple(pc: &mut ProcessingContext, triple: &TripleState) -> El {
     }
 }
 
-pub fn build_page_edit(pc: &mut ProcessingContext, outer_state: &State, edit_title: &str, node: &Node) {
-    set_page(outer_state, edit_title, el_async({
+pub fn build_page_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node) {
+    set_page(edit_title, el_async({
         let eg = pc.eg();
-        let outer_state = outer_state.clone();
         let node = node.clone();
         async move {
             ta_return!(El, String);
-            let triples = req_post_json(&outer_state.base_url, ReqGetTriplesAround { node: node.clone() }).await?;
+            let triples = req_post_json(&state().base_url, ReqGetTriplesAround { node: node.clone() }).await?;
             return eg.event(|pc| {
                 let error_slot =
                     el_from_raw(
@@ -730,7 +736,6 @@ pub fn build_page_edit(pc: &mut ProcessingContext, outer_state: &State, edit_tit
                 button_save.ref_on("click", {
                     let triple_states = triple_states.clone();
                     let pivot_state = pivot_state.clone();
-                    let outer_state = outer_state.clone();
                     let error_slot = error_slot.weak();
                     move |ev| {
                         {
@@ -744,7 +749,6 @@ pub fn build_page_edit(pc: &mut ProcessingContext, outer_state: &State, edit_tit
                         *save_thinking.borrow_mut() = Some(spawn_rooted({
                             let triple_states = triple_states.clone();
                             let pivot_state = pivot_state.clone();
-                            let outer_state = outer_state.clone();
                             let error_slot = error_slot.clone();
                             async move {
                                 let mut triple_nodes_predicates = vec![];
@@ -801,7 +805,7 @@ pub fn build_page_edit(pc: &mut ProcessingContext, outer_state: &State, edit_tit
                                             });
                                         }
                                     }
-                                    world::req_post_json(&outer_state.base_url, ReqCommit {
+                                    req_post_json(&state().base_url, ReqCommit {
                                         add: add,
                                         remove: remove,
                                         files: vec![],

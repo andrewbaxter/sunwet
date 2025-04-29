@@ -31,7 +31,8 @@ declare type Presentation = {
     leafInputPairDatetime: (args: { id: string, title: string, value: string }) => { root: HTMLElement, input: HTMLInputElement };
     leafInputPairColor: (args: { id: string, title: string, value: string }) => { root: HTMLElement, input: HTMLInputElement };
     leafInputPairEnum: (args: { id: string, title: string, value: string, options: {[k: string]: string} }) => { root: HTMLElement, input: HTMLSelectElement };
-    contPageView: (args: { entries: HTMLElement[], bar: boolean }) => { root: HTMLElement };
+    contPageView: (args: { entries: HTMLElement[] }) => { root: HTMLElement };
+    contBarViewTransport: (args: {  }) => { root: HTMLElement, buttonShare: HTMLElement, buttonPrev: HTMLElement, buttonNext: HTMLElement, buttonPlay: HTMLElement, seekbar: HTMLElement, seekbarFill: HTMLElement, seekbarLabel: HTMLElement };
     contMediaFullscreen: (args: { media: HTMLElement }) => { root: HTMLElement, buttonClose: HTMLElement };
     contModal: (args: { title: string, child: HTMLElement }) => { root: HTMLElement, buttonClose: HTMLElement };
     leafTransportButton: (args: { title: string, icon: string }) => { root: HTMLElement };
@@ -49,6 +50,6 @@ declare type Presentation = {
     contMenuGroup: (args: { title: string, children: HTMLElement[] }) => { root: HTMLElement };
     leafMenuLink: (args: { title: string, href: string }) => { root: HTMLElement };
     appMain: (args: { mainTitle: HTMLElement, mainBody: HTMLElement, menuBody: HTMLElement }) => { root: HTMLElement };
-    buildView: (args: { pluginPath: string, arguments: any }) => { root: Promise<HTMLElement> };
+    buildView: (args: { pluginPath: string, arguments: any }) => { root: Promise<{root: HTMLElement, want_transport: bool}> };
     appLink: (args: {  }) => { root: HTMLElement, display: HTMLElement, display_over: HTMLElement, album: HTMLElement, artist: HTMLElement, title: HTMLElement };
 };

@@ -661,7 +661,7 @@ pub fn meta_gc(db: &rusqlite::Connection) -> Result<(), GoodError> {
 pub fn file_access_insert(
     db: &rusqlite::Connection,
     file: &crate::interface::triple::DbFileHash,
-    page: &crate::interface::config::PageAccess,
+    page: &str,
     page_version_hash: i64,
 ) -> Result<(), GoodError> {
     let query =
@@ -675,11 +675,7 @@ pub fn file_access_insert(
                 ::GoodOrmningCustomString<crate::interface::triple::DbFileHash>>::to_sql(
                     &file,
                 ),
-                <crate::interface::config::PageAccess as good_ormning_runtime
-                ::sqlite
-                ::GoodOrmningCustomString<crate::interface::config::PageAccess>>::to_sql(
-                    &page,
-                ),
+                page,
                 page_version_hash
             ],
         )
@@ -689,31 +685,19 @@ pub fn file_access_insert(
 
 pub fn file_access_clear_nonversion(
     db: &rusqlite::Connection,
-    access: &crate::interface::config::PageAccess,
+    access: &str,
     version_hash: i64,
 ) -> Result<(), GoodError> {
     let query =
         "delete from \"file_access\" where ( ( \"file_access\" . \"page\" = $1 ) and ( \"file_access\" . \"page_version_hash\" = $2 ) )";
-    db
-        .execute(
-            query,
-            rusqlite::params![
-                <crate::interface::config::PageAccess as good_ormning_runtime
-                ::sqlite
-                ::GoodOrmningCustomString<crate::interface::config::PageAccess>>::to_sql(
-                    &access,
-                ),
-                version_hash
-            ],
-        )
-        .to_good_error_query(query)?;
+    db.execute(query, rusqlite::params![access, version_hash]).to_good_error_query(query)?;
     Ok(())
 }
 
 pub fn file_access_get(
     db: &rusqlite::Connection,
     file: &crate::interface::triple::DbFileHash,
-) -> Result<Vec<crate::interface::config::PageAccess>, GoodError> {
+) -> Result<Vec<String>, GoodError> {
     let mut out = vec![];
     let query = "select \"file_access\" . \"page\" from \"file_access\" where ( \"file_access\" . \"file\" = $1 ) ";
     let mut stmt = db.prepare(query).to_good_error_query(query)?;
@@ -732,12 +716,6 @@ pub fn file_access_get(
     while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
         out.push({
             let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
-            let x =
-                <crate::interface::config::PageAccess as good_ormning_runtime
-                ::sqlite
-                ::GoodOrmningCustomString<crate::interface::config::PageAccess>>::from_sql(
-                    x,
-                ).to_good_error(|| format!("Parsing result {}", 0usize))?;
             x
         });
     }

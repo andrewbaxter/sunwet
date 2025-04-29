@@ -7,12 +7,12 @@
     <script src="style.js"></script>
     <link
       rel="preload"
-      href="static/nonlink_bg.wasm"
+      href="static/link_bg.wasm"
       as="fetch"
       type="application/wasm"
       crossorigin=""
     />
-    <link rel="modulepreload" href="static/nonlink.js" />
+    <link rel="modulepreload" href="static/link.js" />
     <script type="module">
       /// <reference path="plugin_import.d.ts" />
       import init, {
@@ -22,9 +22,9 @@
         importSetPlaylist,
         importTogglePlay,
         main,
-      } from "./static/nonlink.js";
+      } from "./static/link.js";
       (async () => {
-        await init("./static/nonlink_bg.wasm");
+        await init("./static/link_bg.wasm");
         window.sunwet = {
           query: importQuery,
           fileUrl: importFileUrl,

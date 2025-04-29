@@ -77,7 +77,7 @@ impl C2SReqTrait for ReqCommit {
 #[derive(Serialize, Deserialize, Default, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqFormCommit {
-    pub form: String,
+    pub menu_item_id: String,
     pub parameters: HashMap<String, TreeNode>,
 }
 
@@ -135,7 +135,7 @@ pub enum TreeNode {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct RespQuery {
-    pub records: TreeNode,
+    pub records: Vec<BTreeMap<String, TreeNode>>,
 }
 
 impl Into<C2SReq> for ReqQuery {
@@ -152,7 +152,7 @@ impl C2SReqTrait for ReqQuery {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqViewQuery {
-    pub view: String,
+    pub menu_item_id: String,
     pub query: String,
     pub parameters: HashMap<String, Node>,
 }

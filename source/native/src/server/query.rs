@@ -878,7 +878,7 @@ pub fn execute_sql_query(
     db: &rusqlite::Connection,
     sql_query: String,
     sql_parameters: sea_query_rusqlite::RusqliteValues,
-) -> Result<TreeNode, loga::Error> {
+) -> Result<Vec<BTreeMap<String, TreeNode>>, loga::Error> {
     let mut s = db.prepare(&sql_query)?;
     let column_names = s.column_names().into_iter().map(|k| k.to_string()).collect::<Vec<_>>();
     let mut sql_rows = s.query(&*sql_parameters.as_params()).unwrap();
@@ -895,16 +895,16 @@ pub fn execute_sql_query(
                 ).unwrap();
             got_row1.insert(name.to_string(), value);
         }
-        out.push(TreeNode::Record(got_row1));
+        out.push(got_row1);
     }
-    return Ok(TreeNode::Array(out));
+    return Ok(out);
 }
 
 pub async fn execute_query(
     db: &Pool,
     query: Query,
     parameters: HashMap<String, Node>,
-) -> Result<TreeNode, loga::Error> {
+) -> Result<Vec<BTreeMap<String, TreeNode>>, loga::Error> {
     let (sql_query, sql_parameters) = build_query(query, parameters)?;
     eprintln!("query {}", sql_query);
     return Ok(tx(&db, move |txn| {
