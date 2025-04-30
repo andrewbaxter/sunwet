@@ -17,6 +17,7 @@ declare type Presentation = {
     leafSpace: (args: {  }) => { root: HTMLElement };
     leafButtonBig: (args: { title: string, icon?: string, text?: string }) => { root: HTMLElement };
     leafButtonBigSave: (args: {  }) => { root: HTMLElement };
+    contPageHome: (args: {  }) => { root: HTMLElement };
     leafInputText: (args: { id?: string, title: string, value: string }) => { root: HTMLInputElement };
     leafInputNumber: (args: { id?: string, title: string, value: string }) => { root: HTMLInputElement };
     leafInputBool: (args: { id?: string, title: string, value: boolean }) => { root: HTMLInputElement };

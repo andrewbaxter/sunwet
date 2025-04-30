@@ -65,10 +65,7 @@ pub fn set_page(title: &str, body: El) {
 pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
     match s {
         Ministate::Home => {
-            set_page(
-                "Home",
-                el_from_raw(style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root.into()),
-            );
+            set_page("Home", el_from_raw(style_export::cont_page_home().root.into()));
         },
         Ministate::View(ms) => {
             build_page_view(pc, &ms.title, &ms.menu_item_id, ms.pos.clone());

@@ -625,6 +625,51 @@
         text: "Save",
       });
 
+  // /////////////////////////////////////////////////////////////////////////////
+  // xx Components, styles: home
+  presentation.contPageHome = /** @type {Presentation["contPageHome"]} */ (
+    args
+  ) => ({
+    root: e(
+      "div",
+      {},
+      {
+        styles_: [
+          classMenuWantStateOpen,
+          contHboxStyle,
+          ss(uniq("cont_page_home"), {
+            "": (s) => {
+              s.gridColumn = "1/4";
+              s.gridRow = "2";
+              s.justifyContent = "center";
+              s.alignItems = "center";
+            },
+            [`.${classMenuStateOpen}`]: (s) => {
+              s.display = "none";
+            },
+            ">svg": (s) => {
+              s.width = "min(100%, 12cm)";
+              s.padding = "0.5cm";
+            },
+            ">svg>text": (s) => {
+              s.fontSize = "140pt";
+              s.fill = "#fefefe";
+            },
+          }),
+        ],
+        children_: [
+          et(`
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 210.77">
+              <path fill="#fefefe" d="M187.6 100.09a69.05 69.05 0 0 0-68.8-63.7A69.05 69.05 0 0 0 57 74.7c4.35-.17 8.86-.06 13.54.37a56.99 56.99 0 0 1 105.12 26.33 72.7 72.7 0 0 0 11.94-1.31zm-9.93 41.27c-4.6.16-9.37.03-14.31-.45a56.91 56.91 0 0 1-44.56 21.47 57.06 57.06 0 0 1-56.25-47.73c-4.14-.1-8.12.2-12.01.83a69 69 0 0 0 127.14 25.88Z"/>
+              <path fill="none" stroke="#7ca7db" stroke-linecap="round" stroke-width="10" d="M5 110.87c20.49-9.6 40.98-19.2 68-15.39 27.02 3.81 60.58 21.04 88 25 27.42 3.97 48.71-5.32 70-14.6"/>
+              <path fill="none" stroke="#fefefe" stroke-linecap="square" stroke-width="10" d="m34.52 44.15 12.13 8.81M86.6 6.3l4.64 14.27M151 6.3l-4.64 14.27m56.72 23.58-12.13 8.81m12.13 113.66-12.13-8.82M151 204.46l-4.64-14.26M86.6 204.46l4.64-14.26m-56.72-23.58 12.13-8.82"/>
+              <text x="286" y="50%" dominant-baseline="middle">sunwet</text>
+            </svg>
+          `),
+        ],
+      }
+    ),
+  });
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: page, form + edit
   const leafInputPairStyle = s(uniq("leaf_form_input_pair"), {
@@ -2754,7 +2799,51 @@
               ],
               children_: [
                 presentation.contTitle({
-                  left: presentation.leafTitle({ text: "Menu" }).root,
+                  left: e(
+                    "div",
+                    {},
+                    {
+                      styles_: [
+                        contHboxStyle,
+                        ss(uniq("menu_title"), {
+                          "": (s) => {
+                            s.gridColumn = "2";
+                            s.gridRow = "1";
+                            s.alignItems = "center";
+                            s.gap = "0.3cm";
+                          },
+                          ">svg": (s) => {
+                            s.height = "0.9cm";
+                          },
+                        }),
+                      ],
+                      children_: [
+                        et(`
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 229.2 215.36">
+                              <g transform="translate(115.4 107.68)">
+                                <circle cx="-.8" r="62.16" fill="none" stroke="#fff" stroke-linecap="square" stroke-width="12.06" paint-order="fill markers stroke"/>
+                                <path fill="none" stroke="#7ca7db" stroke-linecap="round" stroke-width="19.4" d="M-103.2 5.49c18.57-9.6 37.13-19.2 61.62-15.39 24.49 3.81 54.9 21.03 79.75 25C63.02 19.07 82.3 9.78 101.6.49"/>
+                                <path stroke="#fefefe" stroke-linecap="round" stroke-width="17.2" d="m-84.28 61.24 5.16-3.76m46.93 41.6 1.97-6.07m62.41 6.07-1.97-6.07m54.06-31.77-5.16-3.76m5.16-118.72-5.16 3.76m-46.93-41.6-1.97 6.07m-62.41-6.07 1.97 6.07m-54.06 31.77 5.16 3.76"/>
+                              </g>
+                            </svg>
+                        `),
+                        e(
+                          "h1",
+                          { textContent: "sunwet" },
+                          {
+                            styles_: [
+                              ss(uniq("menu_title_text"), {
+                                "": (s) => {
+                                  s.fontSize = varSFontTitle;
+                                  s.marginTop = "-0.15cm";
+                                },
+                              }),
+                            ],
+                          }
+                        ),
+                      ],
+                    }
+                  ),
                 }).root,
                 args.menuBody,
               ],

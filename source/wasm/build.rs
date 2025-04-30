@@ -219,6 +219,13 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
+        // xx Components, styles: home
+        Func {
+            name: "contPageHome",
+            args: vec![],
+            returns: vec![("root", &el_)],
+        },
+        // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: page, form + edit
         Func {
             name: "leafInputText",

@@ -195,7 +195,15 @@
     }).root;
 
     const hash = location.hash;
-    if (hash == "#view") {
+    if (hash == "#home") {
+      document.body.appendChild(
+        presentation.appMain({
+          mainTitle: presentation.leafTitle({ text: "" }).root,
+          mainBody: presentation.contPageHome({}).root,
+          menuBody: stagingMenu,
+        }).root
+      );
+    } else if (hash == "#view") {
       document.body.appendChild(stagingPageView);
     } else if (hash == "#view_modal_share") {
       document.body.appendChild(stagingPageView);
