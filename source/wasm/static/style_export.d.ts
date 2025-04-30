@@ -38,7 +38,6 @@ declare type Presentation = {
     contPageViewList: (args: { transport?: HTMLElement, rows: HTMLElement }) => { root: HTMLElement };
     contBarViewTransport: (args: {  }) => { root: HTMLElement, buttonShare: HTMLElement, buttonPrev: HTMLElement, buttonNext: HTMLElement, buttonPlay: HTMLElement, seekbar: HTMLElement, seekbarFill: HTMLElement, seekbarLabel: HTMLElement };
     contMediaFullscreen: (args: { media: HTMLElement }) => { root: HTMLElement, buttonClose: HTMLElement };
-    leafTransportButton: (args: { title: string, icon: string }) => { root: HTMLElement };
     contModalViewShare: (args: { qr: HTMLElement, link: string }) => { root: HTMLElement, bg: HTMLElement, buttonClose: HTMLElement, buttonUnshare: HTMLElement };
     contViewList: (args: { direction: Direction, xScroll: boolean, children: HTMLElement[], gap?: string }) => { root: HTMLElement };
     contViewTable: (args: { orientation: Orientation, xScroll: boolean, children: HTMLElement[][], gap?: string }) => { root: HTMLElement };

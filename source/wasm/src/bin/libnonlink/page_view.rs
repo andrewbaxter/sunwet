@@ -1,8 +1,7 @@
 use {
     super::{
         ministate::{
-            PlaylistEntryPath,
-            PlaylistPos,
+            PlaylistRestorePos,
         },
         playlist::PlaylistIndex,
         state::{
@@ -28,7 +27,6 @@ use {
         },
     },
     flowcontrol::{
-        shed,
         ta_return,
     },
     lunk::{
@@ -84,30 +82,6 @@ use {
         MouseEvent,
     },
 };
-
-#[derive(Clone)]
-pub struct BuildPlaylistPos {
-    pub list_id: String,
-    pub list_title: String,
-    pub entry_path: Option<PlaylistEntryPath>,
-}
-
-impl BuildPlaylistPos {
-    pub fn add(&self, a: Option<Node>) -> Self {
-        return Self {
-            list_id: self.list_id.clone(),
-            list_title: self.list_title.clone(),
-            entry_path: match (&self.entry_path, a) {
-                (Some(ep), Some(a)) => {
-                    let mut out = ep.0.clone();
-                    out.push(a);
-                    Some(PlaylistEntryPath(out))
-                },
-                _ => None,
-            },
-        };
-    }
-}
 
 fn maybe<I, O>(v: &Option<I>, f: impl FnOnce(&I) -> Result<O, String>) -> Result<Option<O>, String> {
     match v {
@@ -193,8 +167,6 @@ impl Build {
     fn build_widget_layout(
         &mut self,
         pc: &mut ProcessingContext,
-        build_playlist_pos: &Option<BuildPlaylistPos>,
-        restore_playlist_pos: &Option<PlaylistPos>,
         config_at: &WidgetLayout,
         data_id: &Vec<usize>,
         data_at: &TreeNode,
@@ -202,8 +174,7 @@ impl Build {
         let mut children_raw = vec![];
         let mut children = vec![];
         for config_at in &config_at.elements {
-            let child_el =
-                self.build_widget(pc, build_playlist_pos, restore_playlist_pos, config_at, data_id, data_at);
+            let child_el = self.build_widget(pc, config_at, data_id, data_at);
             children_raw.push(child_el.raw().dyn_into::<HtmlElement>().unwrap());
             children.push(child_el);
         }
@@ -218,8 +189,6 @@ impl Build {
     fn build_widget_data_rows(
         &mut self,
         pc: &mut ProcessingContext,
-        build_playlist_pos: &Option<BuildPlaylistPos>,
-        restore_playlist_pos: &Option<PlaylistPos>,
         config_at: &WidgetDataRows,
         data_id: &Vec<usize>,
         data_at: &TreeNode,
@@ -232,8 +201,6 @@ impl Build {
             let config_at = config_at.clone();
             let data_id = data_id.clone();
             let data_at = data_at.clone();
-            let build_playlist_pos = build_playlist_pos.clone();
-            let restore_playlist_pos = restore_playlist_pos.clone();
             async move {
                 let data_at = match config_at.data {
                     QueryOrField::Field(config_at) => {
@@ -275,41 +242,6 @@ impl Build {
                         transport_slot: transport_slot,
                     };
                     let out;
-                    let walk_playlist_pos = |data_at| {
-                        let key_value = match trans_data.get(key) {
-                            Some(TreeNode::Scalar(v)) => v,
-                            _ => {
-                                log(
-                                    format!(
-                                        "Row missing key field [{}], skipping (has fields {:?})",
-                                        key,
-                                        trans_data.keys().collect::<Vec<_>>()
-                                    ),
-                                );
-                                return (None, None);
-                            },
-                        };
-                        let subrestore_playlist_pos = shed!{
-                            'found_pos _;
-                            shed!{
-                                let Some(init) = &restore_playlist_pos else {
-                                    break;
-                                };
-                                let Some((path_first, path_remainder)) = init.entry_path.0.split_first() else {
-                                    break;
-                                };
-                                if key_value != path_first {
-                                    break;
-                                };
-                                break 'found_pos Some(PlaylistPos {
-                                    entry_path: PlaylistEntryPath(path_remainder.to_vec()),
-                                    time: init.time,
-                                });
-                            }
-                            break 'found_pos None;
-                        };
-                        return (Some(build_playlist_pos.add(Some(key_value.clone()))), subrestore_playlist_pos);
-                    };
                     match &config_at.row_widget {
                         shared::interface::config::view::DataRowsLayout::Unaligned(row_widget) => {
                             let mut children = vec![];
@@ -317,16 +249,7 @@ impl Build {
                             for (i, data_at) in data_at.into_iter().enumerate() {
                                 let mut data_id = data_id.clone();
                                 data_id.push(i);
-                                let (build_playlist_pos, restore_playlist_pos) = walk_playlist_pos(&data_at);
-                                let child =
-                                    build.build_widget(
-                                        pc,
-                                        &build_playlist_pos,
-                                        &restore_playlist_pos,
-                                        &row_widget.widget,
-                                        &data_id,
-                                        &data_at,
-                                    );
+                                let child = build.build_widget(pc, &row_widget.widget, &data_id, &data_at);
                                 children_raw.push(child.raw().dyn_into::<HtmlElement>().unwrap());
                                 children.push(child);
                             }
@@ -346,15 +269,7 @@ impl Build {
                                 let mut columns = vec![];
                                 let mut columns_raw = vec![];
                                 for config_at in &row_widget.elements {
-                                    let column =
-                                        build.build_widget(
-                                            pc,
-                                            &build_playlist_pos,
-                                            &restore_playlist_pos,
-                                            config_at,
-                                            &data_id,
-                                            &data_at,
-                                        );
+                                    let column = build.build_widget(pc, config_at, &data_id, &data_at);
                                     columns_raw.push(column.raw().dyn_into::<HtmlElement>().unwrap());
                                     columns.push(column);
                                 }
@@ -431,8 +346,6 @@ impl Build {
     fn build_widget_play_button(
         &mut self,
         pc: &mut ProcessingContext,
-        build_playlist_pos: &Option<BuildPlaylistPos>,
-        restore_playlist_pos: &Option<PlaylistPos>,
         config_at: &WidgetPlayButton,
         data_id: &Vec<usize>,
         data_at: &TreeNode,
@@ -490,39 +403,16 @@ impl Build {
     fn build_widget(
         &mut self,
         pc: &mut ProcessingContext,
-        build_playlist_pos: &Option<BuildPlaylistPos>,
-        restore_playlist_pos: &Option<PlaylistPos>,
         config_at: &Widget,
         data_id: &Vec<usize>,
         data_at: &TreeNode,
     ) -> El {
         match config_at {
-            Widget::Layout(config_at) => return self.build_widget_layout(
-                pc,
-                build_playlist_pos,
-                restore_playlist_pos,
-                config_at,
-                data_id,
-                data_at,
-            ),
-            Widget::DataRows(config_at) => return self.build_widget_data_rows(
-                pc,
-                build_playlist_pos,
-                restore_playlist_pos,
-                config_at,
-                data_id,
-                data_at,
-            ),
+            Widget::Layout(config_at) => return self.build_widget_layout(pc, config_at, data_id, data_at),
+            Widget::DataRows(config_at) => return self.build_widget_data_rows(pc, config_at, data_id, data_at),
             Widget::Text(config_at) => return self.build_widget_text(config_at, data_at),
             Widget::Image(config_at) => return self.build_widget_image(config_at, data_at),
-            Widget::PlayButton(config_at) => return self.build_widget_play_button(
-                pc,
-                build_playlist_pos,
-                restore_playlist_pos,
-                config_at,
-                data_id,
-                data_at,
-            ),
+            Widget::PlayButton(config_at) => return self.build_widget_play_button(pc, config_at, data_id, data_at),
         }
     }
 }
@@ -735,13 +625,11 @@ pub fn build_page_view(
     pc: &mut ProcessingContext,
     menu_item_title: &str,
     menu_item_id: &str,
-    build_playlist_pos: &Option<BuildPlaylistPos>,
-    restore_playlist_pos: &Option<PlaylistPos>,
+    restore_playlist_pos: Option<PlaylistRestorePos>,
 ) {
     set_page(menu_item_title, el_async({
         let menu_item_id = menu_item_id.to_string();
-        let build_playlist_pos = build_playlist_pos.clone();
-        let restore_playlist_pos = restore_playlist_pos.clone();
+        let menu_item_title = menu_item_title.to_string();
         let eg = pc.eg();
         async move {
             // # Async
@@ -761,15 +649,15 @@ pub fn build_page_view(
                     ),
                 };
                 let data_rows_res =
-                    build.build_widget_data_rows(
-                        pc,
-                        &build_playlist_pos,
-                        &restore_playlist_pos,
-                        &view.config,
-                        &vec![],
-                        &TreeNode::Record(Default::default()),
-                    );
-                playlist_extend(pc, &state().playlist, build.playlist_add);
+                    build.build_widget_data_rows(pc, &view.config, &vec![], &TreeNode::Record(Default::default()));
+                playlist_extend(
+                    pc,
+                    &state().playlist,
+                    &menu_item_id,
+                    &menu_item_title,
+                    build.playlist_add,
+                    &restore_playlist_pos,
+                );
                 return Ok(el_from_raw(style_export::cont_page_view_list(style_export::ContPageViewListArgs {
                     transport: Some(build.transport_slot.raw().dyn_into().unwrap()),
                     rows: data_rows_res.raw().dyn_into().unwrap(),

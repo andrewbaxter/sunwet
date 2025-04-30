@@ -337,11 +337,6 @@ fn main() {
             returns: vec![("root", &el_), ("buttonClose", &el_)],
         },
         Func {
-            name: "leafTransportButton",
-            args: vec![("title", &string_), ("icon", &string_)],
-            returns: vec![("root", &el_)],
-        },
-        Func {
             name: "contModalViewShare",
             args: vec![("qr", &el_), ("link", &string_)],
             returns: vec![("root", &el_), ("bg", &el_), ("buttonClose", &el_), ("buttonUnshare", &el_)],

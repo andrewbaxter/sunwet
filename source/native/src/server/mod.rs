@@ -56,7 +56,6 @@ use {
         BodyExt,
     },
     htwrap::htserve::{
-        self,
         responses::{
             response_401,
             response_404,
@@ -107,7 +106,6 @@ use {
         FdapGlobalState,
         FdapState,
         FdapUsersState,
-        GlobalConfig,
         GlobalState,
         LocalUsersState,
         MenuItem,

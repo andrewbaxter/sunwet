@@ -1004,13 +1004,13 @@
 
   presentation.contBarViewTransport =
     /** @type {Presentation["contBarViewTransport"]} */ () => {
-      const buttonShare = presentation.leafTransportButton({
+      const buttonShare = leafTransportButton({
         title: "Share",
-        icon: textIconLink,
+        icons: { "": textIconLink },
       });
-      const buttonPrev = presentation.leafTransportButton({
+      const buttonPrev = leafTransportButton({
         title: "Previous",
-        icon: textIconPrev,
+        icons: { "": textIconPrev },
       });
       const seekbarFill = e(
         "div",
@@ -1084,13 +1084,13 @@
           ],
         }
       );
-      const buttonNext = presentation.leafTransportButton({
+      const buttonNext = leafTransportButton({
         title: "Next",
-        icon: textIconNext,
+        icons: { "": textIconNext },
       });
-      const buttonPlay = presentation.leafTransportButton({
+      const buttonPlay = leafTransportButton({
         title: "Play",
-        icon: textIconPlay,
+        icons: { "": textIconPlay, [classStatePlaying]: textIconPause },
       });
       return {
         root: presentation.contBar({
@@ -1346,12 +1346,54 @@
     };
   };
 
-  presentation.leafTransportButton =
-    /** @type {Presentation["leafTransportButton"]} */ (args) => {
+  const transportButtonClipPaths = new Map();
+  const leafTransportButton =
+    /** @type {(args: { title: string, icons: {[s: string]: string} }) => { root: HTMLElement }} */
+    (args) => {
       const size = "1cm";
-      const svgId = window.crypto.randomUUID();
-      const div = e("div", {}, {});
-      div.style.clipPath = `url(#${svgId})`;
+      const statePairs = Object.entries(args.icons);
+      statePairs.sort();
+      const buildStyleId = [];
+      /** @type {{[s:string]: (s: CSSStyleDeclaration) => void}} */
+      const buildStyle = {};
+      for (const [state, icon] of Object.entries(args.icons)) {
+        if (!transportButtonClipPaths.has(icon)) {
+          const clipPathId = window.crypto.randomUUID();
+          // Debug by adding 0-1 viewbox and moving text outside of defs/clipPath; y is scaled by scale so 100x it
+          document.body.appendChild(
+            et(`
+              <svg width="0" height="0">
+                <defs>
+                  <clipPath id="${clipPathId}" clipPathUnits="objectBoundingBox">
+                    <text x="50" y="96" style="
+                      text-anchor: middle;
+                      font-family: I;
+                      font-weight: 100;
+                      font-size: 90px;
+                      scale: 1%;
+                    ">${icon}</text>
+                  </clipPath>
+                </defs>
+              </svg>
+            `)
+          );
+          transportButtonClipPaths.set(icon, clipPathId);
+        }
+        const clipPathId = transportButtonClipPaths.get(icon);
+        buildStyleId.push(state);
+        buildStyleId.push(clipPathId);
+        buildStyle[
+          (() => {
+            if (state == "") {
+              return "";
+            } else {
+              return `.${state}`;
+            }
+          })() + ">div"
+        ] = (s) => {
+          s.clipPath = `url(#${clipPathId})`;
+        };
+      }
       const out = e(
         "button",
         {
@@ -1372,26 +1414,9 @@
                 s.backdropFilter = "grayscale() brightness(0.8) invert(1)";
               },
             }),
+            ss(uniq(...buildStyleId), buildStyle),
           ],
-          children_: [
-            // Debug by adding 0-1 viewbox and moving text outside of defs/clipPath; y is scaled by scale so 100x it
-            et(`
-        <svg width="0" height="0">
-          <defs>
-            <clipPath id="${svgId}" clipPathUnits="objectBoundingBox">
-              <text x="50" y="96" style="
-                text-anchor: middle;
-                font-family: I;
-                font-weight: 100;
-                font-size: 90px;
-                scale: 1%;
-              ">${args.icon}</text>
-            </clipPath>
-          </defs>
-        </svg>
-      `),
-            div,
-          ],
+          children_: [e("div", {}, {})],
         }
       );
       return { root: out };
@@ -1731,46 +1756,92 @@
   presentation.leafViewImage = /** @type { Presentation["leafViewImage"] } */ (
     args
   ) => {
-    const out = e(
-      "img",
-      {
-        src: args.url,
-        alt: args.text,
-      },
-      {
-        styles_: [
-          ss(uniq("leaf_view_image"), {
-            "": (s) => {
-              s.objectFit = "contain";
-              s.aspectRatio = "auto";
-              s.flexShrink = "0";
-              s.borderRadius = "0.2cm";
-            },
-          }),
-          (() => {
-            switch (args.transAlign) {
-              case "start":
-                return classViewTransverseStart;
-              case "middle":
-                return classViewTransverseMiddle;
-              case "end":
-                return classViewTransverseEnd;
-            }
-          })(),
-        ],
+    const out = (() => {
+      if (args.url != null) {
+        return e(
+          "a",
+          { href: args.url },
+          {
+            styles_: [
+              ss(uniq("leaf_view_image_url"), {
+                "": (s) => {
+                  s.flexShrink = "0";
+                },
+              }),
+              (() => {
+                switch (args.transAlign) {
+                  case "start":
+                    return classViewTransverseStart;
+                  case "middle":
+                    return classViewTransverseMiddle;
+                  case "end":
+                    return classViewTransverseEnd;
+                }
+              })(),
+            ],
+            children_: [
+              e(
+                "img",
+                {
+                  src: args.url,
+                  alt: args.text,
+                },
+                {
+                  styles_: [
+                    ss(uniq("leaf_view_image_url_img"), {
+                      "": (s) => {
+                        s.objectFit = "contain";
+                        s.aspectRatio = "auto";
+                        s.borderRadius = "0.2cm";
+                        s.width = "100%";
+                        s.height = "100%";
+                      },
+                    }),
+                  ],
+                }
+              ),
+            ],
+          }
+        );
+      } else {
+        return e(
+          "img",
+          {
+            src: args.url,
+            alt: args.text,
+          },
+          {
+            styles_: [
+              ss(uniq("leaf_view_image_nourl"), {
+                "": (s) => {
+                  s.objectFit = "contain";
+                  s.aspectRatio = "auto";
+                  s.flexShrink = "0";
+                  s.borderRadius = "0.2cm";
+                },
+              }),
+              (() => {
+                switch (args.transAlign) {
+                  case "start":
+                    return classViewTransverseStart;
+                  case "middle":
+                    return classViewTransverseMiddle;
+                  case "end":
+                    return classViewTransverseEnd;
+                }
+              })(),
+            ],
+          }
+        );
       }
-    );
+    })();
     if (args.width) {
       out.style.width = args.width;
     }
     if (args.height) {
       out.style.height = args.height;
     }
-    if (args.url != null) {
-      return { root: e("a", { href: args.url }, { children_: [out] }) };
-    } else {
-      return { root: out };
-    }
+    return { root: out };
   };
 
   presentation.leafViewText = /** @type { Presentation["leafViewText"] } */ (
@@ -1790,17 +1861,11 @@
             case "down_left":
               return (s) => {
                 s.writingMode = "vertical-rl";
-                if (args.maxSize != null) {
-                  s.maxHeight = args.maxSize;
-                }
               };
             case "up_right":
             case "down_right":
               return (s) => {
                 s.writingMode = "vertical-lr";
-                if (args.maxSize != null) {
-                  s.maxHeight = args.maxSize;
-                }
               };
             case "left_up":
             case "left_down":
@@ -1808,9 +1873,6 @@
             case "right_down":
               return (s) => {
                 s.writingMode = "horizontal-tb";
-                if (args.maxSize != null) {
-                  s.maxWidth = args.maxSize;
-                }
               };
           }
         }
@@ -1835,12 +1897,7 @@
             textContent: args.text,
           },
           {
-            styles_: [
-              baseStyle,
-              dirStyle,
-              alignStyle,
-              ss(uniq("leaf_view_text_url"), { "": (s) => {} }),
-            ],
+            styles_: [baseStyle, dirStyle, alignStyle],
           }
         );
       } else {
@@ -1851,18 +1908,25 @@
             href: args.url,
           },
           {
-            styles_: [
-              baseStyle,
-              dirStyle,
-              alignStyle,
-              ss(uniq("leaf_view_text_nourl"), { "": (s) => {} }),
-            ],
+            styles_: [baseStyle, dirStyle, alignStyle],
           }
         );
       }
     })();
     if (args.fontSize != null) {
       out.style.fontSize = args.fontSize;
+    }
+    if (args.maxSize != null) {
+      switch (conv(args.orientation)) {
+        case "up":
+        case "down":
+          out.style.maxHeight = args.maxSize;
+          break;
+        case "left":
+        case "right":
+          out.style.maxWidth = args.maxSize;
+          break;
+      }
     }
     return { root: out };
   };
@@ -1871,6 +1935,15 @@
     /** @type { Presentation["leafViewPlayButton"] } */ (args) => {
       const transAlign = args.transAlign || "start";
       const direction = args.direction || "right";
+      const playIconStyle = ss(uniq("leaf_view_play_inner"), {
+        "": (s) => {
+          s.width = "100%";
+          s.height = "100%";
+          s.writingMode = "horizontal-tb";
+          s.fontSize = "24pt";
+          s.fontWeight = "100";
+        },
+      });
       return {
         root: e(
           "button",
@@ -1887,6 +1960,15 @@
                   // https://stackoverflow.com/questions/39373787/css-set-baseline-of-inline-block-element-manually-and-have-it-take-the-expected
                   s.display = "inline-block";
                   s.textWrapMode = "nowrap";
+                },
+                [`div:nth-child(2)`]: (s) => {
+                  s.display = "none";
+                },
+                [`.${classStatePlaying}>div:nth-child(1)`]: (s) => {
+                  s.display = "none";
+                },
+                [`.${classStatePlaying}>div:nth-child(2)`]: (s) => {
+                  s.display = "initial";
                 },
               }),
               ss(
@@ -1940,23 +2022,13 @@
             children_: [
               e(
                 "div",
-                {
-                  textContent: textIconPlay,
-                },
-                {
-                  styles_: [
-                    leafIconStyle,
-                    ss(uniq("leaf_view_play_inner"), {
-                      "": (s) => {
-                        s.width = "100%";
-                        s.height = "100%";
-                        s.writingMode = "horizontal-tb";
-                        s.fontSize = "24pt";
-                        s.fontWeight = "100";
-                      },
-                    }),
-                  ],
-                }
+                { textContent: textIconPlay },
+                { styles_: [leafIconStyle, playIconStyle] }
+              ),
+              e(
+                "div",
+                { textContent: textIconPause },
+                { styles_: [leafIconStyle, playIconStyle] }
               ),
             ],
           }

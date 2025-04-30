@@ -1,16 +1,16 @@
 use {
-    super::ministate::{
-        Ministate,
-        MinistateView,
-        PlaylistEntryPath,
-        PlaylistPos,
+    super::{
+        ministate::{
+            Ministate,
+            MinistateView,
+            PlaylistRestorePos,
+        },
+        state::state,
     },
     crate::libnonlink::ministate::record_replace_ministate,
     chrono::{
-        DateTime,
         Utc,
     },
-    flowcontrol::shed,
     futures::{
         Future,
         FutureExt,
@@ -52,7 +52,6 @@ use {
             RefCell,
         },
         collections::{
-            btree_map::Range,
             BTreeMap,
         },
         ops::Bound,
@@ -66,10 +65,14 @@ use {
         el_general::{
             async_event,
             el_audio,
+            el_video,
             log,
         },
         websocket::Ws,
-        world::file_url,
+        world::{
+            file_url,
+            generated_file_url,
+        },
     },
     wasm_bindgen::{
         closure::Closure,
@@ -110,9 +113,9 @@ pub trait PlaylistMedia {
 
 pub struct AudioPlaylistMedia {
     pub element: El,
-    pub ministate_id: String,
+    pub ministate_menu_item_id: String,
     pub ministate_title: String,
-    pub ministate_path: Option<PlaylistEntryPath>,
+    pub ministate_playlist_index: PlaylistIndex,
 }
 
 impl AudioPlaylistMedia {
@@ -152,15 +155,12 @@ impl PlaylistMedia for AudioPlaylistMedia {
 
     fn pm_get_ministate(&self) -> Ministate {
         return Ministate::View(MinistateView {
-            menu_item_id: self.ministate_id.clone(),
+            menu_item_id: self.ministate_menu_item_id.clone(),
             title: self.ministate_title.clone(),
-            pos: match self.ministate_path.as_ref() {
-                Some(path) => Some(PlaylistPos {
-                    entry_path: path.clone(),
-                    time: self.pm_media().current_time(),
-                }),
-                None => None,
-            },
+            pos: Some(PlaylistRestorePos {
+                index: self.ministate_playlist_index.clone(),
+                time: self.pm_media().current_time(),
+            }),
         });
     }
 
@@ -193,9 +193,9 @@ impl PlaylistMedia for AudioPlaylistMedia {
 
 pub struct VideoPlaylistMedia {
     pub element: El,
-    pub ministate_id: String,
+    pub ministate_menu_item_id: String,
     pub ministate_title: String,
-    pub ministate_path: Option<PlaylistEntryPath>,
+    pub ministate_playlist_index: PlaylistIndex,
 }
 
 impl VideoPlaylistMedia {
@@ -235,15 +235,12 @@ impl PlaylistMedia for VideoPlaylistMedia {
 
     fn pm_get_ministate(&self) -> Ministate {
         return Ministate::View(MinistateView {
-            menu_item_id: self.ministate_id.clone(),
+            menu_item_id: self.ministate_menu_item_id.clone(),
             title: self.ministate_title.clone(),
-            pos: match self.ministate_path.as_ref() {
-                Some(path) => Some(PlaylistPos {
-                    entry_path: path.clone(),
-                    time: self.pm_media().current_time(),
-                }),
-                None => None,
-            },
+            pos: Some(PlaylistRestorePos {
+                index: self.ministate_playlist_index.clone(),
+                time: self.pm_media().current_time(),
+            }),
         });
     }
 
@@ -276,9 +273,9 @@ impl PlaylistMedia for VideoPlaylistMedia {
 
 pub struct ImagePlaylistMedia {
     pub element: El,
-    pub ministate_id: String,
+    pub ministate_menu_item_id: String,
     pub ministate_title: String,
-    pub ministate_path: Option<PlaylistEntryPath>,
+    pub ministate_playlist_index: PlaylistIndex,
 }
 
 impl ImagePlaylistMedia { }
@@ -302,15 +299,12 @@ impl PlaylistMedia for ImagePlaylistMedia {
 
     fn pm_get_ministate(&self) -> Ministate {
         return Ministate::View(MinistateView {
-            menu_item_id: self.ministate_id.clone(),
+            menu_item_id: self.ministate_menu_item_id.clone(),
             title: self.ministate_title.clone(),
-            pos: match self.ministate_path.as_ref() {
-                Some(path) => Some(PlaylistPos {
-                    entry_path: path.clone(),
-                    time: 0.,
-                }),
-                None => None,
-            },
+            pos: Some(PlaylistRestorePos {
+                index: self.ministate_playlist_index.clone(),
+                time: 0.,
+            }),
         });
     }
 
@@ -473,7 +467,7 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
         //. .
         link!(
             //. .
-            (pc = pc),
+            (_pc = pc),
             (playing = state.0.playing.clone(), playing_i = state.0.playing_i.clone()),
             (),
             (state = state.clone(), media_session = media_session, bg = Cell::new(None)) {
@@ -643,65 +637,61 @@ pub struct PlaylistPushArg {
 pub fn playlist_extend(
     pc: &mut ProcessingContext,
     playlist_state: &PlaylistState,
+    menu_item_id: &String,
+    menu_title: &String,
     entries: Vec<(PlaylistIndex, PlaylistPushArg)>,
+    restore_pos: &Option<PlaylistRestorePos>,
 ) {
-    for (k, v) in entries {
-        let setup_media_element = |pc: &mut ProcessingContext, i: PlaylistIndex, media: &El| {
+    for (entry_index, entry) in entries {
+        let setup_media_element = |pc: &mut ProcessingContext, media: &El| {
             media.ref_on("ended", {
                 let eg = pc.eg();
+                let entry_index = entry_index.clone();
                 move |_| eg.event(|pc| {
-                    playlist_next(pc, playlist_state, Some(i));
+                    playlist_next(pc, &state().playlist, Some(entry_index.clone()));
                 }).unwrap()
             });
             media.ref_on("pause", {
                 let eg = pc.eg();
                 move |_| eg.event(|pc| {
-                    playlist_state.0.playing.set(pc, false);
+                    state().playlist.0.playing.set(pc, false);
                 }).unwrap()
             });
             media.ref_on("play", {
                 let eg = pc.eg();
                 move |_| eg.event(|pc| {
-                    playlist_state.0.playing.set(pc, true);
+                    state().playlist.0.playing.set(pc, true);
                 }).unwrap()
             });
-            let restore_pos = shed!{
-                'restore_pos _;
-                shed!{
-                    let Some(init) = restore_playlist_pos else {
-                        break;
-                    };
+            if let Some(restore_pos) = restore_pos {
+                if restore_pos.index == entry_index {
                     media.ref_on("loadedmetadata", {
-                        let time = init.time;
+                        let time = restore_pos.time;
                         move |e| {
                             e.target().unwrap().dyn_into::<HtmlMediaElement>().unwrap().set_current_time(time);
                         }
                     });
-                    break 'restore_pos true;
-                };
-                break 'restore_pos false;
-            };
-            if restore_pos {
-                playlist_state.0.playing_i.set(pc, Some(i));
+                    playlist_state.0.playing_i.set(pc, Some(entry_index.clone()));
+                }
             }
         };
         let box_media: Box<dyn PlaylistMedia>;
-        match v.media_type {
+        match entry.media_type {
             PlaylistEntryMediaType::Audio => {
-                let media = el_audio(&file_url(&playlist_state().base_url, &entry.file)).attr("controls", "true");
-                setup_media_element(pc, i, &media);
+                let media = el_audio(&file_url(&state().base_url, &entry.file)).attr("controls", "true");
+                setup_media_element(pc, &media);
                 box_media = Box::new(AudioPlaylistMedia {
                     element: media.clone(),
-                    ministate_id: build_playlist_pos.list_id.clone(),
-                    ministate_title: build_playlist_pos.list_title.clone(),
-                    ministate_path: build_playlist_pos.entry_path.clone(),
+                    ministate_menu_item_id: menu_item_id.clone(),
+                    ministate_title: menu_title.clone(),
+                    ministate_playlist_index: entry_index.clone(),
                 });
             },
             PlaylistEntryMediaType::Video => {
                 let mut sub_tracks = vec![];
                 for lang in window().navigator().languages() {
                     let lang = lang.as_string().unwrap();
-                    sub_tracks.push((generated_file_url(&playlist_state().base_url, &source, &format!("webvtt_{}", {
+                    sub_tracks.push((generated_file_url(&state().base_url, &entry.file, &format!("webvtt_{}", {
                         let lang = if let Some((lang, _)) = lang.split_once("-") {
                             lang
                         } else {
@@ -719,9 +709,9 @@ pub fn playlist_extend(
                 }
                 let media =
                     el_video(
-                        &generated_file_url(&playlist_state().base_url, &source, "", "video/webm"),
+                        &generated_file_url(&state().base_url, &entry.file, "", "video/webm"),
                     ).attr("controls", "true");
-                setup_media_element(pc, i, &media);
+                setup_media_element(pc, &media);
                 for (i, (url, lang)) in sub_tracks.iter().enumerate() {
                     let track = el("track").attr("kind", "subtitles").attr("src", url).attr("srclang", lang);
                     if i == 0 {
@@ -731,36 +721,29 @@ pub fn playlist_extend(
                 }
                 box_media = Box::new(VideoPlaylistMedia {
                     element: media.clone(),
-                    ministate_id: build_playlist_pos.list_id.clone(),
-                    ministate_title: build_playlist_pos.list_title.clone(),
-                    ministate_path: build_playlist_pos.entry_path.clone(),
+                    ministate_menu_item_id: menu_item_id.clone(),
+                    ministate_title: menu_title.clone(),
+                    ministate_playlist_index: entry_index.clone(),
                 });
             },
             PlaylistEntryMediaType::Image => {
-                let source;
-                let Ok(n) = query_res_as_file(v) else {
-                    return el_media_button_err(
-                        format!("Field contents wasn't string value node or string: {:?}", v),
-                    );
-                };
-                source = n;
                 let media =
-                    el("img").attr("src", &file_url(&playlist_state.base_url, &source)).attr("loading", "lazy");
+                    el("img").attr("src", &file_url(&state().base_url, &entry.file)).attr("loading", "lazy");
                 box_media = Box::new(ImagePlaylistMedia {
                     element: media.clone(),
-                    ministate_id: build_playlist_pos.list_id.clone(),
-                    ministate_title: build_playlist_pos.list_title.clone(),
-                    ministate_path: build_playlist_pos.entry_path.clone(),
+                    ministate_menu_item_id: menu_item_id.clone(),
+                    ministate_title: menu_title.clone(),
+                    ministate_playlist_index: entry_index.clone(),
                 });
             },
         }
-        playlist_state.0.playlist.borrow_mut().insert(k, Rc::new(PlaylistEntry {
-            name: v.name,
-            album: v.album,
-            artist: v.artist,
-            cover: v.cover,
-            file: v.file,
-            media_type: v.media_type,
+        playlist_state.0.playlist.borrow_mut().insert(entry_index, Rc::new(PlaylistEntry {
+            name: entry.name,
+            album: entry.album,
+            artist: entry.artist,
+            cover: entry.cover,
+            file: entry.file,
+            media_type: entry.media_type,
             media: box_media,
         }));
     }

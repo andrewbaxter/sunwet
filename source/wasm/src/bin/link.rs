@@ -1,41 +1,19 @@
 use {
-    gloo::{
-        utils::window,
-    },
-    lunk::{
-        EventGraph,
-    },
-    std::{
-        panic,
-    },
-    wasm_bindgen::{
-        UnwrapThrowExt,
-    },
-    wasm::{
-        constants::LINK_HASH_PREFIX,
-        el_general::{
-            get_dom_octothorpe,
-        },
-    },
-    wasm::{
-        el_general::{
-            async_event,
-            el_async,
-            el_audio,
-            el_video,
-            style_export,
-        },
-        websocket::Ws,
-        world::file_url,
-    },
     async_trait::async_trait,
     chrono::Utc,
     futures::{
         Future,
         FutureExt,
     },
-    gloo::timers::future::TimeoutFuture,
+    gloo::{
+        timers::future::TimeoutFuture,
+        utils::{
+            document,
+            window,
+        },
+    },
     lunk::{
+        EventGraph,
         Prim,
     },
     rooting::{
@@ -55,11 +33,31 @@ use {
     std::{
         borrow::Cow,
         cell::Cell,
+        panic,
         pin::Pin,
         rc::Rc,
     },
-    wasm_bindgen::JsCast,
-    web_sys::HtmlMediaElement,
+    wasm::{
+        constants::LINK_HASH_PREFIX,
+        el_general::{
+            async_event,
+            el_async,
+            el_audio,
+            el_video,
+            get_dom_octothorpe,
+            style_export,
+        },
+        websocket::Ws,
+        world::file_url,
+    },
+    wasm_bindgen::{
+        JsCast,
+        UnwrapThrowExt,
+    },
+    web_sys::{
+        HtmlElement,
+        HtmlMediaElement,
+    },
 };
 
 trait PlaylistMedia {
@@ -217,7 +215,22 @@ fn main() {
                                     },
                                     PrepareMedia::Image(image_file) => {
                                         let media_el =
-                                            el("img").attr("src", &file_url(&state.0.base_url, &image_file));
+                                            el("img")
+                                                .attr("src", &file_url(&state.0.base_url, &image_file))
+                                                .on("click", |ev| {
+                                                    if document().fullscreen_element().is_none() {
+                                                        let img =
+                                                            ev
+                                                                .target()
+                                                                .unwrap()
+                                                                .dyn_ref::<HtmlElement>()
+                                                                .unwrap()
+                                                                .clone();
+                                                        _ = img.request_fullscreen().unwrap();
+                                                    } else {
+                                                        document().exit_fullscreen();
+                                                    }
+                                                });
                                         state.0.display.ref_push(media_el);
                                         media = Rc::new(PlaylistMediaImage {});
                                     },

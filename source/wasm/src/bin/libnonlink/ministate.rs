@@ -1,27 +1,22 @@
 use {
-    wasm::el_general::{
-        get_dom_octothorpe,
-        log,
-    },
+    super::playlist::PlaylistIndex,
     gloo::utils::window,
     serde::{
         Deserialize,
         Serialize,
     },
     shared::interface::triple::Node,
-    wasm_bindgen::{
-        JsValue,
+    wasm::el_general::{
+        get_dom_octothorpe,
+        log,
     },
+    wasm_bindgen::JsValue,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct PlaylistEntryPath(pub Vec<Node>);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct PlaylistPos {
-    pub entry_path: PlaylistEntryPath,
+pub struct PlaylistRestorePos {
+    pub index: PlaylistIndex,
     pub time: f64,
 }
 
@@ -30,7 +25,7 @@ pub struct PlaylistPos {
 pub struct MinistateView {
     pub menu_item_id: String,
     pub title: String,
-    pub pos: Option<PlaylistPos>,
+    pub pos: Option<PlaylistRestorePos>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]

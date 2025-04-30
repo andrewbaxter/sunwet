@@ -12,7 +12,6 @@ use {
         ColumnRef,
         Expr,
         ExprTrait,
-        IntoColumnRef,
         Nullable,
         SeaRc,
         SimpleExpr,

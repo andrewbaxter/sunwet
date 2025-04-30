@@ -3,13 +3,11 @@ use {
         ministate::{
             record_new_ministate,
             Ministate,
-            PlaylistEntryPath,
         },
         page_edit::build_page_edit,
         page_form::build_page_form_by_id,
         page_view::{
             build_page_view,
-            BuildPlaylistPos,
         },
         playlist::PlaylistState,
     },
@@ -73,11 +71,7 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
             );
         },
         Ministate::View(ms) => {
-            build_page_view(pc, &ms.title, &ms.menu_item_id, &BuildPlaylistPos {
-                list_id: ms.menu_item_id.clone(),
-                list_title: ms.title.clone(),
-                entry_path: Some(PlaylistEntryPath(vec![])),
-            }, &ms.pos);
+            build_page_view(pc, &ms.title, &ms.menu_item_id, ms.pos.clone());
         },
         Ministate::Form(ms) => {
             build_page_form_by_id(pc, &ms.title, &ms.menu_item_id);

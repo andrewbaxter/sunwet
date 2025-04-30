@@ -27,7 +27,6 @@ use {
     shared::interface::{
         config::{
             form::ClientForm,
-            menu,
         },
         iam::UserIdentityId,
         triple::FileHash,
@@ -41,7 +40,6 @@ use {
             HashMap,
             HashSet,
         },
-        os::linux::net,
         path::PathBuf,
         sync::{
             atomic::AtomicU8,
@@ -119,7 +117,7 @@ pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<
             interface::config::MenuItemSub::Section(sub) => {
                 let mut out = vec![];
                 for child in &sub.children {
-                    build_menu_items(config0, &mut out, menu_items_out, &ancestry, seen, child);
+                    build_menu_items(config0, &mut out, menu_items_out, &ancestry, seen, child)?;
                 }
                 menu_items_out.insert(at.id.clone(), MenuItem::Section(MenuItemSection {
                     name: sub.name.clone(),

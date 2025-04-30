@@ -47,6 +47,7 @@
             presentation.contViewList({
               direction: "right",
               xScroll: false,
+              gap: "0.7cm",
               children: [
                 presentation.leafViewImage({
                   transAlign: "start",
@@ -168,6 +169,7 @@
                             orientation: "down_left",
                             text: "Fabiano do Nascimento and Shin Sasakubo",
                             url: "abcd-xyzg",
+                            maxSize: "6cm",
                           }).root,
                           presentation.leafViewText({
                             transAlign: "start",

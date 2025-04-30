@@ -11,7 +11,6 @@ use {
             },
         },
     },
-    flowcontrol::shed,
     shared::interface::config::{
         form::ClientForm,
         menu::{
@@ -66,7 +65,7 @@ pub async fn handle_get_filtered_client_config(
                 }
                 views.entry(at.item.view_id.clone()).or_insert_with(|| {
                     let view = config.views.get(&at.item.view_id).unwrap();
-                    return ClientView { config: view.layout.clone() };
+                    return ClientView { config: view.config.clone() };
                 });
                 return Some(ClientMenuItem::View(ClientMenuItemView {
                     name: at.item.name.clone(),
