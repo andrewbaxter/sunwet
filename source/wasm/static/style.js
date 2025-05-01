@@ -2818,15 +2818,6 @@
                         }),
                       ],
                       children_: [
-                        et(`
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 229.2 215.36">
-                              <g transform="translate(115.4 107.68)">
-                                <circle cx="-.8" r="62.16" fill="none" stroke="#fff" stroke-linecap="square" stroke-width="12.06" paint-order="fill markers stroke"/>
-                                <path fill="none" stroke="#7ca7db" stroke-linecap="round" stroke-width="19.4" d="M-103.2 5.49c18.57-9.6 37.13-19.2 61.62-15.39 24.49 3.81 54.9 21.03 79.75 25C63.02 19.07 82.3 9.78 101.6.49"/>
-                                <path stroke="#fefefe" stroke-linecap="round" stroke-width="17.2" d="m-84.28 61.24 5.16-3.76m46.93 41.6 1.97-6.07m62.41 6.07-1.97-6.07m54.06-31.77-5.16-3.76m5.16-118.72-5.16 3.76m-46.93-41.6-1.97 6.07m-62.41-6.07 1.97 6.07m-54.06 31.77 5.16 3.76"/>
-                              </g>
-                            </svg>
-                        `),
                         e(
                           "h1",
                           { textContent: "sunwet" },
@@ -2836,6 +2827,7 @@
                                 "": (s) => {
                                   s.fontSize = varSFontTitle;
                                   s.marginTop = "-0.15cm";
+                                  s.color = "#5d7186";
                                 },
                               }),
                             ],

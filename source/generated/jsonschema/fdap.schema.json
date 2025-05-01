@@ -3,7 +3,9 @@
   "title": "GlobalConfig",
   "type": "object",
   "required": [
-    "menu"
+    "forms",
+    "menu",
+    "views"
   ],
   "properties": {
     "admin_token": {
@@ -11,6 +13,12 @@
         "string",
         "null"
       ]
+    },
+    "forms": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/ClientForm"
+      }
     },
     "menu": {
       "type": "array",
@@ -22,21 +30,19 @@
       "default": [],
       "type": "array",
       "items": {
-        "$ref": "#/definitions/PageAccess"
+        "type": "string"
       },
       "uniqueItems": true
+    },
+    "views": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/View"
+      }
     }
   },
   "additionalProperties": false,
   "definitions": {
-    "Align": {
-      "type": "string",
-      "enum": [
-        "start",
-        "middle",
-        "end"
-      ]
-    },
     "Chain": {
       "type": "object",
       "required": [
@@ -114,6 +120,130 @@
         }
       ]
     },
+    "ClientForm": {
+      "type": "object",
+      "required": [
+        "fields",
+        "outputs"
+      ],
+      "properties": {
+        "fields": {
+          "description": "Form fields and generated data (ids)",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FormField"
+          }
+        },
+        "outputs": {
+          "description": "Triples to generate from the inputs",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FormOutput"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "DataRowsLayout": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "unaligned"
+          ],
+          "properties": {
+            "unaligned": {
+              "$ref": "#/definitions/DataRowsLayoutUnaligned"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "table"
+          ],
+          "properties": {
+            "table": {
+              "$ref": "#/definitions/DataRowsLayoutTable"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "DataRowsLayoutTable": {
+      "type": "object",
+      "required": [
+        "elements",
+        "orientation"
+      ],
+      "properties": {
+        "elements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Widget"
+          }
+        },
+        "gap": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "orientation": {
+          "$ref": "#/definitions/Orientation"
+        },
+        "x_scroll": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "DataRowsLayoutUnaligned": {
+      "type": "object",
+      "required": [
+        "widget"
+      ],
+      "properties": {
+        "direction": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Direction"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "gap": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "widget": {
+          "$ref": "#/definitions/Widget"
+        },
+        "x_scroll": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Direction": {
+      "type": "string",
+      "enum": [
+        "up",
+        "down",
+        "left",
+        "right"
+      ]
+    },
     "FieldOrLiteral": {
       "oneOf": [
         {
@@ -135,7 +265,7 @@
           ],
           "properties": {
             "literal": {
-              "type": "string"
+              "$ref": "#/definitions/Node"
             }
           },
           "additionalProperties": false
@@ -288,40 +418,6 @@
         "lte",
         "gte"
       ]
-    },
-    "Form": {
-      "type": "object",
-      "required": [
-        "fields",
-        "id",
-        "name",
-        "outputs"
-      ],
-      "properties": {
-        "fields": {
-          "description": "Form fields and generated data (ids)",
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/FormField"
-          }
-        },
-        "id": {
-          "description": "Form id, used in url",
-          "type": "string"
-        },
-        "name": {
-          "description": "Form title, for human consumption",
-          "type": "string"
-        },
-        "outputs": {
-          "description": "Triples to generate from the inputs",
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/FormOutput"
-          }
-        }
-      },
-      "additionalProperties": false
     },
     "FormField": {
       "oneOf": [
@@ -760,99 +856,85 @@
         "or"
       ]
     },
-    "Layout": {
-      "oneOf": [
-        {
-          "description": "Each row is layed out with independent sizing.",
-          "type": "object",
-          "required": [
-            "individual"
-          ],
-          "properties": {
-            "individual": {
-              "$ref": "#/definitions/LayoutIndividual"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "description": "Rows are laid out as a grid/table.",
-          "type": "object",
-          "required": [
-            "table"
-          ],
-          "properties": {
-            "table": {
-              "$ref": "#/definitions/LayoutTable"
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
-    },
-    "LayoutIndividual": {
+    "Link": {
       "type": "object",
       "required": [
-        "item",
-        "orientation"
+        "title",
+        "to_node",
+        "value"
       ],
       "properties": {
-        "align": {
-          "default": "start",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Align"
-            }
-          ]
+        "title": {
+          "$ref": "#/definitions/FieldOrLiteral"
         },
-        "item": {
-          "$ref": "#/definitions/WidgetNest"
-        },
-        "orientation": {
-          "$ref": "#/definitions/Orientation"
-        },
-        "x_scroll": {
-          "default": false,
+        "to_node": {
           "type": "boolean"
+        },
+        "value": {
+          "$ref": "#/definitions/FieldOrLiteral"
         }
       },
       "additionalProperties": false
-    },
-    "LayoutTable": {
-      "type": "object",
-      "required": [
-        "align",
-        "columns",
-        "orientation"
-      ],
-      "properties": {
-        "align": {
-          "$ref": "#/definitions/Align"
-        },
-        "columns": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/Widget"
-          }
-        },
-        "orientation": {
-          "$ref": "#/definitions/Orientation"
-        },
-        "x_scroll": {
-          "default": false,
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": false
-    },
-    "LineSizeMode": {
-      "type": "string",
-      "enum": [
-        "ellipsize",
-        "wrap"
-      ]
     },
     "MenuItem": {
+      "type": "object",
+      "required": [
+        "id",
+        "sub"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "sub": {
+          "$ref": "#/definitions/MenuItemSub"
+        }
+      },
+      "additionalProperties": false
+    },
+    "MenuItemForm": {
+      "type": "object",
+      "required": [
+        "arguments",
+        "form_id",
+        "name"
+      ],
+      "properties": {
+        "arguments": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Node"
+          }
+        },
+        "form_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "MenuItemSection": {
+      "type": "object",
+      "required": [
+        "children",
+        "name"
+      ],
+      "properties": {
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MenuItem"
+          }
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "MenuItemSub": {
       "oneOf": [
         {
           "type": "object",
@@ -873,7 +955,7 @@
           ],
           "properties": {
             "view": {
-              "$ref": "#/definitions/View"
+              "$ref": "#/definitions/MenuItemView"
             }
           },
           "additionalProperties": false
@@ -885,27 +967,31 @@
           ],
           "properties": {
             "form": {
-              "$ref": "#/definitions/Form"
+              "$ref": "#/definitions/MenuItemForm"
             }
           },
           "additionalProperties": false
         }
       ]
     },
-    "MenuItemSection": {
+    "MenuItemView": {
       "type": "object",
       "required": [
-        "children",
-        "name"
+        "arguments",
+        "name",
+        "view_id"
       ],
       "properties": {
-        "children": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/MenuItem"
+        "arguments": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Node"
           }
         },
         "name": {
+          "type": "string"
+        },
+        "view_id": {
           "type": "string"
         }
       },
@@ -944,34 +1030,6 @@
         "right_down"
       ]
     },
-    "PageAccess": {
-      "oneOf": [
-        {
-          "type": "object",
-          "required": [
-            "view"
-          ],
-          "properties": {
-            "view": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "form"
-          ],
-          "properties": {
-            "form": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
-    },
     "Query": {
       "description": "Right now, all fields are turned into a single top level record - this is useful for recursion which could otherwise lead to large nested objects when a flat list is desired.  A new `nest` step may be introduced later to create intermediate records (as `QueryResType::Record`).",
       "type": "object",
@@ -1001,15 +1059,6 @@
       },
       "additionalProperties": false
     },
-    "QueryDefParameter": {
-      "type": "string",
-      "enum": [
-        "text",
-        "number",
-        "bool",
-        "datetime"
-      ]
-    },
     "QueryOrField": {
       "oneOf": [
         {
@@ -1031,12 +1080,31 @@
           ],
           "properties": {
             "query": {
-              "type": "string"
+              "$ref": "#/definitions/QueryOrFieldQuery"
             }
           },
           "additionalProperties": false
         }
       ]
+    },
+    "QueryOrFieldQuery": {
+      "type": "object",
+      "required": [
+        "params",
+        "query"
+      ],
+      "properties": {
+        "params": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/FieldOrLiteral"
+          }
+        },
+        "query": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
     },
     "QuerySortDir": {
       "type": "string",
@@ -1155,6 +1223,21 @@
       },
       "additionalProperties": false
     },
+    "TextSizeMode": {
+      "type": "string",
+      "enum": [
+        "wrap",
+        "ellipsize"
+      ]
+    },
+    "TransAlign": {
+      "type": "string",
+      "enum": [
+        "start",
+        "middle",
+        "end"
+      ]
+    },
     "Value": {
       "oneOf": [
         {
@@ -1186,86 +1269,18 @@
     "View": {
       "type": "object",
       "required": [
-        "display",
-        "id",
-        "name",
+        "config",
         "queries"
       ],
       "properties": {
-        "display": {
-          "description": "How to display the queried data",
-          "allOf": [
-            {
-              "$ref": "#/definitions/ViewPartList"
-            }
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "media_controls": {
-          "description": "Show media controls",
-          "default": false,
-          "type": "boolean"
-        },
-        "name": {
-          "type": "string"
-        },
-        "parameters": {
-          "description": "Prepare a form or accept parameters in url to use in the queries",
-          "default": [],
-          "type": "array",
-          "items": {
-            "type": "array",
-            "items": [
-              {
-                "type": "string"
-              },
-              {
-                "$ref": "#/definitions/QueryDefParameter"
-              }
-            ],
-            "maxItems": 2,
-            "minItems": 2
-          }
+        "config": {
+          "$ref": "#/definitions/WidgetDataRows"
         },
         "queries": {
-          "description": "Queries used to prepare data for displaying",
           "type": "object",
           "additionalProperties": {
             "$ref": "#/definitions/Query"
           }
-        }
-      },
-      "additionalProperties": false
-    },
-    "ViewPartList": {
-      "type": "object",
-      "required": [
-        "data",
-        "key_field",
-        "layout"
-      ],
-      "properties": {
-        "data": {
-          "description": "Where to get the data for the sublist.",
-          "allOf": [
-            {
-              "$ref": "#/definitions/QueryOrField"
-            }
-          ]
-        },
-        "key_field": {
-          "description": "A field of the returned data that can be used as a unique key for saving/restoring position in playback.",
-          "type": "string"
-        },
-        "layout": {
-          "description": "How to display the received data.",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Layout"
-            }
-          ]
         }
       },
       "additionalProperties": false
@@ -1275,11 +1290,11 @@
         {
           "type": "object",
           "required": [
-            "nest"
+            "layout"
           ],
           "properties": {
-            "nest": {
-              "$ref": "#/definitions/WidgetNest"
+            "layout": {
+              "$ref": "#/definitions/WidgetLayout"
             }
           },
           "additionalProperties": false
@@ -1287,11 +1302,23 @@
         {
           "type": "object",
           "required": [
-            "text_line"
+            "data_rows"
           ],
           "properties": {
-            "text_line": {
-              "$ref": "#/definitions/WidgetTextLine"
+            "data_rows": {
+              "$ref": "#/definitions/WidgetDataRows"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "text"
+          ],
+          "properties": {
+            "text": {
+              "$ref": "#/definitions/WidgetText"
             }
           },
           "additionalProperties": false
@@ -1311,28 +1338,59 @@
         {
           "type": "object",
           "required": [
-            "media_button"
+            "play_button"
           ],
           "properties": {
-            "media_button": {
-              "$ref": "#/definitions/WidgetMediaButton"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "sublist"
-          ],
-          "properties": {
-            "sublist": {
-              "$ref": "#/definitions/ViewPartList"
+            "play_button": {
+              "$ref": "#/definitions/WidgetPlayButton"
             }
           },
           "additionalProperties": false
         }
       ]
+    },
+    "WidgetDataRows": {
+      "type": "object",
+      "required": [
+        "data",
+        "key_field",
+        "row_widget"
+      ],
+      "properties": {
+        "data": {
+          "description": "Where to get the data for the sublist.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/QueryOrField"
+            }
+          ]
+        },
+        "key_field": {
+          "description": "A field of the returned data that can be used as a unique key for saving/restoring position in playback.",
+          "type": "string"
+        },
+        "row_widget": {
+          "description": "How the data rows are displayed.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/DataRowsLayout"
+            }
+          ]
+        },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
+          ]
+        },
+        "x_scroll": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
     },
     "WidgetImage": {
       "type": "object",
@@ -1340,11 +1398,14 @@
         "data"
       ],
       "properties": {
-        "align": {
-          "default": "start",
-          "allOf": [
+        "alt": {
+          "default": null,
+          "anyOf": [
             {
-              "$ref": "#/definitions/Align"
+              "$ref": "#/definitions/FieldOrLiteral"
+            },
+            {
+              "type": "null"
             }
           ]
         },
@@ -1352,21 +1413,84 @@
           "$ref": "#/definitions/FieldOrLiteral"
         },
         "height": {
-          "default": "",
-          "type": "string"
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "link": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Link"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
+          ]
         },
         "width": {
-          "default": "",
-          "type": "string"
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "additionalProperties": false
     },
-    "WidgetMediaButton": {
+    "WidgetLayout": {
       "type": "object",
       "required": [
-        "field",
-        "media_field"
+        "direction",
+        "elements"
+      ],
+      "properties": {
+        "direction": {
+          "$ref": "#/definitions/Direction"
+        },
+        "elements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Widget"
+          }
+        },
+        "gap": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
+          ]
+        },
+        "x_scroll": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "WidgetPlayButton": {
+      "type": "object",
+      "required": [
+        "media_file_field",
+        "media_type_field"
       ],
       "properties": {
         "album_field": {
@@ -1374,14 +1498,6 @@
           "type": [
             "string",
             "null"
-          ]
-        },
-        "align": {
-          "default": "start",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Align"
-            }
           ]
         },
         "artist_field": {
@@ -1398,10 +1514,21 @@
             "null"
           ]
         },
-        "field": {
+        "direction": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Direction"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "media_file_field": {
           "type": "string"
         },
-        "media_field": {
+        "media_type_field": {
           "description": "The media type (ex `sunwet/1/video`, `sunwet/1/audio`)",
           "allOf": [
             {
@@ -1415,56 +1542,60 @@
             "string",
             "null"
           ]
-        }
-      },
-      "additionalProperties": false
-    },
-    "WidgetNest": {
-      "type": "object",
-      "required": [
-        "children",
-        "orientation"
-      ],
-      "properties": {
-        "align": {
+        },
+        "trans_align": {
           "default": "start",
           "allOf": [
             {
-              "$ref": "#/definitions/Align"
+              "$ref": "#/definitions/TransAlign"
             }
           ]
-        },
-        "children": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/Widget"
-          }
-        },
-        "orientation": {
-          "$ref": "#/definitions/Orientation"
         }
       },
       "additionalProperties": false
     },
-    "WidgetTextLine": {
+    "WidgetText": {
       "type": "object",
       "required": [
         "data",
-        "orientation",
-        "size",
-        "size_mode"
+        "orientation"
       ],
       "properties": {
-        "align": {
-          "default": "start",
+        "cons_size_max": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cons_size_mode": {
+          "default": "wrap",
           "allOf": [
             {
-              "$ref": "#/definitions/Align"
+              "$ref": "#/definitions/TextSizeMode"
             }
           ]
         },
         "data": {
           "$ref": "#/definitions/FieldOrLiteral"
+        },
+        "font_size": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "link": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Link"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "orientation": {
           "$ref": "#/definitions/Orientation"
@@ -1473,19 +1604,17 @@
           "default": "",
           "type": "string"
         },
-        "size": {
-          "type": "string"
-        },
-        "size_max": {
-          "default": "",
-          "type": "string"
-        },
-        "size_mode": {
-          "$ref": "#/definitions/LineSizeMode"
-        },
         "suffix": {
           "default": "",
           "type": "string"
+        },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
+          ]
         }
       },
       "additionalProperties": false

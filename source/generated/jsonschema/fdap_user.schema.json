@@ -29,37 +29,9 @@
             "limited": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/PageAccess"
+                "type": "string"
               },
               "uniqueItems": true
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
-    },
-    "PageAccess": {
-      "oneOf": [
-        {
-          "type": "object",
-          "required": [
-            "view"
-          ],
-          "properties": {
-            "view": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "form"
-          ],
-          "properties": {
-            "form": {
-              "type": "string"
             }
           },
           "additionalProperties": false
