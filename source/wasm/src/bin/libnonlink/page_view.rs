@@ -1,8 +1,6 @@
 use {
     super::{
-        ministate::{
-            PlaylistRestorePos,
-        },
+        ministate::PlaylistRestorePos,
         playlist::PlaylistIndex,
         state::{
             set_page,
@@ -26,9 +24,7 @@ use {
             PlaylistPushArg,
         },
     },
-    flowcontrol::{
-        ta_return,
-    },
+    flowcontrol::ta_return,
     lunk::{
         link,
         Prim,
@@ -43,6 +39,7 @@ use {
         config::view::{
             Direction,
             FieldOrLiteral,
+            FieldOrLiteralString,
             QueryOrField,
             Widget,
             WidgetDataRows,
@@ -51,11 +48,9 @@ use {
             WidgetPlayButton,
             WidgetText,
         },
-        triple::{
-            FileHash,
-            Node,
-        },
+        triple::Node,
         wire::{
+            link::SourceUrl,
             ReqViewQuery,
             TreeNode,
         },
@@ -64,17 +59,26 @@ use {
     uuid::Uuid,
     wasm::{
         constants::LINK_HASH_PREFIX,
-        el_general::{
+        js::{
             el_async,
             style_export::{
                 self,
             },
         },
+        ont::{
+            ROOT_AUDIO_VALUE,
+            ROOT_IMAGE_VALUE,
+            ROOT_VIDEO_VALUE,
+        },
         websocket::Ws,
         world::file_url,
     },
-    wasm_bindgen::JsCast,
+    wasm_bindgen::{
+        JsCast,
+        JsValue,
+    },
     web_sys::{
+        console::log_1,
         DomParser,
         Element,
         Event,
@@ -93,24 +97,39 @@ fn maybe<I, O>(v: &Option<I>, f: impl FnOnce(&I) -> Result<O, String>) -> Result
     }
 }
 
-fn get_field(config_at: &String, data_at: &TreeNode) -> Result<TreeNode, String> {
-    let TreeNode::Record(data_at) = data_at else {
-        return Err(format!("Data isn't a record, can't resolve field `{}`", config_at));
-    };
-    let Some(data_at) = data_at.get(config_at) else {
-        return Err(format!("No field `{}` in data.", config_at));
-    };
-    return Ok(data_at.clone());
+fn get_field(config_at: &String, data_stack: &Vec<TreeNode>) -> Result<TreeNode, String> {
+    for data_at in data_stack.iter().rev() {
+        let TreeNode::Record(data_at) = data_at else {
+            continue;
+        };
+        let Some(data_at) = data_at.get(config_at) else {
+            continue;
+        };
+        return Ok(data_at.clone());
+    }
+    return Err(format!("No data in scope is a record or field `{}` didn't exist at any level", config_at));
 }
 
-fn get_field_or_literal(config_at: &FieldOrLiteral, data_at: &TreeNode) -> Result<TreeNode, String> {
+fn get_field_or_literal(config_at: &FieldOrLiteral, data_stack: &Vec<TreeNode>) -> Result<TreeNode, String> {
     match config_at {
-        FieldOrLiteral::Field(config_at) => return Ok(get_field(config_at, data_at)?),
+        FieldOrLiteral::Field(config_at) => return Ok(get_field(config_at, data_stack)?),
         FieldOrLiteral::Literal(config_at) => return Ok(TreeNode::Scalar(config_at.clone())),
     }
 }
 
-fn get_value_string(data_at: &TreeNode) -> String {
+fn get_field_or_literal_string(
+    config_at: &FieldOrLiteralString,
+    data_stack: &Vec<TreeNode>,
+) -> Result<TreeNode, String> {
+    match config_at {
+        FieldOrLiteralString::Field(config_at) => return Ok(get_field(config_at, data_stack)?),
+        FieldOrLiteralString::Literal(config_at) => return Ok(
+            TreeNode::Scalar(Node::Value(serde_json::Value::String(config_at.clone()))),
+        ),
+    }
+}
+
+fn unwrap_value_string(data_at: &TreeNode) -> String {
     match data_at {
         TreeNode::Array(v) => return serde_json::to_string(v).unwrap(),
         TreeNode::Record(v) => return serde_json::to_string(v).unwrap(),
@@ -124,24 +143,45 @@ fn get_value_string(data_at: &TreeNode) -> String {
     }
 }
 
-fn get_value_file_hash(data_at: &TreeNode) -> Result<FileHash, String> {
-    let TreeNode::Scalar(data_at) = data_at else {
-        return Err(format!("Data is not a scalar"));
-    };
-    let Node::File(data_at) = data_at else {
-        return Err(format!("Data is not a file hash"));
-    };
-    return Ok(data_at.clone());
+fn unwrap_value_media_url(data_at: &TreeNode) -> Result<SourceUrl, String> {
+    match data_at {
+        TreeNode::Array(v) => return Err(
+            format!("Url value is an array, not a string: {}", serde_json::to_string(v).unwrap()),
+        ),
+        TreeNode::Record(v) => return Err(
+            format!("Url value is a record, not a string: {}", serde_json::to_string(v).unwrap()),
+        ),
+        TreeNode::Scalar(v) => {
+            match v {
+                Node::File(v) => return Ok(SourceUrl {
+                    url: file_url(&state().base_url, v),
+                    file: Some(v.clone()),
+                }),
+                Node::Value(v) => match v {
+                    serde_json::Value::String(v) => return Ok(SourceUrl {
+                        url: v.clone(),
+                        file: None,
+                    }),
+                    _ => return Err(format!("Url is not a string: {}", serde_json::to_string(v).unwrap())),
+                },
+            }
+        },
+    }
 }
 
-fn get_value_url(title: &FieldOrLiteral, data_at: &TreeNode, to_node: bool) -> Result<String, String> {
+fn unwrap_value_move_url(
+    title: &FieldOrLiteral,
+    data_at: &TreeNode,
+    data_stack: &Vec<TreeNode>,
+    to_node: bool,
+) -> Result<String, String> {
     match data_at {
         TreeNode::Array(v) => return Ok(serde_json::to_string(v).unwrap()),
         TreeNode::Record(v) => return Ok(serde_json::to_string(v).unwrap()),
         TreeNode::Scalar(v) => {
             if to_node {
                 return Ok(ministate_octothorpe(&Ministate::Edit(MinistateEdit {
-                    title: get_value_string(&get_field_or_literal(title, data_at)?),
+                    title: unwrap_value_string(&get_field_or_literal(title, data_stack)?),
                     node: v.clone(),
                 })));
             }
@@ -158,6 +198,8 @@ fn get_value_url(title: &FieldOrLiteral, data_at: &TreeNode, to_node: bool) -> R
 
 struct Build {
     menu_item_id: String,
+    menu_item_title: String,
+    restore_playlist_pos: Option<PlaylistRestorePos>,
     playlist_add: Vec<(PlaylistIndex, PlaylistPushArg)>,
     have_media: bool,
     transport_slot: El,
@@ -169,7 +211,7 @@ impl Build {
         pc: &mut ProcessingContext,
         config_at: &WidgetLayout,
         data_id: &Vec<usize>,
-        data_at: &TreeNode,
+        data_at: &Vec<TreeNode>,
     ) -> El {
         let mut children_raw = vec![];
         let mut children = vec![];
@@ -191,10 +233,12 @@ impl Build {
         pc: &mut ProcessingContext,
         config_at: &WidgetDataRows,
         data_id: &Vec<usize>,
-        data_at: &TreeNode,
+        data_at: &Vec<TreeNode>,
     ) -> El {
         return el_async({
             let menu_item_id = self.menu_item_id.clone();
+            let menu_item_title = self.menu_item_title.clone();
+            let restore_playlist_pos = self.restore_playlist_pos.clone();
             let eg = pc.eg();
             let transport_slot = self.transport_slot.clone();
             let old_have_media = self.have_media;
@@ -202,7 +246,7 @@ impl Build {
             let data_id = data_id.clone();
             let data_at = data_at.clone();
             async move {
-                let data_at = match config_at.data {
+                let new_data_at_tops = match config_at.data {
                     QueryOrField::Field(config_at) => {
                         let TreeNode::Array(res) = get_field(&config_at, &data_at)? else {
                             return Err(format!("Data rows field [{}] must be an array, but it is not", config_at));
@@ -236,7 +280,9 @@ impl Build {
                 };
                 return eg.event(move |pc| {
                     let mut build = Build {
-                        menu_item_id: menu_item_id,
+                        menu_item_id: menu_item_id.clone(),
+                        menu_item_title: menu_item_title.clone(),
+                        restore_playlist_pos: restore_playlist_pos.clone(),
                         playlist_add: Default::default(),
                         have_media: false,
                         transport_slot: transport_slot,
@@ -246,7 +292,9 @@ impl Build {
                         shared::interface::config::view::DataRowsLayout::Unaligned(row_widget) => {
                             let mut children = vec![];
                             let mut children_raw = vec![];
-                            for (i, data_at) in data_at.into_iter().enumerate() {
+                            for (i, new_data_at_top) in new_data_at_tops.into_iter().enumerate() {
+                                let mut data_at = data_at.clone();
+                                data_at.push(new_data_at_top);
                                 let mut data_id = data_id.clone();
                                 data_id.push(i);
                                 let child = build.build_widget(pc, &row_widget.widget, &data_id, &data_at);
@@ -263,7 +311,9 @@ impl Build {
                         shared::interface::config::view::DataRowsLayout::Table(row_widget) => {
                             let mut rows = vec![];
                             let mut rows_raw = vec![];
-                            for (i, data_at) in data_at.into_iter().enumerate() {
+                            for (i, new_data_at_top) in new_data_at_tops.into_iter().enumerate() {
+                                let mut data_at = data_at.clone();
+                                data_at.push(new_data_at_top);
                                 let mut data_id = data_id.clone();
                                 data_id.push(i);
                                 let mut columns = vec![];
@@ -284,6 +334,14 @@ impl Build {
                             }).root.into()).own(|_| rows);
                         },
                     }
+                    playlist_extend(
+                        pc,
+                        &state().playlist,
+                        &menu_item_id,
+                        &menu_item_title,
+                        build.playlist_add,
+                        &restore_playlist_pos,
+                    );
                     if build.have_media && !old_have_media {
                         build.transport_slot.ref_push(build_transport(pc));
                     }
@@ -293,20 +351,32 @@ impl Build {
         });
     }
 
-    fn build_widget_text(&mut self, config_at: &WidgetText, data_at: &TreeNode) -> El {
+    fn build_widget_text(&mut self, config_at: &WidgetText, data_at: &Vec<TreeNode>) -> El {
         match (|| {
             ta_return!(El, String);
             return Ok(el_from_raw(style_export::leaf_view_text(style_export::LeafViewTextArgs {
                 trans_align: config_at.trans_align,
                 orientation: config_at.orientation,
-                text: get_value_string(&get_field_or_literal(&config_at.data, data_at)?),
+                text: format!(
+                    "{}{}{}",
+                    config_at.prefix,
+                    unwrap_value_string(&get_field_or_literal_string(&config_at.data, data_at)?),
+                    config_at.suffix
+                ),
                 font_size: config_at.font_size.clone(),
                 max_size: config_at.cons_size_max.clone(),
-                url: config_at
+                link: config_at
                     .link
                     .as_ref()
                     .map(
-                        |l| Ok(get_value_url(&l.title, &get_field_or_literal(&l.value, &data_at)?, l.to_node)?) as
+                        |l| Ok(
+                            unwrap_value_move_url(
+                                &l.title,
+                                &get_field_or_literal(&l.value, data_at)?,
+                                data_at,
+                                l.to_node,
+                            )?,
+                        ) as
                             Result<_, String>,
                     )
                     .transpose()?,
@@ -319,18 +389,26 @@ impl Build {
         }
     }
 
-    fn build_widget_image(&mut self, config_at: &WidgetImage, data_at: &TreeNode) -> El {
+    fn build_widget_image(&mut self, config_at: &WidgetImage, data_stack: &Vec<TreeNode>) -> El {
         match (|| {
             ta_return!(El, String);
             return Ok(el_from_raw(style_export::leaf_view_image(style_export::LeafViewImageArgs {
                 trans_align: config_at.trans_align,
-                url: maybe(
+                src: unwrap_value_media_url(&get_field_or_literal(&config_at.data, &data_stack)?)?.url,
+                link: maybe(
                     &config_at.link,
-                    |l| Ok(get_value_url(&l.title, &get_field_or_literal(&l.value, &data_at)?, l.to_node)?),
+                    |l| Ok(
+                        unwrap_value_move_url(
+                            &l.title,
+                            &get_field_or_literal(&l.value, &data_stack)?,
+                            data_stack,
+                            l.to_node,
+                        )?,
+                    ),
                 )?,
                 text: maybe(
                     &config_at.alt,
-                    |v| Ok(get_value_string(&get_field_or_literal(v, data_at)?)) as Result<_, String>,
+                    |v| Ok(unwrap_value_string(&get_field_or_literal(v, data_stack)?)) as Result<_, String>,
                 )?,
                 width: config_at.width.clone(),
                 height: config_at.height.clone(),
@@ -348,36 +426,41 @@ impl Build {
         pc: &mut ProcessingContext,
         config_at: &WidgetPlayButton,
         data_id: &Vec<usize>,
-        data_at: &TreeNode,
+        data_stack: &Vec<TreeNode>,
     ) -> El {
         match (|| {
             ta_return!(El, String);
             self.have_media = true;
             let media_type =
-                serde_json::from_value::<PlaylistEntryMediaType>(
-                    serde_json::Value::String(
-                        get_value_string(&get_field_or_literal(&config_at.media_type_field, data_at)?),
-                    ),
-                ).map_err(|e| format!("Invalid media type: {}", e))?;
-            let file = get_value_file_hash(&get_field(&config_at.media_file_field, data_at)?)?;
+                match unwrap_value_string(
+                    &get_field_or_literal(&config_at.media_type_field, data_stack)?,
+                ).as_str() {
+                    ROOT_AUDIO_VALUE => PlaylistEntryMediaType::Audio,
+                    ROOT_IMAGE_VALUE => PlaylistEntryMediaType::Image,
+                    ROOT_VIDEO_VALUE => PlaylistEntryMediaType::Video,
+                    t => {
+                        return Err(format!("Invalid media type: {}", t));
+                    },
+                };
+            let src_url = unwrap_value_media_url(&get_field(&config_at.media_file_field, data_stack)?)?;
             self.playlist_add.push((data_id.clone(), PlaylistPushArg {
                 name: maybe(
                     &config_at.name_field,
-                    |config_at| Ok(get_value_string(&get_field(config_at, data_at)?)),
+                    |config_at| Ok(unwrap_value_string(&get_field(config_at, data_stack)?)),
                 )?,
                 album: maybe(
                     &config_at.album_field,
-                    |config_at| Ok(get_value_string(&get_field(config_at, data_at)?)),
+                    |config_at| Ok(unwrap_value_string(&get_field(config_at, data_stack)?)),
                 )?,
                 artist: maybe(
                     &config_at.artist_field,
-                    |config_at| Ok(get_value_string(&get_field(config_at, data_at)?)),
+                    |config_at| Ok(unwrap_value_string(&get_field(config_at, data_stack)?)),
                 )?,
-                cover: maybe(
+                cover_source_url: maybe(
                     &config_at.cover_field,
-                    |config_at| Ok(get_value_file_hash(&get_field(config_at, data_at)?)?),
+                    |config_at| Ok(unwrap_value_media_url(&get_field(config_at, data_stack)?)?),
                 )?,
-                file: file,
+                source_url: src_url,
                 media_type: media_type,
             }));
             let out = el_from_raw(style_export::leaf_view_play_button(style_export::LeafViewPlayButtonArgs {
@@ -388,9 +471,28 @@ impl Build {
                 let data_id = data_id.clone();
                 let eg = pc.eg();
                 move |_| eg.event(|pc| {
+                    log_1(&JsValue::from("Press play button"));
                     playlist_toggle_play(pc, &state().playlist, Some(data_id.clone()));
                 }).unwrap()
             });
+            out.ref_own(
+                |out| link!(
+                    (_pc = pc),
+                    (playing = state().playlist.0.playing.clone(), playing_i = state().playlist.0.playing_i.clone()),
+                    (),
+                    (index = data_id.clone(), out = out.weak()) {
+                        let out = out.upgrade()?;
+                        out.ref_modify_classes(
+                            &[
+                                (
+                                    style_export::class_state_playing().value.as_ref(),
+                                    playing.get() && playing_i.get().as_ref() == Some(index),
+                                ),
+                            ],
+                        );
+                    }
+                ),
+            );
             return Ok(out);
         })() {
             Ok(e) => return e,
@@ -405,14 +507,19 @@ impl Build {
         pc: &mut ProcessingContext,
         config_at: &Widget,
         data_id: &Vec<usize>,
-        data_at: &TreeNode,
+        data_stack: &Vec<TreeNode>,
     ) -> El {
         match config_at {
-            Widget::Layout(config_at) => return self.build_widget_layout(pc, config_at, data_id, data_at),
-            Widget::DataRows(config_at) => return self.build_widget_data_rows(pc, config_at, data_id, data_at),
-            Widget::Text(config_at) => return self.build_widget_text(config_at, data_at),
-            Widget::Image(config_at) => return self.build_widget_image(config_at, data_at),
-            Widget::PlayButton(config_at) => return self.build_widget_play_button(pc, config_at, data_id, data_at),
+            Widget::Layout(config_at) => return self.build_widget_layout(pc, config_at, data_id, data_stack),
+            Widget::DataRows(config_at) => return self.build_widget_data_rows(pc, config_at, data_id, data_stack),
+            Widget::Text(config_at) => return self.build_widget_text(config_at, data_stack),
+            Widget::Image(config_at) => return self.build_widget_image(config_at, data_stack),
+            Widget::PlayButton(config_at) => return self.build_widget_play_button(
+                pc,
+                config_at,
+                data_id,
+                data_stack,
+            ),
         }
     }
 }
@@ -457,7 +564,7 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
                     id
                 },
             };
-            let link = format!("{}#{}{}", state().base_url, LINK_HASH_PREFIX, sess_id);
+            let link = format!("link.html{}#{}{}", state().base_url, LINK_HASH_PREFIX, sess_id);
             let modal_res = style_export::cont_modal_view_share(style_export::ContModalViewShareArgs {
                 qr: DomParser::new()
                     .unwrap()
@@ -627,7 +734,7 @@ pub fn build_page_view(
     menu_item_id: &str,
     restore_playlist_pos: Option<PlaylistRestorePos>,
 ) {
-    set_page(menu_item_title, el_async({
+    set_page(pc, menu_item_title, el_async({
         let menu_item_id = menu_item_id.to_string();
         let menu_item_title = menu_item_title.to_string();
         let eg = pc.eg();
@@ -642,6 +749,8 @@ pub fn build_page_view(
             return eg.event(|pc| {
                 let mut build = Build {
                     menu_item_id: menu_item_id.clone(),
+                    menu_item_title: menu_item_title.clone(),
+                    restore_playlist_pos: restore_playlist_pos.clone(),
                     playlist_add: Default::default(),
                     have_media: false,
                     transport_slot: el_from_raw(
@@ -649,7 +758,12 @@ pub fn build_page_view(
                     ),
                 };
                 let data_rows_res =
-                    build.build_widget_data_rows(pc, &view.config, &vec![], &TreeNode::Record(Default::default()));
+                    build.build_widget_data_rows(
+                        pc,
+                        &view.config,
+                        &vec![],
+                        &vec![TreeNode::Record(Default::default())],
+                    );
                 playlist_extend(
                     pc,
                     &state().playlist,

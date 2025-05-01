@@ -7,15 +7,15 @@
     <script src="style.js"></script>
     <link
       rel="preload"
-      href="static/link_bg.wasm"
+      href="link_bg.wasm"
       as="fetch"
       type="application/wasm"
       crossorigin=""
     />
-    <link rel="modulepreload" href="static/link.js" />
+    <link rel="modulepreload" href="link.js" />
     <script type="module">
-      import init from "./static/link.js";
-      await init("./static/link_bg.wasm");
+      import init from "./link.js";
+      await init("./link_bg.wasm");
       // Console errors due to https://github.com/rustwasm/wasm-bindgen/issues/2470
     </script>
   </head>

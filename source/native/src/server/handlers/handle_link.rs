@@ -95,16 +95,26 @@ pub fn handle_ws_main(state: Arc<State>, websocket: HyperWebsocket) {
                                                     link_public.clear();
                                                     match &prepare.media {
                                                         shared::interface::wire::link::PrepareMedia::Audio(m) => {
-                                                            link_public.insert(m.audio.clone());
-                                                            if let Some(cover) = &m.cover {
-                                                                link_public.insert(cover.clone());
+                                                            if let Some(file) = m.source_url.file.as_ref() {
+                                                                link_public.insert(file.clone());
+                                                            }
+                                                            if let Some(file) =
+                                                                m
+                                                                    .cover_source_url
+                                                                    .as_ref()
+                                                                    .and_then(|x| x.file.as_ref()) {
+                                                                link_public.insert(file.clone());
                                                             }
                                                         },
                                                         shared::interface::wire::link::PrepareMedia::Video(m) => {
-                                                            link_public.insert(m.clone());
+                                                            if let Some(file) = m.file.as_ref() {
+                                                                link_public.insert(file.clone());
+                                                            }
                                                         },
                                                         shared::interface::wire::link::PrepareMedia::Image(m) => {
-                                                            link_public.insert(m.clone());
+                                                            if let Some(file) = m.file.as_ref() {
+                                                                link_public.insert(file.clone());
+                                                            }
                                                         },
                                                     }
                                                 }

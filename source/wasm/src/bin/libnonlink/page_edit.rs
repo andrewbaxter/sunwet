@@ -43,7 +43,7 @@ use {
         str::FromStr,
     },
     wasm::{
-        el_general::{
+        js::{
             el_async,
             style_export,
         },
@@ -589,7 +589,7 @@ fn build_edit_triple(pc: &mut ProcessingContext, triple: &TripleState) -> El {
 }
 
 pub fn build_page_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node) {
-    set_page(edit_title, el_async({
+    set_page(pc, edit_title, el_async({
         let eg = pc.eg();
         let node = node.clone();
         async move {

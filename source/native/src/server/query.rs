@@ -905,7 +905,6 @@ pub async fn execute_query(
     parameters: HashMap<String, Node>,
 ) -> Result<Vec<BTreeMap<String, TreeNode>>, loga::Error> {
     let (sql_query, sql_parameters) = build_query(query, parameters)?;
-    eprintln!("query {}", sql_query);
     return Ok(tx(&db, move |txn| {
         return Ok(execute_sql_query(txn, sql_query, sql_parameters)?);
     }).await?);

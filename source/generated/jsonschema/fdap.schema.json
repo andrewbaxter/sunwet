@@ -272,6 +272,34 @@
         }
       ]
     },
+    "FieldOrLiteralString": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "field"
+          ],
+          "properties": {
+            "field": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "literal"
+          ],
+          "properties": {
+            "literal": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "FilterExpr": {
       "oneOf": [
         {
@@ -895,12 +923,12 @@
     "MenuItemForm": {
       "type": "object",
       "required": [
-        "arguments",
         "form_id",
         "name"
       ],
       "properties": {
         "arguments": {
+          "default": {},
           "type": "object",
           "additionalProperties": {
             "$ref": "#/definitions/Node"
@@ -977,12 +1005,12 @@
     "MenuItemView": {
       "type": "object",
       "required": [
-        "arguments",
         "name",
         "view_id"
       ],
       "properties": {
         "arguments": {
+          "default": {},
           "type": "object",
           "additionalProperties": {
             "$ref": "#/definitions/Node"
@@ -1090,11 +1118,11 @@
     "QueryOrFieldQuery": {
       "type": "object",
       "required": [
-        "params",
         "query"
       ],
       "properties": {
         "params": {
+          "default": {},
           "type": "object",
           "additionalProperties": {
             "$ref": "#/definitions/FieldOrLiteral"
@@ -1353,7 +1381,6 @@
       "type": "object",
       "required": [
         "data",
-        "key_field",
         "row_widget"
       ],
       "properties": {
@@ -1364,10 +1391,6 @@
               "$ref": "#/definitions/QueryOrField"
             }
           ]
-        },
-        "key_field": {
-          "description": "A field of the returned data that can be used as a unique key for saving/restoring position in playback.",
-          "type": "string"
         },
         "row_widget": {
           "description": "How the data rows are displayed.",
@@ -1577,7 +1600,7 @@
           ]
         },
         "data": {
-          "$ref": "#/definitions/FieldOrLiteral"
+          "$ref": "#/definitions/FieldOrLiteralString"
         },
         "font_size": {
           "default": null,

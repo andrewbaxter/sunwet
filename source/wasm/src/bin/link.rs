@@ -9,7 +9,6 @@ use {
         timers::future::TimeoutFuture,
         utils::{
             document,
-            window,
         },
     },
     lunk::{
@@ -31,7 +30,6 @@ use {
         WsS2L,
     },
     std::{
-        borrow::Cow,
         cell::Cell,
         panic,
         pin::Pin,
@@ -39,7 +37,7 @@ use {
     },
     wasm::{
         constants::LINK_HASH_PREFIX,
-        el_general::{
+        js::{
             async_event,
             el_async,
             el_audio,
@@ -48,11 +46,9 @@ use {
             style_export,
         },
         websocket::Ws,
-        world::file_url,
     },
     wasm_bindgen::{
         JsCast,
-        UnwrapThrowExt,
     },
     web_sys::{
         HtmlElement,
@@ -134,7 +130,6 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
 }
 
 struct State_ {
-    base_url: String,
     display: El,
     display_over: El,
     album: El,
@@ -151,16 +146,10 @@ fn main() {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
     let eg = EventGraph::new();
     eg.event(|pc| {
-        let base_url;
-        {
-            let loc = window().location();
-            base_url = format!("{}{}", loc.origin().unwrap_throw(), loc.pathname().unwrap_throw());
-        }
         let hash = get_dom_octothorpe().unwrap();
         let link_id = hash.strip_prefix(LINK_HASH_PREFIX).unwrap();
         let style_res = style_export::app_link();
         let state = State(Rc::new(State_ {
-            base_url: base_url,
             display: el_from_raw(style_res.display.into()),
             display_over: el_from_raw(style_res.display_over.into()).clone(),
             album: el_from_raw(style_res.album.into()).clone(),
@@ -188,11 +177,15 @@ fn main() {
                                 let media: Rc<dyn PlaylistMedia>;
                                 match prepare.media {
                                     PrepareMedia::Audio(audio) => {
-                                        state.0.display.ref_push(el("img").attr("src", &match &audio.cover {
-                                            Some(cover) => Cow::Owned(file_url(&state.0.base_url, cover)),
-                                            None => Cow::Borrowed("static/fallback_cover.png"),
-                                        })).ref_attr("preload", "auto");
-                                        let media_el = el_audio(&file_url(&state.0.base_url, &audio.audio));
+                                        state
+                                            .0
+                                            .display
+                                            .ref_push(el("img").attr("src", match &audio.cover_source_url {
+                                                Some(cover_source_url) => cover_source_url.url.as_str(),
+                                                None => "static/fallback_cover.png",
+                                            }))
+                                            .ref_attr("preload", "auto");
+                                        let media_el = el_audio(&audio.source_url.url);
                                         media =
                                             Rc::new(
                                                 PlaylistMediaAudioVideo {
@@ -200,11 +193,8 @@ fn main() {
                                                 },
                                             );
                                     },
-                                    PrepareMedia::Video(video_file) => {
-                                        let media_el =
-                                            el_video(
-                                                &file_url(&state.0.base_url, &video_file),
-                                            ).attr("preload", "auto");
+                                    PrepareMedia::Video(source_url) => {
+                                        let media_el = el_video(&source_url.url).attr("preload", "auto");
                                         state.0.display.ref_push(media_el.clone());
                                         media =
                                             Rc::new(
@@ -213,24 +203,16 @@ fn main() {
                                                 },
                                             );
                                     },
-                                    PrepareMedia::Image(image_file) => {
-                                        let media_el =
-                                            el("img")
-                                                .attr("src", &file_url(&state.0.base_url, &image_file))
-                                                .on("click", |ev| {
-                                                    if document().fullscreen_element().is_none() {
-                                                        let img =
-                                                            ev
-                                                                .target()
-                                                                .unwrap()
-                                                                .dyn_ref::<HtmlElement>()
-                                                                .unwrap()
-                                                                .clone();
-                                                        _ = img.request_fullscreen().unwrap();
-                                                    } else {
-                                                        document().exit_fullscreen();
-                                                    }
-                                                });
+                                    PrepareMedia::Image(source_url) => {
+                                        let media_el = el("img").attr("src", &source_url.url).on("click", |ev| {
+                                            if document().fullscreen_element().is_none() {
+                                                let img =
+                                                    ev.target().unwrap().dyn_ref::<HtmlElement>().unwrap().clone();
+                                                _ = img.request_fullscreen().unwrap();
+                                            } else {
+                                                document().exit_fullscreen();
+                                            }
+                                        });
                                         state.0.display.ref_push(media_el);
                                         media = Rc::new(PlaylistMediaImage {});
                                     },

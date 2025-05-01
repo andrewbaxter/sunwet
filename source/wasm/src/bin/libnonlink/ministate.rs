@@ -6,7 +6,7 @@ use {
         Serialize,
     },
     shared::interface::triple::Node,
-    wasm::el_general::{
+    wasm::js::{
         get_dom_octothorpe,
         log,
     },

@@ -10,21 +10,16 @@ use {
     },
     hyper::body::Bytes,
     rust_embed::RustEmbed,
-    std::str::Split,
 };
 
-pub async fn handle_static(
-    path_iter: Split<'_, char>,
-) -> Result<Response<BoxBody<Bytes, std::io::Error>>, VisErr<loga::Error>> {
+pub async fn handle_static(path: &str) -> Result<Response<BoxBody<Bytes, std::io::Error>>, VisErr<loga::Error>> {
     #[derive(RustEmbed)]
     #[folder = "$STATIC_DIR"]
     struct Static;
 
-    let mut path = path_iter.collect::<Vec<&str>>();
-    let mut f = Static::get(&path.join("/"));
+    let mut f = Static::get(path);
     if f.is_none() {
-        path.push("index.html");
-        f = Static::get(&path.join("/"));
+        f = Static::get("index.html");
     }
     match f {
         Some(f) => {

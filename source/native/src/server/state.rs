@@ -220,7 +220,7 @@ pub async fn get_global_config(state: &State) -> Result<Arc<GlobalConfig>, loga:
             {
                 let cache = f.cache.lock().unwrap();
                 if let Some((stamp, config)) = (*cache).as_ref() {
-                    if Instant::now().signed_duration_since(*stamp) > Duration::from_secs(5) {
+                    if Instant::now().signed_duration_since(*stamp) < Duration::from_secs(5) {
                         return Ok(config.clone());
                     }
                 }

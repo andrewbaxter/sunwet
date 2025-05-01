@@ -20,6 +20,7 @@ pub struct ClientMenuItemSection {
 pub struct ClientMenuItemView {
     pub name: String,
     pub id: String,
+    #[serde(default)]
     pub arguments: HashMap<String, Node>,
 }
 

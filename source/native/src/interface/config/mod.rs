@@ -38,6 +38,7 @@ pub struct MenuItemSection {
 pub struct MenuItemView {
     pub name: String,
     pub view_id: String,
+    #[serde(default)]
     pub arguments: HashMap<String, Node>,
 }
 
@@ -46,6 +47,7 @@ pub struct MenuItemView {
 pub struct MenuItemForm {
     pub name: String,
     pub form_id: String,
+    #[serde(default)]
     pub arguments: HashMap<String, Node>,
 }
 

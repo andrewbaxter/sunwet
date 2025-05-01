@@ -76,8 +76,16 @@ pub enum FieldOrLiteral {
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum FieldOrLiteralString {
+    Field(String),
+    Literal(String),
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct QueryOrFieldQuery {
     pub query: String,
+    #[serde(default)]
     pub params: BTreeMap<String, FieldOrLiteral>,
 }
 
@@ -99,7 +107,7 @@ pub struct Link {
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct WidgetText {
-    pub data: FieldOrLiteral,
+    pub data: FieldOrLiteralString,
     #[serde(default)]
     pub prefix: String,
     #[serde(default)]
@@ -187,9 +195,6 @@ pub enum DataRowsLayout {
 pub struct WidgetDataRows {
     /// Where to get the data for the sublist.
     pub data: QueryOrField,
-    /// A field of the returned data that can be used as a unique key for
-    /// saving/restoring position in playback.
-    pub key_field: String,
     /// How the data rows are displayed.
     pub row_widget: DataRowsLayout,
     #[serde(default)]

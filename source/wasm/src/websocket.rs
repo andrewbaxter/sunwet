@@ -29,7 +29,7 @@ use {
     },
     crate::{
         async_::WaitVal,
-        el_general::{
+        js::{
             log,
             log_js,
             log_js2,

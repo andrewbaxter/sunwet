@@ -1,4 +1,4 @@
-pub mod el_general;
+pub mod js;
 pub mod world;
 pub mod websocket;
 pub mod async_;

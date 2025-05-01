@@ -8,9 +8,7 @@ use {
         state::state,
     },
     crate::libnonlink::ministate::record_replace_ministate,
-    chrono::{
-        Utc,
-    },
+    chrono::Utc,
     futures::{
         Future,
         FutureExt,
@@ -36,24 +34,20 @@ use {
         El,
     },
     serde::Deserialize,
-    shared::interface::{
-        triple::FileHash,
-        wire::link::{
-            Prepare,
-            PrepareAudio,
-            PrepareMedia,
-            WsC2S,
-            WsS2C,
-        },
+    shared::interface::wire::link::{
+        Prepare,
+        PrepareAudio,
+        PrepareMedia,
+        SourceUrl,
+        WsC2S,
+        WsS2C,
     },
     std::{
         cell::{
             Cell,
             RefCell,
         },
-        collections::{
-            BTreeMap,
-        },
+        collections::BTreeMap,
         ops::Bound,
         pin::Pin,
         rc::{
@@ -62,17 +56,15 @@ use {
         },
     },
     wasm::{
-        el_general::{
+        js::{
             async_event,
             el_audio,
             el_video,
             log,
+            LogJsErr,
         },
         websocket::Ws,
-        world::{
-            file_url,
-            generated_file_url,
-        },
+        world::generated_file_url,
     },
     wasm_bindgen::{
         closure::Closure,
@@ -80,6 +72,7 @@ use {
         JsValue,
     },
     web_sys::{
+        console::log_1,
         HtmlMediaElement,
         MediaMetadata,
     },
@@ -134,8 +127,9 @@ impl PlaylistMedia for AudioPlaylistMedia {
     }
 
     fn pm_play(&self) {
+        log_1(&JsValue::from("playlist event, play"));
         let audio = self.pm_media();
-        _ = audio.play().unwrap();
+        audio.play().log("Error playing audio");
     }
 
     fn pm_stop(&self) {
@@ -215,7 +209,7 @@ impl PlaylistMedia for VideoPlaylistMedia {
 
     fn pm_play(&self) {
         let s = self.pm_media();
-        _ = s.play().unwrap();
+        s.play().log("Error playing video");
     }
 
     fn pm_stop(&self) {
@@ -338,8 +332,8 @@ pub struct PlaylistEntry {
     pub name: Option<String>,
     pub album: Option<String>,
     pub artist: Option<String>,
-    pub cover: Option<FileHash>,
-    pub file: FileHash,
+    pub cover_source_url: Option<SourceUrl>,
+    pub source_url: SourceUrl,
     pub media_type: PlaylistEntryMediaType,
     pub media: Box<dyn PlaylistMedia>,
 }
@@ -485,13 +479,13 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
                             if let Some(artist) = &e.artist {
                                 m.set_artist(artist);
                             }
-                            if let Some(cover) = &e.cover {
+                            if let Some(cover) = &e.cover_source_url {
                                 let arr = js_sys::Array::new();
                                 let e = js_sys::Object::new();
                                 js_sys::Reflect::set(
                                     &e,
                                     &JsValue::from("src"),
-                                    &JsValue::from(file_url(&state.0.base_url, cover)),
+                                    &JsValue::from(&cover.url),
                                 ).unwrap();
                                 arr.push(e.dyn_ref().unwrap());
                                 m.set_artwork(&arr.dyn_into().unwrap());
@@ -545,11 +539,11 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
                                     name: e.name.clone().unwrap_or_default(),
                                     media: match e.media_type {
                                         PlaylistEntryMediaType::Audio => PrepareMedia::Audio(PrepareAudio {
-                                            cover: e.cover.clone(),
-                                            audio: e.file.clone(),
+                                            cover_source_url: e.cover_source_url.clone(),
+                                            source_url: e.source_url.clone(),
                                         }),
-                                        PlaylistEntryMediaType::Video => PrepareMedia::Video(e.file.clone()),
-                                        PlaylistEntryMediaType::Image => PrepareMedia::Image(e.file.clone()),
+                                        PlaylistEntryMediaType::Video => PrepareMedia::Video(e.source_url.clone()),
+                                        PlaylistEntryMediaType::Image => PrepareMedia::Image(e.source_url.clone()),
                                     },
                                     media_time: e.media.pm_get_time(),
                                 })).await;
@@ -559,6 +553,7 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
                             }
                         })));
                     } else {
+                        log_1(&JsValue::from("playlist event, play"));
                         e.media.pm_play();
                     }
                 }
@@ -629,8 +624,8 @@ pub struct PlaylistPushArg {
     pub name: Option<String>,
     pub album: Option<String>,
     pub artist: Option<String>,
-    pub cover: Option<FileHash>,
-    pub file: FileHash,
+    pub cover_source_url: Option<SourceUrl>,
+    pub source_url: SourceUrl,
     pub media_type: PlaylistEntryMediaType,
 }
 
@@ -678,7 +673,7 @@ pub fn playlist_extend(
         let box_media: Box<dyn PlaylistMedia>;
         match entry.media_type {
             PlaylistEntryMediaType::Audio => {
-                let media = el_audio(&file_url(&state().base_url, &entry.file)).attr("controls", "true");
+                let media = el_audio(&entry.source_url.url).attr("controls", "true");
                 setup_media_element(pc, &media);
                 box_media = Box::new(AudioPlaylistMedia {
                     element: media.clone(),
@@ -691,7 +686,7 @@ pub fn playlist_extend(
                 let mut sub_tracks = vec![];
                 for lang in window().navigator().languages() {
                     let lang = lang.as_string().unwrap();
-                    sub_tracks.push((generated_file_url(&state().base_url, &entry.file, &format!("webvtt_{}", {
+                    sub_tracks.push((generated_file_url(&entry.source_url.url, &format!("webvtt_{}", {
                         let lang = if let Some((lang, _)) = lang.split_once("-") {
                             lang
                         } else {
@@ -709,7 +704,7 @@ pub fn playlist_extend(
                 }
                 let media =
                     el_video(
-                        &generated_file_url(&state().base_url, &entry.file, "", "video/webm"),
+                        &generated_file_url(&entry.source_url.url, "", "video/webm"),
                     ).attr("controls", "true");
                 setup_media_element(pc, &media);
                 for (i, (url, lang)) in sub_tracks.iter().enumerate() {
@@ -727,8 +722,7 @@ pub fn playlist_extend(
                 });
             },
             PlaylistEntryMediaType::Image => {
-                let media =
-                    el("img").attr("src", &file_url(&state().base_url, &entry.file)).attr("loading", "lazy");
+                let media = el("img").attr("src", &entry.source_url.url).attr("loading", "lazy");
                 box_media = Box::new(ImagePlaylistMedia {
                     element: media.clone(),
                     ministate_menu_item_id: menu_item_id.clone(),
@@ -741,8 +735,8 @@ pub fn playlist_extend(
             name: entry.name,
             album: entry.album,
             artist: entry.artist,
-            cover: entry.cover,
-            file: entry.file,
+            cover_source_url: entry.cover_source_url,
+            source_url: entry.source_url,
             media_type: entry.media_type,
             media: box_media,
         }));
@@ -767,6 +761,7 @@ pub fn playlist_toggle_play(pc: &mut ProcessingContext, state: &PlaylistState, i
         }
     } else {
         if state.0.playlist.borrow().is_empty() {
+            log_1(&JsValue::from("Playlist empty, no play"));
             return;
         }
         let i = i.or(state.0.playing_i.get()).unwrap_or(playlist_first_index(state).unwrap());

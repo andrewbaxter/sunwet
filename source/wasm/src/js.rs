@@ -19,6 +19,7 @@ use {
         JsValue,
     },
     web_sys::{
+        console::log_2,
         Event,
         EventTarget,
     },
@@ -73,6 +74,7 @@ pub mod style_export {
             JsValue,
         },
         web_sys::{
+            console,
             HtmlElement,
             HtmlInputElement,
             HtmlSelectElement,
@@ -265,7 +267,14 @@ pub mod style_export {
     }
 
     pub fn js_get<T: JsExport>(o: &JsValue, p: &str) -> T {
-        return T::from_js(&js_sys::Reflect::get(o, &JsValue::from(p)).unwrap());
+        let v = match js_sys::Reflect::get(o, &JsValue::from(p)) {
+            Ok(v) => v,
+            Err(e) => {
+                console::log_2(&JsValue::from(format!("js_get [{}] fail", p)), &e);
+                panic!("");
+            },
+        };
+        return T::from_js(&v);
     }
 
     fn js_set<T: JsExport>(o: &JsValue, p: &str, v: &T) {
@@ -315,4 +324,19 @@ pub fn el_video(src: &str) -> El {
 
 pub fn el_audio(src: &str) -> El {
     return el("audio").attr("preload", "metadata").attr("src", src);
+}
+
+pub trait LogJsErr {
+    fn log(self, msg: &str);
+}
+
+impl<T> LogJsErr for Result<T, JsValue> {
+    fn log(self, msg: &str) {
+        match self {
+            Ok(_) => { },
+            Err(e) => {
+                log_2(&JsValue::from(format!("Warning: {}", msg)), &e);
+            },
+        }
+    }
 }

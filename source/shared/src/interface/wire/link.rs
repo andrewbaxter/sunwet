@@ -12,17 +12,26 @@ use {
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct SourceUrl {
+    pub url: String,
+    // If the url refers to a file, the file hash - used for setting up temporary
+    // sharing permissions
+    pub file: Option<FileHash>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct PrepareAudio {
-    pub cover: Option<FileHash>,
-    pub audio: FileHash,
+    pub cover_source_url: Option<SourceUrl>,
+    pub source_url: SourceUrl,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum PrepareMedia {
     Audio(PrepareAudio),
-    Video(FileHash),
-    Image(FileHash),
+    Video(SourceUrl),
+    Image(SourceUrl),
 }
 
 #[derive(Serialize, Deserialize, Clone)]

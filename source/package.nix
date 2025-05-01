@@ -52,7 +52,8 @@ let
   static = pkgs.runCommand "sunwet-static" { } ''
     set -xeu -o pipefail
     ${pkgs.coreutils}/bin/mkdir -p $out
-    ${nativeBindgen}/bin/bind_wasm --in-wasm ${wasm}/bin/main.wasm --out-name main --out-dir $out
+    ${nativeBindgen}/bin/bind_wasm --in-wasm ${wasm}/bin/nonlink.wasm --out-name nonlink --out-dir $out
+    ${nativeBindgen}/bin/bind_wasm --in-wasm ${wasm}/bin/link.wasm --out-name link --out-dir $out
     ${pkgs.coreutils}/bin/cp -r ${./wasm}/static/* $out/
   '';
   workspaceNative = stageWorkspace "sunwet-native" [

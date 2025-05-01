@@ -188,10 +188,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                 // Normal HTTP req
                 let (head, body) = req.into_parts();
                 let mut path_iter = head.uri.path().trim_matches('/').split('/');
-                let mut path_first = path_iter.next().unwrap();
-                if path_first == "" {
-                    path_first = "static";
-                }
+                let path_first = path_iter.next().unwrap();
                 match path_first {
                     "oidc" => {
                         if let Some(oidc_state) = state.oidc_state.as_ref() {
@@ -206,9 +203,6 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                         } else {
                             return Ok(response_404());
                         }
-                    },
-                    "static" => {
-                        return handle_static::handle_static(path_iter).await;
                     },
                     "api" => {
                         let Some(identity) = identify_requester(&state, &head.headers).await? else {
@@ -515,7 +509,9 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                             _ => return Ok(response_404()),
                         }
                     },
-                    _ => return Ok(response_404()),
+                    _ => {
+                        return handle_static::handle_static(head.uri.path().trim_matches('/')).await;
+                    },
                 }
             }
         }

@@ -7,15 +7,15 @@
     <script src="style.js"></script>
     <link
       rel="preload"
-      href="static/nonlink_bg.wasm"
+      href="nonlink_bg.wasm"
       as="fetch"
       type="application/wasm"
       crossorigin=""
     />
-    <link rel="modulepreload" href="static/nonlink.js" />
+    <link rel="modulepreload" href="nonlink.js" />
     <script type="module">
-      import init from "./static/nonlink.js";
-      init("./static/nonlink_bg.wasm");
+      import init from "./nonlink.js";
+      init("./nonlink_bg.wasm");
       // Console errors due to https://github.com/rustwasm/wasm-bindgen/issues/2470
     </script>
   </head>

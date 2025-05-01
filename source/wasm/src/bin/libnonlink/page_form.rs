@@ -46,7 +46,7 @@ use {
         collections::HashMap,
         rc::Rc,
     },
-    wasm::el_general::{
+    wasm::js::{
         el_async,
         style_export,
     },
@@ -121,7 +121,7 @@ fn build_field_enum(
 
 pub fn build_page_form_by_id(pc: &mut ProcessingContext, form_title: &str, form_id: &str) {
     let draft_id = format!("form-draft-{}", form_id);
-    set_page(form_title, el_async({
+    set_page(pc, form_title, el_async({
         let eg = pc.eg();
         let form_id = form_id.to_string();
         let form_title = form_title.to_string();

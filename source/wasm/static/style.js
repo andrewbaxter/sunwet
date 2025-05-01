@@ -259,6 +259,16 @@
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: all
 
+  const flipMenuState = (() => {
+    let state = false;
+    return () => {
+      state = !state;
+      for (const e of document.getElementsByClassName(classMenuWantStateOpen)) {
+        e.classList.toggle(classMenuStateOpen, state);
+      }
+    };
+  })();
+
   const contGroupStyle = "group";
   const contVboxStyle = "vbox";
   const contHboxStyle = "hbox";
@@ -1802,10 +1812,10 @@
     args
   ) => {
     const out = (() => {
-      if (args.url != null) {
+      if (args.link != null) {
         return e(
           "a",
-          { href: args.url },
+          { href: args.link },
           {
             styles_: [
               ss(uniq("leaf_view_image_url"), {
@@ -1828,7 +1838,7 @@
               e(
                 "img",
                 {
-                  src: args.url,
+                  src: args.src,
                   alt: args.text,
                 },
                 {
@@ -1852,7 +1862,7 @@
         return e(
           "img",
           {
-            src: args.url,
+            src: args.src,
             alt: args.text,
           },
           {
@@ -1935,7 +1945,7 @@
       }
     })();
     const out = (() => {
-      if (args.url == null) {
+      if (args.link == null) {
         return e(
           "span",
           {
@@ -1950,7 +1960,7 @@
           "a",
           {
             textContent: args.text,
-            href: args.url,
+            href: args.link,
           },
           {
             styles_: [baseStyle, dirStyle, alignStyle],
@@ -2596,6 +2606,9 @@
             "a",
             {
               href: args.href,
+              onclick: () => {
+                flipMenuState();
+              },
             },
             {
               styles_: [
@@ -2752,14 +2765,8 @@
                   }),
                 ],
               }).root;
-              let state = false;
               out.onclick = () => {
-                state = !state;
-                for (const e of document.getElementsByClassName(
-                  classMenuWantStateOpen
-                )) {
-                  e.classList.toggle(classMenuStateOpen, state);
-                }
+                flipMenuState();
               };
               return out;
             })(),

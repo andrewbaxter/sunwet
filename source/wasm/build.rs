@@ -372,7 +372,8 @@ fn main() {
             name: "leafViewImage",
             args: vec![
                 ("transAlign", &transalign),
-                ("url", &optstring_),
+                ("src", &string_),
+                ("link", &optstring_),
                 ("text", &optstring_),
                 ("width", &optstring_),
                 ("height", &optstring_)
@@ -387,7 +388,7 @@ fn main() {
                 ("text", &string_),
                 ("fontSize", &optstring_),
                 ("maxSize", &optstring_),
-                ("url", &optstring_)
+                ("link", &optstring_)
             ],
             returns: vec![("root", &el_)],
         },
@@ -584,7 +585,7 @@ fn main() {
         }
         let call =
             quote!(
-                js_call(& js_get(&js_get(&gloo::utils::window().into(), "sunwet_presentation"), #method_ts_name), &a);
+                js_call(& js_get(&js_get(&gloo::utils::window().into(), "sunwetPresentation"), #method_ts_name), &a);
             );
         let rust_ret;
         let rust_ret_struct_declare;

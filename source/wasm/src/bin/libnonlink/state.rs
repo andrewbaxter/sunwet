@@ -6,10 +6,11 @@ use {
         },
         page_edit::build_page_edit,
         page_form::build_page_form_by_id,
-        page_view::{
-            build_page_view,
+        page_view::build_page_view,
+        playlist::{
+            playlist_clear,
+            PlaylistState,
         },
-        playlist::PlaylistState,
     },
     gloo::utils::document,
     lunk::{
@@ -27,7 +28,7 @@ use {
     },
     wasm::{
         async_::BgVal,
-        el_general::style_export,
+        js::style_export,
     },
 };
 
@@ -53,7 +54,8 @@ pub fn state() -> Rc<State_> {
     return STATE.with(|x| x.borrow().clone()).unwrap();
 }
 
-pub fn set_page(title: &str, body: El) {
+pub fn set_page(pc: &mut ProcessingContext, title: &str, body: El) {
+    playlist_clear(pc, &state().playlist);
     document().set_title(&format!("{} - Sunwet", title));
     let state = state();
     state.modal_stack.ref_clear();
@@ -65,7 +67,7 @@ pub fn set_page(title: &str, body: El) {
 pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
     match s {
         Ministate::Home => {
-            set_page("Home", el_from_raw(style_export::cont_page_home().root.into()));
+            set_page(pc, "Home", el_from_raw(style_export::cont_page_home().root.into()));
         },
         Ministate::View(ms) => {
             build_page_view(pc, &ms.title, &ms.menu_item_id, ms.pos.clone());

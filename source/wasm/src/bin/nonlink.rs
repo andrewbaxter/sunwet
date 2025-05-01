@@ -45,7 +45,7 @@ use {
     },
     wasm::{
         async_::bg_val,
-        el_general::{
+        js::{
             el_async,
             style_export::{
                 self,
