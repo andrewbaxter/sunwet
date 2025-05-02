@@ -15,6 +15,7 @@ use {
     gloo::utils::document,
     lunk::{
         EventGraph,
+        Prim,
         ProcessingContext,
     },
     rooting::{
@@ -39,6 +40,7 @@ pub struct State_ {
     pub base_url: String,
     pub playlist: PlaylistState,
     pub client_config: BgVal<Result<Rc<ClientConfig>, String>>,
+    pub menu_open: Prim<bool>,
     // Arcmutex due to OnceLock, should El use sync alternatives?
     pub main_title: El,
     pub main_body: El,
@@ -62,6 +64,7 @@ pub fn set_page(pc: &mut ProcessingContext, title: &str, body: El) {
     state.main_title.ref_text(title);
     state.main_body.ref_clear();
     state.main_body.ref_push(body);
+    state.menu_open.set(pc, false);
 }
 
 pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {

@@ -651,6 +651,12 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
             playlist_toggle_play(pc, &state().playlist, None);
         }).unwrap()
     });
+    button_play.ref_own(
+        |out| link!((_pc = pc), (playing = state().playlist.0.playing.clone()), (), (out = out.weak()) {
+            let out = out.upgrade()?;
+            out.ref_modify_classes(&[(style_export::class_state_playing().value.as_ref(), playing.get())]);
+        }),
+    );
 
     // Seekbar
     let seekbar = el_from_raw(transport_res.seekbar.into());

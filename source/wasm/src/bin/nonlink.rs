@@ -1,7 +1,10 @@
 use {
     gloo::{
         events::EventListener,
-        utils::window,
+        utils::{
+            document,
+            window,
+        },
     },
     libnonlink::{
         api::req_post_json,
@@ -25,6 +28,7 @@ use {
     lunk::{
         link,
         EventGraph,
+        Prim,
     },
     rooting::{
         el_from_raw,
@@ -143,17 +147,28 @@ pub fn main() {
             el_from_raw(
                 style_export::leaf_title(style_export::LeafTitleArgs { text: "Sunwet".to_string() }).root.into(),
             );
-        let root = el_from_raw(style_export::app_main(style_export::AppMainArgs {
+        let root_res = style_export::app_main(style_export::AppMainArgs {
             main_title: main_title.raw().dyn_into().unwrap(),
             main_body: main_body.raw().dyn_into().unwrap(),
             menu_body: menu_body.raw().dyn_into().unwrap(),
-        }).root.into()).own(|_| (main_body.clone(), menu_body.clone()));
+        });
+        let admenu_button = el_from_raw(root_res.admenu_button.into()).on("click", {
+            let eg = pc.eg();
+            move |_| eg.event(|pc| {
+                state().menu_open.set(pc, !*state().menu_open.borrow());
+            }).unwrap()
+        });
+        let root =
+            el_from_raw(root_res.root.into())
+                .own(|_| (main_body.clone(), menu_body.clone()))
+                .own(|_| admenu_button);
         let (playlist_state, playlist_root) = playlist::state_new(pc, base_url.clone());
 
         // Build app state
         STATE.with(|s| *s.borrow_mut() = Some(Rc::new(State_ {
             eg: pc.eg(),
             ministate: RefCell::new(read_ministate()),
+            menu_open: Prim::new(false),
             base_url: base_url.clone(),
             playlist: playlist_state,
             modal_stack: modal_stack.clone(),
@@ -227,6 +242,15 @@ pub fn main() {
                     _ = e.media.pm_el().raw().request_fullscreen();
                 }
             ),
+            link!((_pc = pc), (menu_open = state().menu_open.clone()), (), () {
+                let new_open = *menu_open.borrow();
+                let state_open = style_export::class_menu_state_open().value;
+                let x = document().get_elements_by_class_name(&style_export::class_menu_want_state_open().value);
+                for i in 0 .. x.length() {
+                    let ele = x.item(i).unwrap().dyn_into::<HtmlElement>().unwrap();
+                    ele.class_list().toggle_with_force(&state_open, new_open).unwrap();
+                }
+            }),
         )).push(root).push(modal_stack)]);
     });
 }

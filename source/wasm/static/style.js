@@ -234,7 +234,15 @@
   // xx State classes
 
   const classMenuWantStateOpen = "want_state_open";
+  presentation.classMenuWantStateOpen =
+    /** @type { Presentation["classMenuWantStateOpen"]} */ () => ({
+      value: classMenuWantStateOpen,
+    });
   const classMenuStateOpen = "state_open";
+  presentation.classMenuStateOpen =
+    /** @type { Presentation["classMenuStateOpen"]} */ () => ({
+      value: classMenuStateOpen,
+    });
   const classInputStateInvalid = "invalid";
   presentation.classStateInvalid =
     /** @type { Presentation["classStateInvalid"]} */ () => ({
@@ -258,16 +266,6 @@
 
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: all
-
-  const flipMenuState = (() => {
-    let state = false;
-    return () => {
-      state = !state;
-      for (const e of document.getElementsByClassName(classMenuWantStateOpen)) {
-        e.classList.toggle(classMenuStateOpen, state);
-      }
-    };
-  })();
 
   const contGroupStyle = "group";
   const contVboxStyle = "vbox";
@@ -2596,61 +2594,60 @@
 
   presentation.leafMenuLink = /** @type {Presentation["leafMenuLink"]} */ (
     args
-  ) => ({
-    root: e(
-      "div",
-      {},
-      {
-        children_: [
-          e(
-            "a",
-            {
-              href: args.href,
-              onclick: () => {
-                flipMenuState();
+  ) => {
+    return {
+      root: e(
+        "div",
+        {},
+        {
+          children_: [
+            e(
+              "a",
+              {
+                href: args.href,
               },
-            },
-            {
-              styles_: [
-                ss(uniq("leaf_menu_link"), {
-                  "": (s) => {
-                    s.fontSize = varSFontMenu;
-                    s.display = "flex";
-                    s.flexDirection = "row";
-                    s.alignItems = "center";
-                    s.justifyContent = "flex-start";
-                  },
-                  ">div": (s) => {
-                    s.opacity = "0";
-                    s.paddingLeft = "0.5cm";
-                    s.fontSize = "14pt";
-                  },
-                  ":hover>div": (s) => {
-                    s.opacity = "1";
-                  },
-                  ":hover:active>div": (s) => {
-                    s.opacity = "1";
-                  },
-                }),
-              ],
-              children_: [
-                e("span", { textContent: args.title }, {}),
-                e(
-                  "div",
-                  {
-                    textContent: textIconMenuLink,
-                  },
-                  {
-                    styles_: [leafIconStyle],
-                  }
-                ),
-              ],
-            }
-          ),
-        ],
-      }
-    ),
-  });
+              {
+                styles_: [
+                  ss(uniq("leaf_menu_link"), {
+                    "": (s) => {
+                      s.fontSize = varSFontMenu;
+                      s.display = "flex";
+                      s.flexDirection = "row";
+                      s.alignItems = "center";
+                      s.justifyContent = "flex-start";
+                    },
+                    ">div": (s) => {
+                      s.opacity = "0";
+                      s.paddingLeft = "0.5cm";
+                      s.fontSize = "14pt";
+                    },
+                    ":hover>div": (s) => {
+                      s.opacity = "1";
+                    },
+                    ":hover:active>div": (s) => {
+                      s.opacity = "1";
+                    },
+                  }),
+                ],
+                children_: [
+                  e("span", { textContent: args.title }, {}),
+                  e(
+                    "div",
+                    {
+                      textContent: textIconMenuLink,
+                    },
+                    {
+                      styles_: [leafIconStyle],
+                    }
+                  ),
+                ],
+              }
+            ),
+          ],
+        }
+      ),
+    };
+  };
 
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: Main
@@ -2727,131 +2724,129 @@
     ),
   });
 
-  presentation.appMain = /** @type {Presentation["appMain"]} */ (args) => ({
-    root: e(
-      "div",
-      {},
-      {
-        styles_: [
-          ss(uniq("body"), {
-            "": (s) => {
-              s.display = "grid";
-              s.overflowX = "hidden";
-              s.maxWidth = "100dvw";
-              s.gridTemplateColumns = `${varSCol1Width} 1fr auto`;
-              s.gridTemplateRows = "auto 1fr";
-            },
-          }),
-        ],
-        children_: [
-          presentation.contTitle({
-            left: args.mainTitle,
-            right: (() => {
-              const out = leafButton({
-                title: "Menu",
-                icon: textIconMenu,
-                extraStyles: [
-                  leafIconStyle,
-                  ss(uniq("cont_main_title_admenu"), {
+  presentation.appMain = /** @type {Presentation["appMain"]} */ (args) => {
+    const admenuButton = leafButton({
+      title: "Menu",
+      icon: textIconMenu,
+      extraStyles: [
+        leafIconStyle,
+        ss(uniq("cont_main_title_admenu"), {
+          "": (s) => {
+            s.gridColumn = "3";
+            s.gridRow = "1";
+          },
+          ">div": (s) => {
+            s.fontSize = varSFontAdmenu;
+            s.width = varSCol3Width;
+            s.height = varSCol3Width;
+          },
+        }),
+      ],
+    }).root;
+    return {
+      root: e(
+        "div",
+        {},
+        {
+          styles_: [
+            ss(uniq("body"), {
+              "": (s) => {
+                s.display = "grid";
+                s.overflowX = "hidden";
+                s.maxWidth = "100dvw";
+                s.gridTemplateColumns = `${varSCol1Width} 1fr auto`;
+                s.gridTemplateRows = "auto 1fr";
+              },
+            }),
+          ],
+          children_: [
+            presentation.contTitle({
+              left: args.mainTitle,
+              right: admenuButton,
+            }).root,
+            args.mainBody,
+            e(
+              "div",
+              {
+                id: "menu",
+              },
+              {
+                styles_: [
+                  classMenuWantStateOpen,
+                  s(uniq("cont_menu"), {
                     "": (s) => {
-                      s.gridColumn = "3";
-                      s.gridRow = "1";
+                      s.zIndex = "3";
+                      s.gridRow = "1/4";
+                      s.gridColumn = "1/3";
+                      s.backgroundColor = varCBackgroundMenu;
+                      s.filter =
+                        "drop-shadow(0.05cm 0px 0.05cm rgba(0, 0, 0, 0.06))";
+                      s.overflow = "hidden";
+                      s.display = "grid";
+                      s.gridTemplateColumns = "subgrid";
+                      s.gridTemplateRows = "subgrid";
+                      s.position = "relative";
+                      s.transition = "0.03s left";
+                      s.pointerEvents = "initial";
                     },
-                    ">div": (s) => {
-                      s.fontSize = varSFontAdmenu;
-                      s.width = varSCol3Width;
-                      s.height = varSCol3Width;
+                    [`.${classMenuStateOpen}`]: (s) => {
+                      s.left = "0";
+                    },
+                    [`:not(.${classMenuStateOpen})`]: (s) => {
+                      s.left = "-110dvw";
                     },
                   }),
                 ],
-              }).root;
-              out.onclick = () => {
-                flipMenuState();
-              };
-              return out;
-            })(),
-          }).root,
-          args.mainBody,
-          e(
-            "div",
-            {
-              id: "menu",
-            },
-            {
-              styles_: [
-                classMenuWantStateOpen,
-                s(uniq("cont_menu"), {
-                  "": (s) => {
-                    s.zIndex = "3";
-                    s.gridRow = "1/4";
-                    s.gridColumn = "1/3";
-                    s.backgroundColor = varCBackgroundMenu;
-                    s.filter =
-                      "drop-shadow(0.05cm 0px 0.05cm rgba(0, 0, 0, 0.06))";
-                    s.overflow = "hidden";
-                    s.display = "grid";
-                    s.gridTemplateColumns = "subgrid";
-                    s.gridTemplateRows = "subgrid";
-                    s.position = "relative";
-                    s.transition = "0.03s left";
-                    s.pointerEvents = "initial";
-                  },
-                  [`.${classMenuStateOpen}`]: (s) => {
-                    s.left = "0";
-                  },
-                  [`:not(.${classMenuStateOpen})`]: (s) => {
-                    s.left = "-110dvw";
-                  },
-                }),
-              ],
-              children_: [
-                presentation.contTitle({
-                  left: e(
-                    "div",
-                    {},
-                    {
-                      styles_: [
-                        contHboxStyle,
-                        ss(uniq("menu_title"), {
-                          "": (s) => {
-                            s.gridColumn = "2";
-                            s.gridRow = "1";
-                            s.alignItems = "center";
-                            s.gap = "0.3cm";
-                          },
-                          ">svg": (s) => {
-                            s.height = "0.9cm";
-                          },
-                        }),
-                      ],
-                      children_: [
-                        e(
-                          "h1",
-                          { textContent: "sunwet" },
-                          {
-                            styles_: [
-                              ss(uniq("menu_title_text"), {
-                                "": (s) => {
-                                  s.fontSize = varSFontTitle;
-                                  s.marginTop = "-0.15cm";
-                                  s.color = "#5d7186";
-                                },
-                              }),
-                            ],
-                          }
-                        ),
-                      ],
-                    }
-                  ),
-                }).root,
-                args.menuBody,
-              ],
-            }
-          ),
-        ],
-      }
-    ),
-  });
+                children_: [
+                  presentation.contTitle({
+                    left: e(
+                      "div",
+                      {},
+                      {
+                        styles_: [
+                          contHboxStyle,
+                          ss(uniq("menu_title"), {
+                            "": (s) => {
+                              s.gridColumn = "2";
+                              s.gridRow = "1";
+                              s.alignItems = "center";
+                              s.gap = "0.3cm";
+                            },
+                            ">svg": (s) => {
+                              s.height = "0.9cm";
+                            },
+                          }),
+                        ],
+                        children_: [
+                          e(
+                            "h1",
+                            { textContent: "sunwet" },
+                            {
+                              styles_: [
+                                ss(uniq("menu_title_text"), {
+                                  "": (s) => {
+                                    s.fontSize = varSFontTitle;
+                                    s.marginTop = "-0.15cm";
+                                    s.color = "#5d7186";
+                                  },
+                                }),
+                              ],
+                            }
+                          ),
+                        ],
+                      }
+                    ),
+                  }).root,
+                  args.menuBody,
+                ],
+              }
+            ),
+          ],
+        }
+      ),
+      admenuButton: admenuButton,
+    };
+  };
 
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: Main

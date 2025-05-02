@@ -119,6 +119,16 @@ fn main() {
     let mut rust = vec![];
     for method in [
         Func {
+            name: "classMenuWantStateOpen",
+            args: vec![],
+            returns: vec![("value", &string_)],
+        },
+        Func {
+            name: "classMenuStateOpen",
+            args: vec![],
+            returns: vec![("value", &string_)],
+        },
+        Func {
             name: "classStateThinking",
             args: vec![],
             returns: vec![("value", &string_)],
@@ -473,7 +483,7 @@ fn main() {
         Func {
             name: "appMain",
             args: vec![("mainTitle", &el_), ("mainBody", &el_), ("menuBody", &el_)],
-            returns: vec![("root", &el_)],
+            returns: vec![("root", &el_), ("admenuButton", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: Link

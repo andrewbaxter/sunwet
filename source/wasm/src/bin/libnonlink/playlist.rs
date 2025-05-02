@@ -8,7 +8,11 @@ use {
         state::state,
     },
     crate::libnonlink::ministate::record_replace_ministate,
-    chrono::Utc,
+    chrono::{
+        DateTime,
+        Duration,
+        Utc,
+    },
     futures::{
         Future,
         FutureExt,
@@ -127,7 +131,7 @@ impl PlaylistMedia for AudioPlaylistMedia {
     }
 
     fn pm_play(&self) {
-        log_1(&JsValue::from("playlist event, play"));
+        log_1(&JsValue::from("pm_play"));
         let audio = self.pm_media();
         audio.play().log("Error playing audio");
     }
@@ -340,6 +344,7 @@ pub struct PlaylistEntry {
 
 pub struct PlaylistState_ {
     pub base_url: String,
+    pub debounce: Cell<DateTime<Utc>>,
     pub playlist: RefCell<BTreeMap<PlaylistIndex, Rc<PlaylistEntry>>>,
     pub playing: HistPrim<bool>,
     // Must be Some if playing, otherwise may be Some.
@@ -375,7 +380,8 @@ fn playlist_first_index(state: &PlaylistState) -> Option<PlaylistIndex> {
 }
 
 pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState, rooting::ScopeValue) {
-    let state = PlaylistState(Rc::new(PlaylistState_ {
+    let playlist_state = PlaylistState(Rc::new(PlaylistState_ {
+        debounce: Cell::new(Utc::now()),
         base_url: base_url,
         playlist: RefCell::new(Default::default()),
         playing: HistPrim::new(pc, false),
@@ -397,19 +403,19 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
     }
 
     media_session.set_action_handler(web_sys::MediaSessionAction::Play, Some(&media_fn(pc, {
-        let state = state.clone();
+        let state = playlist_state.clone();
         move |pc, _args| {
             playlist_play(pc, &state);
         }
     })));
     media_session.set_action_handler(web_sys::MediaSessionAction::Pause, Some(&media_fn(pc, {
-        let state = state.clone();
+        let state = playlist_state.clone();
         move |pc, _args| {
             playlist_pause(pc, &state);
         }
     })));
     media_session.set_action_handler(web_sys::MediaSessionAction::Stop, Some(&media_fn(pc, {
-        let state = state.clone();
+        let state = playlist_state.clone();
         move |pc, _args| {
             state.0.playing.set(pc, false);
             state.0.playing_i.set(pc, None);
@@ -417,19 +423,19 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
         }
     })));
     media_session.set_action_handler(web_sys::MediaSessionAction::Nexttrack, Some(&media_fn(pc, {
-        let state = state.clone();
+        let state = playlist_state.clone();
         move |pc, _args| {
             playlist_next(pc, &state, state.0.playing_i.get());
         }
     })));
     media_session.set_action_handler(web_sys::MediaSessionAction::Previoustrack, Some(&media_fn(pc, {
-        let state = state.clone();
+        let state = playlist_state.clone();
         move |pc, _args| {
             playlist_previous(pc, &state, state.0.playing_i.get());
         }
     })));
     media_session.set_action_handler(web_sys::MediaSessionAction::Seekforward, Some(&media_fn(pc, {
-        let state = state.clone();
+        let state = playlist_state.clone();
         move |_pc, args| {
             let Some(i) = state.0.playing_i.get() else {
                 return;
@@ -440,7 +446,7 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
         }
     })));
     media_session.set_action_handler(web_sys::MediaSessionAction::Seekbackward, Some(&media_fn(pc, {
-        let state = state.clone();
+        let state = playlist_state.clone();
         move |_pc, args| {
             let Some(i) = state.0.playing_i.get() else {
                 return;
@@ -451,23 +457,23 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
         }
     })));
     media_session.set_action_handler(web_sys::MediaSessionAction::Seekto, Some(&media_fn(pc, {
-        let state = state.clone();
+        let state = playlist_state.clone();
         move |pc, args| {
             let time = js_sys::Reflect::get(&args, &JsValue::from("seekTime")).unwrap().as_f64().unwrap();
             playlist_seek(pc, &state, time);
         }
     })));
-    return (state.clone(), scope_any((
+    return (playlist_state.clone(), scope_any((
         //. .
         link!(
             //. .
             (_pc = pc),
-            (playing = state.0.playing.clone(), playing_i = state.0.playing_i.clone()),
+            (playing = playlist_state.0.playing.clone(), playing_i = playlist_state.0.playing_i.clone()),
             (),
-            (state = state.clone(), media_session = media_session, bg = Cell::new(None)) {
-                match state.0.playing_i.get() {
+            (playlist_state = playlist_state.clone(), media_session = media_session, bg = Cell::new(None)) {
+                match playlist_state.0.playing_i.get() {
                     Some(i) => {
-                        let e = state.0.playlist.borrow().get(&i).cloned().unwrap();
+                        let e = playlist_state.0.playlist.borrow().get(&i).cloned().unwrap();
                         media_session.set_metadata(Some(&{
                             let m = MediaMetadata::new().unwrap();
                             if let Some(name) = &e.name {
@@ -500,8 +506,8 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
                 if !*playing.borrow() {
                     // Stop previous
                     if let Some(i) = playing_i.get_old() {
-                        if let Some(e) = state.0.playlist.borrow().get(&i).cloned() {
-                            if let Some((_, ws)) = &*state.0.share.borrow() {
+                        if let Some(e) = playlist_state.0.playlist.borrow().get(&i).cloned() {
+                            if let Some((_, ws)) = &*playlist_state.0.share.borrow() {
                                 bg.set(Some(spawn_rooted({
                                     let ws = ws.clone();
                                     async move {
@@ -509,6 +515,8 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
                                     }
                                 })));
                             }
+                            log_1(&JsValue::from("playlist event not playing, media stop"));
+                            playlist_state.0.debounce.set(Utc::now());
                             e.media.pm_stop();
                         }
                     }
@@ -516,7 +524,9 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
                     // Stop previous if it changed
                     if let Some(i) = playing_i.get_old().as_ref() {
                         if Some(i) != playing_i.get().as_ref() {
-                            let e = state.0.playlist.borrow().get(i).cloned().unwrap();
+                            let e = playlist_state.0.playlist.borrow().get(i).cloned().unwrap();
+                            log_1(&JsValue::from("playlist event index changed, media stop"));
+                            playlist_state.0.debounce.set(Utc::now());
                             e.media.pm_stop();
                             e.media.pm_seek(0.);
                             e.media.pm_unpreload();
@@ -526,10 +536,10 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
                     // Start next/current
                     let i = match playing_i.get() {
                         Some(i) => i,
-                        None => playlist_first_index(state).unwrap(),
+                        None => playlist_first_index(playlist_state).unwrap(),
                     };
-                    let e = state.0.playlist.borrow().get(&i).cloned().unwrap();
-                    if let Some((_, ws)) = &*state.0.share.borrow() {
+                    let e = playlist_state.0.playlist.borrow().get(&i).cloned().unwrap();
+                    if let Some((_, ws)) = &*playlist_state.0.share.borrow() {
                         bg.set(Some(spawn_rooted({
                             let ws = ws.clone();
                             async move {
@@ -554,13 +564,14 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
                         })));
                     } else {
                         log_1(&JsValue::from("playlist event, play"));
+                        playlist_state.0.debounce.set(Utc::now());
                         e.media.pm_play();
                     }
                 }
             }
         ),
         Interval::new(1000, {
-            let state = state.clone();
+            let state = playlist_state.clone();
             let eg = pc.eg();
             let last_state = Cell::new(None);
             move || {
@@ -592,21 +603,23 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
     )));
 }
 
-pub fn playlist_set_link(pc: &mut ProcessingContext, state: &PlaylistState, id: &str) {
-    state.0.share.set(pc, Some((id.to_string(), Ws::new(format!("main/{}", id), {
-        let state = state.clone();
+pub fn playlist_set_link(pc: &mut ProcessingContext, playlist_state: &PlaylistState, id: &str) {
+    playlist_state.0.share.set(pc, Some((id.to_string(), Ws::new(format!("main/{}", id), {
+        let playlist_state = playlist_state.clone();
         let bg = Cell::new(None);
         move |_, msg| {
             match msg {
                 WsS2C::Play(play_at) => {
-                    let i = match state.0.playing_i.get() {
+                    let i = match playlist_state.0.playing_i.get() {
                         Some(i) => i,
-                        None => playlist_first_index(&state).unwrap(),
+                        None => playlist_first_index(&playlist_state).unwrap(),
                     };
-                    let e = state.0.playlist.borrow().get(&i).cloned().unwrap();
+                    let e = playlist_state.0.playlist.borrow().get(&i).cloned().unwrap();
                     bg.set(Some(spawn_rooted({
+                        let playlist_state = playlist_state.clone();
                         async move {
                             TimeoutFuture::new((play_at - Utc::now()).num_milliseconds().max(0) as u32).await;
+                            playlist_state.0.debounce.set(Utc::now());
                             e.media.pm_play();
                         }
                     })));
@@ -618,6 +631,10 @@ pub fn playlist_set_link(pc: &mut ProcessingContext, state: &PlaylistState, id: 
 
 pub fn playlist_len(state: &PlaylistState) -> usize {
     return state.0.playlist.borrow().len();
+}
+
+fn debounce_pass(state: &PlaylistState) -> bool {
+    return Utc::now() - state.0.debounce.get() >= Duration::milliseconds(50);
 }
 
 pub struct PlaylistPushArg {
@@ -649,12 +666,20 @@ pub fn playlist_extend(
             media.ref_on("pause", {
                 let eg = pc.eg();
                 move |_| eg.event(|pc| {
+                    log_1(&JsValue::from("media event pause"));
+                    if !debounce_pass(&state().playlist) {
+                        return;
+                    }
                     state().playlist.0.playing.set(pc, false);
                 }).unwrap()
             });
             media.ref_on("play", {
                 let eg = pc.eg();
                 move |_| eg.event(|pc| {
+                    log_1(&JsValue::from("media event play"));
+                    if !debounce_pass(&state().playlist) {
+                        return;
+                    }
                     state().playlist.0.playing.set(pc, true);
                 }).unwrap()
             });
