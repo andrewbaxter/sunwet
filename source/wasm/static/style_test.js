@@ -206,23 +206,56 @@
     }).root;
 
     const hash = location.hash;
-    if (hash == "#home") {
-      document.body.appendChild(
-        presentation.appMain({
-          mainTitle: presentation.leafTitle({ text: "" }).root,
-          mainBody: presentation.contPageHome({}).root,
-          menuBody: stagingMenu,
-        }).root
-      );
-    } else if (hash == "#view") {
-      document.body.appendChild(stagingPageView);
-    } else if (hash == "#view_modal_share") {
-      document.body.appendChild(stagingPageView);
-      document.body.appendChild(
-        presentation.contModalViewShare({
-          qr: /** @type {HTMLElement} */ (
-            new DOMParser().parseFromString(
-              `
+    switch (hash) {
+      case "#main_async":
+        {
+          document.body.appendChild(
+            presentation.appMain({
+              mainTitle: presentation.leafTitle({ text: "" }).root,
+              mainBody: presentation.leafAsyncBlock({ in_root: true }).root,
+              menuBody: stagingMenu,
+            }).root
+          );
+        }
+        break;
+      case "#main_err":
+        {
+          document.body.appendChild(
+            presentation.appMain({
+              mainTitle: presentation.leafTitle({ text: "" }).root,
+              mainBody: presentation.leafErrBlock({
+                data: "This be error 503",
+                in_root: true,
+              }).root,
+              menuBody: stagingMenu,
+            }).root
+          );
+        }
+        break;
+      case "#home":
+        {
+          document.body.appendChild(
+            presentation.appMain({
+              mainTitle: presentation.leafTitle({ text: "" }).root,
+              mainBody: presentation.contPageHome({}).root,
+              menuBody: stagingMenu,
+            }).root
+          );
+        }
+        break;
+      case "#view":
+        {
+          document.body.appendChild(stagingPageView);
+        }
+        break;
+      case "#view_modal_share":
+        {
+          document.body.appendChild(stagingPageView);
+          document.body.appendChild(
+            presentation.contModalViewShare({
+              qr: /** @type {HTMLElement} */ (
+                new DOMParser().parseFromString(
+                  `
             <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 580 580">
     <path d="M240 80h20v20h-20zm20 0h20v20h-20zm0 20h20v20h-20zm40 0h20v20h-20zm20 0h20v20h-20zm0 20h20v20h-20zm-80 20h20v20h-20zm20 0h20v20h-20zm60 0h20v20h-20zm-80 20h20v20h-20zm40 0h20v20h-20zm40 0h20v20h-20zm-80 20h20v20h-20zm40 0h20v20h-20zm20 0h20v20h-20zm-60 20h20v20h-20zm40 0h20v20h-20zm40 0h20v20h-20zm-80 20h20v20h-20zm40 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zM80 240h20v20H80zm80 0h20v20h-20zm40 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm40 0h20v20h-20zm40 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm60 0h20v20h-20zm-380 20h20v20h-20zm40 0h20v20h-20zm40 0h20v20h-20zm40 0h20v20h-20zm80 0h20v20h-20zm20 0h20v20h-20zm100 0h20v20h-20zm20 0h20v20h-20zm40 0h20v20h-20zm-360 20h20v20h-20zm60 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm60 0h20v20h-20zm20 0h20v20h-20zm60 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zM80 300h20v20H80zm20 0h20v20h-20zm40 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm60 0h20v20h-20zm20 0h20v20h-20zm80 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zM80 320h20v20H80zm40 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm40 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm80 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm80 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm-240 20h20v20h-20zm40 0h20v20h-20zm40 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm-240 20h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm40 0h20v20h-20zm20 0h20v20h-20zm80 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm-200 20h20v20h-20zm40 0h20v20h-20zm20 0h20v20h-20zm60 0h20v20h-20zm100 0h20v20h-20zm-240 20h20v20h-20zm40 0h20v20h-20zm20 0h20v20h-20zm60 0h20v20h-20zm20 0h20v20h-20zm40 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm-200 20h20v20h-20zm40 0h20v20h-20zm20 0h20v20h-20zm100 0h20v20h-20zm20 0h20v20h-20zm40 0h20v20h-20zm-220 20h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm60 0h20v20h-20zm60 0h20v20h-20zm20 0h20v20h-20zm-180 20h20v20h-20zm80 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm60 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm-240 20h20v20h-20zm40 0h20v20h-20zm40 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm20 0h20v20h-20zm60 0h20v20h-20zm40 0h20v20h-20z" shape-rendering="crispEdges"/>
     <path fill-rule="evenodd" d="M80 80h140v140H80Zm20 20h100v100H100Zm260-20h140v140H360Zm20 20h100v100H380Z" shape-rendering="crispEdges"/>
@@ -231,111 +264,234 @@
     <path d="M120 400h60v60h-60z" shape-rendering="crispEdges"/>
   </svg>
             `,
-              "text/html"
-            ).body.firstElementChild
-          ),
-          link: "https://a.b.c",
-        }).root
-      );
-    } else if (hash == "#fullscreen") {
-      const media = document.createElement("div");
-      media.style.border = "1px solid blue";
-      document.body.appendChild(
-        presentation.contMediaFullscreen({
-          media: media,
-        }).root
-      );
-    } else if (hash == "#form") {
-      const errInput = presentation.leafInputPairText({
-        id: "item2",
-        title: "Text",
-        value: "WXYC",
-      });
-      errInput.input.classList.add(presentation.classStateInvalid({}).value);
-      document.body.appendChild(
-        presentation.appMain({
-          mainTitle: presentation.leafTitle({ text: "Music" }).root,
-          mainBody: presentation.contPageForm({
-            entries: [
-              presentation.leafInputPairText({
-                id: "item1",
-                title: "Title",
-                value: "ABCD",
+                  "text/html"
+                ).body.firstElementChild
+              ),
+              link: "https://a.b.c",
+            }).root
+          );
+        }
+        break;
+      case "#fullscreen":
+        {
+          const media = document.createElement("div");
+          media.style.border = "1px solid blue";
+          document.body.appendChild(
+            presentation.contMediaFullscreen({
+              media: media,
+            }).root
+          );
+        }
+        break;
+      case "#form":
+        {
+          const errInput = presentation.leafInputPairText({
+            id: "item2",
+            title: "Text",
+            value: "WXYC",
+          });
+          errInput.input.classList.add(
+            presentation.classStateInvalid({}).value
+          );
+          document.body.appendChild(
+            presentation.appMain({
+              mainTitle: presentation.leafTitle({ text: "Music" }).root,
+              mainBody: presentation.contPageForm({
+                entries: [
+                  presentation.leafInputPairText({
+                    id: "item1",
+                    title: "Title",
+                    value: "ABCD",
+                  }).root,
+                  errInput.root,
+                  presentation.leafInputPairNumber({
+                    id: "item2",
+                    title: "Text",
+                    value: "44",
+                  }).root,
+                  presentation.leafFormComment({
+                    text: "This next item is a checkbox.\n\nThis text has multiple paragraphs.",
+                  }).root,
+                  presentation.leafInputPairBool({
+                    id: "item2",
+                    title: "Text",
+                    value: true,
+                  }).root,
+                  presentation.leafInputPairDate({
+                    id: "item2",
+                    title: "Text",
+                    value: "2024-08-23",
+                  }).root,
+                  presentation.leafInputPairTime({
+                    id: "item2",
+                    title: "Text",
+                    value: "22:10:10",
+                  }).root,
+                  presentation.leafInputPairDatetime({
+                    id: "item2",
+                    title: "Text",
+                    value: "2024-08-23 22:10:10",
+                  }).root,
+                  presentation.leafInputPairColor({
+                    id: "item2",
+                    title: "Text",
+                    value: "#445566",
+                  }).root,
+                  presentation.leafSpace({}).root,
+                ],
+                barChildren: [presentation.leafButtonBigSave({}).root],
               }).root,
-              errInput.root,
-              presentation.leafInputPairNumber({
-                id: "item2",
-                title: "Text",
-                value: "44",
-              }).root,
-              presentation.leafFormComment({
-                text: "This next item is a checkbox.\n\nThis text has multiple paragraphs.",
-              }).root,
-              presentation.leafInputPairBool({
-                id: "item2",
-                title: "Text",
-                value: true,
-              }).root,
-              presentation.leafInputPairDate({
-                id: "item2",
-                title: "Text",
-                value: "2024-08-23",
-              }).root,
-              presentation.leafInputPairTime({
-                id: "item2",
-                title: "Text",
-                value: "22:10:10",
-              }).root,
-              presentation.leafInputPairDatetime({
-                id: "item2",
-                title: "Text",
-                value: "2024-08-23 22:10:10",
-              }).root,
-              presentation.leafInputPairColor({
-                id: "item2",
-                title: "Text",
-                value: "#445566",
-              }).root,
-              presentation.leafSpace({}).root,
-            ],
-            barChildren: [
-              presentation.leafButtonBig({ title: "Save", text: "Save" }).root,
-            ],
-          }).root,
-          menuBody: stagingMenu,
-        }).root
-      );
-    } else if (hash == "#edit") {
-      /** @type { (args: {hint: string, value: string})=> HTMLSelectElement} */
-      const nodeTypeSel = (args) =>
-        window.sunwetPresentation.leafInputEnum({
-          title: `${args.hint} type`,
-          value: args.value,
-          options: {
-            file: "File",
-            string: "String",
-            bool: "Boolean",
-            number: "Number",
-            json: "JSON",
-          },
-        }).root;
-      document.body.appendChild(
-        presentation.appMain({
-          mainTitle: presentation.leafTitle({ text: "Music" }).root,
-          mainBody: presentation.contPageEdit({
-            children: [
-              presentation.contEditRowIncoming({
+              menuBody: stagingMenu,
+            }).root
+          );
+        }
+        break;
+      case "#node_view":
+        {
+          document.body.appendChild(
+            presentation.appMain({
+              mainTitle: presentation.leafTitle({ text: "Music" }).root,
+              mainBody: presentation.contPageNodeView({
+                pageButtonChildren: [
+                  presentation.leafButtonSmallEdit({ url: "abcd" }).root,
+                ],
                 children: [
-                  presentation.leafButtonEditAdd({
-                    hint: "Add incoming triple",
+                  presentation.contPageNodeSectionRel({
+                    children: [
+                      presentation.contNodeRowIncoming({
+                        children: [
+                          presentation.leafNodeViewNodeText({
+                            value: "ABCD-1234",
+                          }).root,
+                          presentation.leafNodeViewPredicate({
+                            value: "sunwet/1/is",
+                          }).root,
+                        ],
+                      }).root,
+                      presentation.contNodeRowIncoming({
+                        children: [
+                          presentation.leafNodeViewNodeText({
+                            value: "ABCD-1234",
+                          }).root,
+                          presentation.leafNodeViewPredicate({
+                            value: "sunwet/1/has",
+                          }).root,
+                        ],
+                      }).root,
+                    ],
+                  }).root,
+                  presentation.contNodeSectionCenter({
+                    children: [
+                      presentation.leafNodeViewNodeText({
+                        value: "ABCD-1234",
+                      }).root,
+                    ],
+                  }).root,
+                  presentation.contPageNodeSectionRel({
+                    children: [
+                      presentation.contNodeRowOutgoing({
+                        children: [
+                          presentation.leafNodeViewPredicate({
+                            value: "sunwet/1/has",
+                          }).root,
+                          presentation.leafNodeViewNodeText({
+                            value: "ABCD-1234",
+                          }).root,
+                        ],
+                      }).root,
+                      presentation.contNodeRowOutgoing({
+                        children: [
+                          presentation.leafNodeViewPredicate({
+                            value: "sunwet/1/has",
+                          }).root,
+                          presentation.leafNodeViewNodeText({
+                            value: "ABCD-1234",
+                          }).root,
+                        ],
+                      }).root,
+                    ],
                   }).root,
                 ],
               }).root,
-              presentation.contPageEditSectionRel({
+              menuBody: stagingMenu,
+            }).root
+          );
+        }
+        break;
+      case "#node_edit":
+        {
+          /** @type { (args: {hint: string, value: string})=> HTMLSelectElement} */
+          const nodeTypeSel = (args) =>
+            window.sunwetPresentation.leafInputEnum({
+              title: `${args.hint} type`,
+              value: args.value,
+              options: {
+                file: "File",
+                string: "String",
+                bool: "Boolean",
+                number: "Number",
+                json: "JSON",
+              },
+            }).root;
+          document.body.appendChild(
+            presentation.appMain({
+              mainTitle: presentation.leafTitle({ text: "Music" }).root,
+              mainBody: presentation.contPageNodeEdit({
+                pageButtonChildren: [
+                  presentation.leafButtonSmallView({ url: "abcd" }).root,
+                ],
                 children: [
-                  presentation.contEditRowIncoming({
+                  presentation.contNodeRowIncoming({
                     children: [
-                      presentation.leafEditNode({
+                      presentation.leafButtonNodeEditAdd({
+                        hint: "Add incoming triple",
+                      }).root,
+                    ],
+                  }).root,
+                  presentation.contPageNodeSectionRel({
+                    children: [
+                      presentation.contNodeRowIncoming({
+                        children: [
+                          presentation.leafNodeEditButtons({}).root,
+                          presentation.leafNodeEditNode({
+                            inputType: nodeTypeSel({
+                              hint: "Subject",
+                              value: "file",
+                            }),
+                            inputValue: presentation.leafInputText({
+                              title: "Subject",
+                              value: "ABCD-1234",
+                            }).root,
+                          }).root,
+                          presentation.leafNodeEditPredicate({
+                            value: "sunwet/1/is",
+                          }).root,
+                        ],
+                      }).root,
+                      presentation.contNodeRowIncoming({
+                        children: [
+                          presentation.leafNodeEditButtons({}).root,
+                          presentation.leafNodeEditNode({
+                            inputType: nodeTypeSel({
+                              hint: "Subject",
+                              value: "file",
+                            }),
+                            inputValue: presentation.leafInputText({
+                              title: "Subject",
+                              value: "ABCD-1234",
+                            }).root,
+                          }).root,
+                          presentation.leafNodeEditPredicate({
+                            value: "sunwet/1/has",
+                          }).root,
+                        ],
+                      }).root,
+                    ],
+                  }).root,
+                  presentation.contNodeSectionCenter({
+                    children: [
+                      presentation.leafNodeEditButtons({}).root,
+                      presentation.leafNodeEditNode({
                         inputType: nodeTypeSel({
                           hint: "Subject",
                           value: "file",
@@ -345,99 +501,70 @@
                           value: "ABCD-1234",
                         }).root,
                       }).root,
-                      presentation.leafEditPredicate({
-                        value: "sunwet/1/is",
+                    ],
+                  }).root,
+                  presentation.contPageNodeSectionRel({
+                    children: [
+                      presentation.contNodeRowOutgoing({
+                        children: [
+                          presentation.leafNodeEditButtons({}).root,
+                          presentation.leafNodeEditPredicate({
+                            value: "sunwet/1/is",
+                          }).root,
+                          presentation.leafNodeEditNode({
+                            inputType: nodeTypeSel({
+                              hint: "Subject",
+                              value: "file",
+                            }),
+                            inputValue: presentation.leafInputText({
+                              title: "Subject",
+                              value: "ABCD-1234",
+                            }).root,
+                          }).root,
+                        ],
+                      }).root,
+                      presentation.contNodeRowOutgoing({
+                        children: [
+                          presentation.leafNodeEditButtons({}).root,
+                          presentation.leafNodeEditPredicate({
+                            value: "sunwet/1/has",
+                          }).root,
+                          presentation.leafNodeEditNode({
+                            inputType: nodeTypeSel({
+                              hint: "Subject",
+                              value: "file",
+                            }),
+                            inputValue: presentation.leafInputText({
+                              title: "Subject",
+                              value: "ABCD-1234",
+                            }).root,
+                          }).root,
+                        ],
                       }).root,
                     ],
                   }).root,
-                  presentation.contEditRowIncoming({
+                  presentation.contNodeRowOutgoing({
                     children: [
-                      presentation.leafEditNode({
-                        inputType: nodeTypeSel({
-                          hint: "Subject",
-                          value: "file",
-                        }),
-                        inputValue: presentation.leafInputText({
-                          title: "Subject",
-                          value: "ABCD-1234",
-                        }).root,
-                      }).root,
-                      presentation.leafEditPredicate({
-                        value: "sunwet/1/has",
+                      presentation.leafButtonNodeEditAdd({
+                        hint: "Add outgoing triple",
                       }).root,
                     ],
                   }).root,
                 ],
+                barChildren: [presentation.leafButtonBigSave({}).root],
               }).root,
-              presentation.contEditSectionCenter({
-                child: presentation.leafEditNode({
-                  inputType: nodeTypeSel({
-                    hint: "Subject",
-                    value: "file",
-                  }),
-                  inputValue: presentation.leafInputText({
-                    title: "Subject",
-                    value: "ABCD-1234",
-                  }).root,
-                }).root,
-              }).root,
-              presentation.contPageEditSectionRel({
-                children: [
-                  presentation.contEditRowOutgoing({
-                    children: [
-                      presentation.leafEditNode({
-                        inputType: nodeTypeSel({
-                          hint: "Subject",
-                          value: "file",
-                        }),
-                        inputValue: presentation.leafInputText({
-                          title: "Subject",
-                          value: "ABCD-1234",
-                        }).root,
-                      }).root,
-                      presentation.leafEditPredicate({
-                        value: "sunwet/1/is",
-                      }).root,
-                    ],
-                  }).root,
-                  presentation.contEditRowOutgoing({
-                    children: [
-                      presentation.leafEditNode({
-                        inputType: nodeTypeSel({
-                          hint: "Subject",
-                          value: "file",
-                        }),
-                        inputValue: presentation.leafInputText({
-                          title: "Subject",
-                          value: "ABCD-1234",
-                        }).root,
-                      }).root,
-                      presentation.leafEditPredicate({
-                        value: "sunwet/1/has",
-                      }).root,
-                    ],
-                  }).root,
-                ],
-              }).root,
-              presentation.contEditRowOutgoing({
-                children: [
-                  presentation.leafButtonEditAdd({
-                    hint: "Add outgoing triple",
-                  }).root,
-                ],
-              }).root,
-            ],
-            barChildren: [
-              presentation.leafButtonBig({ title: "Save", text: "Save" }).root,
-            ],
-          }).root,
-          menuBody: stagingMenu,
-        }).root
-      );
-    } else if (hash == "#link") {
-      document.body.appendChild(presentation.appLink({}).root);
-    } else {
-      throw new Error();
+              menuBody: stagingMenu,
+            }).root
+          );
+        }
+        break;
+      case "#link":
+        {
+          document.body.appendChild(presentation.appLink({}).root);
+        }
+        break;
+      default:
+        throw new Error();
     }
   });
 }

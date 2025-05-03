@@ -39,7 +39,14 @@ pub struct MinistateForm {
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct MinistateEdit {
+pub struct MinistateNodeEdit {
+    pub title: String,
+    pub node: Node,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct MinistateNodeView {
     pub title: String,
     pub node: Node,
 }
@@ -50,7 +57,8 @@ pub enum Ministate {
     Home,
     View(MinistateView),
     Form(MinistateForm),
-    Edit(MinistateEdit),
+    NodeEdit(MinistateNodeEdit),
+    NodeView(MinistateNodeView),
 }
 
 pub fn ministate_octothorpe(s: &Ministate) -> String {
@@ -62,7 +70,8 @@ pub fn ministate_title(s: &Ministate) -> String {
         Ministate::Home => return format!("Home"),
         Ministate::View(s) => return s.title.clone(),
         Ministate::Form(s) => return s.title.clone(),
-        Ministate::Edit(s) => return s.title.clone(),
+        Ministate::NodeEdit(s) => return s.title.clone(),
+        Ministate::NodeView(s) => return s.title.clone(),
     }
 }
 

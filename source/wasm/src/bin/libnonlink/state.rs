@@ -4,8 +4,9 @@ use {
             record_new_ministate,
             Ministate,
         },
-        page_edit::build_page_edit,
         page_form::build_page_form_by_id,
+        page_node_edit::build_page_node_edit,
+        page_node_view::build_page_node_view,
         page_view::build_page_view,
         playlist::{
             playlist_clear,
@@ -57,11 +58,19 @@ pub fn state() -> Rc<State_> {
 }
 
 pub fn set_page(pc: &mut ProcessingContext, title: &str, body: El) {
+    set_page_(pc, title, false, body);
+}
+
+pub fn set_page_(pc: &mut ProcessingContext, title: &str, no_main_title: bool, body: El) {
     playlist_clear(pc, &state().playlist);
     document().set_title(&format!("{} - Sunwet", title));
     let state = state();
     state.modal_stack.ref_clear();
-    state.main_title.ref_text(title);
+    if no_main_title {
+        state.main_title.ref_text("");
+    } else {
+        state.main_title.ref_text(title);
+    }
     state.main_body.ref_clear();
     state.main_body.ref_push(body);
     state.menu_open.set(pc, false);
@@ -70,7 +79,7 @@ pub fn set_page(pc: &mut ProcessingContext, title: &str, body: El) {
 pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
     match s {
         Ministate::Home => {
-            set_page(pc, "Home", el_from_raw(style_export::cont_page_home().root.into()));
+            set_page_(pc, "Home", true, el_from_raw(style_export::cont_page_home().root.into()));
         },
         Ministate::View(ms) => {
             build_page_view(pc, &ms.title, &ms.menu_item_id, ms.pos.clone());
@@ -78,8 +87,11 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
         Ministate::Form(ms) => {
             build_page_form_by_id(pc, &ms.title, &ms.menu_item_id);
         },
-        Ministate::Edit(ms) => {
-            build_page_edit(pc, &ms.title, &ms.node);
+        Ministate::NodeEdit(ms) => {
+            build_page_node_edit(pc, &ms.title, &ms.node);
+        },
+        Ministate::NodeView(ms) => {
+            build_page_node_view(pc, &ms.title, &ms.node);
         },
     }
 }

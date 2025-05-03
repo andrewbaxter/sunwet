@@ -12,7 +12,7 @@ use {
         ministate::{
             ministate_octothorpe,
             Ministate,
-            MinistateEdit,
+            MinistateNodeEdit,
         },
         playlist::{
             playlist_extend,
@@ -183,8 +183,8 @@ fn unwrap_value_move_url(
         TreeNode::Record(v) => return Ok(serde_json::to_string(v).unwrap()),
         TreeNode::Scalar(v) => {
             if to_node {
-                return Ok(ministate_octothorpe(&Ministate::Edit(MinistateEdit {
-                    title: format!("Edit {}", unwrap_value_string(&get_field_or_literal(title, data_stack)?)),
+                return Ok(ministate_octothorpe(&Ministate::NodeEdit(MinistateNodeEdit {
+                    title: unwrap_value_string(&get_field_or_literal(title, data_stack)?),
                     node: v.clone(),
                 })));
             }
@@ -497,9 +497,10 @@ impl Build {
             }).root.into()));
         })() {
             Ok(e) => return e,
-            Err(e) => return el_from_raw(
-                style_export::leaf_err_block(style_export::LeafErrBlockArgs { data: e }).root.into(),
-            ),
+            Err(e) => return el_from_raw(style_export::leaf_err_block(style_export::LeafErrBlockArgs {
+                in_root: false,
+                data: e,
+            }).root.into()),
         }
     }
 
@@ -529,9 +530,10 @@ impl Build {
             }).root.into()));
         })() {
             Ok(e) => return e,
-            Err(e) => return el_from_raw(
-                style_export::leaf_err_block(style_export::LeafErrBlockArgs { data: e }).root.into(),
-            ),
+            Err(e) => return el_from_raw(style_export::leaf_err_block(style_export::LeafErrBlockArgs {
+                in_root: false,
+                data: e,
+            }).root.into()),
         }
     }
 
@@ -610,9 +612,10 @@ impl Build {
             return Ok(out);
         })() {
             Ok(e) => return e,
-            Err(e) => return el_from_raw(
-                style_export::leaf_err_block(style_export::LeafErrBlockArgs { data: e }).root.into(),
-            ),
+            Err(e) => return el_from_raw(style_export::leaf_err_block(style_export::LeafErrBlockArgs {
+                in_root: false,
+                data: e,
+            }).root.into()),
         }
     }
 

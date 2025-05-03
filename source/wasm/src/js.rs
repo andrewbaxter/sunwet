@@ -293,7 +293,14 @@ pub mod style_export {
 }
 
 pub fn el_async<E: ToString, F: 'static + Future<Output = Result<El, E>>>(f: F) -> El {
-    let out = el_from_raw(style_export::leaf_async_block().root.into());
+    return el_async_(false, f);
+}
+
+pub fn el_async_<E: ToString, F: 'static + Future<Output = Result<El, E>>>(in_root: bool, f: F) -> El {
+    let out =
+        el_from_raw(
+            style_export::leaf_async_block(style_export::LeafAsyncBlockArgs { in_root: in_root }).root.into(),
+        );
     out.ref_own(|_| spawn_rooted({
         let out = out.weak();
         async move {
@@ -307,14 +314,10 @@ pub fn el_async<E: ToString, F: 'static + Future<Output = Result<El, E>>>(f: F) 
                     out.ref_push(v);
                 },
                 Err(e) => {
-                    out.ref_push(
-                        el_from_raw(
-                            style_export::leaf_err_block(style_export::LeafErrBlockArgs { data: e.to_string() })
-                                .root
-                                .dyn_into()
-                                .unwrap(),
-                        ),
-                    );
+                    out.ref_push(el_from_raw(style_export::leaf_err_block(style_export::LeafErrBlockArgs {
+                        in_root: in_root,
+                        data: e.to_string(),
+                    }).root.dyn_into().unwrap()));
                 },
             }
         }

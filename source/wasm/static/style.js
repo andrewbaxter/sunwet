@@ -186,11 +186,12 @@
   const textIconClose = "\ue5cd";
   const textIconRelIn = "\uf72d";
   const textIconRelOut = "\uf72e";
+  const textIconEdit = "\ue3c9";
+  const textIconView = "\ue8f4";
 
   // xx Variables
 
   const varSPadTitle = v("0.4cm");
-  const varSPadViewOuter = varSPadTitle;
   const varSFontTitle = v("24pt");
   const varSFontAdmenu = v("20pt");
   const varSFontMenu = v("20pt");
@@ -199,7 +200,6 @@
   const varSCol1Width = v("min(0.8cm, 5dvw)");
   const varSCol3Width = v("1.4cm");
   const varSMenuColWidth = v("min(100%, 12cm)");
-  const varSEditRelWidth = v("1.5cm");
   //const varCBackground = vs("rgb(205, 207, 212)", "rgb(0,0,0)");
   const varCBackground = vs("rgb(230, 232, 238)", "rgb(0,0,0)");
   const varCBg2 = vs("rgb(218, 220, 226)", "rgb(0,0,0)");
@@ -214,22 +214,17 @@
   const varCSeekbarEmpty = vs("rgb(212, 216, 223)", "rgb(0,0,0)");
   const varCSeekbarFill = vs("rgb(197, 196, 209)", "rgb(0,0,0)");
 
-  const varSButtonPad = v("0.3cm");
+  const varSButtonPadBig = v("0.3cm");
+  const varSButtonPadSmall = v("0.1cm");
 
   const varCForeground = vs("rgb(0, 0, 0)", "rgb(0,0,0)");
+  const varCForegroundFade = vs("rgb(123, 123, 123)", "rgb(0,0,0)");
   const varCForegroundDark = v("rgb(249, 248, 240)");
   const varCForegroundError = vs("rgb(154, 60, 74)", "rgb(0,0,0)");
   const varCBorderError = vs("rgb(192, 61, 80)", "rgb(0,0,0)");
   const varCInputBorder = vs("rgb(154, 157, 168)", "rgb(0,0,0)");
-  const varCInputBackground = vs(varCBg2, "rgb(0,0,0)");
-  const varCHighlightNode = varCBg2;
   const varCSpinner = "rgb(155, 178, 229)";
-  const varCEditCenter = varCBg2;
-  const varCEditButtonFreeHover = vs(
-    `color-mix(in srgb, ${varCBg2}, transparent 30%)`,
-    "rgb(0,0,0)"
-  );
-  const varCEditButtonFreeClick = varCBg2;
+  const varCNodeCenter = varCBg2;
 
   // xx State classes
 
@@ -505,38 +500,43 @@
 
   presentation.leafAsyncBlock = /** @type {Presentation["leafAsyncBlock"]} */ (
     args
-  ) => ({
-    root: e(
+  ) => {
+    const inner = e(
       "div",
       {},
       {
-        styles_: [contGroupStyle],
-        children_: [
-          e(
-            "div",
-            {},
-            {
-              styles_: [
-                contStackStyle,
-                ss(uniq("leaf_async_block"), {
-                  "": (s) => {
-                    s.justifyItems = "center";
-                    s.alignItems = "center";
-                  },
-                }),
-              ],
-              children_: [presentation.contSpinner({}).root],
-            }
-          ),
+        styles_: [
+          contStackStyle,
+          ss(uniq("leaf_async_block"), {
+            "": (s) => {
+              s.justifyItems = "center";
+              s.alignItems = "center";
+            },
+          }),
         ],
+        children_: [presentation.contSpinner({}).root],
       }
-    ),
-  });
+    );
+    if (args.in_root) {
+      inner.style.gridColumn = "1/4";
+      inner.style.gridRow = "2";
+    }
+    return {
+      root: e(
+        "div",
+        {},
+        {
+          styles_: [contGroupStyle],
+          children_: [inner],
+        }
+      ),
+    };
+  };
 
   presentation.leafErrBlock = /** @type {Presentation["leafErrBlock"]} */ (
     args
-  ) => ({
-    root: e(
+  ) => {
+    const out = e(
       "div",
       {},
       {
@@ -555,8 +555,15 @@
         ],
         children_: [e("span", { textContent: args.data }, {})],
       }
-    ),
-  });
+    );
+    if (args.in_root) {
+      out.style.gridColumn = "1/4";
+      out.style.gridRow = "2";
+    }
+    return {
+      root: out,
+    };
+  };
 
   const leafSpaceStyle = s(uniq("leaf_space"), {
     "": (s) => {
@@ -570,6 +577,7 @@
 
   const leafButtonStyle = ss(uniq("leaf_button"), {
     "": (s) => {
+      s.flexDirection = "row";
       s.gap = "0.2cm";
     },
     ":hover": (s) => {
@@ -608,6 +616,45 @@
       ),
     };
   };
+  const leafButtonLinkStyle = ss(uniq("leaf_button_link"), {
+    "": (s) => {
+      s.display = "flex";
+    },
+    ":hover": (s) => {
+      s.textDecoration = "underline";
+    },
+  });
+  const leafButtonLink = /** @type {
+    (args: { title: string, icon?: string, text?: string, extraStyles: string[], url: string }) => { root: HTMLElement }
+  } */ (args) => {
+    const children = [];
+    if (args.icon != null) {
+      children.push(
+        e("div", { textContent: args.icon }, { styles_: [leafIconStyle] })
+      );
+    }
+    if (args.text != null) {
+      children.push(e("span", { textContent: args.text }, {}));
+    }
+    return {
+      root: e(
+        "a",
+        {
+          title: args.title,
+          href: args.url,
+        },
+        {
+          styles_: [
+            leafButtonStyle,
+            leafButtonLinkStyle,
+            contHboxStyle,
+            ...args.extraStyles,
+          ],
+          children_: children,
+        }
+      ),
+    };
+  };
 
   presentation.leafButtonBig =
     /** @type { Presentation["leafButtonBig"] } */
@@ -617,9 +664,9 @@
         icon: args.icon,
         text: args.text,
         extraStyles: [
-          ss(uniq("leaf_text_button"), {
+          ss(uniq("leaf_text_button_big"), {
             "": (s) => {
-              s.padding = varSButtonPad;
+              s.padding = varSButtonPadBig;
             },
           }),
         ],
@@ -631,6 +678,41 @@
         title: "Save",
         icon: textIconSave,
         text: "Save",
+      });
+  const leafButtonLinkSmall =
+    /** @type {(args: { title: string, icon?: string, text?: string, url: string }) => { root: HTMLElement }} */ (
+      args
+    ) =>
+      leafButtonLink({
+        url: args.url,
+        title: args.title,
+        icon: args.icon,
+        text: args.text,
+        extraStyles: [
+          ss(uniq("leaf_text_button_small"), {
+            "": (s) => {
+              s.padding = `${varSButtonPadSmall} ${varSButtonPadBig}`;
+              s.color = varCForegroundFade;
+            },
+          }),
+        ],
+      });
+
+  presentation.leafButtonSmallEdit =
+    /** @type {Presentation["leafButtonSmallEdit"]} */ (args) =>
+      leafButtonLinkSmall({
+        title: "Edit",
+        icon: textIconEdit,
+        text: "Edit",
+        url: args.url,
+      });
+  presentation.leafButtonSmallView =
+    /** @type {Presentation["leafButtonSmallView"]} */ (args) =>
+      leafButtonLinkSmall({
+        title: "View",
+        icon: textIconView,
+        text: "View",
+        url: args.url,
       });
 
   // /////////////////////////////////////////////////////////////////////////////
@@ -648,7 +730,7 @@
           ss(uniq("cont_page_home"), {
             "": (s) => {
               s.gridColumn = "1/4";
-              s.gridRow = "2";
+              s.gridRow = "1/3";
               s.justifyContent = "center";
               s.alignItems = "center";
             },
@@ -714,10 +796,12 @@
     ),
   });
 
+  const varInputBorder = v(`0.04cm solid ${varCInputBorder}`);
+  const varSInputPad = v("0.1cm");
   const leafInputStyle = s(uniq("leaf_form_input_text"), {
     "": (s) => {
-      s.borderBottom = `0.04cm solid ${varCInputBorder}`;
-      s.padding = "0.1cm";
+      s.borderBottom = varInputBorder;
+      s.padding = varSInputPad;
       s.maxWidth = "9999cm";
     },
     [`.${classInputStateInvalid}`]: (s) => {
@@ -729,13 +813,12 @@
 
   presentation.leafInputText = /** @type {Presentation["leafInputText"]} */ (
     args
-  ) => ({
-    root: e(
-      "div",
+  ) => {
+    const out = e(
+      "span",
       {
         contentEditable: "plaintext-only",
         title: args.title,
-        id: args.id,
         textContent: args.value,
       },
       {
@@ -743,7 +826,6 @@
           leafInputStyle,
           ss(uniq("leaf_input_text"), {
             "": (s) => {
-              s.display = "inline-block";
               s.whiteSpace = "pre-wrap";
             },
             ":empty::before": (s) => {
@@ -754,8 +836,14 @@
           }),
         ],
       }
-    ),
-  });
+    );
+    if (args.id != null) {
+      out.id = args.id;
+    }
+    return {
+      root: out,
+    };
+  };
 
   presentation.leafInputNumber =
     /** @type {Presentation["leafInputNumber"]} */ (args) => {
@@ -798,6 +886,9 @@
         )
       );
     out.checked = args.value;
+    if (args.id != null) {
+      out.id = args.id;
+    }
     return { root: out };
   };
   presentation.leafInputDate = /** @type {Presentation["leafInputDate"]} */ (
@@ -820,6 +911,9 @@
           }
         )
       );
+    if (args.id != null) {
+      out.id = args.id;
+    }
     return { root: out };
   };
   presentation.leafInputTime = /** @type {Presentation["leafInputTime"]} */ (
@@ -842,6 +936,9 @@
           }
         )
       );
+    if (args.id != null) {
+      out.id = args.id;
+    }
     return { root: out };
   };
   presentation.leafInputDatetime =
@@ -863,6 +960,9 @@
             }
           )
         );
+      if (args.id != null) {
+        out.id = args.id;
+      }
       return { root: out };
     };
   presentation.leafInputColor = /** @type {Presentation["leafInputColor"]} */ (
@@ -885,6 +985,9 @@
           }
         )
       );
+    if (args.id != null) {
+      out.id = args.id;
+    }
     return { root: out };
   };
   presentation.leafInputEnum = /** @type {Presentation["leafInputEnum"]} */ (
@@ -906,6 +1009,9 @@
         children_: children,
       }
     );
+    if (args.id != null) {
+      out.id = args.id;
+    }
     return { root: out };
   };
 
@@ -2087,7 +2193,7 @@
                   s.display = "inline-block";
                   s.textWrapMode = "nowrap";
                 },
-                [`div:nth-child(2)`]: (s) => {
+                [`>div:nth-child(2)`]: (s) => {
                   s.display = "none";
                 },
                 [`.${classStatePlaying}>div:nth-child(1)`]: (s) => {
@@ -2165,16 +2271,21 @@
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: page, form
 
-  const contBodyNarrowStyle = s(uniq("cont_body_narrow"), {
+  const contBodyStyle = s(uniq("cont_body"), {
     "": (s) => {
       s.gridRow = "2";
       s.gridColumn = "1/4";
-      s.width = `min(${varSNarrow}, 100% - ${varSCol1Width} * 2)`;
-      s.justifySelf = "center";
       s.marginBottom = "2.5cm";
     },
     [`.${classMenuStateOpen}`]: (s) => {
       s.display = "none";
+    },
+  });
+  const contBodyNarrowStyle = s(uniq("cont_body_narrow"), {
+    "": (s) => {
+      s.width = `min(${varSNarrow}, 100% - ${varSCol1Width} * 2)`;
+      s.marginLeft = "auto";
+      s.marginRight = "auto";
     },
   });
   presentation.contPageForm = /** @type {Presentation["contPageForm"]} */ (
@@ -2195,6 +2306,7 @@
           {
             styles_: [
               classMenuWantStateOpen,
+              contBodyStyle,
               contBodyNarrowStyle,
               contVboxStyle,
             ],
@@ -2248,46 +2360,53 @@
       ),
     });
 
-  ///////////////////////////////////////////////////////////////////////////////
-  // xx Components, styles: page, edit
-
-  let varSEditGap = v("0.5cm");
-
-  presentation.contPageEdit = /** @type {Presentation["contPageEdit"]} */ (
-    args
-  ) => ({
-    root: presentation.contGroup({
-      children: [
-        presentation.contBarMainForm({
-          leftChildren: [],
-          leftMidChildren: [],
-          midChildren: [],
-          rightMidChildren: [],
-          rightChildren: args.barChildren,
-        }).root,
-        e(
-          "div",
-          {},
-          {
-            styles_: [
-              classMenuWantStateOpen,
-              contBodyNarrowStyle,
-              contVboxStyle,
-              ss(uniq("page_edit"), {
-                "": (s) => {
-                  s.gap = varSEditGap;
-                },
-              }),
-            ],
-            children_: args.children,
-          }
-        ),
-      ],
-    }).root,
+  // /////////////////////////////////////////////////////////////////////////////
+  // xx Components, styles: page, view/edit node
+  let varSNodeGap = v("0.5cm");
+  const leafNodeHBoxStyle = s(uniq("leaf_edit_incoming_hbox"), {
+    "": (s) => {
+      s.alignItems = "stretch";
+      s.position = "relative";
+    },
+  });
+  const leafNodeVBoxStyle = s(uniq("leaf_edit_incoming_vbox"), {
+    "": (s) => {
+      s.flexGrow = "1";
+      s.gap = "0.2cm";
+      s.border = `0.08cm solid ${varCNodeCenter}`;
+      s.borderRadius = "0.2cm";
+      s.padding = "0.2cm";
+    },
+  });
+  const leafNodeRelStyle = s(uniq("leaf_edit_rel"), {
+    "": (s) => {
+      s.color = varCNodeCenter;
+      s.fontSize = "32pt";
+      s.fontWeight = "800";
+    },
+  });
+  const relIconSize = v("1.5cm");
+  const leafNodeRelIncomingStyle = s(uniq("leaf_edit_rel_incoming"), {
+    "": (s) => {
+      s.gridColumn = "2";
+      s.alignSelf = "end";
+      s.width = relIconSize;
+      s.minWidth = relIconSize;
+      s.rotate = "90deg";
+    },
+  });
+  const leafNodeRelOutgoingStyle = s(uniq("leaf_edit_rel_outgoing"), {
+    "": (s) => {
+      s.gridColumn = "1";
+      s.alignSelf = "start";
+      s.width = relIconSize;
+      s.minWidth = relIconSize;
+      s.rotate = "180deg";
+    },
   });
 
-  presentation.contPageEditSectionRel =
-    /** @type {Presentation["contPageEditSectionRel"]} */ (args) => ({
+  presentation.contPageNodeSectionRel =
+    /** @type {Presentation["contPageNodeSectionRel"]} */ (args) => ({
       root: e(
         "div",
         {},
@@ -2296,13 +2415,244 @@
             contVboxStyle,
             ss(uniq("cont_page_edit_section_rel"), {
               "": (s) => {
-                s.gap = varSEditGap;
+                s.gap = varSNodeGap;
               },
             }),
           ],
           children_: args.children,
         }
       ),
+    });
+  presentation.contNodeRowIncoming =
+    /** @type {Presentation["contNodeRowIncoming"]} */ (args) => ({
+      root: e(
+        "div",
+        {},
+        {
+          styles_: [contHboxStyle, leafNodeHBoxStyle],
+          children_: [
+            e(
+              "div",
+              {},
+              {
+                styles_: [contVboxStyle, leafNodeVBoxStyle],
+                children_: args.children,
+              }
+            ),
+            e(
+              "div",
+              {
+                textContent: textIconRelIn,
+              },
+              {
+                styles_: [
+                  leafIconStyle,
+                  leafNodeRelStyle,
+                  leafNodeRelIncomingStyle,
+                ],
+              }
+            ),
+          ],
+        }
+      ),
+    });
+
+  presentation.contNodeRowOutgoing =
+    /** @type {Presentation["contNodeRowOutgoing"]} */ (args) => ({
+      root: e(
+        "div",
+        {},
+        {
+          styles_: [contHboxStyle, leafNodeHBoxStyle],
+          children_: [
+            e(
+              "div",
+              {
+                textContent: textIconRelOut,
+              },
+              {
+                styles_: [
+                  leafIconStyle,
+                  leafNodeRelStyle,
+                  leafNodeRelOutgoingStyle,
+                ],
+              }
+            ),
+            e(
+              "div",
+              {},
+              {
+                styles_: [contVboxStyle, leafNodeVBoxStyle],
+                children_: args.children,
+              }
+            ),
+          ],
+        }
+      ),
+    });
+
+  presentation.contNodeSectionCenter =
+    /** @type {Presentation["contNodeSectionCenter"]} */ (args) => ({
+      root: e(
+        "div",
+        {},
+        {
+          styles_: [
+            contVboxStyle,
+            leafNodeVBoxStyle,
+            s(uniq("cont_page_edit_center"), {
+              "": (s) => {
+                s.padding = "0.2cm";
+                s.backgroundColor = varCNodeCenter;
+                s.borderRadius = "0.2cm";
+                s.margin = "0.4cm 0";
+              },
+            }),
+          ],
+          children_: args.children,
+        }
+      ),
+    });
+
+  // /////////////////////////////////////////////////////////////////////////////
+  // xx Components, styles: page, node view
+
+  const pageButtonsStyle = s(uniq("page_buttons_style"), {
+    "": (s) => {
+      s.justifyContent = "end";
+      s.paddingLeft = "0.2cm";
+      s.paddingRight = "0.2cm";
+      s.paddingBottom = "0.2cm";
+    },
+  });
+
+  presentation.contPageNodeView =
+    /** @type {Presentation["contPageNodeView"]} */ (args) => ({
+      root: presentation.contGroup({
+        children: [
+          e(
+            "div",
+            {},
+            {
+              styles_: [contBodyStyle, contVboxStyle],
+              children_: [
+                e(
+                  "div",
+                  {},
+                  {
+                    styles_: [contHboxStyle, pageButtonsStyle],
+                    children_: args.pageButtonChildren,
+                  }
+                ),
+                e(
+                  "div",
+                  {},
+                  {
+                    styles_: [
+                      classMenuWantStateOpen,
+                      contBodyNarrowStyle,
+                      contVboxStyle,
+                      ss(uniq("page_view"), {
+                        "": (s) => {
+                          s.gap = varSNodeGap;
+                        },
+                      }),
+                    ],
+                    children_: args.children,
+                  }
+                ),
+              ],
+            }
+          ),
+        ],
+      }).root,
+    });
+
+  presentation.leafNodeViewNodeText =
+    /** @type {Presentation["leafNodeViewNodeText"]} */ (args) => ({
+      root: e(
+        "p",
+        { textContent: args.value },
+        {
+          styles_: [
+            ss(uniq("leaf_node_view_node_text"), {
+              "": (s) => {
+                s.whiteSpace = "pre-wrap";
+              },
+            }),
+          ],
+        }
+      ),
+    });
+
+  presentation.leafNodeViewPredicate =
+    /** @type {Presentation["leafNodeViewPredicate"]} */ (args) => ({
+      root: e(
+        "p",
+        { textContent: args.value },
+        {
+          styles_: [
+            ss(uniq("leaf_node_view_predicate"), {
+              "": (s) => {
+                s.opacity = "0.5";
+                s.whiteSpace = "pre-wrap";
+              },
+            }),
+          ],
+        }
+      ),
+    });
+
+  ///////////////////////////////////////////////////////////////////////////////
+  // xx Components, styles: page, node edit
+
+  presentation.contPageNodeEdit =
+    /** @type {Presentation["contPageNodeEdit"]} */ (args) => ({
+      root: presentation.contGroup({
+        children: [
+          presentation.contBarMainForm({
+            leftChildren: [],
+            leftMidChildren: [],
+            midChildren: [],
+            rightMidChildren: [],
+            rightChildren: args.barChildren,
+          }).root,
+          e(
+            "div",
+            {},
+            {
+              styles_: [contVboxStyle, contBodyStyle],
+              children_: [
+                e(
+                  "div",
+                  {},
+                  {
+                    styles_: [contHboxStyle, pageButtonsStyle],
+                    children_: args.pageButtonChildren,
+                  }
+                ),
+                e(
+                  "div",
+                  {},
+                  {
+                    styles_: [
+                      classMenuWantStateOpen,
+                      contBodyNarrowStyle,
+                      contVboxStyle,
+                      ss(uniq("page_edit"), {
+                        "": (s) => {
+                          s.gap = varSNodeGap;
+                        },
+                      }),
+                    ],
+                    children_: args.children,
+                  }
+                ),
+              ],
+            }
+          ),
+        ],
+      }).root,
     });
 
   const leafButtonEditFree =
@@ -2336,198 +2686,86 @@
         ],
       });
 
-  presentation.leafButtonEditAdd =
-    /** @type {Presentation["leafButtonEditAdd"]} */ (args) =>
+  presentation.leafButtonNodeEditAdd =
+    /** @type {Presentation["leafButtonNodeEditAdd"]} */ (args) =>
       leafButtonEditFree({ icon: textIconAdd, hint: args.hint });
 
-  const contEditNodeVboxStyle = s(uniq("cont_edit_node_vbox"), {
-    "": (s) => {
-      s.gap = "0.2cm";
-    },
-  });
+  presentation.leafNodeEditButtons =
+    /** @type {Presentation["leafNodeEditButtons"]} */ (args) => {
+      const buttonDelete = leafButtonEditFree({
+        icon: textIconDelete,
+        hint: "Delete",
+      });
+      const buttonRevert = leafButtonEditFree({
+        icon: textIconRevert,
+        hint: "Revert",
+      });
+      return {
+        root: e(
+          "div",
+          {},
+          {
+            styles_: [contHboxStyle, contEditNodeHboxStyle],
+            children_: [
+              presentation.leafSpace({}).root,
+              buttonDelete.root,
+              buttonRevert.root,
+            ],
+          }
+        ),
+        buttonDelete: buttonDelete.root,
+        buttonRevert: buttonRevert.root,
+      };
+    };
+
   const contEditNodeHboxStyle = s(uniq("cont_edit_node_hbox"), {
     "": (s) => {
       s.justifyContent = "stretch";
-      s.alignItems = "end";
       s.gap = "0.2cm";
     },
   });
-  presentation.leafEditNode = /** @type {Presentation["leafEditNode"]} */ (
-    args
-  ) => {
-    const buttonDelete = leafButtonEditFree({
-      icon: textIconDelete,
-      hint: "Delete",
-    });
-    const buttonRevert = leafButtonEditFree({
-      icon: textIconRevert,
-      hint: "Revert",
-    });
-    return {
-      root: e(
-        "div",
-        {},
-        {
-          styles_: [contVboxStyle, contEditNodeVboxStyle],
-          children_: [
-            e(
-              "div",
-              {},
-              {
-                styles_: [contHboxStyle, contEditNodeHboxStyle],
-                children_: [
-                  args.inputType,
-                  presentation.leafSpace({}).root,
-                  buttonDelete.root,
-                  buttonRevert.root,
-                ],
-              }
-            ),
-            args.inputValue,
-          ],
-        }
-      ),
-      buttonDelete: buttonDelete.root,
-      buttonRevert: buttonRevert.root,
+  presentation.leafNodeEditNode =
+    /** @type {Presentation["leafNodeEditNode"]} */ (args) => {
+      return {
+        root: e(
+          "div",
+          {
+            onclick: () => {
+              args.inputValue.focus();
+            },
+          },
+          {
+            styles_: [
+              ss(uniq("leaf_node_edit_node"), {
+                "": (s) => {
+                  s.pointerEvents = "initial";
+                  s.borderBottom = varInputBorder;
+                  s.padding = varSInputPad;
+                },
+                ">select": (s) => {
+                  s.marginRight = "0.2cm";
+                  s.borderBottom = "none";
+                  s.padding = "0";
+                },
+                " span": (s) => {
+                  s.borderBottom = "none";
+                  s.padding = "0";
+                },
+              }),
+            ],
+            children_: [args.inputType, args.inputValue],
+          }
+        ),
+      };
     };
-  };
 
-  presentation.leafEditPredicate =
-    /** @type {Presentation["leafEditPredicate"]} */ (args) =>
+  presentation.leafNodeEditPredicate =
+    /** @type {Presentation["leafNodeEditPredicate"]} */ (args) =>
       presentation.leafInputText({
         id: undefined,
         title: "Predicate",
         value: args.value,
       });
-
-  const leafEditHBoxStyle = s(uniq("leaf_edit_incoming_hbox"), {
-    "": (s) => {
-      s.alignItems = "stretch";
-      s.position = "relative";
-    },
-  });
-  const leafEditVBoxStyle = s(uniq("leaf_edit_incoming_vbox"), {
-    "": (s) => {
-      s.flexGrow = "1";
-      s.gap = "0.2cm";
-      s.border = `0.08cm solid ${varCEditCenter}`;
-      s.borderRadius = "0.2cm";
-      s.padding = "0.2cm";
-    },
-  });
-  const leafEditRelStyle = s(uniq("leaf_edit_rel"), {
-    "": (s) => {
-      s.color = varCEditCenter;
-      s.fontSize = "32pt";
-      s.fontWeight = "800";
-    },
-  });
-  const varSEditRelOverlap = v("1.2cm");
-  const leafEditRelIncomingStyle = s(uniq("leaf_edit_rel_incoming"), {
-    "": (s) => {
-      s.gridColumn = "2";
-      s.alignSelf = "end";
-      s.width = "1.5cm";
-      s.rotate = "90deg";
-    },
-  });
-  const leafEditRelOutgoingStyle = s(uniq("leaf_edit_rel_incoming"), {
-    "": (s) => {
-      s.gridColumn = "1";
-      s.alignSelf = "start";
-      s.width = "1.5cm";
-      s.rotate = "180deg";
-    },
-  });
-
-  presentation.contEditRowIncoming =
-    /** @type {Presentation["contEditRowIncoming"]} */ (args) => ({
-      root: e(
-        "div",
-        {},
-        {
-          styles_: [contHboxStyle, leafEditHBoxStyle],
-          children_: [
-            e(
-              "div",
-              {},
-              {
-                styles_: [contVboxStyle, leafEditVBoxStyle],
-                children_: args.children,
-              }
-            ),
-            e(
-              "div",
-              {
-                textContent: textIconRelIn,
-              },
-              {
-                styles_: [
-                  leafIconStyle,
-                  leafEditRelStyle,
-                  leafEditRelIncomingStyle,
-                ],
-              }
-            ),
-          ],
-        }
-      ),
-    });
-
-  presentation.contEditRowOutgoing =
-    /** @type {Presentation["contEditRowOutgoing"]} */ (args) => ({
-      root: e(
-        "div",
-        {},
-        {
-          styles_: [contHboxStyle, leafEditHBoxStyle],
-          children_: [
-            e(
-              "div",
-              {
-                textContent: textIconRelOut,
-              },
-              {
-                styles_: [
-                  leafIconStyle,
-                  leafEditRelStyle,
-                  leafEditRelOutgoingStyle,
-                ],
-              }
-            ),
-            e(
-              "div",
-              {},
-              {
-                styles_: [contVboxStyle, leafEditVBoxStyle],
-                children_: args.children,
-              }
-            ),
-          ],
-        }
-      ),
-    });
-
-  presentation.contEditSectionCenter =
-    /** @type {Presentation["contEditSectionCenter"]} */ (args) => ({
-      root: e(
-        "div",
-        {},
-        {
-          styles_: [
-            s(uniq("cont_page_edit_center"), {
-              "": (s) => {
-                s.padding = "0.2cm";
-                s.backgroundColor = varCEditCenter;
-                s.borderRadius = "0.2cm";
-                s.margin = "0.4cm 0";
-              },
-            }),
-          ],
-          children_: [args.child],
-        }
-      ),
-    });
 
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: menu
@@ -2938,7 +3176,7 @@
             },
           }),
         ],
-        children_: [presentation.leafAsyncBlock({}).root],
+        children_: [presentation.leafAsyncBlock({ in_root: false }).root],
       }
     );
     const displayOver = e("div", {}, { styles_: [contGroupStyle] });

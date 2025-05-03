@@ -57,7 +57,7 @@ use {
     wasm::{
         async_::bg_val,
         js::{
-            el_async,
+            el_async_,
             style_export::{
                 self,
             },
@@ -99,7 +99,7 @@ pub fn main() {
                 return Ok(Rc::new(config));
             }
         });
-        let menu_body = el_async({
+        let menu_body = el_async_(true, {
             let client_config = client_config.clone();
             async move {
                 let client_config = client_config.get().await?;

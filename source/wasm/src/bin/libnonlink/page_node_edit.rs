@@ -3,7 +3,13 @@ use {
         api::req_post_json,
         state::set_page,
     },
-    crate::libnonlink::state::state,
+    crate::libnonlink::{
+        ministate::{
+            ministate_octothorpe,
+            MinistateNodeView,
+        },
+        state::state,
+    },
     flowcontrol::{
         exenum,
         ta_return,
@@ -217,13 +223,7 @@ fn new_triple_state(
     }));
 }
 
-struct BuildEditNodeRes {
-    root: El,
-    button_delete: El,
-    button_revert: El,
-}
-
-fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> BuildEditNodeRes {
+fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> El {
     let options =
         [
             (NodeEditType::Str, "Text"),
@@ -483,25 +483,18 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> BuildEditNod
             }
         ),
     );
-    let style_res = style_export::leaf_edit_node(style_export::LeafEditNodeArgs {
+    let style_res = style_export::leaf_node_edit_node(style_export::LeafNodeEditNodeArgs {
         input_type: inp_type_el.raw().dyn_into().unwrap(),
         input_value: inp_value_group_el.raw().dyn_into().unwrap(),
     });
-    let button_delete = el_from_raw(style_res.button_delete.into());
-    let button_revert = el_from_raw(style_res.button_revert.into());
-    return BuildEditNodeRes {
-        root: el_from_raw(
-            style_res.root.into(),
-        ).own(|_| (inp_type_el, inp_value_group_el, button_delete.clone(), button_revert.clone())),
-        button_delete: button_delete,
-        button_revert: button_revert,
-    };
+    return el_from_raw(style_res.root.into()).own(|_| (inp_type_el, inp_value_group_el));
 }
 
 fn build_edit_triple(pc: &mut ProcessingContext, triple: &TripleState) -> El {
-    let node_el = {
-        let style_res = build_edit_node(pc, &triple.0.node);
-        style_res.button_revert.ref_on("click", {
+    let buttons_el = {
+        let style_res = style_export::leaf_node_edit_buttons();
+        let button_revert = el_from_raw(style_res.button_revert.into());
+        button_revert.ref_on("click", {
             let triple = triple.clone();
             let eg = pc.eg();
             move |_| eg.event(|pc| {
@@ -511,36 +504,36 @@ fn build_edit_triple(pc: &mut ProcessingContext, triple: &TripleState) -> El {
                 triple.0.node.value.set(pc, node_value);
             }).unwrap()
         });
-        style_res.button_delete.ref_on("click", {
+        let button_delete = el_from_raw(style_res.button_delete.into());
+        button_delete.ref_on("click", {
             let triple = triple.clone();
             let eg = pc.eg();
             move |_| eg.event(|pc| {
                 triple.0.delete.set(pc, !triple.0.delete.get());
             }).unwrap()
         });
-        style_res
-            .button_delete
-            .ref_own(
-                |out| link!(
-                    (_pc = pc),
-                    (deleted = triple.0.delete.clone(), deleted_all = triple.0.delete_all.clone()),
-                    (),
-                    (out = out.weak()),
-                    {
-                        let out = out.upgrade()?;
-                        out.ref_modify_classes(
-                            &[(&style_export::class_state_deleted().value, deleted.get() | deleted_all.get())],
-                        );
-                    }
-                ),
-            );
-        style_res.root
+        button_delete.ref_own(
+            |out| link!(
+                (_pc = pc),
+                (deleted = triple.0.delete.clone(), deleted_all = triple.0.delete_all.clone()),
+                (),
+                (out = out.weak()),
+                {
+                    let out = out.upgrade()?;
+                    out.ref_modify_classes(
+                        &[(&style_export::class_state_deleted().value, deleted.get() | deleted_all.get())],
+                    );
+                }
+            ),
+        );
+        el_from_raw(style_res.root.into()).own(|_| (button_delete, button_revert))
     };
+    let node_el = build_edit_node(pc, &triple.0.node);
     let predicate_el = {
         let predicate_value = "".to_string();
         let predicate_res =
-            style_export::leaf_edit_predicate(
-                style_export::LeafEditPredicateArgs { value: predicate_value.clone() },
+            style_export::leaf_node_edit_predicate(
+                style_export::LeafNodeEditPredicateArgs { value: predicate_value.clone() },
             );
         let input_value = Prim::new(predicate_value);
         let out = el_from_raw(predicate_res.root.into());
@@ -575,9 +568,13 @@ fn build_edit_triple(pc: &mut ProcessingContext, triple: &TripleState) -> El {
     };
     if triple.0.incoming {
         return el_from_raw(
-            style_export::cont_edit_row_incoming(
-                style_export::ContEditRowIncomingArgs {
-                    children: vec![node_el.raw().dyn_into().unwrap(), predicate_el.raw().dyn_into().unwrap()],
+            style_export::cont_node_row_incoming(
+                style_export::ContNodeRowIncomingArgs {
+                    children: vec![
+                        buttons_el.raw().dyn_into().unwrap(),
+                        node_el.raw().dyn_into().unwrap(),
+                        predicate_el.raw().dyn_into().unwrap()
+                    ],
                 },
             )
                 .root
@@ -585,9 +582,13 @@ fn build_edit_triple(pc: &mut ProcessingContext, triple: &TripleState) -> El {
         ).own(|_| (node_el, predicate_el));
     } else {
         return el_from_raw(
-            style_export::cont_edit_row_outgoing(
-                style_export::ContEditRowOutgoingArgs {
-                    children: vec![node_el.raw().dyn_into().unwrap(), predicate_el.raw().dyn_into().unwrap()],
+            style_export::cont_node_row_outgoing(
+                style_export::ContNodeRowOutgoingArgs {
+                    children: vec![
+                        buttons_el.raw().dyn_into().unwrap(),
+                        predicate_el.raw().dyn_into().unwrap(),
+                        node_el.raw().dyn_into().unwrap()
+                    ],
                 },
             )
                 .root
@@ -596,10 +597,11 @@ fn build_edit_triple(pc: &mut ProcessingContext, triple: &TripleState) -> El {
     }
 }
 
-pub fn build_page_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node) {
-    set_page(pc, edit_title, el_async({
+pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node) {
+    set_page(pc, &format!("Edit {}", edit_title), el_async({
         let eg = pc.eg();
         let node = node.clone();
+        let title = edit_title.to_string();
         async move {
             ta_return!(El, String);
             let triples = req_post_json(&state().base_url, ReqGetTriplesAround { node: node.clone() }).await?;
@@ -613,12 +615,29 @@ pub fn build_page_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node
                 let pivot_state = new_pivot_state(pc, &node);
                 let triple_states = Rc::new(RefCell::new(vec![] as Vec<TripleState>));
 
+                // Top buttons
+                let mut buttons_out = vec![];
+                {
+                    let style_res =
+                        style_export::leaf_button_small_view(
+                            style_export::LeafButtonSmallViewArgs {
+                                url: ministate_octothorpe(
+                                    &crate::libnonlink::ministate::Ministate::NodeView(MinistateNodeView {
+                                        title: title.clone(),
+                                        node: node.clone(),
+                                    }),
+                                ),
+                            },
+                        );
+                    buttons_out.push(el_from_raw(style_res.root.into()));
+                }
+
                 // Incoming triples
                 {
                     let triples_box =
                         el_from_raw(
-                            style_export::cont_page_edit_section_rel(
-                                style_export::ContPageEditSectionRelArgs { children: vec![] },
+                            style_export::cont_page_node_section_rel(
+                                style_export::ContPageNodeSectionRelArgs { children: vec![] },
                             )
                                 .root
                                 .into(),
@@ -630,8 +649,8 @@ pub fn build_page_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node
                     }
                     let button_add =
                         el_from_raw(
-                            style_export::leaf_button_edit_add(
-                                style_export::LeafButtonEditAddArgs { hint: "Add incoming".to_string() },
+                            style_export::leaf_button_node_edit_add(
+                                style_export::LeafButtonNodeEditAddArgs { hint: "Add incoming".to_string() },
                             )
                                 .root
                                 .into(),
@@ -651,42 +670,59 @@ pub fn build_page_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node
                             triple_states.borrow_mut().push(triple);
                         }).unwrap()
                     });
-                    out.push(button_add);
+                    out.push(
+                        el_from_raw(
+                            style_export::cont_node_row_incoming(
+                                style_export::ContNodeRowIncomingArgs {
+                                    children: vec![button_add.raw().dyn_into().unwrap()],
+                                },
+                            )
+                                .root
+                                .into(),
+                        ).own(|_| button_add),
+                    );
                     out.push(triples_box);
                 }
 
                 // Pivot
                 {
+                    let buttons_el = {
+                        let style_res = style_export::leaf_node_edit_buttons();
+                        let button_revert = el_from_raw(style_res.button_revert.into());
+                        button_revert.ref_on("click", {
+                            let pivot_original = node;
+                            let pivot = pivot_state.clone();
+                            let eg = pc.eg();
+                            move |_| eg.event(|pc| {
+                                let (node_type, node_value) = node_to_type_value(&pivot_original);
+                                pivot.0.node.type_.set(pc, node_type);
+                                pivot.0.node.value.set(pc, node_value);
+                            }).unwrap()
+                        });
+                        let button_delete = el_from_raw(style_res.button_delete.into());
+                        button_delete.ref_on("click", {
+                            let pivot_state = pivot_state.clone();
+                            let eg = pc.eg();
+                            move |_| eg.event(|pc| {
+                                pivot_state.0.delete.set(pc, !pivot_state.0.delete.get());
+                            }).unwrap()
+                        });
+                        el_from_raw(style_res.root.into()).own(|_| (button_revert, button_delete))
+                    };
                     let style_res = build_edit_node(pc, &pivot_state.0.node);
-                    style_res.button_revert.ref_on("click", {
-                        let pivot_original = node;
-                        let pivot = pivot_state.clone();
-                        let eg = pc.eg();
-                        move |_| eg.event(|pc| {
-                            let (node_type, node_value) = node_to_type_value(&pivot_original);
-                            pivot.0.node.type_.set(pc, node_type);
-                            pivot.0.node.value.set(pc, node_value);
-                        }).unwrap()
-                    });
-                    style_res.button_delete.ref_on("click", {
-                        let pivot_state = pivot_state.clone();
-                        let eg = pc.eg();
-                        move |_| eg.event(|pc| {
-                            pivot_state.0.delete.set(pc, !pivot_state.0.delete.get());
-                        }).unwrap()
-                    });
+                    let children = [buttons_el, style_res];
                     out.push(
                         el_from_raw(
-                            style_export::cont_edit_section_center(
-                                style_export::ContEditSectionCenterArgs {
-                                    child: style_res.root.raw().dyn_into().unwrap(),
+                            style_export::cont_node_section_center(
+                                style_export::ContNodeSectionCenterArgs {
+                                    children: children.iter().map(|x| x.raw().dyn_into().unwrap()).collect(),
                                 },
                             )
                                 .root
                                 .into(),
                         ).own(
                             |ele| (
-                                style_res.root,
+                                children,
                                 link!((_pc = pc), (deleted = pivot_state.0.delete.clone()), (), (ele = ele.weak()), {
                                     let pivot_root = ele.upgrade()?;
                                     pivot_root.ref_modify_classes(
@@ -702,8 +738,8 @@ pub fn build_page_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node
                 {
                     let triples_box =
                         el_from_raw(
-                            style_export::cont_page_edit_section_rel(
-                                style_export::ContPageEditSectionRelArgs { children: vec![] },
+                            style_export::cont_page_node_section_rel(
+                                style_export::ContPageNodeSectionRelArgs { children: vec![] },
                             )
                                 .root
                                 .into(),
@@ -713,10 +749,11 @@ pub fn build_page_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node
                         triples_box.ref_push(build_edit_triple(pc, &triple));
                         triple_states.borrow_mut().push(triple);
                     }
+                    out.push(triples_box.clone());
                     let button_add =
                         el_from_raw(
-                            style_export::leaf_button_edit_add(
-                                style_export::LeafButtonEditAddArgs { hint: "Add outgoing".to_string() },
+                            style_export::leaf_button_node_edit_add(
+                                style_export::LeafButtonNodeEditAddArgs { hint: "Add outgoing".to_string() },
                             )
                                 .root
                                 .into(),
@@ -724,7 +761,7 @@ pub fn build_page_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node
                     button_add.ref_on("click", {
                         let eg = pc.eg();
                         let triple_states = triple_states.clone();
-                        let triples_box = triples_box.clone();
+                        let triples_box = triples_box;
                         let pivot_state = pivot_state.clone();
                         move |_| eg.event(|pc| {
                             let triple = new_triple_state(pc, &Triple {
@@ -736,8 +773,17 @@ pub fn build_page_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node
                             triple_states.borrow_mut().push(triple);
                         }).unwrap()
                     });
-                    out.push(triples_box);
-                    out.push(button_add);
+                    out.push(
+                        el_from_raw(
+                            style_export::cont_node_row_outgoing(
+                                style_export::ContNodeRowOutgoingArgs {
+                                    children: vec![button_add.raw().dyn_into().unwrap()],
+                                },
+                            )
+                                .root
+                                .into(),
+                        ).own(|_| button_add),
+                    );
                 }
 
                 // Edit form controls
@@ -842,13 +888,10 @@ pub fn build_page_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node
                                             return;
                                         };
                                         error_slot.ref_push(
-                                            el_from_raw(
-                                                style_export::leaf_err_block(
-                                                    style_export::LeafErrBlockArgs { data: e },
-                                                )
-                                                    .root
-                                                    .into(),
-                                            ),
+                                            el_from_raw(style_export::leaf_err_block(style_export::LeafErrBlockArgs {
+                                                in_root: false,
+                                                data: e,
+                                            }).root.into()),
                                         );
                                     },
                                 }
@@ -857,10 +900,11 @@ pub fn build_page_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node
                     }
                 });
                 bar_out.push(button_save);
-                return Ok(el_from_raw(style_export::cont_page_edit(style_export::ContPageEditArgs {
+                return Ok(el_from_raw(style_export::cont_page_node_edit(style_export::ContPageNodeEditArgs {
+                    page_button_children: buttons_out.iter().map(|x| x.raw().dyn_into().unwrap()).collect(),
                     children: out.iter().map(|x| x.raw().dyn_into().unwrap()).collect(),
                     bar_children: bar_out.iter().map(|x| x.raw().dyn_into().unwrap()).collect(),
-                }).root.into()).own(|_| (out, bar_out)));
+                }).root.into()).own(|_| (out, bar_out, buttons_out)));
             }).unwrap();
         }
     }));

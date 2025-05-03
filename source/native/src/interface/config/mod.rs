@@ -78,7 +78,7 @@ pub struct View {
 #[derive(Serialize, Deserialize, Default, Clone, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct GlobalConfig {
-    pub admin_token: Option<String>,
+    pub api_tokens: HashMap<String, IamGrants>,
     #[serde(default)]
     pub public_iam_grants: HashSet<MenuItemId>,
     pub menu: Vec<MenuItem>,

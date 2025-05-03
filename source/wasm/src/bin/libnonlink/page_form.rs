@@ -593,11 +593,10 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, form_title: &str, id: &
                                         return;
                                     };
                                     error_slot.ref_push(
-                                        el_from_raw(
-                                            style_export::leaf_err_block(style_export::LeafErrBlockArgs { data: e })
-                                                .root
-                                                .into(),
-                                        ),
+                                        el_from_raw(style_export::leaf_err_block(style_export::LeafErrBlockArgs {
+                                            in_root: false,
+                                            data: e,
+                                        }).root.into()),
                                     );
                                     button
                                         .class_list()

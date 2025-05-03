@@ -17,7 +17,6 @@ use {
     },
     cookie::time::ext::InstantExt,
     deadpool_sqlite::Pool,
-    htwrap::htserve::auth::AuthTokenHash,
     loga::{
         ea,
         Log,
@@ -96,7 +95,7 @@ pub struct GlobalConfig {
     pub menu_items: HashMap<String, MenuItem>,
     pub views: HashMap<String, View>,
     pub forms: HashMap<String, ClientForm>,
-    pub admin_token: Option<AuthTokenHash>,
+    pub api_tokens: HashMap<String, IamGrants>,
 }
 
 pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<Arc<GlobalConfig>, loga::Error> {
@@ -163,7 +162,7 @@ pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<
         menu_items: menu_items,
         views: config0.views.clone(),
         forms: config0.forms.clone(),
-        admin_token: config0.admin_token.as_ref().map(|t| htwrap::htserve::auth::hash_auth_token(&t)),
+        api_tokens: config0.api_tokens.clone(),
     }));
 }
 
@@ -292,8 +291,15 @@ pub async fn get_user_config(state: &State, user: &UserIdentityId) -> Result<Arc
 
 pub async fn get_iam_grants(state: &State, identity: &Identity) -> Result<IamGrants, loga::Error> {
     match identity {
-        Identity::Admin => {
-            return Ok(IamGrants::Admin);
+        Identity::Token(grants) => {
+            match &grants {
+                IamGrants::Admin => {
+                    return Ok(IamGrants::Admin);
+                },
+                IamGrants::Limited(access) => {
+                    return Ok(IamGrants::Limited(access.clone()));
+                },
+            }
         },
         Identity::User(identity) => {
             let user_config = get_user_config(state, identity).await?;

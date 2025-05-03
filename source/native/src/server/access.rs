@@ -23,7 +23,7 @@ use {
 };
 
 pub enum Identity {
-    Admin,
+    Token(IamGrants),
     User(UserIdentityId),
     Public,
 }
@@ -34,15 +34,11 @@ pub async fn identify_requester(
     headers: &HeaderMap,
 ) -> Result<Option<Identity>, VisErr<loga::Error>> {
     let global_config = get_global_config(state).await.err_internal()?;
-    if let Some(want_token) = global_config.admin_token.as_ref() {
-        if let Ok(got_token) = htserve::auth::get_auth_token(headers) {
-            if !htserve::auth::check_auth_token_hash(&want_token, &got_token) {
-                return Ok(None);
-            }
-            state.log.log(loga::DEBUG, "Request user identified as admin");
-            return Ok(Some(Identity::Admin));
+    if let Ok(got_token) = htserve::auth::get_auth_token(headers) {
+        if let Some(grants) = global_config.api_tokens.get(&got_token) {
+            state.log.log(loga::DEBUG, "Request user identified as token");
+            return Ok(Some(Identity::Token(grants.clone())));
         }
-        state.log.log(loga::DEBUG, "Request user has no admin token");
     }
     if let Some(oidc_state) = &state.oidc_state {
         shed!{
@@ -65,8 +61,15 @@ pub async fn identify_requester(
 
 pub async fn is_admin(state: &State, identity: &Identity) -> Result<bool, loga::Error> {
     match identity {
-        Identity::Admin => {
-            return Ok(true);
+        Identity::Token(grants) => {
+            match grants {
+                IamGrants::Admin => {
+                    return Ok(true);
+                },
+                _ => {
+                    return Ok(false);
+                },
+            }
         },
         Identity::User(u) => {
             let user_config = get_user_config(&state, u).await?;

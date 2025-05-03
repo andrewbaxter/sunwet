@@ -877,16 +877,17 @@
     "GlobalConfig": {
       "type": "object",
       "required": [
+        "api_tokens",
         "forms",
         "menu",
         "views"
       ],
       "properties": {
-        "admin_token": {
-          "type": [
-            "string",
-            "null"
-          ]
+        "api_tokens": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/IamGrants"
+          }
         },
         "forms": {
           "type": "object",

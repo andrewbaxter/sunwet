@@ -3,16 +3,17 @@
   "title": "GlobalConfig",
   "type": "object",
   "required": [
+    "api_tokens",
     "forms",
     "menu",
     "views"
   ],
   "properties": {
-    "admin_token": {
-      "type": [
-        "string",
-        "null"
-      ]
+    "api_tokens": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/IamGrants"
+      }
     },
     "forms": {
       "type": "object",
@@ -844,6 +845,32 @@
         }
       },
       "additionalProperties": false
+    },
+    "IamGrants": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "admin"
+          ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "limited"
+          ],
+          "properties": {
+            "limited": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "uniqueItems": true
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "InputOrInline": {
       "oneOf": [

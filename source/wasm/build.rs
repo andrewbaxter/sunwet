@@ -162,12 +162,12 @@ fn main() {
         },
         Func {
             name: "leafAsyncBlock",
-            args: vec![],
+            args: vec![("in_root", &bool_)],
             returns: vec![("root", &el_)],
         },
         Func {
             name: "leafErrBlock",
-            args: vec![("data", &string_)],
+            args: vec![("data", &string_), ("in_root", &bool_)],
             returns: vec![("root", &el_)],
         },
         Func {
@@ -226,6 +226,16 @@ fn main() {
         Func {
             name: "leafButtonBigSave",
             args: vec![],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafButtonSmallEdit",
+            args: vec![("url", &string_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafButtonSmallView",
+            args: vec![("url", &string_)],
             returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
@@ -430,45 +440,69 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
-        // xx Components, styles: page, edit
+        // xx Components, styles: page, view/edit node
         Func {
-            name: "contPageEdit",
-            args: vec![("children", &arrel_), ("barChildren", &arrel_)],
-            returns: vec![("root", &el_)],
-        },
-        Func {
-            name: "contPageEditSectionRel",
+            name: "contPageNodeSectionRel",
             args: vec![("children", &arrel_)],
             returns: vec![("root", &el_)],
         },
         Func {
-            name: "leafButtonEditAdd",
-            args: vec![("hint", &string_)],
+            name: "contNodeRowIncoming",
+            args: vec![("children", &arrel_)],
             returns: vec![("root", &el_)],
         },
         Func {
-            name: "leafEditNode",
-            args: vec![("inputType", &el_), ("inputValue", &el_)],
-            returns: vec![("root", &el_), ("buttonDelete", &el_), ("buttonRevert", &el_)],
+            name: "contNodeRowOutgoing",
+            args: vec![("children", &arrel_)],
+            returns: vec![("root", &el_)],
         },
         Func {
-            name: "leafEditPredicate",
+            name: "contNodeSectionCenter",
+            args: vec![("children", &arrel_)],
+            returns: vec![("root", &el_)],
+        },
+        // /////////////////////////////////////////////////////////////////////////////
+        // xx Components, styles: page, node view
+        Func {
+            name: "contPageNodeView",
+            args: vec![("pageButtonChildren", &arrel_), ("children", &arrel_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafNodeViewPredicate",
             args: vec![("value", &string_)],
             returns: vec![("root", &el_)],
         },
         Func {
-            name: "contEditRowIncoming",
-            args: vec![("children", &arrel_)],
+            name: "leafNodeViewNodeText",
+            args: vec![("value", &string_)],
+            returns: vec![("root", &el_)],
+        },
+        // /////////////////////////////////////////////////////////////////////////////
+        // xx Components, styles: page, node edit
+        Func {
+            name: "contPageNodeEdit",
+            args: vec![("pageButtonChildren", &arrel_), ("barChildren", &arrel_), ("children", &arrel_)],
             returns: vec![("root", &el_)],
         },
         Func {
-            name: "contEditRowOutgoing",
-            args: vec![("children", &arrel_)],
+            name: "leafButtonNodeEditAdd",
+            args: vec![("hint", &string_)],
             returns: vec![("root", &el_)],
         },
         Func {
-            name: "contEditSectionCenter",
-            args: vec![("child", &el_)],
+            name: "leafNodeEditButtons",
+            args: vec![],
+            returns: vec![("root", &el_), ("buttonDelete", &el_), ("buttonRevert", &el_)],
+        },
+        Func {
+            name: "leafNodeEditNode",
+            args: vec![("inputType", &el_), ("inputValue", &el_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafNodeEditPredicate",
+            args: vec![("value", &string_)],
             returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
