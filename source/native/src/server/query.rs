@@ -31,15 +31,19 @@ use {
             JunctionType,
             MoveDirection,
             Query,
+            QuerySortDir,
             Step,
             Value,
         },
         triple::Node,
         wire::TreeNode,
     },
-    std::collections::{
-        BTreeMap,
-        HashMap,
+    std::{
+        cmp::Ordering,
+        collections::{
+            BTreeMap,
+            HashMap,
+        },
     },
 };
 
@@ -804,8 +808,8 @@ fn build_chain(
     });
 }
 
-pub fn build_query(
-    q: Query,
+pub fn build_root_chain(
+    root_chain: Chain,
     parameters: HashMap<String, Node>,
 ) -> Result<(String, sea_query_rusqlite::RusqliteValues), loga::Error> {
     let mut query_state = QueryBuildState {
@@ -827,7 +831,7 @@ pub fn build_query(
         reuse_roots: Default::default(),
         reuse_steps: Default::default(),
     };
-    let cte = build_chain(&mut query_state, None, q.chain)?;
+    let cte = build_chain(&mut query_state, None, root_chain)?;
     let mut sel_root = sea_query::Query::select();
     sel_root.from(cte.cte);
     for (name, plural) in cte.selects {
@@ -877,6 +881,7 @@ pub fn execute_sql_query(
     db: &rusqlite::Connection,
     sql_query: String,
     sql_parameters: sea_query_rusqlite::RusqliteValues,
+    sort: Vec<(QuerySortDir, String)>,
 ) -> Result<Vec<BTreeMap<String, TreeNode>>, loga::Error> {
     let mut s = db.prepare(&sql_query)?;
     let column_names = s.column_names().into_iter().map(|k| k.to_string()).collect::<Vec<_>>();
@@ -896,6 +901,26 @@ pub fn execute_sql_query(
         }
         out.push(got_row1);
     }
+    out.sort_unstable_by(|a, b| {
+        for (dir, key) in &sort {
+            let res = a.get(key).partial_cmp(&b.get(key)).unwrap_or(Ordering::Equal);
+            let rev = *dir == QuerySortDir::Desc;
+            match res {
+                Ordering::Less => if rev {
+                    return Ordering::Greater;
+                } else {
+                    return Ordering::Less;
+                },
+                Ordering::Equal => { },
+                Ordering::Greater => if rev {
+                    return Ordering::Less;
+                } else {
+                    return Ordering::Greater;
+                },
+            }
+        }
+        return Ordering::Equal;
+    });
     return Ok(out);
 }
 
@@ -904,8 +929,8 @@ pub async fn execute_query(
     query: Query,
     parameters: HashMap<String, Node>,
 ) -> Result<Vec<BTreeMap<String, TreeNode>>, loga::Error> {
-    let (sql_query, sql_parameters) = build_query(query, parameters)?;
+    let (sql_query, sql_parameters) = build_root_chain(query.chain, parameters)?;
     return Ok(tx(&db, move |txn| {
-        return Ok(execute_sql_query(txn, sql_query, sql_parameters)?);
+        return Ok(execute_sql_query(txn, sql_query, sql_parameters, query.sort)?);
     }).await?);
 }

@@ -11,13 +11,13 @@ use {
         Serialize,
     },
     std::collections::HashMap,
-    view::WidgetDataRows,
+    view::WidgetRootDataRows,
 };
 
 #[derive(Clone, Serialize, Deserialize, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ClientView {
-    pub config: WidgetDataRows,
+    pub config: WidgetRootDataRows,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]

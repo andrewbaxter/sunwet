@@ -46,6 +46,7 @@ use {
             WidgetImage,
             WidgetLayout,
             WidgetPlayButton,
+            WidgetRootDataRows,
             WidgetText,
         },
         triple::Node,
@@ -55,7 +56,9 @@ use {
             TreeNode,
         },
     },
-    std::collections::HashMap,
+    std::{
+        collections::HashMap,
+    },
     uuid::Uuid,
     wasm::{
         constants::LINK_HASH_PREFIX,
@@ -181,7 +184,7 @@ fn unwrap_value_move_url(
         TreeNode::Scalar(v) => {
             if to_node {
                 return Ok(ministate_octothorpe(&Ministate::Edit(MinistateEdit {
-                    title: unwrap_value_string(&get_field_or_literal(title, data_stack)?),
+                    title: format!("Edit {}", unwrap_value_string(&get_field_or_literal(title, data_stack)?)),
                     node: v.clone(),
                 })));
             }
@@ -334,6 +337,117 @@ impl Build {
                             }).root.into()).own(|_| rows);
                         },
                     }
+                    playlist_extend(
+                        pc,
+                        &state().playlist,
+                        &menu_item_id,
+                        &menu_item_title,
+                        build.playlist_add,
+                        &restore_playlist_pos,
+                    );
+                    if build.have_media && !old_have_media {
+                        build.transport_slot.ref_push(build_transport(pc));
+                    }
+                    return Ok(out);
+                }).unwrap();
+            }
+        });
+    }
+
+    fn build_widget_root_data_rows(
+        &mut self,
+        pc: &mut ProcessingContext,
+        config_at: &WidgetRootDataRows,
+        data_id: &Vec<usize>,
+        data_at: &Vec<TreeNode>,
+    ) -> El {
+        return el_async({
+            let menu_item_id = self.menu_item_id.clone();
+            let menu_item_title = self.menu_item_title.clone();
+            let restore_playlist_pos = self.restore_playlist_pos.clone();
+            let eg = pc.eg();
+            let transport_slot = self.transport_slot.clone();
+            let old_have_media = self.have_media;
+            let config_at = config_at.clone();
+            let data_id = data_id.clone();
+            let data_at = data_at.clone();
+            async move {
+                let new_data_at_tops = match config_at.data {
+                    QueryOrField::Field(config_at) => {
+                        let TreeNode::Array(res) = get_field(&config_at, &data_at)? else {
+                            return Err(format!("Data rows field [{}] must be an array, but it is not", config_at));
+                        };
+                        res
+                    },
+                    QueryOrField::Query(config_at) => {
+                        let mut params = HashMap::new();
+                        for (k, config_at) in &config_at.params {
+                            let TreeNode::Scalar(v) = get_field_or_literal(config_at, &data_at)? else {
+                                return Err(
+                                    format!(
+                                        "Parameters must be scalars, but query paramter [{}] is not a scalar",
+                                        serde_json::to_string(&config_at).unwrap()
+                                    ),
+                                );
+                            };
+                            params.insert(k.clone(), v);
+                        }
+                        let res = req_post_json(&state().base_url, ReqViewQuery {
+                            menu_item_id: menu_item_id.clone(),
+                            query: config_at.query.clone(),
+                            parameters: params,
+                        }).await?;
+                        let mut out = vec![];
+                        for v in res.records {
+                            out.push(TreeNode::Record(v));
+                        }
+                        out
+                    },
+                };
+                return eg.event(move |pc| {
+                    let mut build = Build {
+                        menu_item_id: menu_item_id.clone(),
+                        menu_item_title: menu_item_title.clone(),
+                        restore_playlist_pos: restore_playlist_pos.clone(),
+                        playlist_add: Default::default(),
+                        have_media: false,
+                        transport_slot: transport_slot,
+                    };
+                    let mut children = vec![];
+                    let mut children_raw = vec![];
+                    for (i, new_data_at_top) in new_data_at_tops.into_iter().enumerate() {
+                        let mut data_at = data_at.clone();
+                        data_at.push(new_data_at_top);
+                        let mut data_id = data_id.clone();
+                        data_id.push(i);
+                        let mut blocks = vec![];
+                        let mut blocks_raw = vec![];
+                        for config_at in &config_at.row_blocks {
+                            let block_contents = build.build_widget(pc, &config_at.widget, &data_id, &data_at);
+                            let block = el_from_raw(style_export::cont_view_block(style_export::ContViewBlockArgs {
+                                children: vec![block_contents.raw().dyn_into().unwrap()],
+                                width: config_at.width.clone(),
+                            }).root.into()).own(|_| block_contents);
+                            blocks_raw.push(block.raw().dyn_into::<HtmlElement>().unwrap());
+                            blocks.push(block);
+                        }
+                        let row =
+                            el_from_raw(
+                                style_export::cont_view_row(style_export::ContViewRowArgs { blocks: blocks_raw })
+                                    .root
+                                    .into(),
+                            ).own(|_| blocks);
+                        children_raw.push(row.raw().dyn_into::<HtmlElement>().unwrap());
+                        children.push(row);
+                    }
+                    let out =
+                        el_from_raw(
+                            style_export::cont_view_root_rows(
+                                style_export::ContViewRootRowsArgs { rows: children_raw },
+                            )
+                                .root
+                                .into(),
+                        ).own(|_| children);
                     playlist_extend(
                         pc,
                         &state().playlist,
@@ -684,6 +798,7 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
         }).unwrap()
     });
     let seekbar_fill = el_from_raw(transport_res.seekbar_fill.into());
+    seekbar_fill.ref_attr("style", &format!("width: 0%;"));
     seekbar_fill.ref_own(|fill| link!(
         //. .
         (_pc = pc),
@@ -731,7 +846,7 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
     // Assemble
     return el_from_raw(
         transport_res.root.into(),
-    ).own(|_| (button_share, button_prev, button_next, button_play, seekbar, seekbar_fill));
+    ).own(|_| (button_share, button_prev, button_next, button_play, seekbar, seekbar_fill, seekbar_label));
 }
 
 pub fn build_page_view(
@@ -764,7 +879,7 @@ pub fn build_page_view(
                     ),
                 };
                 let data_rows_res =
-                    build.build_widget_data_rows(
+                    build.build_widget_root_data_rows(
                         pc,
                         &view.config,
                         &vec![],
@@ -778,7 +893,7 @@ pub fn build_page_view(
                     build.playlist_add,
                     &restore_playlist_pos,
                 );
-                return Ok(el_from_raw(style_export::cont_page_view_list(style_export::ContPageViewListArgs {
+                return Ok(el_from_raw(style_export::cont_page_view(style_export::ContPageViewArgs {
                     transport: Some(build.transport_slot.raw().dyn_into().unwrap()),
                     rows: data_rows_res.raw().dyn_into().unwrap(),
                 }).root.into()).own(|_| (build.transport_slot, data_rows_res)));

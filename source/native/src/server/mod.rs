@@ -460,8 +460,8 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 let (incoming, outgoing) = tx(&state.db, move |txn| {
                                     return Ok(
                                         (
-                                            db::triple_list_from(txn, &DbNode(req.node.clone()))?,
                                             db::triple_list_to(txn, &DbNode(req.node.clone()))?,
+                                            db::triple_list_from(txn, &DbNode(req.node.clone()))?,
                                         ),
                                     );
                                 }).await.err_internal()?;

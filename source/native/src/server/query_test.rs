@@ -14,7 +14,7 @@ use {
         server::{
             db,
             query::{
-                build_query,
+                build_root_chain,
                 execute_sql_query,
             },
         },
@@ -73,7 +73,8 @@ fn n() -> Node {
 }
 
 fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, TreeNode)]], query: Query) {
-    let (query, query_values) = build_query(query, HashMap::new()).unwrap();
+    let sort = query.sort;
+    let (query, query_values) = build_root_chain(query.chain, HashMap::new()).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
     db::migrate(&mut db).unwrap();
     for (s, p, o) in triples {
@@ -111,7 +112,7 @@ fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, TreeNode)]], query
             println!("explain row: {:?}", row);
         }
     }
-    let got = execute_sql_query(&db, query, query_values).unwrap();
+    let got = execute_sql_query(&db, query, query_values, sort).unwrap();
     let want =
         want
             .into_iter()

@@ -10,4 +10,4 @@ $album_id -> "sunwet/1/element" ?(-> "sunwet/1/is" == "sunwet/1/track") {
     ( -> "sunwet/1/index" first { => index } )
     ( -> "sunwet/1/file" first { => file } )
     ( -> "sunwet/1/media" first { => media } )
-}
+} asc index

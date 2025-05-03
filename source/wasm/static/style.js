@@ -731,16 +731,28 @@
     args
   ) => ({
     root: e(
-      "input",
+      "div",
       {
-        type: "text",
-        placeholder: args.title,
+        contentEditable: "plaintext-only",
         title: args.title,
-        name: args.id,
-        value: args.value,
+        id: args.id,
+        textContent: args.value,
       },
       {
-        styles_: [leafInputStyle],
+        styles_: [
+          leafInputStyle,
+          ss(uniq("leaf_input_text"), {
+            "": (s) => {
+              s.display = "inline-block";
+              s.whiteSpace = "pre-wrap";
+            },
+            ":empty::before": (s) => {
+              s.whiteSpace = "pre-wrap";
+              s.content = JSON.stringify(args.title || " ");
+              s.opacity = "0.5";
+            },
+          }),
+        ],
       }
     ),
   });
@@ -880,7 +892,7 @@
   ) => {
     const children = [];
     for (const [k, v] of Object.entries(args.options)) {
-      children.push(e("option", { textContent: v, value: v }, {}));
+      children.push(e("option", { textContent: v, value: k }, {}));
     }
     const out = e(
       "select",
@@ -1030,31 +1042,6 @@
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: page, view
 
-  presentation.contPageView = /** @type {Presentation["contPageView"]} */ (
-    args
-  ) => ({
-    root: e(
-      "div",
-      {},
-      {
-        styles_: [
-          classMenuWantStateOpen,
-          contVboxStyle,
-          ss(uniq("cont_view_body"), {
-            "": (s) => {
-              s.gridColumn = "1/4";
-              s.gridRow = "2";
-            },
-            [`.${classMenuStateOpen}`]: (s) => {
-              s.display = "none";
-            },
-          }),
-        ],
-        children_: args.entries,
-      }
-    ),
-  });
-
   presentation.contBarViewTransport =
     /** @type {Presentation["contBarViewTransport"]} */ () => {
       const buttonShare = leafTransportButton({
@@ -1172,35 +1159,121 @@
       };
     };
 
-  presentation.contPageViewList =
-    /** @type {Presentation["contPageViewList"]} */ (args) => {
-      const children = [];
-      if (args.transport != null) {
-        children.push(args.transport);
-      }
-      children.push(
-        e(
-          "div",
-          {},
-          {
-            styles_: [
-              contStackStyle,
-              ss(uniq("view_list_body"), {
-                "": (s) => {
-                  s.padding = `0 max(0.3cm, min(${varSCol1Width}, 100dvw / 20))`;
-                  s.paddingBottom = "2cm";
-                  s.flexGrow = "1";
-                },
-              }),
-            ],
-            children_: [args.rows],
-          }
-        )
-      );
-      return presentation.contPageView({
-        entries: children,
-      });
+  presentation.contPageView = /** @type {Presentation["contPageView"]} */ (
+    args
+  ) => {
+    const children = [];
+    if (args.transport != null) {
+      children.push(args.transport);
+    }
+    children.push(
+      e(
+        "div",
+        {},
+        {
+          styles_: [
+            contVboxStyle,
+            ss(uniq("view_list_body"), {
+              "": (s) => {
+                s.padding = `0 max(0.3cm, min(${varSCol1Width}, 100dvw / 20))`;
+                s.paddingBottom = "2cm";
+              },
+            }),
+          ],
+          children_: [args.rows],
+        }
+      )
+    );
+    return {
+      root: e(
+        "div",
+        {},
+        {
+          styles_: [
+            classMenuWantStateOpen,
+            contVboxStyle,
+            ss(uniq("cont_view_body"), {
+              "": (s) => {
+                s.gridColumn = "1/4";
+                s.gridRow = "2";
+              },
+              [`.${classMenuStateOpen}`]: (s) => {
+                s.display = "none";
+              },
+            }),
+          ],
+          children_: children,
+        }
+      ),
     };
+  };
+
+  presentation.contViewRootRows =
+    /** @type {Presentation["contViewRootRows"]} */ (args) => ({
+      root: e(
+        "div",
+        {},
+        {
+          styles_: [
+            contVboxStyle,
+            ss(uniq("cont_view_root_rows"), {
+              "": (s) => {
+                s.flexGrow = "1";
+                s.gap = "0.8cm";
+              },
+            }),
+          ],
+          children_: args.rows,
+        }
+      ),
+    });
+
+  presentation.contViewRow = /** @type {Presentation["contViewRow"]} */ (
+    args
+  ) => ({
+    root: e(
+      "div",
+      {},
+      {
+        styles_: [
+          contHboxStyle,
+          ss(uniq("cont_view_row"), {
+            "": (s) => {
+              s.flexWrap = "wrap";
+              s.columnGap = "0.5cm";
+              s.rowGap = "0.3cm";
+            },
+          }),
+        ],
+        children_: args.blocks,
+      }
+    ),
+  });
+
+  presentation.contViewBlock = /** @type {Presentation["contViewBlock"]} */ (
+    args
+  ) => {
+    const out = e(
+      "div",
+      {},
+      {
+        styles_: [
+          ss(uniq("cont_view_block"), {
+            "": (s) => {},
+          }),
+        ],
+        children_: args.children,
+      }
+    );
+    if (args.width != null) {
+      out.style.width = `max(2cm, min(${args.width}, 100%))`;
+    } else {
+      out.style.flexGrow = "1";
+    }
+    return {
+      root: out,
+    };
+  };
 
   presentation.contMediaFullscreen =
     /** @type {Presentation["contMediaFullscreen"]} */ (args) => {

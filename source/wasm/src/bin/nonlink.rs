@@ -1,6 +1,11 @@
 use {
+    flowcontrol::superif,
     gloo::{
         events::EventListener,
+        storage::{
+            SessionStorage,
+            Storage,
+        },
         utils::{
             document,
             window,
@@ -11,9 +16,11 @@ use {
         ministate::{
             ministate_octothorpe,
             read_ministate,
+            record_replace_ministate,
             Ministate,
             MinistateForm,
             MinistateView,
+            SESSIONSTORAGE_POST_REDIRECT,
         },
         playlist::{
             self,
@@ -155,19 +162,29 @@ pub fn main() {
         let admenu_button = el_from_raw(root_res.admenu_button.into()).on("click", {
             let eg = pc.eg();
             move |_| eg.event(|pc| {
-                state().menu_open.set(pc, !*state().menu_open.borrow());
+                let current_open = *state().menu_open.borrow();
+                state().menu_open.set(pc, !current_open);
             }).unwrap()
         });
         let root =
-            el_from_raw(root_res.root.into())
-                .own(|_| (main_body.clone(), menu_body.clone()))
-                .own(|_| admenu_button);
+            el_from_raw(
+                root_res.root.into(),
+            ).own(|_| (main_title.clone(), main_body.clone(), menu_body.clone(), admenu_button));
         let (playlist_state, playlist_root) = playlist::state_new(pc, base_url.clone());
 
         // Build app state
         STATE.with(|s| *s.borrow_mut() = Some(Rc::new(State_ {
             eg: pc.eg(),
-            ministate: RefCell::new(read_ministate()),
+            ministate: RefCell::new(superif!({
+                let Ok(m) = SessionStorage::get::<Ministate>(SESSIONSTORAGE_POST_REDIRECT) else {
+                    break 'not_redirect;
+                };
+                SessionStorage::delete(SESSIONSTORAGE_POST_REDIRECT);
+                record_replace_ministate(&m);
+                m
+            } 'not_redirect {
+                read_ministate()
+            })),
             menu_open: Prim::new(false),
             base_url: base_url.clone(),
             playlist: playlist_state,

@@ -240,7 +240,7 @@ fn main() {
         Func {
             name: "leafInputText",
             args: vec![("id", &optstring_), ("title", &string_), ("value", &string_)],
-            returns: vec![("root", &inpel_)],
+            returns: vec![("root", &el_)],
         },
         Func {
             name: "leafInputNumber",
@@ -285,7 +285,7 @@ fn main() {
         Func {
             name: "leafInputPairText",
             args: vec![("id", &string_), ("title", &string_), ("value", &string_)],
-            returns: vec![("root", &el_), ("input", &inpel_)],
+            returns: vec![("root", &el_), ("input", &el_)],
         },
         Func {
             name: "leafInputPairNumber",
@@ -326,11 +326,6 @@ fn main() {
         // xx Components, styles: page, view
         Func {
             name: "contPageView",
-            args: vec![("entries", &arrel_)],
-            returns: vec![("root", &el_)],
-        },
-        Func {
-            name: "contPageViewList",
             args: vec![("transport", &optel_), ("rows", &el_)],
             returns: vec![("root", &el_)],
         },
@@ -347,6 +342,21 @@ fn main() {
                 ("seekbarFill", &el_),
                 ("seekbarLabel", &el_)
             ],
+        },
+        Func {
+            name: "contViewRootRows",
+            args: vec![("rows", &arrel_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "contViewRow",
+            args: vec![("blocks", &arrel_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "contViewBlock",
+            args: vec![("children", &arrel_), ("width", &optstring_)],
+            returns: vec![("root", &el_)],
         },
         Func {
             name: "contMediaFullscreen",

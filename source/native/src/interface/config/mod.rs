@@ -7,7 +7,9 @@ use {
     shared::interface::{
         config::{
             form::ClientForm,
-            view::WidgetDataRows,
+            view::{
+                WidgetRootDataRows,
+            },
         },
         iam::UserIdentityId,
         query::Query,
@@ -70,7 +72,7 @@ pub struct MenuItem {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct View {
     pub queries: BTreeMap<String, Query>,
-    pub config: WidgetDataRows,
+    pub config: WidgetRootDataRows,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, JsonSchema)]

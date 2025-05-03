@@ -1,9 +1,7 @@
 use {
     super::{
         api::req_post_json,
-        state::{
-            set_page,
-        },
+        state::set_page,
     },
     crate::libnonlink::state::state,
     flowcontrol::{
@@ -42,14 +40,15 @@ use {
         rc::Rc,
         str::FromStr,
     },
-    wasm::{
-        js::{
-            el_async,
-            style_export,
-        },
+    wasm::js::{
+        el_async,
+        style_export,
     },
     wasm_bindgen::JsCast,
-    web_sys::HtmlInputElement,
+    web_sys::{
+        HtmlElement,
+        HtmlInputElement,
+    },
 };
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -184,10 +183,10 @@ fn new_pivot_state(pc: &mut ProcessingContext, n: &Node) -> PivotState {
 
 struct TripleState_ {
     incoming: bool,
-    initial: RefCell<(String, Node)>,
     add: bool,
     delete: HistPrim<bool>,
     delete_all: HistPrim<bool>,
+    predicate_initial: RefCell<(String, Node)>,
     predicate: Prim<String>,
     node: NodeState,
 }
@@ -199,6 +198,7 @@ fn new_triple_state(
     pc: &mut ProcessingContext,
     t: &Triple,
     incoming: bool,
+    add: bool,
     delete_all: HistPrim<bool>,
 ) -> TripleState {
     let value = if incoming {
@@ -208,8 +208,8 @@ fn new_triple_state(
     };
     return TripleState(Rc::new(TripleState_ {
         incoming: incoming,
-        initial: RefCell::new((t.predicate.clone(), value.clone())),
-        add: false,
+        predicate_initial: RefCell::new((t.predicate.clone(), value.clone())),
+        add: add,
         delete: HistPrim::new(pc, false),
         delete_all: delete_all,
         predicate: Prim::new(t.predicate.clone()),
@@ -226,10 +226,10 @@ struct BuildEditNodeRes {
 fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> BuildEditNodeRes {
     let options =
         [
-            (NodeEditType::Str, "Value - text"),
-            (NodeEditType::Num, "Value - number"),
-            (NodeEditType::Bool, "Value - bool"),
-            (NodeEditType::Json, "Value - JSON"),
+            (NodeEditType::Str, "Text"),
+            (NodeEditType::Num, "Number"),
+            (NodeEditType::Bool, "Bool"),
+            (NodeEditType::Json, "JSON"),
             (NodeEditType::File, "File"),
         ]
             .into_iter()
@@ -244,7 +244,7 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> BuildEditNod
     let inp_type_el = el_from_raw(inp_type_res.root.clone().into());
     let inp_value_group_el =
         el_from_raw(style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root.into());
-    inp_type_el.ref_on("change", {
+    inp_type_el.ref_on("input", {
         let node = node.clone();
         let eg = pc.eg();
         move |_| eg.event(|pc| {
@@ -293,12 +293,12 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> BuildEditNod
                 };
                 let build_text_input = |pc: &mut ProcessingContext, input_: El, validate: fn(&str) -> bool| -> El {
                     let input_value = Prim::new("".to_string());
-                    input_.ref_on("change", {
+                    input_.ref_on("input", {
                         let eg = pc.eg();
                         let input_value = input_value.clone();
                         move |ev| eg.event(|pc| {
-                            let e = ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
-                            input_value.set(pc, e.value());
+                            let e = ev.target().unwrap().dyn_into::<HtmlElement>().unwrap();
+                            input_value.set(pc, e.text_content().unwrap_or_default());
                         }).unwrap()
                     });
                     input_.ref_own(|input_el| (
@@ -308,7 +308,7 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> BuildEditNod
                             match &*v.borrow() {
                                 NodeEditValue::String(v) => {
                                     input_value.set(pc, v.clone());
-                                    input_el.raw().dyn_ref::<HtmlInputElement>().unwrap().set_value(&v);
+                                    input_el.raw().dyn_ref::<HtmlElement>().unwrap().set_text_content(Some(v));
                                 },
                                 NodeEditValue::Bool(_) => unreachable!(),
                             }
@@ -359,7 +359,8 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> BuildEditNod
                             id: None,
                             title: "Value".to_string(),
                             value: new_value,
-                        }).root.into()).on("change", {
+                        }).root.into());
+                        new_input.ref_on("input", {
                             let eg = pc.eg();
                             let input_value = input_value.clone();
                             move |ev| eg.event(|pc| {
@@ -373,7 +374,8 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> BuildEditNod
                                         .has_attribute("checked"),
                                 );
                             }).unwrap()
-                        }).own(|input_el| (
+                        });
+                        new_input.ref_own(|input_el| (
                             //. .
                             link!((pc = pc), (node_value = node_value.clone()), (input_value = input_value.clone()), (), {
                                 input_value.set(
@@ -503,8 +505,8 @@ fn build_edit_triple(pc: &mut ProcessingContext, triple: &TripleState) -> El {
             let triple = triple.clone();
             let eg = pc.eg();
             move |_| eg.event(|pc| {
-                triple.0.predicate.set(pc, triple.0.initial.borrow().0.clone());
-                let (node_type, node_value) = node_to_type_value(&triple.0.initial.borrow().1);
+                triple.0.predicate.set(pc, triple.0.predicate_initial.borrow().0.clone());
+                let (node_type, node_value) = node_to_type_value(&triple.0.predicate_initial.borrow().1);
                 triple.0.node.type_.set(pc, node_type);
                 triple.0.node.value.set(pc, node_value);
             }).unwrap()
@@ -541,13 +543,18 @@ fn build_edit_triple(pc: &mut ProcessingContext, triple: &TripleState) -> El {
                 style_export::LeafEditPredicateArgs { value: predicate_value.clone() },
             );
         let input_value = Prim::new(predicate_value);
-        el_from_raw(predicate_res.root.into()).on("change", {
+        let out = el_from_raw(predicate_res.root.into());
+        out.ref_on("input", {
             let eg = pc.eg();
             let input_value = input_value.clone();
             move |ev| eg.event(|pc| {
-                input_value.set(pc, ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap().value());
+                input_value.set(
+                    pc,
+                    ev.target().unwrap().dyn_into::<HtmlElement>().unwrap().text_content().unwrap_or_default(),
+                );
             }).unwrap()
-        }).own(|input_el| (
+        });
+        out.ref_own(|input_el| (
             //. .
             link!(
                 (pc = pc),
@@ -557,13 +564,14 @@ fn build_edit_triple(pc: &mut ProcessingContext, triple: &TripleState) -> El {
                 {
                     let input_el = input_el.upgrade()?;
                     input_value.set(pc, predicate_value.borrow().clone());
-                    input_el.ref_attr("value", predicate_value.borrow().as_str());
+                    input_el.ref_text(predicate_value.borrow().as_str());
                 }
             ),
             link!((pc = pc), (input_value = input_value.clone()), (predicate_value = triple.0.predicate.clone()), (), {
                 predicate_value.set(pc, input_value.borrow().clone());
             }),
-        ))
+        ));
+        out
     };
     if triple.0.incoming {
         return el_from_raw(
@@ -616,7 +624,7 @@ pub fn build_page_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node
                                 .into(),
                         );
                     for t in triples.incoming {
-                        let triple = new_triple_state(pc, &t, true, pivot_state.0.delete.clone());
+                        let triple = new_triple_state(pc, &t, true, false, pivot_state.0.delete.clone());
                         triples_box.ref_push(build_edit_triple(pc, &triple));
                         triple_states.borrow_mut().push(triple);
                     }
@@ -638,8 +646,8 @@ pub fn build_page_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node
                                 subject: Node::Value(serde_json::Value::String("".to_string())),
                                 predicate: "".to_string(),
                                 object: Node::Value(serde_json::Value::String("".to_string())),
-                            }, true, pivot_state.0.delete.clone());
-                            incoming_triples_box.ref_push(build_edit_triple(pc, &triple));
+                            }, true, true, pivot_state.0.delete.clone());
+                            incoming_triples_box.ref_splice(0, 0, vec![build_edit_triple(pc, &triple)]);
                             triple_states.borrow_mut().push(triple);
                         }).unwrap()
                     });
@@ -701,7 +709,7 @@ pub fn build_page_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node
                                 .into(),
                         );
                     for t in triples.outgoing {
-                        let triple = new_triple_state(pc, &t, false, pivot_state.0.delete.clone());
+                        let triple = new_triple_state(pc, &t, false, false, pivot_state.0.delete.clone());
                         triples_box.ref_push(build_edit_triple(pc, &triple));
                         triple_states.borrow_mut().push(triple);
                     }
@@ -723,7 +731,7 @@ pub fn build_page_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node
                                 subject: Node::Value(serde_json::Value::String("".to_string())),
                                 predicate: "".to_string(),
                                 object: Node::Value(serde_json::Value::String("".to_string())),
-                            }, false, pivot_state.0.delete.clone());
+                            }, false, true, pivot_state.0.delete.clone());
                             triples_box.ref_push(build_edit_triple(pc, &triple));
                             triple_states.borrow_mut().push(triple);
                         }).unwrap()
@@ -769,7 +777,7 @@ pub fn build_page_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node
                                         triple_nodes_predicates.push(
                                             (triple_predicate.clone(), triple_node.clone()),
                                         );
-                                        let triple_initial = triple.0.initial.borrow();
+                                        let triple_initial = triple.0.predicate_initial.borrow();
                                         let triple_predicate_initial = &triple_initial.0;
                                         let triple_node_initial = &triple_initial.1;
                                         let changed =
@@ -826,7 +834,7 @@ pub fn build_page_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node
                                             RefCell::borrow(&triple_states).iter(),
                                             triple_nodes_predicates.into_iter(),
                                         ) {
-                                            *triple.0.initial.borrow_mut() = sent_triple;
+                                            *triple.0.predicate_initial.borrow_mut() = sent_triple;
                                         }
                                     },
                                     Err(e) => {

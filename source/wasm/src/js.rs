@@ -2,6 +2,7 @@ use {
     futures::channel::oneshot::channel,
     gloo::{
         events::EventListener,
+        storage::errors::StorageError,
         utils::window,
     },
     rooting::{
@@ -19,7 +20,10 @@ use {
         JsValue,
     },
     web_sys::{
-        console::log_2,
+        console::{
+            log_1,
+            log_2,
+        },
         Event,
         EventTarget,
     },
@@ -335,7 +339,18 @@ impl<T> LogJsErr for Result<T, JsValue> {
         match self {
             Ok(_) => { },
             Err(e) => {
-                log_2(&JsValue::from(format!("Warning: {}", msg)), &e);
+                log_2(&JsValue::from(format!("Warning: {}:", msg)), &e);
+            },
+        }
+    }
+}
+
+impl<T> LogJsErr for Result<T, StorageError> {
+    fn log(self, msg: &str) {
+        match self {
+            Ok(_) => { },
+            Err(e) => {
+                log_1(&JsValue::from(format!("Warning: {}: {}", msg, e)));
             },
         }
     }

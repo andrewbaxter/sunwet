@@ -205,6 +205,25 @@ pub struct WidgetDataRows {
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct Block {
+    /// Sets the default width of the block. If not specified, space will be divided
+    /// with other unsized blocks.
+    pub width: Option<String>,
+    /// The contents of the block.
+    pub widget: Widget,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct WidgetRootDataRows {
+    /// Where to get the data for the sublist.
+    pub data: QueryOrField,
+    /// How the data rows are displayed.
+    pub row_blocks: Vec<Block>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct WidgetLayout {
     pub direction: Direction,
     #[serde(default)]

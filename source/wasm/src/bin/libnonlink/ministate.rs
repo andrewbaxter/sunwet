@@ -13,6 +13,8 @@ use {
     wasm_bindgen::JsValue,
 };
 
+pub const SESSIONSTORAGE_POST_REDIRECT: &str = "post_redirect";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct PlaylistRestorePos {

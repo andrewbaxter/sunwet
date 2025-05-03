@@ -56,6 +56,30 @@
   },
   "additionalProperties": false,
   "definitions": {
+    "Block": {
+      "type": "object",
+      "required": [
+        "widget"
+      ],
+      "properties": {
+        "widget": {
+          "description": "The contents of the block.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Widget"
+            }
+          ]
+        },
+        "width": {
+          "description": "Sets the default width of the block. If not specified, space will be divided with other unsized blocks.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "Chain": {
       "type": "object",
       "required": [
@@ -579,10 +603,10 @@
         {
           "type": "object",
           "required": [
-            "color"
+            "rgb_u8"
           ],
           "properties": {
-            "color": {
+            "rgb_u8": {
               "$ref": "#/definitions/FormFieldRgbU8"
             }
           },
@@ -619,11 +643,11 @@
     "FormFieldBool": {
       "type": "object",
       "required": [
-        "form_id",
+        "id",
         "label"
       ],
       "properties": {
-        "form_id": {
+        "id": {
           "type": "string"
         },
         "initial_on": {
@@ -652,7 +676,7 @@
       "type": "object",
       "required": [
         "choices",
-        "form_id",
+        "id",
         "label"
       ],
       "properties": {
@@ -672,7 +696,7 @@
             "minItems": 2
           }
         },
-        "form_id": {
+        "id": {
           "type": "string"
         },
         "label": {
@@ -684,11 +708,11 @@
     "FormFieldDate": {
       "type": "object",
       "required": [
-        "form_id",
+        "id",
         "label"
       ],
       "properties": {
-        "form_id": {
+        "id": {
           "type": "string"
         },
         "label": {
@@ -700,11 +724,11 @@
     "FormFieldDatetime": {
       "type": "object",
       "required": [
-        "form_id",
+        "id",
         "label"
       ],
       "properties": {
-        "form_id": {
+        "id": {
           "type": "string"
         },
         "label": {
@@ -716,10 +740,10 @@
     "FormFieldId": {
       "type": "object",
       "required": [
-        "form_id"
+        "id"
       ],
       "properties": {
-        "form_id": {
+        "id": {
           "type": "string"
         }
       },
@@ -728,11 +752,11 @@
     "FormFieldNumber": {
       "type": "object",
       "required": [
-        "form_id",
+        "id",
         "label"
       ],
       "properties": {
-        "form_id": {
+        "id": {
           "type": "string"
         },
         "label": {
@@ -751,12 +775,12 @@
     "FormFieldQueryEnum": {
       "type": "object",
       "required": [
-        "form_id",
+        "id",
         "label",
         "query"
       ],
       "properties": {
-        "form_id": {
+        "id": {
           "type": "string"
         },
         "label": {
@@ -771,11 +795,11 @@
     "FormFieldRgbU8": {
       "type": "object",
       "required": [
-        "form_id",
+        "id",
         "label"
       ],
       "properties": {
-        "form_id": {
+        "id": {
           "type": "string"
         },
         "initial": {
@@ -794,11 +818,11 @@
     "FormFieldText": {
       "type": "object",
       "required": [
-        "form_id",
+        "id",
         "label"
       ],
       "properties": {
-        "form_id": {
+        "id": {
           "type": "string"
         },
         "label": {
@@ -817,11 +841,11 @@
     "FormFieldTime": {
       "type": "object",
       "required": [
-        "form_id",
+        "id",
         "label"
       ],
       "properties": {
-        "form_id": {
+        "id": {
           "type": "string"
         },
         "label": {
@@ -1515,7 +1539,7 @@
       ],
       "properties": {
         "config": {
-          "$ref": "#/definitions/WidgetDataRows"
+          "$ref": "#/definitions/WidgetRootDataRows"
         },
         "queries": {
           "type": "object",
@@ -1786,6 +1810,31 @@
               "$ref": "#/definitions/TransAlign"
             }
           ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "WidgetRootDataRows": {
+      "type": "object",
+      "required": [
+        "data",
+        "row_blocks"
+      ],
+      "properties": {
+        "data": {
+          "description": "Where to get the data for the sublist.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/QueryOrField"
+            }
+          ]
+        },
+        "row_blocks": {
+          "description": "How the data rows are displayed.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Block"
+          }
         }
       },
       "additionalProperties": false

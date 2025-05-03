@@ -1,7 +1,15 @@
 use {
+    super::{
+        ministate::{
+            Ministate,
+            SESSIONSTORAGE_POST_REDIRECT,
+        },
+        state::state,
+    },
     gloo::{
         storage::{
             LocalStorage,
+            SessionStorage,
             Storage,
         },
         utils::window,
@@ -11,10 +19,7 @@ use {
         C2SReq,
         C2SReqTrait,
     },
-    super::ministate::{
-        ministate_octothorpe,
-        read_ministate,
-    },
+    wasm::js::LogJsErr,
     wasm_bindgen::UnwrapThrowExt,
     web_sys::Url,
 };
@@ -26,35 +31,31 @@ pub fn want_logged_in() -> bool {
 }
 
 pub fn redirect_login(base_url: &str) {
+    if !SessionStorage::get::<Ministate>(SESSIONSTORAGE_POST_REDIRECT).is_ok() {
+        SessionStorage::set(
+            SESSIONSTORAGE_POST_REDIRECT,
+            &*state().ministate.borrow(),
+        ).log("Error storing post-redirect ministate");
+    }
     window()
         .location()
         .set_href(
-            &Url::new_with_base(
-                &format!(
-                    "oidc?url={}",
-                    urlencoding::encode(&format!("{}{}", base_url, ministate_octothorpe(&read_ministate())))
-                ),
-                base_url,
-            )
-                .unwrap()
-                .href(),
+            &Url::new_with_base(&format!("oidc?url={}", urlencoding::encode(&base_url)), base_url).unwrap().href(),
         )
         .unwrap();
 }
 
 pub fn redirect_logout(base_url: &str) {
+    if !SessionStorage::get::<Ministate>(SESSIONSTORAGE_POST_REDIRECT).is_ok() {
+        SessionStorage::set(
+            SESSIONSTORAGE_POST_REDIRECT,
+            &*state().ministate.borrow(),
+        ).log("Error storing post-redirect ministate");
+    }
     window()
         .location()
         .set_href(
-            &Url::new_with_base(
-                &format!(
-                    "logout?url={}",
-                    urlencoding::encode(&format!("{}{}", base_url, ministate_octothorpe(&read_ministate())))
-                ),
-                base_url,
-            )
-                .unwrap()
-                .href(),
+            &Url::new_with_base(&format!("logout?url={}", urlencoding::encode(&base_url)), base_url).unwrap().href(),
         )
         .unwrap();
 }
