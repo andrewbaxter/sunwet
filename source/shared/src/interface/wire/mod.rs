@@ -233,6 +233,21 @@ impl C2SReqTrait for ReqGetClientConfig {
     type Resp = ClientConfig;
 }
 
+// # Who am I
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct ReqWhoAmI;
+
+impl Into<C2SReq> for ReqWhoAmI {
+    fn into(self) -> C2SReq {
+        return C2SReq::WhoAmI(self);
+    }
+}
+
+impl C2SReqTrait for ReqWhoAmI {
+    type Resp = String;
+}
+
 // # Assemble
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
@@ -249,6 +264,7 @@ pub enum C2SReq {
     GetTriplesAround(ReqGetTriplesAround),
     History(ReqHistory),
     GetClientConfig(ReqGetClientConfig),
+    WhoAmI(ReqWhoAmI),
 }
 
 // # ?

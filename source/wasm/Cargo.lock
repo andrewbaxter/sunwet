@@ -762,9 +762,9 @@ dependencies = [
 
 [[package]]
 name = "lunk"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4249a984948056bc406c73b47aaa73510587e6668d863e12e9693a2954abc140"
+checksum = "21b429a93a82d43345f0b9614cac282f3c88c4a5970a2a70563700d472e71d84"
 dependencies = [
  "paste",
 ]

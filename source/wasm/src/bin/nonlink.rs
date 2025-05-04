@@ -47,7 +47,10 @@ use {
             menu::ClientMenuItem,
             ClientConfig,
         },
-        wire::ReqGetClientConfig,
+        wire::{
+            ReqGetClientConfig,
+            ReqWhoAmI,
+        },
     },
     std::{
         cell::RefCell,
@@ -101,7 +104,9 @@ pub fn main() {
         });
         let menu_body = el_async_(true, {
             let client_config = client_config.clone();
+            let base_url = base_url.clone();
             async move {
+                let whoami = req_post_json(&base_url, ReqWhoAmI).await?;
                 let client_config = client_config.get().await?;
 
                 fn build_menu_item(config: &ClientConfig, item: &ClientMenuItem) -> HtmlElement {
@@ -142,12 +147,10 @@ pub fn main() {
                 for item in &client_config.menu {
                     root.push(build_menu_item(&client_config, item));
                 }
-                return Ok(
-                    el_from_raw(
-                        style_export::cont_menu_body(style_export::ContMenuBodyArgs { children: root }).root.into(),
-                    ),
-                ) as
-                    Result<_, String>;
+                return Ok(el_from_raw(style_export::cont_menu_body(style_export::ContMenuBodyArgs {
+                    children: root,
+                    user: whoami,
+                }).root.into())) as Result<_, String>;
             }
         });
         let main_title =

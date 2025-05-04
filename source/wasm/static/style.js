@@ -14,19 +14,12 @@
   };
 
   const uniq = /** @type {(...args: string[]) => string} */ (...args) => {
-    let uniq = [""];
+    const lines = [];
     for (const e of notnull(new Error().stack).matchAll(/(\d+):\d+/g)) {
-      uniq[0] = `${e[1]}`;
+      lines.push(`${e[1]}`);
     }
-    uniq.push(...args);
-    return `r${uniq.join("_")}`;
-  };
-
-  const uniqn = /** @type { (...args: string[]) => string} */ (...args) => {
-    const uniq = [];
-    for (const e of notnull(new Error().stack).matchAll(/(\d+):\d+/g)) {
-      uniq.push(e[1]);
-    }
+    console.log(lines);
+    let uniq = [lines[1]];
     uniq.push(...args);
     return `r${uniq.join("_")}`;
   };
@@ -120,17 +113,18 @@
     (globalStyleMediaDark.cssRules[globalStyleMediaDark.insertRule(":root {}")])
       .style;
 
-  const v = /** @type {(v: string) => string} */ (val) => {
-    const name = `--${uniq()}`;
+  const v = /** @type {(id: string, v: string) => string} */ (id, val) => {
+    const name = `--${id}`;
     globalStyleRoot.setProperty(name, val);
     return `var(${name})`;
   };
 
-  const vs = /** @type {(light: string, dark: string) => string} */ (
+  const vs = /** @type {(id:String, light: string, dark: string) => string} */ (
+    id,
     light,
     dark
   ) => {
-    const name = `--${uniq()}`;
+    const name = `--${id}`;
     globalStyleLight.setProperty(name, light);
     globalStyleDark.setProperty(name, dark);
     return `var(${name})`;
@@ -180,7 +174,7 @@
   const textIconUnlink = "\ue16f";
   const textIconLogin = "\uea77";
   const textIconMenu = "\ue5d2";
-  const textIconMenuLink = "\ue5c8";
+  const textIconGo = "\ue5c8";
   const textIconFoldClosed = "\ue316";
   const textIconFoldOpened = "\ue313";
   const textIconClose = "\ue5cd";
@@ -191,38 +185,43 @@
 
   // xx Variables
 
-  const varSPadTitle = v("0.4cm");
-  const varSFontTitle = v("24pt");
-  const varSFontAdmenu = v("20pt");
-  const varSFontMenu = v("20pt");
-  const varSNarrow = v("20cm");
-  const varSModalHeight = v("20cm");
-  const varSCol1Width = v("min(0.8cm, 5dvw)");
-  const varSCol3Width = v("1.4cm");
-  const varSMenuColWidth = v("min(100%, 12cm)");
+  const varSPadTitle = v(uniq(), "0.4cm");
+  const varSFontTitle = v(uniq(), "24pt");
+  const varSFontAdmenu = v(uniq(), "20pt");
+  const varSFontMenu = v(uniq(), "20pt");
+  const varSNarrow = v(uniq(), "20cm");
+  const varSModalHeight = v(uniq(), "20cm");
+  const varSCol1Width = v(uniq(), "min(0.8cm, 5dvw)");
+  const varSCol3Width = v(uniq(), "1.4cm");
+  const varSMenuColWidth = v(uniq(), "min(100%, 12cm)");
   //const varCBackground = vs("rgb(205, 207, 212)", "rgb(0,0,0)");
-  const varCBackground = vs("rgb(230, 232, 238)", "rgb(0,0,0)");
-  const varCBg2 = vs("rgb(218, 220, 226)", "rgb(0,0,0)");
-  const varCBackgroundDark = v("rgb(45, 45, 46)");
-  //const varCBackgroundMenu = vs("rgb(173, 177, 188)", "rgb(0,0,0)");
-  const varCBackgroundMenu = vs("rgb(205, 208, 217)", "rgb(0,0,0)");
-  const varCBackgroundMenuButtons = vs("rgb(219, 223, 232)", "rgb(0,0,0)");
+  const varCBackground = vs(uniq(), "rgb(230, 232, 238)", "rgb(0,0,0)");
+  const varCBg2 = vs(uniq(), "rgb(218, 220, 226)", "rgb(0,0,0)");
+  const varCBackgroundDark = v(uniq(), "rgb(45, 45, 46)");
+  //const varCBackgroundMenu = vs(uniq(), "rgb(173, 177, 188)", "rgb(0,0,0)");
+  const varCBackgroundMenu = vs(uniq(), "rgb(205, 208, 217)", "rgb(0,0,0)");
+  const varCBackgroundMenuButtons = vs(
+    uniq(),
+    "rgb(219, 223, 232)",
+    "rgb(0,0,0)"
+  );
 
-  const varCButtonHover = vs("rgba(255, 255, 255, 0.7)", "rgb(0,0,0)");
-  const varCButtonClick = vs("rgba(255, 255, 255, 1)", "rgb(0,0,0)");
+  const varCButtonHover = vs(uniq(), "rgba(255, 255, 255, 0.7)", "rgb(0,0,0)");
+  const varCButtonClick = vs(uniq(), "rgba(255, 255, 255, 1)", "rgb(0,0,0)");
 
-  const varCSeekbarEmpty = vs("rgb(212, 216, 223)", "rgb(0,0,0)");
-  const varCSeekbarFill = vs("rgb(197, 196, 209)", "rgb(0,0,0)");
+  const varCSeekbarEmpty = vs(uniq(), "rgb(212, 216, 223)", "rgb(0,0,0)");
+  const varCSeekbarFill = vs(uniq(), "rgb(197, 196, 209)", "rgb(0,0,0)");
 
-  const varSButtonPadBig = v("0.3cm");
-  const varSButtonPadSmall = v("0.1cm");
+  const varSButtonPadBig = v(uniq(), "0.3cm");
+  const varSButtonPadSmall = v(uniq(), "0.1cm");
 
-  const varCForeground = vs("rgb(0, 0, 0)", "rgb(0,0,0)");
-  const varCForegroundFade = vs("rgb(123, 123, 123)", "rgb(0,0,0)");
-  const varCForegroundDark = v("rgb(249, 248, 240)");
-  const varCForegroundError = vs("rgb(154, 60, 74)", "rgb(0,0,0)");
-  const varCBorderError = vs("rgb(192, 61, 80)", "rgb(0,0,0)");
-  const varCInputBorder = vs("rgb(154, 157, 168)", "rgb(0,0,0)");
+  const varCForeground = vs(uniq(), "rgb(0, 0, 0)", "rgb(0,0,0)");
+  const varCForegroundFade = vs(uniq(), "rgb(123, 123, 123)", "rgb(0,0,0)");
+  const varCForegroundDark = v(uniq(), "rgb(249, 248, 240)");
+  const varCForegroundError = vs(uniq(), "rgb(154, 60, 74)", "rgb(0,0,0)");
+  const varCBorderModified = vs(uniq(), "rgb(120, 149, 235)", "rgb(0,0,0)");
+  const varCBorderError = vs(uniq(), "rgb(192, 61, 80)", "rgb(0,0,0)");
+  const varCInputBorder = vs(uniq(), "rgb(154, 157, 168)", "rgb(0,0,0)");
   const varCSpinner = "rgb(155, 178, 229)";
   const varCNodeCenter = varCBg2;
 
@@ -242,6 +241,11 @@
   presentation.classStateInvalid =
     /** @type { Presentation["classStateInvalid"]} */ () => ({
       value: classInputStateInvalid,
+    });
+  const classInputStateModified = "modified";
+  presentation.classStateModified =
+    /** @type { Presentation["classStateModified"]} */ () => ({
+      value: classInputStateModified,
     });
   const classStateThinking = "thinking";
   presentation.classStateThinking =
@@ -704,7 +708,7 @@
         title: "Edit",
         icon: textIconEdit,
         text: "Edit",
-        url: args.url,
+        url: args.link,
       });
   presentation.leafButtonSmallView =
     /** @type {Presentation["leafButtonSmallView"]} */ (args) =>
@@ -712,7 +716,7 @@
         title: "View",
         icon: textIconView,
         text: "View",
-        url: args.url,
+        url: args.link,
       });
 
   // /////////////////////////////////////////////////////////////////////////////
@@ -796,18 +800,25 @@
     ),
   });
 
-  const varInputBorder = v(`0.04cm solid ${varCInputBorder}`);
-  const varSInputPad = v("0.1cm");
-  const leafInputStyle = s(uniq("leaf_form_input_text"), {
+  const varSInputPad = v(uniq(), "0.1cm");
+  const leafInputBorderStyle = s(uniq("leaf_input_border"), {
     "": (s) => {
-      s.borderBottom = varInputBorder;
-      s.padding = varSInputPad;
-      s.maxWidth = "9999cm";
+      s.borderBottom = `0.04cm solid ${varCInputBorder}`;
+    },
+    [`.${classInputStateModified}`]: (s) => {
+      s.borderColor = varCBorderModified;
+      s.borderBottomWidth = "0.04cm";
     },
     [`.${classInputStateInvalid}`]: (s) => {
       s.borderColor = varCBorderError;
       s.borderBottomStyle = "dashed";
       s.borderBottomWidth = "0.06cm";
+    },
+  });
+  const leafInputStyle = s(uniq("leaf_input"), {
+    "": (s) => {
+      s.padding = varSInputPad;
+      s.maxWidth = "9999cm";
     },
   });
 
@@ -824,14 +835,19 @@
       {
         styles_: [
           leafInputStyle,
+          leafInputBorderStyle,
           ss(uniq("leaf_input_text"), {
             "": (s) => {
               s.whiteSpace = "pre-wrap";
             },
             ":empty::before": (s) => {
               s.whiteSpace = "pre-wrap";
-              s.content = JSON.stringify(args.title || " ");
               s.opacity = "0.5";
+            },
+          }),
+          ss(uniq("leaf_input_text_", args.title || " "), {
+            ":empty::before": (s) => {
+              s.content = JSON.stringify(args.title || " ");
             },
           }),
         ],
@@ -860,7 +876,7 @@
               value: args.value,
             },
             {
-              styles_: [leafInputStyle],
+              styles_: [leafInputStyle, leafInputBorderStyle],
             }
           )
         );
@@ -881,7 +897,7 @@
             name: args.id,
           },
           {
-            styles_: [leafInputStyle],
+            styles_: [leafInputStyle, leafInputBorderStyle],
           }
         )
       );
@@ -907,7 +923,7 @@
             value: args.value,
           },
           {
-            styles_: [leafInputStyle],
+            styles_: [leafInputStyle, leafInputBorderStyle],
           }
         )
       );
@@ -932,7 +948,7 @@
             value: args.value,
           },
           {
-            styles_: [leafInputStyle],
+            styles_: [leafInputStyle, leafInputBorderStyle],
           }
         )
       );
@@ -956,7 +972,7 @@
               value: args.value,
             },
             {
-              styles_: [leafInputStyle],
+              styles_: [leafInputStyle, leafInputBorderStyle],
             }
           )
         );
@@ -981,7 +997,7 @@
             value: args.value,
           },
           {
-            styles_: [leafInputStyle],
+            styles_: [leafInputStyle, leafInputBorderStyle],
           }
         )
       );
@@ -1002,16 +1018,16 @@
       {
         title: args.title,
         name: args.id,
-        value: args.value,
       },
       {
-        styles_: [leafInputStyle],
+        styles_: [leafInputStyle, leafInputBorderStyle],
         children_: children,
       }
     );
     if (args.id != null) {
       out.id = args.id;
     }
+    out.value = args.value;
     return { root: out };
   };
 
@@ -2362,20 +2378,26 @@
 
   // /////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: page, view/edit node
-  let varSNodeGap = v("0.5cm");
-  const leafNodeHBoxStyle = s(uniq("leaf_edit_incoming_hbox"), {
+  let varSNodeGap = v(uniq(), "0.5cm");
+  const leafNodeHboxStyle = s(uniq("leaf_edit_hbox"), {
     "": (s) => {
       s.alignItems = "stretch";
       s.position = "relative";
     },
   });
-  const leafNodeVBoxStyle = s(uniq("leaf_edit_incoming_vbox"), {
+  const leafNodeVboxStyle = s(uniq("leaf_edit_vbox"), {
     "": (s) => {
       s.flexGrow = "1";
       s.gap = "0.2cm";
       s.border = `0.08cm solid ${varCNodeCenter}`;
       s.borderRadius = "0.2cm";
       s.padding = "0.2cm";
+    },
+  });
+  const leafNodeVBoxNewStyle = s(uniq("leaf_edit_vbox_new"), {
+    // increase specifity...
+    [`.${leafNodeVboxStyle}`]: (s) => {
+      s.borderStyle = "dashed";
     },
   });
   const leafNodeRelStyle = s(uniq("leaf_edit_rel"), {
@@ -2385,7 +2407,7 @@
       s.fontWeight = "800";
     },
   });
-  const relIconSize = v("1.5cm");
+  const relIconSize = v(uniq(), "1.5cm");
   const leafNodeRelIncomingStyle = s(uniq("leaf_edit_rel_incoming"), {
     "": (s) => {
       s.gridColumn = "2";
@@ -2424,72 +2446,84 @@
       ),
     });
   presentation.contNodeRowIncoming =
-    /** @type {Presentation["contNodeRowIncoming"]} */ (args) => ({
-      root: e(
-        "div",
-        {},
-        {
-          styles_: [contHboxStyle, leafNodeHBoxStyle],
-          children_: [
-            e(
-              "div",
-              {},
-              {
-                styles_: [contVboxStyle, leafNodeVBoxStyle],
-                children_: args.children,
-              }
-            ),
-            e(
-              "div",
-              {
-                textContent: textIconRelIn,
-              },
-              {
-                styles_: [
-                  leafIconStyle,
-                  leafNodeRelStyle,
-                  leafNodeRelIncomingStyle,
-                ],
-              }
-            ),
-          ],
-        }
-      ),
-    });
+    /** @type {Presentation["contNodeRowIncoming"]} */ (args) => {
+      const vboxStyles = [contVboxStyle, leafNodeVboxStyle];
+      if (args.new) {
+        vboxStyles.push(leafNodeVBoxNewStyle);
+      }
+      return {
+        root: e(
+          "div",
+          {},
+          {
+            styles_: [contHboxStyle, leafNodeHboxStyle],
+            children_: [
+              e(
+                "div",
+                {},
+                {
+                  styles_: vboxStyles,
+                  children_: args.children,
+                }
+              ),
+              e(
+                "div",
+                {
+                  textContent: textIconRelIn,
+                },
+                {
+                  styles_: [
+                    leafIconStyle,
+                    leafNodeRelStyle,
+                    leafNodeRelIncomingStyle,
+                  ],
+                }
+              ),
+            ],
+          }
+        ),
+      };
+    };
 
   presentation.contNodeRowOutgoing =
-    /** @type {Presentation["contNodeRowOutgoing"]} */ (args) => ({
-      root: e(
-        "div",
-        {},
-        {
-          styles_: [contHboxStyle, leafNodeHBoxStyle],
-          children_: [
-            e(
-              "div",
-              {
-                textContent: textIconRelOut,
-              },
-              {
-                styles_: [
-                  leafIconStyle,
-                  leafNodeRelStyle,
-                  leafNodeRelOutgoingStyle,
-                ],
-              }
-            ),
-            e(
-              "div",
-              {},
-              {
-                styles_: [contVboxStyle, leafNodeVBoxStyle],
-                children_: args.children,
-              }
-            ),
-          ],
-        }
-      ),
-    });
+    /** @type {Presentation["contNodeRowOutgoing"]} */ (args) => {
+      const vboxStyles = [contVboxStyle, leafNodeVboxStyle];
+      if (args.new) {
+        vboxStyles.push(leafNodeVBoxNewStyle);
+      }
+      return {
+        root: e(
+          "div",
+          {},
+          {
+            styles_: [contHboxStyle, leafNodeHboxStyle],
+            children_: [
+              e(
+                "div",
+                {
+                  textContent: textIconRelOut,
+                },
+                {
+                  styles_: [
+                    leafIconStyle,
+                    leafNodeRelStyle,
+                    leafNodeRelOutgoingStyle,
+                  ],
+                }
+              ),
+              e(
+                "div",
+                {},
+                {
+                  styles_: vboxStyles,
+                  children_: args.children,
+                }
+              ),
+            ],
+          }
+        ),
+      };
+    };
 
   presentation.contNodeSectionCenter =
     /** @type {Presentation["contNodeSectionCenter"]} */ (args) => ({
@@ -2499,7 +2533,7 @@
         {
           styles_: [
             contVboxStyle,
-            leafNodeVBoxStyle,
+            leafNodeVboxStyle,
             s(uniq("cont_page_edit_center"), {
               "": (s) => {
                 s.padding = "0.2cm";
@@ -2569,10 +2603,10 @@
     });
 
   presentation.leafNodeViewNodeText =
-    /** @type {Presentation["leafNodeViewNodeText"]} */ (args) => ({
-      root: e(
+    /** @type {Presentation["leafNodeViewNodeText"]} */ (args) => {
+      const out = e(
         "p",
-        { textContent: args.value },
+        {},
         {
           styles_: [
             ss(uniq("leaf_node_view_node_text"), {
@@ -2582,8 +2616,32 @@
             }),
           ],
         }
-      ),
-    });
+      );
+      if (args.link != null) {
+        out.appendChild(
+          leafButtonLink({
+            title: "View",
+            icon: textIconGo,
+            url: args.link,
+            extraStyles: [
+              ss(uniq("leaf_node_view_node_text"), {
+                "": (s) => {
+                  s.float = "right";
+                },
+                ">div": (s) => {
+                  s.width = "0.8cm";
+                  s.height = "0.8cm";
+                },
+              }),
+            ],
+          }).root
+        );
+      }
+      out.appendChild(document.createTextNode(args.value));
+      return {
+        root: out,
+      };
+    };
 
   presentation.leafNodeViewPredicate =
     /** @type {Presentation["leafNodeViewPredicate"]} */ (args) => ({
@@ -2731,23 +2789,28 @@
           "div",
           {
             onclick: () => {
-              args.inputValue.focus();
+              for (const i of args.inputValue.getElementsByTagName("span")) {
+                i.focus();
+              }
             },
           },
           {
             styles_: [
+              leafInputBorderStyle,
               ss(uniq("leaf_node_edit_node"), {
                 "": (s) => {
                   s.pointerEvents = "initial";
-                  s.borderBottom = varInputBorder;
                   s.padding = varSInputPad;
+                  s.cursor = "text";
                 },
                 ">select": (s) => {
                   s.marginRight = "0.2cm";
+                },
+                " span": (s) => {
                   s.borderBottom = "none";
                   s.padding = "0";
                 },
-                " span": (s) => {
+                " select": (s) => {
                   s.borderBottom = "none";
                   s.padding = "0";
                 },
@@ -2945,7 +3008,7 @@
                   e(
                     "div",
                     {
-                      textContent: textIconMenuLink,
+                      textContent: textIconGo,
                     },
                     {
                       styles_: [leafIconStyle],
@@ -3010,7 +3073,7 @@
               e(
                 "span",
                 {
-                  textContent: "Guest",
+                  textContent: args.user,
                 },
                 {
                   styles_: [

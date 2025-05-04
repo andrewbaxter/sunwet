@@ -134,6 +134,11 @@ fn main() {
             returns: vec![("value", &string_)],
         },
         Func {
+            name: "classStateModified",
+            args: vec![],
+            returns: vec![("value", &string_)],
+        },
+        Func {
             name: "classStateInvalid",
             args: vec![],
             returns: vec![("value", &string_)],
@@ -230,12 +235,12 @@ fn main() {
         },
         Func {
             name: "leafButtonSmallEdit",
-            args: vec![("url", &string_)],
+            args: vec![("link", &string_)],
             returns: vec![("root", &el_)],
         },
         Func {
             name: "leafButtonSmallView",
-            args: vec![("url", &string_)],
+            args: vec![("link", &string_)],
             returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
@@ -448,12 +453,12 @@ fn main() {
         },
         Func {
             name: "contNodeRowIncoming",
-            args: vec![("children", &arrel_)],
+            args: vec![("children", &arrel_), ("new", &bool_)],
             returns: vec![("root", &el_)],
         },
         Func {
             name: "contNodeRowOutgoing",
-            args: vec![("children", &arrel_)],
+            args: vec![("children", &arrel_), ("new", &bool_)],
             returns: vec![("root", &el_)],
         },
         Func {
@@ -475,7 +480,7 @@ fn main() {
         },
         Func {
             name: "leafNodeViewNodeText",
-            args: vec![("value", &string_)],
+            args: vec![("value", &string_), ("link", &optstring_)],
             returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
@@ -509,7 +514,7 @@ fn main() {
         // xx Components, styles: menu
         Func {
             name: "contMenuBody",
-            args: vec![("children", &arrel_)],
+            args: vec![("children", &arrel_), ("user", &string_)],
             returns: vec![("root", &el_)],
         },
         Func {

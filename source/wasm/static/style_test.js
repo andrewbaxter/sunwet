@@ -35,6 +35,7 @@
           ],
         }).root,
       ],
+      user: "Guest",
     }).root;
     const stagingPageView = presentation.appMain({
       mainTitle: presentation.leafTitle({ text: "Music" }).root,
@@ -293,6 +294,14 @@
           errInput.input.classList.add(
             presentation.classStateInvalid({}).value
           );
+          const modInput = presentation.leafInputPairText({
+            id: "item1",
+            title: "Title",
+            value: "ABCD",
+          });
+          modInput.input.classList.add(
+            presentation.classStateModified({}).value
+          );
           document.body.appendChild(
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "Music" }).root,
@@ -304,6 +313,7 @@
                     value: "ABCD",
                   }).root,
                   errInput.root,
+                  modInput.root,
                   presentation.leafInputPairNumber({
                     id: "item2",
                     title: "Text",
@@ -353,7 +363,7 @@
               mainTitle: presentation.leafTitle({ text: "Music" }).root,
               mainBody: presentation.contPageNodeView({
                 pageButtonChildren: [
-                  presentation.leafButtonSmallEdit({ url: "abcd" }).root,
+                  presentation.leafButtonSmallEdit({ link: "abcd" }).root,
                 ],
                 children: [
                   presentation.contPageNodeSectionRel({
@@ -362,21 +372,25 @@
                         children: [
                           presentation.leafNodeViewNodeText({
                             value: "ABCD-1234",
+                            link: "abcd",
                           }).root,
                           presentation.leafNodeViewPredicate({
                             value: "sunwet/1/is",
                           }).root,
                         ],
+                        new: false,
                       }).root,
                       presentation.contNodeRowIncoming({
                         children: [
                           presentation.leafNodeViewNodeText({
                             value: "ABCD-1234",
+                            link: "abcd",
                           }).root,
                           presentation.leafNodeViewPredicate({
                             value: "sunwet/1/has",
                           }).root,
                         ],
+                        new: false,
                       }).root,
                     ],
                   }).root,
@@ -384,6 +398,7 @@
                     children: [
                       presentation.leafNodeViewNodeText({
                         value: "ABCD-1234",
+                        link: "abcd",
                       }).root,
                     ],
                   }).root,
@@ -396,8 +411,10 @@
                           }).root,
                           presentation.leafNodeViewNodeText({
                             value: "ABCD-1234",
+                            link: "abcd",
                           }).root,
                         ],
+                        new: false,
                       }).root,
                       presentation.contNodeRowOutgoing({
                         children: [
@@ -406,8 +423,10 @@
                           }).root,
                           presentation.leafNodeViewNodeText({
                             value: "ABCD-1234",
+                            link: "abcd",
                           }).root,
                         ],
+                        new: false,
                       }).root,
                     ],
                   }).root,
@@ -438,7 +457,7 @@
               mainTitle: presentation.leafTitle({ text: "Music" }).root,
               mainBody: presentation.contPageNodeEdit({
                 pageButtonChildren: [
-                  presentation.leafButtonSmallView({ url: "abcd" }).root,
+                  presentation.leafButtonSmallView({ link: "abcd" }).root,
                 ],
                 children: [
                   presentation.contNodeRowIncoming({
@@ -447,6 +466,7 @@
                         hint: "Add incoming triple",
                       }).root,
                     ],
+                    new: true,
                   }).root,
                   presentation.contPageNodeSectionRel({
                     children: [
@@ -467,6 +487,7 @@
                             value: "sunwet/1/is",
                           }).root,
                         ],
+                        new: true,
                       }).root,
                       presentation.contNodeRowIncoming({
                         children: [
@@ -485,6 +506,7 @@
                             value: "sunwet/1/has",
                           }).root,
                         ],
+                        new: false,
                       }).root,
                     ],
                   }).root,
@@ -522,6 +544,7 @@
                             }).root,
                           }).root,
                         ],
+                        new: false,
                       }).root,
                       presentation.contNodeRowOutgoing({
                         children: [
@@ -540,6 +563,7 @@
                             }).root,
                           }).root,
                         ],
+                        new: true,
                       }).root,
                     ],
                   }).root,
@@ -549,6 +573,7 @@
                         hint: "Add outgoing triple",
                       }).root,
                     ],
+                    new: true,
                   }).root,
                 ],
                 barChildren: [presentation.leafButtonBigSave({}).root],

@@ -131,9 +131,10 @@ fn main() {
                 .return_field(&subject)
                 .return_field(&predicate)
                 .return_field(&object)
-                .return_field(&event_stamp)
+                .return_named("event_stamp", fn_max(Expr::field(&event_stamp)))
                 .return_field(&event_exist)
                 .where_(expr_and(vec![expr_field_eq("subject", &subject)]))
+                .group(vec![Expr::field(&subject), Expr::field(&predicate), Expr::field(&object)])
                 .build_query("triple_list_from", QueryResCount::Many),
         );
         queries.push(
@@ -141,9 +142,10 @@ fn main() {
                 .return_field(&subject)
                 .return_field(&predicate)
                 .return_field(&object)
-                .return_field(&event_stamp)
+                .return_named("event_stamp", fn_max(Expr::field(&event_stamp)))
                 .return_field(&event_exist)
                 .where_(expr_and(vec![expr_field_eq("object", &object)]))
+                .group(vec![Expr::field(&subject), Expr::field(&predicate), Expr::field(&object)])
                 .build_query("triple_list_to", QueryResCount::Many),
         );
         queries.push(

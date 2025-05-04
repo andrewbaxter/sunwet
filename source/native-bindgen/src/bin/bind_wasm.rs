@@ -30,5 +30,5 @@ fn main() {
     let map_path = wasm_path.with_extension(format!("{}.map", wasm_path.extension().unwrap().to_str().unwrap()));
     let mut mapper = wasm2map::WASM::load(&wasm_path).unwrap();
     std::fs::write(&map_path, &mapper.map_v3()).unwrap();
-    mapper.patch(map_path.file_name().unwrap().to_str().unwrap()).unwrap();
+    mapper.patch(&format!("./{}", map_path.file_name().unwrap().to_str().unwrap())).unwrap();
 }

@@ -40,7 +40,8 @@ hex = "0.4"
 defer = "0.1"
 shared = { path = "../shared" }
 sha2 = "0.10"
-lunk = "0.3"
+#lunk = "0.3"
+lunk = { version = "0.3" }
 rooting = { version = "0.1", features = ["futures"] }
 urlencoding = "2"
 qrcode = { version = "0.13", default-features = false, features = ["svg"] }

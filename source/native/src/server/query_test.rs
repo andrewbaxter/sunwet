@@ -20,6 +20,7 @@ use {
         },
     },
     chrono::{
+        DateTime,
         Duration,
         TimeZone,
         Utc,
@@ -140,6 +141,132 @@ fn test_base() {
             ],
         ],
         compile_query(include_str!("defaultview_query_albums.txt")).unwrap(),
+    );
+}
+
+#[test]
+fn test_versions() {
+    let query = compile_query("\"x\" -> \"y\" { => y }").unwrap();
+    let (query, query_values) = build_root_chain(query.chain, HashMap::new()).unwrap();
+    let mut db = rusqlite::Connection::open_in_memory().unwrap();
+    db::migrate(&mut db).unwrap();
+    db::triple_insert(
+        &db,
+        &DbNode(s("x")),
+        "y",
+        &DbNode(s("no")),
+        DateTime::from_timestamp_nanos(1),
+        true,
+    ).unwrap();
+    db::triple_insert(
+        &db,
+        &DbNode(s("x")),
+        "y",
+        &DbNode(s("no")),
+        DateTime::from_timestamp_nanos(2),
+        true,
+    ).unwrap();
+    println!("Query: {}", query);
+    {
+        let mut s = db.prepare(&format!("explain query plan {}", query)).unwrap();
+        let mut results = s.query(&*query_values.as_params()).unwrap();
+        loop {
+            let Some(row) = results.next().unwrap() else {
+                break;
+            };
+            println!("explain row: {:?}", row);
+        }
+    }
+    let got = execute_sql_query(&db, query, query_values, vec![]).unwrap();
+    assert_eq!(
+        got,
+        vec![[("y".to_string(), TreeNode::Scalar(s("no")))].into_iter().collect::<BTreeMap<_, _>>()]
+    );
+}
+#[test]
+fn test_delete() {
+    let query = compile_query("\"x\" -> \"y\" { => y }").unwrap();
+    let (query, query_values) = build_root_chain(query.chain, HashMap::new()).unwrap();
+    let mut db = rusqlite::Connection::open_in_memory().unwrap();
+    db::migrate(&mut db).unwrap();
+    db::triple_insert(
+        &db,
+        &DbNode(s("x")),
+        "y",
+        &DbNode(s("no")),
+        DateTime::from_timestamp_nanos(1),
+        true,
+    ).unwrap();
+    db::triple_insert(
+        &db,
+        &DbNode(s("x")),
+        "y",
+        &DbNode(s("no")),
+        DateTime::from_timestamp_nanos(2),
+        false,
+    ).unwrap();
+    println!("Query: {}", query);
+    {
+        let mut s = db.prepare(&format!("explain query plan {}", query)).unwrap();
+        let mut results = s.query(&*query_values.as_params()).unwrap();
+        loop {
+            let Some(row) = results.next().unwrap() else {
+                break;
+            };
+            println!("explain row: {:?}", row);
+        }
+    }
+    let got = execute_sql_query(&db, query, query_values, vec![]).unwrap();
+    assert_eq!(
+        got,
+        vec![]
+    );
+}
+#[test]
+fn test_undelete() {
+    let query = compile_query("\"x\" -> \"y\" { => y }").unwrap();
+    let (query, query_values) = build_root_chain(query.chain, HashMap::new()).unwrap();
+    let mut db = rusqlite::Connection::open_in_memory().unwrap();
+    db::migrate(&mut db).unwrap();
+    db::triple_insert(
+        &db,
+        &DbNode(s("x")),
+        "y",
+        &DbNode(s("no")),
+        DateTime::from_timestamp_nanos(1),
+        true,
+    ).unwrap();
+    db::triple_insert(
+        &db,
+        &DbNode(s("x")),
+        "y",
+        &DbNode(s("no")),
+        DateTime::from_timestamp_nanos(2),
+        false,
+    ).unwrap();
+    db::triple_insert(
+        &db,
+        &DbNode(s("x")),
+        "y",
+        &DbNode(s("no")),
+        DateTime::from_timestamp_nanos(3),
+        true,
+    ).unwrap();
+    println!("Query: {}", query);
+    {
+        let mut s = db.prepare(&format!("explain query plan {}", query)).unwrap();
+        let mut results = s.query(&*query_values.as_params()).unwrap();
+        loop {
+            let Some(row) = results.next().unwrap() else {
+                break;
+            };
+            println!("explain row: {:?}", row);
+        }
+    }
+    let got = execute_sql_query(&db, query, query_values, vec![]).unwrap();
+    assert_eq!(
+        got,
+        vec![[("y".to_string(), TreeNode::Scalar(s("no")))].into_iter().collect::<BTreeMap<_, _>>()]
     );
 }
 

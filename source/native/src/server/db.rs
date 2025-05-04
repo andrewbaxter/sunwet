@@ -228,13 +228,21 @@ pub fn triple_get(
     Ok(None)
 }
 
+pub struct DbRes2 {
+    pub subject: crate::interface::triple::DbNode,
+    pub predicate: String,
+    pub object: crate::interface::triple::DbNode,
+    pub event_stamp: chrono::DateTime<chrono::Utc>,
+    pub exists: bool,
+}
+
 pub fn triple_list_from(
     db: &rusqlite::Connection,
     subject: &crate::interface::triple::DbNode,
-) -> Result<Vec<DbRes1>, GoodError> {
+) -> Result<Vec<DbRes2>, GoodError> {
     let mut out = vec![];
     let query =
-        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , \"triple\" . \"timestamp\" , \"triple\" . \"exists\" from \"triple\" where ( ( \"triple\" . \"subject\" = $1 ) ) ";
+        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , max ( \"triple\" . \"timestamp\" ) as \"event_stamp\" , \"triple\" . \"exists\" from \"triple\" where ( ( \"triple\" . \"subject\" = $1 ) ) group by \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" ";
     let mut stmt = db.prepare(query).to_good_error_query(query)?;
     let mut rows =
         stmt
@@ -249,7 +257,7 @@ pub fn triple_list_from(
             )
             .to_good_error_query(query)?;
     while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
-        out.push(DbRes1 {
+        out.push(DbRes2 {
             subject: {
                 let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
                 let x =
@@ -274,7 +282,7 @@ pub fn triple_list_from(
                     ).to_good_error(|| format!("Parsing result {}", 2usize))?;
                 x
             },
-            timestamp: {
+            event_stamp: {
                 let x: String = r.get(3usize).to_good_error(|| format!("Getting result {}", 3usize))?;
                 let x =
                     chrono::DateTime::<chrono::Utc>::from(
@@ -296,10 +304,10 @@ pub fn triple_list_from(
 pub fn triple_list_to(
     db: &rusqlite::Connection,
     object: &crate::interface::triple::DbNode,
-) -> Result<Vec<DbRes1>, GoodError> {
+) -> Result<Vec<DbRes2>, GoodError> {
     let mut out = vec![];
     let query =
-        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , \"triple\" . \"timestamp\" , \"triple\" . \"exists\" from \"triple\" where ( ( \"triple\" . \"object\" = $1 ) ) ";
+        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , max ( \"triple\" . \"timestamp\" ) as \"event_stamp\" , \"triple\" . \"exists\" from \"triple\" where ( ( \"triple\" . \"object\" = $1 ) ) group by \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" ";
     let mut stmt = db.prepare(query).to_good_error_query(query)?;
     let mut rows =
         stmt
@@ -314,7 +322,7 @@ pub fn triple_list_to(
             )
             .to_good_error_query(query)?;
     while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
-        out.push(DbRes1 {
+        out.push(DbRes2 {
             subject: {
                 let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
                 let x =
@@ -339,7 +347,7 @@ pub fn triple_list_to(
                     ).to_good_error(|| format!("Parsing result {}", 2usize))?;
                 x
             },
-            timestamp: {
+            event_stamp: {
                 let x: String = r.get(3usize).to_good_error(|| format!("Getting result {}", 3usize))?;
                 let x =
                     chrono::DateTime::<chrono::Utc>::from(
@@ -482,7 +490,7 @@ pub fn commit_insert(
     Ok(())
 }
 
-pub struct DbRes2 {
+pub struct DbRes3 {
     pub timestamp: chrono::DateTime<chrono::Utc>,
     pub description: String,
 }
@@ -491,7 +499,7 @@ pub fn commit_list_between(
     db: &rusqlite::Connection,
     start_incl: chrono::DateTime<chrono::Utc>,
     end_excl: chrono::DateTime<chrono::Utc>,
-) -> Result<Vec<DbRes2>, GoodError> {
+) -> Result<Vec<DbRes3>, GoodError> {
     let mut out = vec![];
     let query =
         "select \"commit\" . \"timestamp\" , \"commit\" . \"description\" from \"commit\" where ( ( \"commit\" . \"timestamp\" >= $1 ) and ( \"commit\" . \"timestamp\" < $2 ) ) ";
@@ -499,7 +507,7 @@ pub fn commit_list_between(
     let mut rows =
         stmt.query(rusqlite::params![start_incl.to_rfc3339(), end_excl.to_rfc3339()]).to_good_error_query(query)?;
     while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
-        out.push(DbRes2 {
+        out.push(DbRes3 {
             timestamp: {
                 let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
                 let x =

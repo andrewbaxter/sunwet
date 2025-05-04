@@ -262,6 +262,8 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                             impl ReqResp for shared::interface::wire::ReqGetTriplesAround { }
 
                             impl ReqResp for shared::interface::wire::ReqUploadFinish { }
+
+                            impl ReqResp for shared::interface::wire::ReqWhoAmI { }
                         }
 
                         use resp::ReqResp;
@@ -466,15 +468,23 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     );
                                 }).await.err_internal()?;
                                 resp = responder(RespGetTriplesAround {
-                                    incoming: incoming.into_iter().map(|x| Triple {
-                                        subject: x.subject.0,
-                                        predicate: x.predicate,
-                                        object: x.object.0,
+                                    incoming: incoming.into_iter().filter_map(|x| if !x.exists {
+                                        None
+                                    } else {
+                                        Some(Triple {
+                                            subject: x.subject.0,
+                                            predicate: x.predicate,
+                                            object: x.object.0,
+                                        })
                                     }).collect(),
-                                    outgoing: outgoing.into_iter().map(|x| Triple {
-                                        subject: x.subject.0,
-                                        predicate: x.predicate,
-                                        object: x.object.0,
+                                    outgoing: outgoing.into_iter().filter_map(|x| if !x.exists {
+                                        None
+                                    } else {
+                                        Some(Triple {
+                                            subject: x.subject.0,
+                                            predicate: x.predicate,
+                                            object: x.object.0,
+                                        })
                                     }).collect(),
                                 });
                             },
@@ -483,6 +493,13 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     req.respond()(
                                         handle_get_filtered_client_config(state, &identity).await.err_internal()?,
                                     );
+                            },
+                            C2SReq::WhoAmI(req) => {
+                                resp = req.respond()(match identity {
+                                    access::Identity::Token(_) => "(token)".to_string(),
+                                    access::Identity::User(ident) => ident.0,
+                                    access::Identity::Public => "Guest".to_string(),
+                                });
                             },
                         }
                         return Ok(resp.1);
