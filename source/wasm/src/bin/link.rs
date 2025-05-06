@@ -9,6 +9,7 @@ use {
         timers::future::TimeoutFuture,
         utils::{
             document,
+            window,
         },
     },
     lunk::{
@@ -39,7 +40,6 @@ use {
         constants::LINK_HASH_PREFIX,
         js::{
             async_event,
-            el_async,
             el_audio,
             el_video,
             get_dom_octothorpe,
@@ -49,8 +49,11 @@ use {
     },
     wasm_bindgen::{
         JsCast,
+        JsValue,
+        UnwrapThrowExt,
     },
     web_sys::{
+        console::log_1,
         HtmlElement,
         HtmlMediaElement,
     },
@@ -132,8 +135,8 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
 struct State_ {
     display: El,
     display_over: El,
-    album: El,
-    artist: El,
+    display_under: El,
+    album_artist: El,
     name: El,
     message_bg: Cell<ScopeValue>,
     media: Prim<Option<Rc<dyn PlaylistMedia>>>,
@@ -146,19 +149,30 @@ fn main() {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
     let eg = EventGraph::new();
     eg.event(|pc| {
+        let base_url;
+        {
+            let loc = window().location();
+            base_url =
+                format!(
+                    "{}{}",
+                    loc.origin().unwrap_throw(),
+                    loc.pathname().unwrap_throw().strip_suffix("link.html").unwrap_throw()
+                );
+        }
+        let class_state_hide = style_export::class_state_hide().value;
         let hash = get_dom_octothorpe().unwrap();
         let link_id = hash.strip_prefix(LINK_HASH_PREFIX).unwrap();
         let style_res = style_export::app_link();
         let state = State(Rc::new(State_ {
             display: el_from_raw(style_res.display.into()),
+            display_under: el_from_raw(style_res.display_under.into()).clone(),
             display_over: el_from_raw(style_res.display_over.into()).clone(),
-            album: el_from_raw(style_res.album.into()).clone(),
-            artist: el_from_raw(style_res.artist.into()).clone(),
+            album_artist: el_from_raw(style_res.album_artist.into()).clone(),
             name: el_from_raw(style_res.title.into()).clone(),
             message_bg: Cell::new(scope_any(())),
             media: Prim::new(None),
         }));
-        let ws = Ws::<WsL2S, WsS2L>::new(format!("link/{}", link_id), {
+        let ws = Ws::<WsL2S, WsS2L>::new(&base_url, format!("link/{}", link_id), {
             let state = state.clone();
             let eg = pc.eg();
             move |ws, message| {
@@ -166,34 +180,60 @@ fn main() {
                     let eg = eg.clone();
                     let ws = ws.clone();
                     let state = state.clone();
+                    let class_state_hide = class_state_hide.clone();
                     async move {
                         match message {
                             WsS2L::Prepare(prepare) => {
-                                state.0.album.ref_text(&prepare.album);
-                                state.0.artist.ref_text(&prepare.artist);
+                                log_1(&JsValue::from("x1"));
+                                state.0.album_artist.ref_text(&format!("{} — {}", prepare.album, prepare.artist));
+                                log_1(&JsValue::from("x2"));
                                 state.0.name.ref_text(&prepare.name);
+                                log_1(&JsValue::from("x3"));
                                 state.0.display.ref_clear();
-                                state.0.display_over.ref_clear();
+                                log_1(&JsValue::from("x4"));
+                                state.0.display_over.ref_modify_classes(&[(&class_state_hide, true)]);
+                                log_1(&JsValue::from("x5"));
                                 let media: Rc<dyn PlaylistMedia>;
+                                log_1(&JsValue::from("x6"));
                                 match prepare.media {
                                     PrepareMedia::Audio(audio) => {
-                                        state
-                                            .0
-                                            .display
-                                            .ref_push(el("img").attr("src", match &audio.cover_source_url {
-                                                Some(cover_source_url) => cover_source_url.url.as_str(),
-                                                None => "static/fallback_cover.png",
-                                            }))
-                                            .ref_attr("preload", "auto");
+                                        match &audio.cover_source_url {
+                                            Some(cover_source_url) => {
+                                                log_1(&JsValue::from("x7"));
+                                                state
+                                                    .0
+                                                    .display_under
+                                                    .ref_modify_classes(&[(&class_state_hide, true)]);
+                                                log_1(&JsValue::from("x8"));
+                                                state
+                                                    .0
+                                                    .display
+                                                    .ref_push(el("img").attr("src", cover_source_url.url.as_str()))
+                                                    .ref_attr("preload", "auto");
+                                                log_1(&JsValue::from("x9"));
+                                            },
+                                            None => {
+                                                log_1(&JsValue::from("x10"));
+                                                state
+                                                    .0
+                                                    .display_under
+                                                    .ref_modify_classes(&[(&class_state_hide, false)]);
+                                                log_1(&JsValue::from("x11"));
+                                            },
+                                        }
+                                        log_1(&JsValue::from("x12"));
                                         let media_el = el_audio(&audio.source_url.url);
+                                        log_1(&JsValue::from("x13"));
                                         media =
                                             Rc::new(
                                                 PlaylistMediaAudioVideo {
                                                     media: media_el.raw().dyn_into::<HtmlMediaElement>().unwrap(),
                                                 },
                                             );
+                                        log_1(&JsValue::from("x14"));
                                     },
                                     PrepareMedia::Video(source_url) => {
+                                        state.0.display_under.ref_modify_classes(&[(&class_state_hide, true)]);
                                         let media_el = el_video(&source_url.url).attr("preload", "auto");
                                         state.0.display.ref_push(media_el.clone());
                                         media =
@@ -204,6 +244,7 @@ fn main() {
                                             );
                                     },
                                     PrepareMedia::Image(source_url) => {
+                                        state.0.display_under.ref_modify_classes(&[(&class_state_hide, true)]);
                                         let media_el = el("img").attr("src", &source_url.url).on("click", |ev| {
                                             if document().fullscreen_element().is_none() {
                                                 let img =
@@ -217,23 +258,37 @@ fn main() {
                                         media = Rc::new(PlaylistMediaImage {});
                                     },
                                 }
+                                log_1(&JsValue::from("x15"));
                                 eg.event(|pc| {
+                                    if let Some(old) = &*state.0.media.borrow() {
+                                        old.pause();
+                                    }
                                     state.0.media.set(pc, Some(media.clone()));
                                 });
-                                state.0.display_over.ref_push(el_async(async move {
-                                    media.wait_until_seekable().await;
-                                    media.seek(prepare.media_time);
-                                    media.wait_until_buffered().await;
-                                    ws.send(WsL2S::Ready(Utc::now())).await;
-                                    return Ok(el("div")) as Result<_, String>;
-                                }));
+                                log_1(&JsValue::from("x16"));
+                                state.0.display_over.ref_modify_classes(&[(&class_state_hide, false)]);
+                                log_1(&JsValue::from("x17"));
+                                media.wait_until_seekable().await;
+                                log_1(&JsValue::from("x18"));
+                                media.seek(prepare.media_time);
+                                log_1(&JsValue::from("x19"));
+                                media.wait_until_buffered().await;
+                                log_1(&JsValue::from("x20"));
+                                ws.send(WsL2S::Ready(Utc::now())).await;
+                                log_1(&JsValue::from("x21"));
+                                state.0.display_over.ref_modify_classes(&[(&class_state_hide, true)]);
+                                log_1(&JsValue::from("x22"));
                             },
                             WsS2L::Play(play_at) => {
+                                log_1(&JsValue::from("x23"));
                                 if let Some(media) = &*state.0.media.borrow() {
+                                    log_1(&JsValue::from("x24"));
                                     TimeoutFuture::new(
                                         (play_at - Utc::now()).num_milliseconds().max(0) as u32,
                                     ).await;
+                                    log_1(&JsValue::from("x25"));
                                     _ = media.play();
+                                    log_1(&JsValue::from("x26"));
                                 }
                             },
                             WsS2L::Pause => {

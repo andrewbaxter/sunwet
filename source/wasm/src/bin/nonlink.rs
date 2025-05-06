@@ -12,7 +12,14 @@ use {
         },
     },
     libnonlink::{
-        api::req_post_json,
+        api::{
+            redirect_login,
+            redirect_logout,
+            req_post_json,
+            set_want_logged_in,
+            unset_want_logged_in,
+            want_logged_in,
+        },
         ministate::{
             ministate_octothorpe,
             read_ministate,
@@ -50,6 +57,7 @@ use {
         wire::{
             ReqGetClientConfig,
             ReqWhoAmI,
+            RespWhoAmI,
         },
     },
     std::{
@@ -70,7 +78,10 @@ use {
         JsCast,
         UnwrapThrowExt,
     },
-    web_sys::HtmlElement,
+    web_sys::{
+        Element,
+        HtmlElement,
+    },
 };
 
 pub mod libnonlink;
@@ -103,18 +114,22 @@ pub fn main() {
             }
         });
         let menu_body = el_async_(true, {
+            let eg = pc.eg();
             let client_config = client_config.clone();
             let base_url = base_url.clone();
             async move {
                 let whoami = req_post_json(&base_url, ReqWhoAmI).await?;
+                if want_logged_in() && whoami == RespWhoAmI::Public {
+                    redirect_login(&state().base_url);
+                }
                 let client_config = client_config.get().await?;
 
-                fn build_menu_item(config: &ClientConfig, item: &ClientMenuItem) -> HtmlElement {
+                fn build_menu_item(config: &ClientConfig, item: &ClientMenuItem) -> Element {
                     match item {
                         ClientMenuItem::Section(item) => {
                             let mut children = vec![];
                             for child in &item.children {
-                                children.push(build_menu_item(config, &child));
+                                children.push(build_menu_item(config, &child).dyn_into::<Element>().unwrap());
                             }
                             return style_export::cont_menu_group(style_export::ContMenuGroupArgs {
                                 title: item.name.clone(),
@@ -145,12 +160,43 @@ pub fn main() {
 
                 let mut root = vec![];
                 for item in &client_config.menu {
-                    root.push(build_menu_item(&client_config, item));
+                    root.push(build_menu_item(&client_config, item).dyn_into::<Element>().unwrap());
+                }
+                let mut bar_children = vec![];
+                match &whoami {
+                    RespWhoAmI::Public => {
+                        let button = el_from_raw(style_export::leaf_menu_bar_button_login().root.into());
+                        button.ref_on("click", {
+                            let eg = eg.clone();
+                            move |_| eg.event(|_pc| {
+                                set_want_logged_in();
+                                redirect_login(&state().base_url);
+                            }).unwrap()
+                        });
+                        bar_children.push(button)
+                    },
+                    RespWhoAmI::User(_) => {
+                        let button = el_from_raw(style_export::leaf_menu_bar_button_logout().root.into());
+                        button.ref_on("click", {
+                            let eg = eg.clone();
+                            move |_| eg.event(|_pc| {
+                                unset_want_logged_in();
+                                redirect_logout(&state().base_url);
+                            }).unwrap()
+                        });
+                        bar_children.push(button)
+                    },
+                    RespWhoAmI::Token => { },
                 }
                 return Ok(el_from_raw(style_export::cont_menu_body(style_export::ContMenuBodyArgs {
                     children: root,
-                    user: whoami,
-                }).root.into())) as Result<_, String>;
+                    user: match whoami {
+                        RespWhoAmI::Public => "Guest".to_string(),
+                        RespWhoAmI::User(u) => u,
+                        RespWhoAmI::Token => "Token".to_string(),
+                    },
+                    bar_children: bar_children.iter().map(|x| x.raw().dyn_into().unwrap()).collect(),
+                }).root.into()).own(|_| bar_children)) as Result<_, String>;
             }
         });
         let main_title =

@@ -76,6 +76,10 @@ pub fn set_page_(pc: &mut ProcessingContext, title: &str, no_main_title: bool, b
     state.menu_open.set(pc, false);
 }
 
+pub fn build_home_page(pc: &mut ProcessingContext) {
+    set_page_(pc, "Home", true, el_from_raw(style_export::cont_page_home().root.into()));
+}
+
 pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
     match s {
         Ministate::Home => {

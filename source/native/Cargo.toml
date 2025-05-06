@@ -13,7 +13,7 @@ http = "1"
 http-body-util = "0.1"
 htwrap = "0.10"
 hyper = "1"
-hyper-tungstenite = "0.15"
+hyper-tungstenite = { version = "0.17" }
 hyper-util = "0.1"
 loga = "0.5"
 rusqlite = { version = "0.32", features = ["array", "bundled"] }

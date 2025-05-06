@@ -36,6 +36,7 @@
         }).root,
       ],
       user: "Guest",
+      barChildren: [presentation.leafMenuBarButtonLogin({}).root],
     }).root;
     const stagingPageView = presentation.appMain({
       mainTitle: presentation.leafTitle({ text: "Music" }).root,
@@ -213,7 +214,10 @@
           document.body.appendChild(
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "" }).root,
-              mainBody: presentation.leafAsyncBlock({ in_root: true }).root,
+              mainBody: presentation.leafAsyncBlock({
+                inRoot: true,
+                extraStyles: [],
+              }).root,
               menuBody: stagingMenu,
             }).root
           );
@@ -226,7 +230,7 @@
               mainTitle: presentation.leafTitle({ text: "" }).root,
               mainBody: presentation.leafErrBlock({
                 data: "This be error 503",
-                in_root: true,
+                inRoot: true,
               }).root,
               menuBody: stagingMenu,
             }).root
@@ -583,9 +587,19 @@
           );
         }
         break;
-      case "#link":
+      case "#link_waiting":
         {
           document.body.appendChild(presentation.appLink({}).root);
+        }
+        break;
+      case "#link":
+        {
+          const a = presentation.appLink({});
+          const cover = document.createElement("img");
+          cover.src = "testcover.jpg";
+          a.displayOver.innerHTML = "";
+          a.display.appendChild(cover);
+          document.body.appendChild(a.root);
         }
         break;
       default:

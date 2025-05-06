@@ -76,7 +76,6 @@ use {
         JsValue,
     },
     web_sys::{
-        console::log_1,
         HtmlMediaElement,
         MediaMetadata,
     },
@@ -131,7 +130,6 @@ impl PlaylistMedia for AudioPlaylistMedia {
     }
 
     fn pm_play(&self) {
-        log_1(&JsValue::from("pm_play"));
         let audio = self.pm_media();
         audio.play().log("Error playing audio");
     }
@@ -515,7 +513,6 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
                                     }
                                 })));
                             }
-                            log_1(&JsValue::from("playlist event not playing, media stop"));
                             playlist_state.0.debounce.set(Utc::now());
                             e.media.pm_stop();
                         }
@@ -525,7 +522,6 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
                     if let Some(i) = playing_i.get_old().as_ref() {
                         if Some(i) != playing_i.get().as_ref() {
                             let e = playlist_state.0.playlist.borrow().get(i).cloned().unwrap();
-                            log_1(&JsValue::from("playlist event index changed, media stop"));
                             playlist_state.0.debounce.set(Utc::now());
                             e.media.pm_stop();
                             e.media.pm_seek(0.);
@@ -563,7 +559,6 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
                             }
                         })));
                     } else {
-                        log_1(&JsValue::from("playlist event, play"));
                         playlist_state.0.debounce.set(Utc::now());
                         e.media.pm_play();
                     }
@@ -604,12 +599,15 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
 }
 
 pub fn playlist_set_link(pc: &mut ProcessingContext, playlist_state: &PlaylistState, id: &str) {
-    playlist_state.0.share.set(pc, Some((id.to_string(), Ws::new(format!("main/{}", id), {
+    playlist_state.0.share.set(pc, Some((id.to_string(), Ws::new(&state().base_url, format!("main/{}", id), {
         let playlist_state = playlist_state.clone();
         let bg = Cell::new(None);
         move |_, msg| {
             match msg {
                 WsS2C::Play(play_at) => {
+                    if !playlist_state.0.playing.get() {
+                        return;
+                    }
                     let i = match playlist_state.0.playing_i.get() {
                         Some(i) => i,
                         None => playlist_first_index(&playlist_state).unwrap(),
@@ -619,6 +617,9 @@ pub fn playlist_set_link(pc: &mut ProcessingContext, playlist_state: &PlaylistSt
                         let playlist_state = playlist_state.clone();
                         async move {
                             TimeoutFuture::new((play_at - Utc::now()).num_milliseconds().max(0) as u32).await;
+                            if !playlist_state.0.playing.get() {
+                                return;
+                            }
                             playlist_state.0.debounce.set(Utc::now());
                             e.media.pm_play();
                         }
@@ -666,7 +667,6 @@ pub fn playlist_extend(
             media.ref_on("pause", {
                 let eg = pc.eg();
                 move |_| eg.event(|pc| {
-                    log_1(&JsValue::from("media event pause"));
                     if !debounce_pass(&state().playlist) {
                         return;
                     }
@@ -676,7 +676,6 @@ pub fn playlist_extend(
             media.ref_on("play", {
                 let eg = pc.eg();
                 move |_| eg.event(|pc| {
-                    log_1(&JsValue::from("media event play"));
                     if !debounce_pass(&state().playlist) {
                         return;
                     }
@@ -786,7 +785,6 @@ pub fn playlist_toggle_play(pc: &mut ProcessingContext, state: &PlaylistState, i
         }
     } else {
         if state.0.playlist.borrow().is_empty() {
-            log_1(&JsValue::from("Playlist empty, no play"));
             return;
         }
         let i = i.or(state.0.playing_i.get()).unwrap_or(playlist_first_index(state).unwrap());

@@ -79,7 +79,7 @@ pub mod style_export {
         },
         web_sys::{
             console,
-            HtmlElement,
+            Element,
             HtmlInputElement,
             HtmlSelectElement,
         },
@@ -150,7 +150,7 @@ pub mod style_export {
         }
     }
 
-    impl JsExport for HtmlElement {
+    impl JsExport for Element {
         fn from_js(v: &JsValue) -> Self {
             return v.dyn_ref::<Self>().unwrap().clone();
         }
@@ -297,10 +297,10 @@ pub fn el_async<E: ToString, F: 'static + Future<Output = Result<El, E>>>(f: F) 
 }
 
 pub fn el_async_<E: ToString, F: 'static + Future<Output = Result<El, E>>>(in_root: bool, f: F) -> El {
-    let out =
-        el_from_raw(
-            style_export::leaf_async_block(style_export::LeafAsyncBlockArgs { in_root: in_root }).root.into(),
-        );
+    let out = el_from_raw(style_export::leaf_async_block(style_export::LeafAsyncBlockArgs {
+        in_root: in_root,
+        extra_styles: vec![],
+    }).root.into());
     out.ref_own(|_| spawn_rooted({
         let out = out.weak();
         async move {

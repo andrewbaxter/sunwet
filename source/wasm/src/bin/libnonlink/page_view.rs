@@ -3,6 +3,7 @@ use {
         ministate::PlaylistRestorePos,
         playlist::PlaylistIndex,
         state::{
+            build_home_page,
             set_page,
             state,
         },
@@ -19,6 +20,7 @@ use {
             playlist_next,
             playlist_previous,
             playlist_seek,
+            playlist_set_link,
             playlist_toggle_play,
             PlaylistEntryMediaType,
             PlaylistPushArg,
@@ -32,6 +34,7 @@ use {
     },
     qrcode::QrCode,
     rooting::{
+        el,
         el_from_raw,
         El,
     },
@@ -56,9 +59,7 @@ use {
             TreeNode,
         },
     },
-    std::{
-        collections::HashMap,
-    },
+    std::collections::HashMap,
     uuid::Uuid,
     wasm::{
         constants::LINK_HASH_PREFIX,
@@ -73,7 +74,6 @@ use {
             ROOT_IMAGE_VALUE,
             ROOT_VIDEO_VALUE,
         },
-        websocket::Ws,
         world::file_url,
     },
     wasm_bindgen::{
@@ -85,7 +85,6 @@ use {
         DomParser,
         Element,
         Event,
-        HtmlElement,
         MouseEvent,
     },
 };
@@ -220,7 +219,7 @@ impl Build {
         let mut children = vec![];
         for config_at in &config_at.elements {
             let child_el = self.build_widget(pc, config_at, data_id, data_at);
-            children_raw.push(child_el.raw().dyn_into::<HtmlElement>().unwrap());
+            children_raw.push(child_el.raw());
             children.push(child_el);
         }
         return el_from_raw(style_export::cont_view_list(style_export::ContViewListArgs {
@@ -301,7 +300,7 @@ impl Build {
                                 let mut data_id = data_id.clone();
                                 data_id.push(i);
                                 let child = build.build_widget(pc, &row_widget.widget, &data_id, &data_at);
-                                children_raw.push(child.raw().dyn_into::<HtmlElement>().unwrap());
+                                children_raw.push(child.raw());
                                 children.push(child);
                             }
                             out = el_from_raw(style_export::cont_view_list(style_export::ContViewListArgs {
@@ -323,7 +322,7 @@ impl Build {
                                 let mut columns_raw = vec![];
                                 for config_at in &row_widget.elements {
                                     let column = build.build_widget(pc, config_at, &data_id, &data_at);
-                                    columns_raw.push(column.raw().dyn_into::<HtmlElement>().unwrap());
+                                    columns_raw.push(column.raw());
                                     columns.push(column);
                                 }
                                 rows.push(columns);
@@ -428,7 +427,7 @@ impl Build {
                                 children: vec![block_contents.raw().dyn_into().unwrap()],
                                 width: config_at.width.clone(),
                             }).root.into()).own(|_| block_contents);
-                            blocks_raw.push(block.raw().dyn_into::<HtmlElement>().unwrap());
+                            blocks_raw.push(block.raw());
                             blocks.push(block);
                         }
                         let row =
@@ -437,7 +436,7 @@ impl Build {
                                     .root
                                     .into(),
                             ).own(|_| blocks);
-                        children_raw.push(row.raw().dyn_into::<HtmlElement>().unwrap());
+                        children_raw.push(row.raw());
                         children.push(row);
                     }
                     let out =
@@ -673,15 +672,11 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
                 },
                 None => {
                     let id = Uuid::new_v4().to_string();
-                    state()
-                        .playlist
-                        .0
-                        .share
-                        .set(pc, Some((id.clone(), Ws::new(format!("main/{}", id), |_, _| unreachable!()))));
+                    playlist_set_link(pc, &state().playlist, &id);
                     id
                 },
             };
-            let link = format!("link.html{}#{}{}", state().base_url, LINK_HASH_PREFIX, sess_id);
+            let link = format!("{}link.html#{}{}", state().base_url, LINK_HASH_PREFIX, sess_id);
             let modal_res = style_export::cont_modal_view_share(style_export::ContModalViewShareArgs {
                 qr: DomParser::new()
                     .unwrap()
@@ -866,7 +861,11 @@ pub fn build_page_view(
             // # Async
             let client_config = state().client_config.get().await?;
             let Some(view) = client_config.views.get(&menu_item_id) else {
-                return Err(format!("No view with id [{}] in config", menu_item_id));
+                log_1(&JsValue::from(format!("No view with id [{}] in config", menu_item_id)));
+                eg.event(|pc| {
+                    build_home_page(pc);
+                }).unwrap();
+                return Ok(el("div")) as Result<_, String>;
             };
 
             // # Content

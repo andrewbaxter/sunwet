@@ -95,6 +95,7 @@ use {
             RespGetTriplesAround,
             RespHistoryCommit,
             RespQuery,
+            RespWhoAmI,
             TreeNode,
             Triple,
         },
@@ -496,9 +497,9 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                             },
                             C2SReq::WhoAmI(req) => {
                                 resp = req.respond()(match identity {
-                                    access::Identity::Token(_) => "(token)".to_string(),
-                                    access::Identity::User(ident) => ident.0,
-                                    access::Identity::Public => "Guest".to_string(),
+                                    access::Identity::Token(_) => RespWhoAmI::Token,
+                                    access::Identity::User(ident) => RespWhoAmI::User(ident.0),
+                                    access::Identity::Public => RespWhoAmI::Public,
                                 });
                             },
                         }
@@ -697,7 +698,7 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
                         ta_return!((), loga::Error);
                         http1::Builder::new().serve_connection(io, service_fn(cap_fn!((req)(state) {
                             return Ok(handle_req(state, req).await) as Result<_, std::io::Error>;
-                        }))).await?;
+                        }))).with_upgrades().await?;
                         return Ok(());
                     }.await {
                         Ok(_) => (),

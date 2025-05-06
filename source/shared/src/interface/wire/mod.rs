@@ -238,6 +238,14 @@ impl C2SReqTrait for ReqGetClientConfig {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqWhoAmI;
 
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum RespWhoAmI {
+    Public,
+    User(String),
+    Token,
+}
+
 impl Into<C2SReq> for ReqWhoAmI {
     fn into(self) -> C2SReq {
         return C2SReq::WhoAmI(self);
@@ -245,7 +253,7 @@ impl Into<C2SReq> for ReqWhoAmI {
 }
 
 impl C2SReqTrait for ReqWhoAmI {
-    type Resp = String;
+    type Resp = RespWhoAmI;
 }
 
 // # Assemble

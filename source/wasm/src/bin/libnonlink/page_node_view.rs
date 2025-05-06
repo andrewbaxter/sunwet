@@ -31,7 +31,6 @@ use {
         ont,
     },
     wasm_bindgen::JsCast,
-    web_sys::HtmlElement,
 };
 
 fn node_to_text(node: &Node) -> String {
@@ -111,10 +110,7 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                         el_from_raw(
                             style_export::cont_page_node_section_rel(
                                 style_export::ContPageNodeSectionRelArgs {
-                                    children: triples_els
-                                        .iter()
-                                        .map(|x| x.raw().dyn_into::<HtmlElement>().unwrap())
-                                        .collect(),
+                                    children: triples_els.iter().map(|x| x.raw()).collect(),
                                 },
                             )
                                 .root
@@ -173,10 +169,7 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                         el_from_raw(
                             style_export::cont_page_node_section_rel(
                                 style_export::ContPageNodeSectionRelArgs {
-                                    children: triples_els
-                                        .iter()
-                                        .map(|x| x.raw().dyn_into::<HtmlElement>().unwrap())
-                                        .collect(),
+                                    children: triples_els.iter().map(|x| x.raw()).collect(),
                                 },
                             )
                                 .root

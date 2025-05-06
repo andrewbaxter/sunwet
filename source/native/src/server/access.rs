@@ -49,7 +49,7 @@ pub async fn identify_requester(
                 state
                     .log
                     .log(loga::DEBUG, format!("Request has session id [{}] but no matching session found", session));
-                return Ok(None);
+                return Ok(Some(Identity::Public));
             };
             state.log.log(loga::DEBUG, format!("Request user identified as [{}]", user.0));
             return Ok(Some(Identity::User(user)));

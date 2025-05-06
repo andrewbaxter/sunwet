@@ -611,8 +611,8 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, form_title: &str, id: &
             });
             bar_out.push(button_save);
             return Ok(el_from_raw(style_export::cont_page_form(style_export::ContPageFormArgs {
-                entries: out.iter().map(|x| x.raw().dyn_into::<HtmlElement>().unwrap()).collect(),
-                bar_children: bar_out.iter().map(|x| x.raw().dyn_into::<HtmlElement>().unwrap()).collect(),
+                entries: out.iter().map(|x| x.raw()).collect(),
+                bar_children: bar_out.iter().map(|x| x.raw()).collect(),
             }).root.into()).own(|_| (out, bar_out))) as Result<_, String>;
         }
     }));

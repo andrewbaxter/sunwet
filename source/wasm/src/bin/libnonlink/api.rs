@@ -27,10 +27,18 @@ use {
 pub const LOCALSTORAGE_LOGGED_IN: &str = "want_logged_in";
 
 pub fn want_logged_in() -> bool {
-    return LocalStorage::get::<String>(LOCALSTORAGE_LOGGED_IN).is_ok();
+    return LocalStorage::get::<bool>(LOCALSTORAGE_LOGGED_IN).is_ok();
 }
 
-pub fn redirect_login(base_url: &str) {
+pub fn set_want_logged_in() {
+    LocalStorage::set(LOCALSTORAGE_LOGGED_IN, true).log("Error remembering logged in pref");
+}
+
+pub fn unset_want_logged_in() {
+    LocalStorage::delete(LOCALSTORAGE_LOGGED_IN);
+}
+
+pub fn redirect_login(base_url: &str) -> ! {
     if !SessionStorage::get::<Ministate>(SESSIONSTORAGE_POST_REDIRECT).is_ok() {
         SessionStorage::set(
             SESSIONSTORAGE_POST_REDIRECT,
@@ -43,9 +51,10 @@ pub fn redirect_login(base_url: &str) {
             &Url::new_with_base(&format!("oidc?url={}", urlencoding::encode(&base_url)), base_url).unwrap().href(),
         )
         .unwrap();
+    unreachable!();
 }
 
-pub fn redirect_logout(base_url: &str) {
+pub fn redirect_logout(base_url: &str) -> ! {
     if !SessionStorage::get::<Ministate>(SESSIONSTORAGE_POST_REDIRECT).is_ok() {
         SessionStorage::set(
             SESSIONSTORAGE_POST_REDIRECT,
@@ -58,6 +67,7 @@ pub fn redirect_logout(base_url: &str) {
             &Url::new_with_base(&format!("logout?url={}", urlencoding::encode(&base_url)), base_url).unwrap().href(),
         )
         .unwrap();
+    unreachable!();
 }
 
 pub async fn req_post_json<T: C2SReqTrait>(base_url: &str, req: T) -> Result<T::Resp, String> {

@@ -11,7 +11,11 @@ use {
         shed,
         ta_return,
     },
-    futures::SinkExt,
+    futures::{
+        future::join_all,
+        FutureExt,
+        SinkExt,
+    },
     http::Response,
     http_body_util::{
         combinators::BoxBody,
@@ -81,6 +85,7 @@ pub fn handle_ws_main(state: Arc<State>, websocket: HyperWebsocket) {
                             shed!{
                                 match &from_remote {
                                     hyper_tungstenite::tungstenite::Message::Text(m) => {
+                                        eprintln!("got main ws message {}", m);
                                         match serde_json::from_str::<WsC2S>(
                                             &m,
                                         ).context("Error parsing message json")? {
@@ -135,28 +140,56 @@ pub fn handle_ws_main(state: Arc<State>, websocket: HyperWebsocket) {
                                                     let links = links.clone();
                                                     async move {
                                                         let mut delays = vec![];
+                                                        eprintln!(
+                                                            "waiting for readies (link {}) {}",
+                                                            link_readies.len(),
+                                                            Utc::now().to_rfc3339()
+                                                        );
                                                         if let Ok(delay) = main_ready_rx.await {
+                                                            eprintln!("ready - got main");
                                                             delays.push(delay);
                                                         }
                                                         for ready in link_readies {
-                                                            if let Ok(delay) = ready.await {
-                                                                delays.push(delay);
-                                                            }
+                                                            let Ok(delay) = ready.await else {
+                                                                eprintln!("ready - dc");
+                                                                continue;
+                                                            };
+                                                            eprintln!("ready - got");
+                                                            delays.push(delay);
                                                         }
+                                                        eprintln!("all readies ready {}", Utc::now().to_rfc3339());
 
                                                         // All readies received, trigger start
                                                         let delay = delays.into_iter().max().unwrap();
                                                         let start_at = Utc::now() + delay * 5;
-                                                        _ = main.send.send(WsS2C::Play(start_at)).await;
-                                                        for link in links {
-                                                            _ = link.send.send(WsS2L::Play(start_at)).await;
+                                                        let mut bg =
+                                                            vec![
+                                                                main
+                                                                    .send
+                                                                    .send(WsS2C::Play(start_at))
+                                                                    .map(|_| ())
+                                                                    .boxed()
+                                                            ];
+                                                        for link in &links {
+                                                            bg.push(
+                                                                link
+                                                                    .send
+                                                                    .send(WsS2L::Play(start_at))
+                                                                    .map(|_| ())
+                                                                    .boxed(),
+                                                            );
                                                         }
+                                                        _ = join_all(bg).await;
                                                     }
                                                 }));
 
                                                 // Forward prepare data
-                                                for link in links {
-                                                    _ = link.send.send(WsS2L::Prepare(prepare.clone())).await;
+                                                {
+                                                    let mut bg = vec![];
+                                                    for link in &links {
+                                                        bg.push(link.send.send(WsS2L::Prepare(prepare.clone())));
+                                                    }
+                                                    _ = join_all(bg).await;
                                                 }
                                             },
                                             WsC2S::Ready(sent_at) => {
@@ -179,8 +212,12 @@ pub fn handle_ws_main(state: Arc<State>, websocket: HyperWebsocket) {
                                                         .values()
                                                         .cloned()
                                                         .collect::<Vec<_>>();
-                                                for link in links {
-                                                    _ = link.send.send(WsS2L::Pause);
+                                                {
+                                                    let mut bg = vec![];
+                                                    for link in &links {
+                                                        bg.push(link.send.send(WsS2L::Pause));
+                                                    }
+                                                    _ = join_all(bg).await;
                                                 }
                                             },
                                         }
@@ -256,9 +293,8 @@ pub fn handle_ws_link(state: Arc<State>, websocket: HyperWebsocket) {
                             let from_remote = from_remote?;
                             match &from_remote {
                                 hyper_tungstenite::tungstenite::Message::Text(m) => {
-                                    match serde_json::from_str::<WsL2S>(
-                                        &m,
-                                    ).context("Error parsing message json")? {
+                                    eprintln!("got link ws message {}", m);
+                                    match serde_json::from_str::<WsL2S>(&m).context("Error parsing message json")? {
                                         WsL2S::Ready(sent_at) => {
                                             shed!{
                                                 let links = state.link_links.lock().unwrap();
@@ -301,7 +337,7 @@ pub fn handle_ws_link(state: Arc<State>, websocket: HyperWebsocket) {
         }.await {
             Ok(_) => { },
             Err(e) => {
-                state.log.log_err(loga::DEBUG, e.context("Error in websocket connection"));
+                state.log.log_err(loga::DEBUG, e.context("Error in link websocket connection"));
             },
         }
         state.link_links.lock().unwrap().remove(&id);

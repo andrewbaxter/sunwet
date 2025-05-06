@@ -1,17 +1,16 @@
 use {
-    std::{
-        cell::{
-            Cell,
-        },
-        rc::{
-            Rc,
-            Weak,
+    crate::{
+        async_::WaitVal,
+        js::{
+            log,
+            log_js,
+            log_js2,
         },
     },
+    flowcontrol::shed,
     gloo::{
         events::EventListener,
         timers::future::TimeoutFuture,
-        utils::window,
     },
     rooting::{
         scope_any,
@@ -22,23 +21,22 @@ use {
         de::DeserializeOwned,
         Serialize,
     },
+    std::{
+        cell::Cell,
+        rc::{
+            Rc,
+            Weak,
+        },
+    },
     wasm_bindgen::JsCast,
     web_sys::{
         MessageEvent,
         WebSocket,
     },
-    crate::{
-        async_::WaitVal,
-        js::{
-            log,
-            log_js,
-            log_js2,
-        },
-    },
 };
 
 pub struct Ws_<S: Serialize + DeserializeOwned, R: Serialize + DeserializeOwned> {
-    path: String,
+    url: String,
     ws: WaitVal<WebSocket>,
     ws_state: Cell<ScopeValue>,
     handler: Box<dyn Fn(&Ws<S, R>, R) -> ()>,
@@ -57,30 +55,38 @@ impl<S: 'static + Serialize + DeserializeOwned, R: 'static + Serialize + Deseria
         return Rc::downgrade(&self.0);
     }
 
-    pub fn new(path: impl ToString, notify_handler: impl 'static + Fn(&Ws<S, R>, R) -> ()) -> Self {
+    pub fn new(base_url: &str, path: impl ToString, notify_handler: impl 'static + Fn(&Ws<S, R>, R) -> ()) -> Self {
         let path = path.to_string();
+        let noschema_base_url = shed!{
+            if let Some(u) = base_url.strip_prefix("http://") {
+                break u;
+            };
+            if let Some(u) = base_url.strip_prefix("https://") {
+                break u;
+            };
+            panic!();
+        };
+        let url = format!("wss://{}{}", noschema_base_url, path);
 
         fn connect<
             S: 'static + Serialize + DeserializeOwned,
             R: 'static + Serialize + DeserializeOwned,
         >(state: Ws<S, R>) {
-            let ws =
-                match WebSocket::new(
-                    &format!("wss://{}/{}", window().location().host().unwrap().as_str(), state.0.path),
-                ) {
-                    Ok(ws) => ws,
-                    Err(e) => {
-                        log_js("Error creating websocket", &e);
-                        delay_reconnect(state);
-                        return;
-                    },
-                };
+            let ws = match WebSocket::new(&state.0.url) {
+                Ok(ws) => ws,
+                Err(e) => {
+                    log_js("Error creating websocket", &e);
+                    delay_reconnect(state);
+                    return;
+                },
+            };
             state.0.ws_state.set(scope_any((
                 //. .
                 EventListener::once(&ws, "open", {
                     let ws = ws.clone();
                     let state = state.weak();
-                    move |_| {
+                    move |ev| {
+                        log_js("DEBUG Got websocket open event", ev);
                         let Some(state) = state.upgrade() else {
                             return;
                         };
@@ -91,6 +97,7 @@ impl<S: 'static + Serialize + DeserializeOwned, R: 'static + Serialize + Deseria
                 EventListener::new(&ws, "message", {
                     let state = state.weak();
                     move |e| {
+                        log_js("DEBUG Got websocket message event", e);
                         let Some(state) = state.upgrade() else {
                             return;
                         };
@@ -121,7 +128,8 @@ impl<S: 'static + Serialize + DeserializeOwned, R: 'static + Serialize + Deseria
                 }),
                 EventListener::once(&ws, "close", {
                     let state = state.weak();
-                    move |_| {
+                    move |ev| {
+                        log_js("DEBUG Got websocket close event", ev);
                         let Some(state) = state.upgrade() else {
                             return;
                         };
@@ -138,16 +146,19 @@ impl<S: 'static + Serialize + DeserializeOwned, R: 'static + Serialize + Deseria
         >(state: Ws<S, R>) {
             state.0.ws.set(None);
             state.0.ws_state.set(spawn_rooted({
-                let state = state.clone();
+                let state = state.weak();
                 async move {
                     TimeoutFuture::new(1000).await;
-                    connect(state);
+                    let Some(state) = state.upgrade() else {
+                        return;
+                    };
+                    connect(Ws(state));
                 }
             }));
         }
 
         let out = Ws(Rc::new(Ws_ {
-            path: path,
+            url: url,
             ws: WaitVal::new(),
             ws_state: Cell::new(scope_any(())),
             handler: Box::new(notify_handler),

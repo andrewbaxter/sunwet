@@ -6,6 +6,7 @@ use {
     cookie::CookieBuilder,
     flowcontrol::shed,
     http::{
+        header::HOST,
         request::Parts,
         HeaderMap,
         Request,
@@ -108,6 +109,7 @@ async fn oidc_http_client(
         openidconnect::http::Method::HEAD => http::Method::HEAD,
         _ => panic!(),
     });
+    req1 = req1.header(HOST, req.url.host_str().unwrap_or_default());
     for (k, v) in req.headers {
         let Some(k) = k else {
             panic!();

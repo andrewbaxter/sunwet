@@ -77,8 +77,8 @@ fn main() {
     let optstring_ = type_opt(&string_);
     let el_ = Type {
         mod_: TypeMod::None,
-        rust_type: quote!(web_sys::HtmlElement),
-        ts_type: "HTMLElement".to_string(),
+        rust_type: quote!(web_sys::Element),
+        ts_type: "Element".to_string(),
     };
     let optel_ = type_opt(&el_);
     let arrel_ = type_arr(&el_);
@@ -129,6 +129,11 @@ fn main() {
             returns: vec![("value", &string_)],
         },
         Func {
+            name: "classStateHide",
+            args: vec![],
+            returns: vec![("value", &string_)],
+        },
+        Func {
             name: "classStateThinking",
             args: vec![],
             returns: vec![("value", &string_)],
@@ -167,12 +172,12 @@ fn main() {
         },
         Func {
             name: "leafAsyncBlock",
-            args: vec![("in_root", &bool_)],
+            args: vec![("inRoot", &bool_), ("extraStyles", &arrstring_)],
             returns: vec![("root", &el_)],
         },
         Func {
             name: "leafErrBlock",
-            args: vec![("data", &string_), ("in_root", &bool_)],
+            args: vec![("data", &string_), ("inRoot", &bool_)],
             returns: vec![("root", &el_)],
         },
         Func {
@@ -206,11 +211,6 @@ fn main() {
                 ("rightMidChildren", &arrel_),
                 ("rightChildren", &arrel_),
             ],
-            returns: vec![("root", &el_)],
-        },
-        Func {
-            name: "contBarMenu",
-            args: vec![("children", &arrel_)],
             returns: vec![("root", &el_)],
         },
         Func {
@@ -513,8 +513,23 @@ fn main() {
         // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: menu
         Func {
+            name: "contBarMenu",
+            args: vec![("children", &arrel_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafMenuBarButtonLogin",
+            args: vec![],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafMenuBarButtonLogout",
+            args: vec![],
+            returns: vec![("root", &el_)],
+        },
+        Func {
             name: "contMenuBody",
-            args: vec![("children", &arrel_), ("user", &string_)],
+            args: vec![("children", &arrel_), ("user", &string_), ("barChildren", &arrel_)],
             returns: vec![("root", &el_)],
         },
         Func {
@@ -541,10 +556,10 @@ fn main() {
             args: vec![],
             returns: vec![
                 ("root", &el_),
+                ("displayUnder", &el_),
                 ("display", &el_),
-                ("display_over", &el_),
-                ("album", &el_),
-                ("artist", &el_),
+                ("displayOver", &el_),
+                ("albumArtist", &el_),
                 ("title", &el_)
             ],
         },

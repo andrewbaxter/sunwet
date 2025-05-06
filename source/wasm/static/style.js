@@ -18,7 +18,6 @@
     for (const e of notnull(new Error().stack).matchAll(/(\d+):\d+/g)) {
       lines.push(`${e[1]}`);
     }
-    console.log(lines);
     let uniq = [lines[1]];
     uniq.push(...args);
     return `r${uniq.join("_")}`;
@@ -30,7 +29,7 @@
       args: Partial<HTMLElementTagNameMap[N]>,
       args2: {
         styles_?: string[];
-        children_?: HTMLElement[];
+        children_?: Element[];
       }
     ) => HTMLElementTagNameMap[N]
   } */ (name, args1, args2) => {
@@ -59,7 +58,7 @@
         markup: string,
         args?: {
           styles_?: string[];
-          children_?: HTMLElement[];
+          children_?: Element[];
         }
       ) => HTMLElement
     } */ (t, args) => {
@@ -173,6 +172,7 @@
   const textIconSave = "\ue161";
   const textIconUnlink = "\ue16f";
   const textIconLogin = "\uea77";
+  const textIconLogout = "\ue9ba";
   const textIconMenu = "\ue5d2";
   const textIconGo = "\ue5c8";
   const textIconFoldClosed = "\ue316";
@@ -236,6 +236,11 @@
   presentation.classMenuStateOpen =
     /** @type { Presentation["classMenuStateOpen"]} */ () => ({
       value: classMenuStateOpen,
+    });
+  const classStateHide = "hide";
+  presentation.classStateHide =
+    /** @type { Presentation["classStateHide"]} */ () => ({
+      value: classStateHide,
     });
   const classInputStateInvalid = "invalid";
   presentation.classStateInvalid =
@@ -341,7 +346,7 @@
   });
 
   presentation.contBar = /** @type {Presentation["contBar"]} */ (args) => {
-    /** @type { (children: HTMLElement[]) => HTMLElement} */
+    /** @type { (children: Element[]) => HTMLElement} */
     const newHbox = (children) =>
       e(
         "div",
@@ -521,7 +526,7 @@
         children_: [presentation.contSpinner({}).root],
       }
     );
-    if (args.in_root) {
+    if (args.inRoot) {
       inner.style.gridColumn = "1/4";
       inner.style.gridRow = "2";
     }
@@ -530,7 +535,7 @@
         "div",
         {},
         {
-          styles_: [contGroupStyle],
+          styles_: [contGroupStyle, ...args.extraStyles],
           children_: [inner],
         }
       ),
@@ -560,7 +565,7 @@
         children_: [e("span", { textContent: args.data }, {})],
       }
     );
-    if (args.in_root) {
+    if (args.inRoot) {
       out.style.gridColumn = "1/4";
       out.style.gridRow = "2";
     }
@@ -1876,7 +1881,7 @@
         const j = j0 + 1;
         const row = args.children[j0];
         for (let i0 = 0; i0 < row.length; ++i0) {
-          const child = row[i0];
+          const child = /** @type {HTMLElement|SVGElement} */ (row[i0]);
           const i = i0 + 1;
           switch (conv(args.orientation)) {
             case "up":
@@ -2883,6 +2888,20 @@
       rightMidChildren: [],
       rightChildren: args.children,
     });
+  presentation.leafMenuBarButtonLogin =
+    /** @type {Presentation["leafMenuBarButtonLogin"]} */ (args) =>
+      presentation.leafButtonBig({
+        title: "Login",
+        icon: textIconLogin,
+        text: "Login",
+      });
+  presentation.leafMenuBarButtonLogout =
+    /** @type {Presentation["leafMenuBarButtonLogout"]} */ (args) =>
+      presentation.leafButtonBig({
+        title: "Login",
+        icon: textIconLogout,
+        text: "Login",
+      });
 
   presentation.contMenuGroup = /** @type {Presentation["contMenuGroup"]} */ (
     args
@@ -3085,11 +3104,7 @@
                   ],
                 }
               ),
-              presentation.leafButtonBig({
-                title: "Login",
-                icon: textIconLogin,
-                text: "Login",
-              }).root,
+              ...args.barChildren,
             ],
           }).root,
           presentation.leafSpace({}).root,
@@ -3225,6 +3240,7 @@
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: Main
 
+  const varCLinkDisplayBg = v(uniq(), "rgb(35, 35, 36)");
   presentation.appLink = /** @type {Presentation["appLink"]} */ (args) => {
     const display = e(
       "div",
@@ -3232,21 +3248,90 @@
       {
         styles_: [
           ss(uniq("cont_app_link_display"), {
+            ">*": (s) => {
+              s.objectFit = "contain";
+              s.aspectRatio = "auto";
+              s.width = "100%";
+              s.height = "100%";
+            },
+          }),
+        ],
+        children_: [],
+      }
+    );
+    const displayUnder2 = e(
+      "div",
+      {},
+      {
+        styles_: [
+          ss(uniq("leaf_app_display_under2"), {
             "": (s) => {
-              s.backgroundColor = "rgb(35, 35, 36)";
+              s.aspectRatio = "1/1";
+              s.objectFit = "contain";
+              s.width = "100%";
+              s.height = "100%";
+            },
+          }),
+        ],
+      }
+    );
+    const hideableStyle = ss(uniq("app_link_display_hideable"), {
+      [`.${classStateHide}`]: (s) => {
+        s.display = "none";
+      },
+    });
+    const displayUnder = et(
+      `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 164.51 164.51">
+  <path fill="none" stroke="currentColor" stroke-dasharray="511.84,12.796,31.99,12.796,25.592,12.796,19.194,12.796,12.796,12.796,6.398" stroke-width="6.4" d="M94.57 99.8A25.29 25.29 0 0 0 81 96.03c-11.64 0-21.08 7.17-21.08 16.01 0 8.84 9.44 16.01 21.08 16.01 11.65 0 21.08-7.17 21.08-16.01V26.71c-.04-11.8 6.87-19.1 21.8-11.18 23.03 14.39 37.43 38.87 37.43 66.72A79.05 79.05 0 1 1 82.25 3.2" paint-order="fill markers stroke"/>
+</svg>
+      `,
+      {
+        styles_: [
+          hideableStyle,
+          classStateHide,
+          ss(uniq("leaf_app_display_under"), {
+            "": (s) => {
+              s.padding = "0.2cm";
+              s.color = varCBackgroundDark;
+              s.objectFit = "contain";
+              s.aspectRatio = "auto";
+              s.width = "100%";
+              s.height = "100%";
+            },
+          }),
+        ],
+      }
+    );
+    const displayOver = presentation.leafAsyncBlock({
+      inRoot: false,
+      extraStyles: [
+        hideableStyle,
+        ss(uniq("leaf_app_display_over"), {
+          ">*": (s) => {
+            s.gridColumn = "1";
+            s.gridRow = "1";
+          },
+        }),
+      ],
+    }).root;
+    const displayStack = e(
+      "div",
+      {},
+      {
+        styles_: [
+          contStackStyle,
+          ss(uniq("app_link_display_stack"), {
+            "": (s) => {
+              s.flexShrink = "1";
+              s.backgroundColor = varCLinkDisplayBg;
               s.paddingTop = "0.2cm";
               s.paddingBottom = "0.2cm";
             },
           }),
         ],
-        children_: [presentation.leafAsyncBlock({ in_root: false }).root],
+        children_: [displayUnder2, displayUnder, display, displayOver],
       }
-    );
-    const displayOver = e("div", {}, { styles_: [contGroupStyle] });
-    const displayStack = e(
-      "div",
-      {},
-      { styles_: [contStackStyle], children_: [display, displayOver] }
     );
     const textStyle = ss(uniq("leaf_app_link_text"), {
       "": (s) => {
@@ -3270,15 +3355,15 @@
           ],
         }
       );
-    /** @type { (children:HTMLElement[])=>HTMLElement} */
-    const horiz = (children) =>
+    /** @type { (children:Element[])=>HTMLElement} */
+    const vert = (children) =>
       e(
         "div",
         {},
         {
           styles_: [
-            contHboxStyle,
-            ss(uniq("cont_app_link_horiz"), {
+            contVboxStyle,
+            ss(uniq("cont_app_link_vert"), {
               "": (s) => {
                 s.paddingLeft = "0.4cm";
                 s.paddingRight = "0.4cm";
@@ -3289,11 +3374,10 @@
           children_: children,
         }
       );
-    const artist = bigText("Linking...");
-    const title = bigText("linking...");
-    const album = e(
+    const title = bigText("waiting...");
+    const albumArtist = e(
       "span",
-      { textContent: "Linking..." },
+      { textContent: "Waiting..." },
       { styles_: [textStyle] }
     );
     return {
@@ -3307,26 +3391,26 @@
               "": (s) => {
                 s.backgroundColor = varCBackgroundDark;
                 s.gap = "0.3cm";
+                s.height = "100dvh";
+                s.width = "100dvw";
+              },
+              ">*": (s) => {
+                s.flexShrink = "0";
               },
             }),
           ],
           children_: [
             leafSpace({}).root,
             displayStack,
-            horiz([
-              artist,
-              e("span", { textContent: " - " }, { styles_: [textStyle] }),
-              title,
-            ]),
-            horiz([album]),
+            vert([title, albumArtist]),
             leafSpace({}).root,
           ],
         }
       ),
+      displayUnder: displayUnder,
       display: display,
-      display_over: displayOver,
-      album: album,
-      artist: artist,
+      displayOver: displayOver,
+      albumArtist: albumArtist,
       title: title,
     };
   };
