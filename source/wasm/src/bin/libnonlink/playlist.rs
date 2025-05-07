@@ -100,7 +100,6 @@ pub trait PlaylistMedia {
     fn pm_get_time(&self) -> f64;
     fn pm_get_max_time(&self) -> Option<f64>;
     fn pm_seek(&self, time: f64);
-    fn pm_get_ministate(&self) -> Ministate;
     fn pm_preload(&self);
     fn pm_unpreload(&self);
     fn pm_el(&self) -> &El;
@@ -109,9 +108,6 @@ pub trait PlaylistMedia {
 
 pub struct AudioPlaylistMedia {
     pub element: El,
-    pub ministate_menu_item_id: String,
-    pub ministate_title: String,
-    pub ministate_playlist_index: PlaylistIndex,
 }
 
 impl AudioPlaylistMedia {
@@ -149,17 +145,6 @@ impl PlaylistMedia for AudioPlaylistMedia {
         }
     }
 
-    fn pm_get_ministate(&self) -> Ministate {
-        return Ministate::View(MinistateView {
-            menu_item_id: self.ministate_menu_item_id.clone(),
-            title: self.ministate_title.clone(),
-            pos: Some(PlaylistRestorePos {
-                index: self.ministate_playlist_index.clone(),
-                time: self.pm_media().current_time(),
-            }),
-        });
-    }
-
     fn pm_get_time(&self) -> f64 {
         return self.pm_media().current_time();
     }
@@ -189,9 +174,6 @@ impl PlaylistMedia for AudioPlaylistMedia {
 
 pub struct VideoPlaylistMedia {
     pub element: El,
-    pub ministate_menu_item_id: String,
-    pub ministate_title: String,
-    pub ministate_playlist_index: PlaylistIndex,
 }
 
 impl VideoPlaylistMedia {
@@ -229,17 +211,6 @@ impl PlaylistMedia for VideoPlaylistMedia {
         }
     }
 
-    fn pm_get_ministate(&self) -> Ministate {
-        return Ministate::View(MinistateView {
-            menu_item_id: self.ministate_menu_item_id.clone(),
-            title: self.ministate_title.clone(),
-            pos: Some(PlaylistRestorePos {
-                index: self.ministate_playlist_index.clone(),
-                time: self.pm_media().current_time(),
-            }),
-        });
-    }
-
     fn pm_get_time(&self) -> f64 {
         return self.pm_media().current_time();
     }
@@ -269,9 +240,6 @@ impl PlaylistMedia for VideoPlaylistMedia {
 
 pub struct ImagePlaylistMedia {
     pub element: El,
-    pub ministate_menu_item_id: String,
-    pub ministate_title: String,
-    pub ministate_playlist_index: PlaylistIndex,
 }
 
 impl ImagePlaylistMedia { }
@@ -291,17 +259,6 @@ impl PlaylistMedia for ImagePlaylistMedia {
 
     fn pm_get_max_time(&self) -> Option<f64> {
         return None;
-    }
-
-    fn pm_get_ministate(&self) -> Ministate {
-        return Ministate::View(MinistateView {
-            menu_item_id: self.ministate_menu_item_id.clone(),
-            title: self.ministate_title.clone(),
-            pos: Some(PlaylistRestorePos {
-                index: self.ministate_playlist_index.clone(),
-                time: 0.,
-            }),
-        });
     }
 
     fn pm_get_time(&self) -> f64 {
@@ -341,6 +298,7 @@ pub struct PlaylistEntry {
 }
 
 pub struct PlaylistState_ {
+    pub ministate_menu_item_id_title: RefCell<Option<(String, String)>>,
     pub base_url: String,
     pub debounce: Cell<DateTime<Utc>>,
     pub playlist: RefCell<BTreeMap<PlaylistIndex, Rc<PlaylistEntry>>>,
@@ -386,6 +344,7 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
         playing_i: HistPrim::new(pc, None),
         playing_time: Prim::new(0.),
         playing_max_time: Prim::new(None),
+        ministate_menu_item_id_title: RefCell::new(None),
         share: Prim::new(None),
     }));
     let media_session = window().navigator().media_session();
@@ -403,7 +362,7 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
     media_session.set_action_handler(web_sys::MediaSessionAction::Play, Some(&media_fn(pc, {
         let state = playlist_state.clone();
         move |pc, _args| {
-            playlist_play(pc, &state);
+            playlist_resume(pc, &state);
         }
     })));
     media_session.set_action_handler(web_sys::MediaSessionAction::Pause, Some(&media_fn(pc, {
@@ -575,13 +534,11 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
                 };
                 let time;
                 let max_time;
-                let ministate;
                 {
                     let playlist = state.0.playlist.borrow();
-                    let entry = playlist.get(&*playing_i).unwrap();
+                    let entry: &Rc<PlaylistEntry> = playlist.get(&*playing_i).unwrap();
                     time = entry.media.pm_get_time();
                     max_time = entry.media.pm_get_max_time();
-                    ministate = entry.media.pm_get_ministate();
                 }
                 let new_state = (time, max_time);
                 if Some(&new_state) == last_state.get().as_ref() {
@@ -592,7 +549,16 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
                     state.0.playing_time.set(pc, time);
                     state.0.playing_max_time.set(pc, max_time);
                 });
-                record_replace_ministate(&ministate);
+                if let Some((menu_item_id, title)) = state.0.ministate_menu_item_id_title.borrow().as_ref() {
+                    record_replace_ministate(&Ministate::View(MinistateView {
+                        menu_item_id: menu_item_id.clone(),
+                        title: title.clone(),
+                        pos: Some(PlaylistRestorePos {
+                            index: playing_i.clone(),
+                            time: time,
+                        }),
+                    }));
+                }
             }
         }),
     )));
@@ -655,6 +621,7 @@ pub fn playlist_extend(
     entries: Vec<(PlaylistIndex, PlaylistPushArg)>,
     restore_pos: &Option<PlaylistRestorePos>,
 ) {
+    *playlist_state.0.ministate_menu_item_id_title.borrow_mut() = Some((menu_item_id.clone(), menu_title.clone()));
     for (entry_index, entry) in entries {
         let setup_media_element = |pc: &mut ProcessingContext, media: &El| {
             media.ref_on("ended", {
@@ -699,12 +666,7 @@ pub fn playlist_extend(
             PlaylistEntryMediaType::Audio => {
                 let media = el_audio(&entry.source_url.url).attr("controls", "true");
                 setup_media_element(pc, &media);
-                box_media = Box::new(AudioPlaylistMedia {
-                    element: media.clone(),
-                    ministate_menu_item_id: menu_item_id.clone(),
-                    ministate_title: menu_title.clone(),
-                    ministate_playlist_index: entry_index.clone(),
-                });
+                box_media = Box::new(AudioPlaylistMedia { element: media.clone() });
             },
             PlaylistEntryMediaType::Video => {
                 let mut sub_tracks = vec![];
@@ -738,21 +700,11 @@ pub fn playlist_extend(
                     }
                     media.ref_push(track);
                 }
-                box_media = Box::new(VideoPlaylistMedia {
-                    element: media.clone(),
-                    ministate_menu_item_id: menu_item_id.clone(),
-                    ministate_title: menu_title.clone(),
-                    ministate_playlist_index: entry_index.clone(),
-                });
+                box_media = Box::new(VideoPlaylistMedia { element: media.clone() });
             },
             PlaylistEntryMediaType::Image => {
                 let media = el("img").attr("src", &entry.source_url.url).attr("loading", "lazy");
-                box_media = Box::new(ImagePlaylistMedia {
-                    element: media.clone(),
-                    ministate_menu_item_id: menu_item_id.clone(),
-                    ministate_title: menu_title.clone(),
-                    ministate_playlist_index: entry_index.clone(),
-                });
+                box_media = Box::new(ImagePlaylistMedia { element: media.clone() });
             },
         }
         playlist_state.0.playlist.borrow_mut().insert(entry_index, Rc::new(PlaylistEntry {
@@ -793,6 +745,14 @@ pub fn playlist_toggle_play(pc: &mut ProcessingContext, state: &PlaylistState, i
     }
 }
 
+pub fn playlist_play(pc: &mut ProcessingContext, state: &PlaylistState, i: PlaylistIndex) {
+    if state.0.playlist.borrow().is_empty() {
+        return;
+    }
+    state.0.playing_i.set(pc, Some(i));
+    state.0.playing.set(pc, true);
+}
+
 pub fn playlist_next(pc: &mut ProcessingContext, state: &PlaylistState, basis: Option<PlaylistIndex>) {
     let Some(i) = basis.or(state.0.playing_i.get()) else {
         return;
@@ -803,6 +763,14 @@ pub fn playlist_next(pc: &mut ProcessingContext, state: &PlaylistState, basis: O
         state.0.playing_i.set(pc, None);
         state.0.playing_max_time.set(pc, None);
         state.0.playing.set(pc, false);
+        state.0.playing_time.set(pc, 0.);
+        if let Some((menu_item_id, title)) = state.0.ministate_menu_item_id_title.borrow().as_ref() {
+            record_replace_ministate(&Ministate::View(MinistateView {
+                menu_item_id: menu_item_id.clone(),
+                title: title.clone(),
+                pos: None,
+            }));
+        }
     }
 }
 
@@ -823,7 +791,7 @@ pub fn playlist_pause(pc: &mut ProcessingContext, state: &PlaylistState) {
     state.0.playing.set(pc, false);
 }
 
-pub fn playlist_play(pc: &mut ProcessingContext, state: &PlaylistState) {
+pub fn playlist_resume(pc: &mut ProcessingContext, state: &PlaylistState) {
     if state.0.playlist.borrow().is_empty() {
         return;
     }

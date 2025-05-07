@@ -89,12 +89,17 @@ impl AargvarkFromStr for StrNode {
 
 #[derive(Aargvark)]
 pub struct QueryCommand {
-    pub query: AargvarkJson<Query>,
-    pub parameters: HashMap<String, StrNode>,
+    debug: Option<()>,
+    query: AargvarkJson<Query>,
+    parameters: HashMap<String, StrNode>,
 }
 
 pub async fn handle_query(c: QueryCommand) -> Result<(), loga::Error> {
-    let log = Log::new_root(loga::INFO);
+    let log = Log::new_root(if c.debug.is_some() {
+        loga::DEBUG
+    } else {
+        loga::INFO
+    });
     let res = req::req_simple(&log, ReqQuery {
         query: c.query.value,
         parameters: c.parameters.into_iter().map(|(k, v)| (k, v.0)).collect(),
@@ -157,14 +162,19 @@ impl AargvarkFromStr for StrDatetime {
 
 #[derive(Aargvark)]
 pub struct HistoryCommand {
+    debug: Option<()>,
     /// Get commits starting at this time or after
-    pub start: Option<StrDatetime>,
+    start: Option<StrDatetime>,
     /// Get commits starting before this time
-    pub end: Option<StrDatetime>,
+    end: Option<StrDatetime>,
 }
 
 pub async fn handle_history(c: HistoryCommand) -> Result<(), loga::Error> {
-    let log = Log::new_root(loga::INFO);
+    let log = Log::new_root(if c.debug.is_some() {
+        loga::DEBUG
+    } else {
+        loga::INFO
+    });
     let res = req::req_simple(&log, ReqHistory {
         start_incl: c.start.unwrap_or(StrDatetime(DateTime::<Utc>::MIN_UTC)).0,
         end_excl: c.end.unwrap_or(StrDatetime(DateTime::<Utc>::MAX_UTC)).0,
@@ -175,11 +185,16 @@ pub async fn handle_history(c: HistoryCommand) -> Result<(), loga::Error> {
 
 #[derive(Aargvark)]
 pub struct GetNodeCommand {
-    pub node: StrNode,
+    debug: Option<()>,
+    node: StrNode,
 }
 
 pub async fn handle_get_node(c: GetNodeCommand) -> Result<(), loga::Error> {
-    let log = Log::new_root(loga::INFO);
+    let log = Log::new_root(if c.debug.is_some() {
+        loga::DEBUG
+    } else {
+        loga::INFO
+    });
     let res = req::req_simple(&log, ReqGetTriplesAround { node: c.node.0 }).await?;
     println!("{}", serde_json::to_string_pretty(&res).unwrap());
     return Ok(());

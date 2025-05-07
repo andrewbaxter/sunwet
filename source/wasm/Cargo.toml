@@ -26,6 +26,7 @@ web-sys = { version = "0.3", features = [
     "HtmlAudioElement",
     "HtmlVideoElement",
     "HtmlMediaElement",
+    "DomException",
     "MouseEvent",
     "DomRect",
     "History",

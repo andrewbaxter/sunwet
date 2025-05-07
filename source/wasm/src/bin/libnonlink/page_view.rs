@@ -1,6 +1,9 @@
 use {
     super::{
-        ministate::PlaylistRestorePos,
+        ministate::{
+            MinistateNodeView,
+            PlaylistRestorePos,
+        },
         playlist::PlaylistIndex,
         state::{
             build_home_page,
@@ -13,12 +16,13 @@ use {
         ministate::{
             ministate_octothorpe,
             Ministate,
-            MinistateNodeEdit,
         },
         playlist::{
             playlist_extend,
             playlist_next,
+            playlist_play,
             playlist_previous,
+            playlist_resume,
             playlist_seek,
             playlist_set_link,
             playlist_toggle_play,
@@ -26,7 +30,15 @@ use {
             PlaylistPushArg,
         },
     },
-    flowcontrol::ta_return,
+    flowcontrol::{
+        exenum,
+        shed,
+        ta_return,
+    },
+    gloo::storage::{
+        LocalStorage,
+        Storage,
+    },
     lunk::{
         link,
         Prim,
@@ -59,7 +71,11 @@ use {
             TreeNode,
         },
     },
-    std::collections::HashMap,
+    std::{
+        cell::Cell,
+        collections::HashMap,
+        rc::Rc,
+    },
     uuid::Uuid,
     wasm::{
         constants::LINK_HASH_PREFIX,
@@ -68,6 +84,7 @@ use {
             style_export::{
                 self,
             },
+            LogJsErr,
         },
         ont::{
             ROOT_AUDIO_VALUE,
@@ -89,17 +106,9 @@ use {
     },
 };
 
-fn maybe<I, O>(v: &Option<I>, f: impl FnOnce(&I) -> Result<O, String>) -> Result<Option<O>, String> {
-    match v {
-        Some(v) => match f(v) {
-            Ok(v) => Ok(Some(v)),
-            Err(v) => Err(v),
-        },
-        None => return Ok(None),
-    }
-}
+pub const LOCALSTORAGE_SHARE_SESSION_ID: &str = "share_session_id";
 
-fn get_field(config_at: &String, data_stack: &Vec<TreeNode>) -> Result<TreeNode, String> {
+fn maybe_get_field(config_at: &String, data_stack: &Vec<TreeNode>) -> Option<TreeNode> {
     for data_at in data_stack.iter().rev() {
         let TreeNode::Record(data_at) = data_at else {
             continue;
@@ -107,15 +116,35 @@ fn get_field(config_at: &String, data_stack: &Vec<TreeNode>) -> Result<TreeNode,
         let Some(data_at) = data_at.get(config_at) else {
             continue;
         };
-        return Ok(data_at.clone());
+        if exenum!(data_at, TreeNode:: Scalar(Node::Value(serde_json::Value::Null)) =>()).is_some() {
+            continue;
+        }
+        return Some(data_at.clone());
     }
-    return Err(format!("No data in scope is a record or field `{}` didn't exist at any level", config_at));
+    return None;
+}
+
+fn get_field(config_at: &String, data_stack: &Vec<TreeNode>) -> Result<TreeNode, String> {
+    let Some(data_at) = maybe_get_field(config_at, data_stack) else {
+        return Err(format!("No data in scope is a record or field `{}` didn't exist at any level", config_at));
+    };
+    return Ok(data_at);
 }
 
 fn get_field_or_literal(config_at: &FieldOrLiteral, data_stack: &Vec<TreeNode>) -> Result<TreeNode, String> {
     match config_at {
         FieldOrLiteral::Field(config_at) => return Ok(get_field(config_at, data_stack)?),
         FieldOrLiteral::Literal(config_at) => return Ok(TreeNode::Scalar(config_at.clone())),
+    }
+}
+
+fn maybe_get_field_or_literal(
+    config_at: &FieldOrLiteral,
+    data_stack: &Vec<TreeNode>,
+) -> Result<Option<TreeNode>, String> {
+    match config_at {
+        FieldOrLiteral::Field(config_at) => return Ok(maybe_get_field(config_at, data_stack)),
+        FieldOrLiteral::Literal(config_at) => return Ok(Some(TreeNode::Scalar(config_at.clone()))),
     }
 }
 
@@ -182,7 +211,7 @@ fn unwrap_value_move_url(
         TreeNode::Record(v) => return Ok(serde_json::to_string(v).unwrap()),
         TreeNode::Scalar(v) => {
             if to_node {
-                return Ok(ministate_octothorpe(&Ministate::NodeEdit(MinistateNodeEdit {
+                return Ok(ministate_octothorpe(&Ministate::NodeView(MinistateNodeView {
                     title: unwrap_value_string(&get_field_or_literal(title, data_stack)?),
                     node: v.clone(),
                 })));
@@ -203,7 +232,8 @@ struct Build {
     menu_item_title: String,
     restore_playlist_pos: Option<PlaylistRestorePos>,
     playlist_add: Vec<(PlaylistIndex, PlaylistPushArg)>,
-    have_media: bool,
+    have_media: Rc<Cell<bool>>,
+    want_media: bool,
     transport_slot: El,
 }
 
@@ -243,7 +273,7 @@ impl Build {
             let restore_playlist_pos = self.restore_playlist_pos.clone();
             let eg = pc.eg();
             let transport_slot = self.transport_slot.clone();
-            let old_have_media = self.have_media;
+            let have_media = self.have_media.clone();
             let config_at = config_at.clone();
             let data_id = data_id.clone();
             let data_at = data_at.clone();
@@ -286,7 +316,8 @@ impl Build {
                         menu_item_title: menu_item_title.clone(),
                         restore_playlist_pos: restore_playlist_pos.clone(),
                         playlist_add: Default::default(),
-                        have_media: false,
+                        have_media: have_media,
+                        want_media: false,
                         transport_slot: transport_slot,
                     };
                     let out;
@@ -344,8 +375,9 @@ impl Build {
                         build.playlist_add,
                         &restore_playlist_pos,
                     );
-                    if build.have_media && !old_have_media {
+                    if !build.have_media.get() && build.want_media {
                         build.transport_slot.ref_push(build_transport(pc));
+                        build.have_media.set(true);
                     }
                     return Ok(out);
                 }).unwrap();
@@ -366,7 +398,7 @@ impl Build {
             let restore_playlist_pos = self.restore_playlist_pos.clone();
             let eg = pc.eg();
             let transport_slot = self.transport_slot.clone();
-            let old_have_media = self.have_media;
+            let have_media = self.have_media.clone();
             let config_at = config_at.clone();
             let data_id = data_id.clone();
             let data_at = data_at.clone();
@@ -409,7 +441,8 @@ impl Build {
                         menu_item_title: menu_item_title.clone(),
                         restore_playlist_pos: restore_playlist_pos.clone(),
                         playlist_add: Default::default(),
-                        have_media: false,
+                        want_media: false,
+                        have_media: have_media,
                         transport_slot: transport_slot,
                     };
                     let mut children = vec![];
@@ -455,8 +488,9 @@ impl Build {
                         build.playlist_add,
                         &restore_playlist_pos,
                     );
-                    if build.have_media && !old_have_media {
+                    if !build.have_media.get() && build.want_media {
                         build.transport_slot.ref_push(build_transport(pc));
+                        build.have_media.set(true);
                     }
                     return Ok(out);
                 }).unwrap();
@@ -509,21 +543,24 @@ impl Build {
             return Ok(el_from_raw(style_export::leaf_view_image(style_export::LeafViewImageArgs {
                 trans_align: config_at.trans_align,
                 src: unwrap_value_media_url(&get_field_or_literal(&config_at.data, &data_stack)?)?.url,
-                link: maybe(
-                    &config_at.link,
-                    |l| Ok(
-                        unwrap_value_move_url(
-                            &l.title,
-                            &get_field_or_literal(&l.value, &data_stack)?,
-                            data_stack,
-                            l.to_node,
-                        )?,
-                    ),
-                )?,
-                text: maybe(
-                    &config_at.alt,
-                    |v| Ok(unwrap_value_string(&get_field_or_literal(v, data_stack)?)) as Result<_, String>,
-                )?,
+                link: shed!{
+                    let Some(l) = &config_at.link else {
+                        break None;
+                    };
+                    let Some(d) = maybe_get_field_or_literal(&l.value, &data_stack)? else {
+                        break None;
+                    };
+                    break Some(unwrap_value_move_url(&l.title, &d, data_stack, l.to_node)?);
+                },
+                text: shed!{
+                    let Some(v) = &config_at.alt else {
+                        break None;
+                    };
+                    let Some(d) = maybe_get_field_or_literal(v, data_stack)? else {
+                        break None;
+                    };
+                    break Some(unwrap_value_string(&d));
+                },
                 width: config_at.width.clone(),
                 height: config_at.height.clone(),
             }).root.into()));
@@ -545,7 +582,7 @@ impl Build {
     ) -> El {
         match (|| {
             ta_return!(El, String);
-            self.have_media = true;
+            self.want_media = true;
             let media_type =
                 match unwrap_value_string(
                     &get_field_or_literal(&config_at.media_type_field, data_stack)?,
@@ -559,22 +596,44 @@ impl Build {
                 };
             let src_url = unwrap_value_media_url(&get_field(&config_at.media_file_field, data_stack)?)?;
             self.playlist_add.push((data_id.clone(), PlaylistPushArg {
-                name: maybe(
-                    &config_at.name_field,
-                    |config_at| Ok(unwrap_value_string(&get_field(config_at, data_stack)?)),
-                )?,
-                album: maybe(
-                    &config_at.album_field,
-                    |config_at| Ok(unwrap_value_string(&get_field(config_at, data_stack)?)),
-                )?,
-                artist: maybe(
-                    &config_at.artist_field,
-                    |config_at| Ok(unwrap_value_string(&get_field(config_at, data_stack)?)),
-                )?,
-                cover_source_url: maybe(
-                    &config_at.cover_field,
-                    |config_at| Ok(unwrap_value_media_url(&get_field(config_at, data_stack)?)?),
-                )?,
+                name: shed!{
+                    let Some(config_at) = &config_at.name_field else {
+                        break None;
+                    };
+                    let Some(d) = maybe_get_field(config_at, data_stack) else {
+                        break None;
+                    };
+                    break Some(unwrap_value_string(&d));
+                },
+                album: shed!{
+                    let Some(config_at) = &config_at.album_field else {
+                        break None;
+                    };
+                    let Some(d) = maybe_get_field(config_at, data_stack) else {
+                        break None;
+                    };
+                    break Some(unwrap_value_string(&d));
+                },
+                artist: shed!{
+                    let Some(config_at) = &config_at.artist_field else {
+                        break None;
+                    };
+                    let Some(d) = maybe_get_field(config_at, data_stack) else {
+                        break None;
+                    };
+                    break Some(unwrap_value_string(&d));
+                },
+                cover_source_url: shed!{
+                    let Some(config_at) = &config_at.cover_field else {
+                        break None;
+                    };
+                    log_1(&JsValue::from(format!("got cover field config: {}", config_at)));
+                    let Some(d) = maybe_get_field(config_at, data_stack) else {
+                        break None;
+                    };
+                    log_1(&JsValue::from(format!("got cover field data: {:?}", d)));
+                    break Some(unwrap_value_media_url(&d).map_err(|e| format!("Building cover url: {}", e))?);
+                },
                 source_url: src_url,
                 media_type: media_type,
             }));
@@ -587,7 +646,7 @@ impl Build {
                 let eg = pc.eg();
                 move |_| eg.event(|pc| {
                     log_1(&JsValue::from("Press play button"));
-                    playlist_toggle_play(pc, &state().playlist, Some(data_id.clone()));
+                    playlist_play(pc, &state().playlist, data_id.clone());
                 }).unwrap()
             });
             out.ref_own(
@@ -671,9 +730,18 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
                     sess_id.clone()
                 },
                 None => {
-                    let id = Uuid::new_v4().to_string();
-                    playlist_set_link(pc, &state().playlist, &id);
-                    id
+                    let sess_id = if let Ok(id) = LocalStorage::get::<String>(LOCALSTORAGE_SHARE_SESSION_ID) {
+                        id
+                    } else {
+                        let sess_id = Uuid::new_v4().to_string();
+                        LocalStorage::set(
+                            LOCALSTORAGE_SHARE_SESSION_ID,
+                            &sess_id,
+                        ).log("Error persisting session id");
+                        sess_id
+                    };
+                    playlist_set_link(pc, &state().playlist, &sess_id);
+                    sess_id
                 },
             };
             let link = format!("{}link.html#{}{}", state().base_url, LINK_HASH_PREFIX, sess_id);
@@ -731,11 +799,16 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
                     };
                     modal_el.ref_replace(vec![]);
                     state().playlist.0.share.set(pc, None);
+                    LocalStorage::delete(LOCALSTORAGE_SHARE_SESSION_ID);
                 }).unwrap()
             });
             state().modal_stack.ref_push(modal_el.clone());
         }).unwrap()
     });
+    button_share.ref_own(|b| link!((_pc = pc), (sharing = state().playlist.0.share.clone()), (), (ele = b.weak()), {
+        let ele = ele.upgrade()?;
+        ele.ref_modify_classes(&[(&style_export::class_state_sharing().value, sharing.borrow().is_some())]);
+    }));
 
     // Prev
     let button_prev = el_from_raw(transport_res.button_prev.into());
@@ -875,7 +948,8 @@ pub fn build_page_view(
                     menu_item_title: menu_item_title.clone(),
                     restore_playlist_pos: restore_playlist_pos.clone(),
                     playlist_add: Default::default(),
-                    have_media: false,
+                    want_media: false,
+                    have_media: Rc::new(Cell::new(false)),
                     transport_slot: el_from_raw(
                         style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root.into(),
                     ),

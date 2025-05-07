@@ -1,7 +1,9 @@
 use {
     async_trait::async_trait,
     chrono::Utc,
+    flowcontrol::shed,
     futures::{
+        future::join_all,
         Future,
         FutureExt,
     },
@@ -40,9 +42,8 @@ use {
         constants::LINK_HASH_PREFIX,
         js::{
             async_event,
-            el_audio,
-            el_video,
             get_dom_octothorpe,
+            log_js,
             style_export,
         },
         websocket::Ws,
@@ -52,8 +53,13 @@ use {
         JsValue,
         UnwrapThrowExt,
     },
+    wasm_bindgen_futures::{
+        spawn_local,
+        JsFuture,
+    },
     web_sys::{
         console::log_1,
+        DomException,
         HtmlElement,
         HtmlMediaElement,
     },
@@ -72,11 +78,15 @@ struct PlaylistMediaImage {}
 
 impl PlaylistMedia for PlaylistMediaImage {
     fn wait_until_seekable(&self) -> Pin<Box<dyn Future<Output = ()>>> {
-        return async { }.boxed_local();
+        return async {
+            // nop
+        }.boxed_local();
     }
 
     fn wait_until_buffered(&self) -> Pin<Box<dyn Future<Output = ()>>> {
-        return async { }.boxed_local();
+        return async {
+            // nop
+        }.boxed_local();
     }
 
     fn seek(&self, _time: f64) {
@@ -102,7 +112,7 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
     fn wait_until_seekable(&self) -> Pin<Box<dyn Future<Output = ()>>> {
         let m = self.media.clone();
         return async move {
-            // `HAVE_METADATA`
+            // 1 = `HAVE_METADATA`
             if m.ready_state() < 1 {
                 async_event(&m, "loadedmetadata").await;
             }
@@ -112,8 +122,12 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
     fn wait_until_buffered(&self) -> Pin<Box<dyn Future<Output = ()>>> {
         let m = self.media.clone();
         return async move {
-            // `HAVE_ENOUGH_DATA`
+            // 4 = `HAVE_ENOUGH_DATA`
             if m.ready_state() < 4 {
+                // ios doesn't load until you manually tell it to load, even if preload is set to
+                // auto. This may not be needed with the seek workaround (rare case of two wrongs
+                // making just one wrong).
+                m.load();
                 async_event(&m, "canplaythrough").await;
             }
         }.boxed_local();
@@ -133,6 +147,8 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
 }
 
 struct State_ {
+    media_audio_el: El,
+    media_video_el: El,
     display: El,
     display_over: El,
     display_under: El,
@@ -145,8 +161,7 @@ struct State_ {
 #[derive(Clone)]
 struct State(Rc<State_>);
 
-fn main() {
-    panic::set_hook(Box::new(console_error_panic_hook::hook));
+fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement) {
     let eg = EventGraph::new();
     eg.event(|pc| {
         let base_url;
@@ -159,11 +174,26 @@ fn main() {
                     loc.pathname().unwrap_throw().strip_suffix("link.html").unwrap_throw()
                 );
         }
+        let is_ios = shed!{
+            let user_agent = match window().navigator().user_agent() {
+                Ok(a) => a,
+                Err(e) => {
+                    log_js("Error getting user agent to enable ios workarounds", &e);
+                    break false;
+                },
+            };
+            break user_agent.contains("iPad") || user_agent.contains("iPhone") || user_agent.contains("iPod");
+        };
+        if is_ios {
+            log_1(&JsValue::from("Detected mobile ios, activating webkit workarounds."));
+        }
         let class_state_hide = style_export::class_state_hide().value;
         let hash = get_dom_octothorpe().unwrap();
         let link_id = hash.strip_prefix(LINK_HASH_PREFIX).unwrap();
         let style_res = style_export::app_link();
         let state = State(Rc::new(State_ {
+            media_audio_el: el_from_raw(media_audio_el.into()),
+            media_video_el: el_from_raw(media_video_el.into()),
             display: el_from_raw(style_res.display.into()),
             display_under: el_from_raw(style_res.display_under.into()).clone(),
             display_over: el_from_raw(style_res.display_over.into()).clone(),
@@ -222,7 +252,8 @@ fn main() {
                                             },
                                         }
                                         log_1(&JsValue::from("x12"));
-                                        let media_el = el_audio(&audio.source_url.url);
+                                        let media_el = state.0.media_audio_el.clone();
+                                        media_el.ref_attr("src", &audio.source_url.url);
                                         log_1(&JsValue::from("x13"));
                                         media =
                                             Rc::new(
@@ -234,7 +265,9 @@ fn main() {
                                     },
                                     PrepareMedia::Video(source_url) => {
                                         state.0.display_under.ref_modify_classes(&[(&class_state_hide, true)]);
-                                        let media_el = el_video(&source_url.url).attr("preload", "auto");
+                                        let media_el = state.0.media_video_el.clone();
+                                        media_el.ref_attr("src", &source_url.url);
+                                        state.0.media_video_el.ref_attr("preload", "auto");
                                         state.0.display.ref_push(media_el.clone());
                                         media =
                                             Rc::new(
@@ -274,6 +307,15 @@ fn main() {
                                 log_1(&JsValue::from("x19"));
                                 media.wait_until_buffered().await;
                                 log_1(&JsValue::from("x20"));
+                                if is_ios {
+                                    // Ios safari can't seek until canplaythrough event and then we need to wait again
+                                    // to make sure it can playthrough from the new position... ugh
+                                    log_1(&JsValue::from("x18"));
+                                    media.seek(prepare.media_time);
+                                    log_1(&JsValue::from("x19"));
+                                    media.wait_until_buffered().await;
+                                }
+                                log_1(&JsValue::from("x20b"));
                                 ws.send(WsL2S::Ready(Utc::now())).await;
                                 log_1(&JsValue::from("x21"));
                                 state.0.display_over.ref_modify_classes(&[(&class_state_hide, true)]);
@@ -302,5 +344,59 @@ fn main() {
             }
         });
         set_root(vec![el_from_raw(style_res.root.into()).own(|_| ws)]);
+    });
+}
+
+fn main() {
+    panic::set_hook(Box::new(console_error_panic_hook::hook));
+    spawn_local(async move {
+        // Work around ios safari alone blocking audio-playing media despite the users'
+        // wishes. Supposedly if you keep a single media element around that got
+        // permission you don't need to interactively trigger permission again...
+        let audio_el = document().create_element("audio").unwrap().dyn_into::<HtmlMediaElement>().unwrap();
+        audio_el.set_attribute("src", "audiotest.mp3").unwrap();
+        let video_el = document().create_element("video").unwrap().dyn_into::<HtmlMediaElement>().unwrap();
+        video_el.set_attribute("src", "videotest.webm").unwrap();
+        match JsFuture::from(audio_el.play().unwrap()).await {
+            Ok(_) => {
+                build_link(audio_el, video_el);
+            },
+            Err(e) => {
+                shed!{
+                    let Some(e) = e.dyn_ref::<DomException>() else {
+                        break;
+                    };
+                    if e.name() != "NotAllowedError" {
+                        break;
+                    }
+
+                    // Work around autoplay blocking (ios safari, desktop firefox) by making it a
+                    // non-auto play
+                    let style_res = style_export::app_link_perms();
+                    set_root(vec![el_from_raw(style_res.root.into()).on("click", move |_| {
+                        let bg =
+                            vec![
+                                JsFuture::from(audio_el.play().unwrap()),
+                                JsFuture::from(video_el.play().unwrap())
+                            ];
+                        spawn_local({
+                            let audio_el = audio_el.clone();
+                            let video_el = video_el.clone();
+                            async move {
+                                for res in join_all(bg).await {
+                                    if let Err(e) = res {
+                                        log_js("Error confirming media element permissions", &e);
+                                    }
+                                }
+                                build_link(audio_el, video_el)
+                            }
+                        });
+                    })]);
+                    return;
+                }
+                log_js("Error playing media to guage permissions", &e);
+                panic!("");
+            },
+        }
     });
 }

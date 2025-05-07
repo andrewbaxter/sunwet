@@ -587,6 +587,11 @@
           );
         }
         break;
+      case "#link_perms":
+        {
+          document.body.appendChild(presentation.appLinkPerms({}).root);
+        }
+        break;
       case "#link_waiting":
         {
           document.body.appendChild(presentation.appLink({}).root);

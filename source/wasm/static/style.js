@@ -222,7 +222,8 @@
   const varCBorderModified = vs(uniq(), "rgb(120, 149, 235)", "rgb(0,0,0)");
   const varCBorderError = vs(uniq(), "rgb(192, 61, 80)", "rgb(0,0,0)");
   const varCInputBorder = vs(uniq(), "rgb(154, 157, 168)", "rgb(0,0,0)");
-  const varCSpinner = "rgb(155, 178, 229)";
+  const varCSpinner = v(uniq(), "rgb(155, 178, 229)");
+  const varCHighlightBold = vs(uniq(), "rgb(78, 124, 224)", "rgb(0,0,0)");
   const varCNodeCenter = varCBg2;
 
   // xx State classes
@@ -266,6 +267,11 @@
   presentation.classStatePlaying =
     /** @type { Presentation["classStatePlaying"]} */ () => ({
       value: classStatePlaying,
+    });
+  const classStateSharing = "sharing";
+  presentation.classStateSharing =
+    /** @type { Presentation["classStateSharing"]} */ () => ({
+      value: classStateSharing,
     });
 
   ///////////////////////////////////////////////////////////////////////////////
@@ -470,7 +476,9 @@
         rightChildren: args.rightChildren,
       });
 
-  presentation.contSpinner = /** @type {Presentation["contSpinner"]} */ () => ({
+  presentation.leafSpinner = /** @type {Presentation["leafSpinner"]} */ (
+    args
+  ) => ({
     root: et(
       `
     <svg viewBox="0 0 1 1" xmlns="http://www.w3.org/2000/svg">
@@ -502,6 +510,7 @@
               s.height = size;
             },
           }),
+          ...args.extraStyles,
         ],
       }
     ),
@@ -523,7 +532,7 @@
             },
           }),
         ],
-        children_: [presentation.contSpinner({}).root],
+        children_: [presentation.leafSpinner({ extraStyles: [] }).root],
       }
     );
     if (args.inRoot) {
@@ -726,6 +735,32 @@
 
   // /////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: home
+  const leafLogoText = () =>
+    et(
+      `
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 210.77">
+              <path fill="#fefefe" d="M187.6 100.09a69.05 69.05 0 0 0-68.8-63.7A69.05 69.05 0 0 0 57 74.7c4.35-.17 8.86-.06 13.54.37a56.99 56.99 0 0 1 105.12 26.33 72.7 72.7 0 0 0 11.94-1.31zm-9.93 41.27c-4.6.16-9.37.03-14.31-.45a56.91 56.91 0 0 1-44.56 21.47 57.06 57.06 0 0 1-56.25-47.73c-4.14-.1-8.12.2-12.01.83a69 69 0 0 0 127.14 25.88Z"/>
+              <path fill="none" stroke="#7ca7db" stroke-linecap="round" stroke-width="10" d="M5 110.87c20.49-9.6 40.98-19.2 68-15.39 27.02 3.81 60.58 21.04 88 25 27.42 3.97 48.71-5.32 70-14.6"/>
+              <path fill="none" stroke="#fefefe" stroke-linecap="square" stroke-width="10" d="m34.52 44.15 12.13 8.81M86.6 6.3l4.64 14.27M151 6.3l-4.64 14.27m56.72 23.58-12.13 8.81m12.13 113.66-12.13-8.82M151 204.46l-4.64-14.26M86.6 204.46l4.64-14.26m-56.72-23.58 12.13-8.82"/>
+              <text x="286" y="50%" dominant-baseline="middle">sunwet</text>
+            </svg>
+          `,
+      {
+        styles_: [
+          ss(uniq("leaf_logo_text"), {
+            "": (s) => {
+              s.width = "min(100%, 12cm)";
+              s.padding = "0.5cm";
+            },
+            ">text": (s) => {
+              s.fontSize = "140pt";
+              s.fill = "#fefefe";
+            },
+          }),
+        ],
+      }
+    );
+
   presentation.contPageHome = /** @type {Presentation["contPageHome"]} */ (
     args
   ) => ({
@@ -746,26 +781,9 @@
             [`.${classMenuStateOpen}`]: (s) => {
               s.display = "none";
             },
-            ">svg": (s) => {
-              s.width = "min(100%, 12cm)";
-              s.padding = "0.5cm";
-            },
-            ">svg>text": (s) => {
-              s.fontSize = "140pt";
-              s.fill = "#fefefe";
-            },
           }),
         ],
-        children_: [
-          et(`
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 210.77">
-              <path fill="#fefefe" d="M187.6 100.09a69.05 69.05 0 0 0-68.8-63.7A69.05 69.05 0 0 0 57 74.7c4.35-.17 8.86-.06 13.54.37a56.99 56.99 0 0 1 105.12 26.33 72.7 72.7 0 0 0 11.94-1.31zm-9.93 41.27c-4.6.16-9.37.03-14.31-.45a56.91 56.91 0 0 1-44.56 21.47 57.06 57.06 0 0 1-56.25-47.73c-4.14-.1-8.12.2-12.01.83a69 69 0 0 0 127.14 25.88Z"/>
-              <path fill="none" stroke="#7ca7db" stroke-linecap="round" stroke-width="10" d="M5 110.87c20.49-9.6 40.98-19.2 68-15.39 27.02 3.81 60.58 21.04 88 25 27.42 3.97 48.71-5.32 70-14.6"/>
-              <path fill="none" stroke="#fefefe" stroke-linecap="square" stroke-width="10" d="m34.52 44.15 12.13 8.81M86.6 6.3l4.64 14.27M151 6.3l-4.64 14.27m56.72 23.58-12.13 8.81m12.13 113.66-12.13-8.82M151 204.46l-4.64-14.26M86.6 204.46l4.64-14.26m-56.72-23.58 12.13-8.82"/>
-              <text x="286" y="50%" dominant-baseline="middle">sunwet</text>
-            </svg>
-          `),
-        ],
+        children_: [leafLogoText()],
       }
     ),
   });
@@ -1174,6 +1192,14 @@
       const buttonShare = leafTransportButton({
         title: "Share",
         icons: { "": textIconLink },
+        extraStyles: [
+          ss(uniq("cont_bar_view_transport_share_button"), {
+            [`.${classStateSharing}>div`]: (s) => {
+              s.backdropFilter = "none";
+              s.background = varCHighlightBold;
+            },
+          }),
+        ],
       });
       const buttonPrev = leafTransportButton({
         title: "Previous",
@@ -1601,7 +1627,7 @@
 
   const transportButtonClipPaths = new Map();
   const leafTransportButton =
-    /** @type {(args: { title: string, icons: {[s: string]: string} }) => { root: HTMLElement }} */
+    /** @type {(args: { title: string, icons: {[s: string]: string}, extraStyles?: string[] }) => { root: HTMLElement }} */
     (args) => {
       const size = "1cm";
       const statePairs = Object.entries(args.icons);
@@ -1647,6 +1673,7 @@
           s.clipPath = `url(#${clipPathId})`;
         };
       }
+      const extraStyles = args.extraStyles || [];
       const out = e(
         "button",
         {
@@ -1668,6 +1695,7 @@
               },
             }),
             ss(uniq(...buildStyleId), buildStyle),
+            ...extraStyles,
           ],
           children_: [e("div", {}, {})],
         }
@@ -2234,7 +2262,7 @@
                           "": (s) => {
                             s.writingMode = "vertical-rl";
                           },
-                          ">*:nth-child(1)": (s) => {
+                          ">*": (s) => {
                             s.rotate = "270deg";
                           },
                         };
@@ -2243,19 +2271,19 @@
                           "": (s) => {
                             s.writingMode = "vertical-rl";
                           },
-                          ">*:nth-child(1)": (s) => {
+                          ">*": (s) => {
                             s.rotate = "90deg";
                           },
                         };
                       case "left":
                         return {
-                          ">*:nth-child(1)": (s) => {
+                          ">*": (s) => {
                             s.rotate = "180deg";
                           },
                         };
                       case "right":
                         return {
-                          ">*:nth-child(1)": (s) => {},
+                          ">*": (s) => {},
                         };
                     }
                   }
@@ -3240,6 +3268,64 @@
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: Main
 
+  presentation.appLinkPerms = /** @type {Presentation["appLinkPerms"]} */ (
+    args
+  ) => ({
+    root: e(
+      "button",
+      {},
+      {
+        styles_: [
+          ss(uniq("app_link_perms"), {
+            "": (s) => {
+              s.display = "grid";
+              s.gridTemplateColumns = "1fr";
+              s.gridTemplateRows = "1fr auto 1fr";
+              s.justifyItems = "center";
+              s.alignItems = "center";
+              s.margin = "0.5cm";
+              s.borderRadius = "0.5cm";
+              s.border = `0.06cm solid ${varCForegroundFade}`;
+            },
+            ":hover": (s) => {
+              s.borderColor = varCButtonHover;
+            },
+            ":hover:active": (s) => {
+              s.borderColor = varCButtonClick;
+            },
+            ">*:nth-child(1)": (s) => {
+              s.gridRow = "2";
+            },
+            ">*:nth-child(2)": (s) => {
+              s.gridRow = "3";
+            },
+          }),
+        ],
+        children_: [
+          leafLogoText(),
+          e(
+            "div",
+            { textContent: textIconPlay },
+            {
+              styles_: [
+                leafIconStyle,
+                ss(uniq("app_link_perms_play"), {
+                  "": (s) => {
+                    s.color = varCForegroundFade;
+                    s.fontWeight = "100";
+                    s.fontSize = "50pt";
+                    s.width = "1.5cm";
+                    s.height = "1.5cm";
+                  },
+                }),
+              ],
+            }
+          ),
+        ],
+      }
+    ),
+  });
+
   const varCLinkDisplayBg = v(uniq(), "rgb(35, 35, 36)");
   presentation.appLink = /** @type {Presentation["appLink"]} */ (args) => {
     const display = e(
@@ -3303,14 +3389,13 @@
         ],
       }
     );
-    const displayOver = presentation.leafAsyncBlock({
-      inRoot: false,
+    const displayOver = presentation.leafSpinner({
       extraStyles: [
         hideableStyle,
         ss(uniq("leaf_app_display_over"), {
-          ">*": (s) => {
-            s.gridColumn = "1";
-            s.gridRow = "1";
+          "": (s) => {
+            s.justifySelf = "center";
+            s.alignSelf = "center";
           },
         }),
       ],

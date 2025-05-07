@@ -86,10 +86,17 @@ pub struct CliCommit {
 }
 
 #[derive(Aargvark)]
-pub struct CommitCommand(AargvarkJson<CliCommit>);
+pub struct CommitCommand {
+    debug: Option<()>,
+    commit: AargvarkJson<CliCommit>,
+}
 
 pub async fn handle_commit(c: CommitCommand) -> Result<(), loga::Error> {
-    let log = Log::new_root(loga::INFO);
+    let log = Log::new_root(if c.debug.is_some() {
+        loga::DEBUG
+    } else {
+        loga::INFO
+    });
 
     // # Build commit info
     let mut commit = ReqCommit {
@@ -134,7 +141,7 @@ pub async fn handle_commit(c: CommitCommand) -> Result<(), loga::Error> {
     }
 
     log.log(loga::INFO, "Processing commit");
-    let base_dir = match c.0.source {
+    let base_dir = match c.commit.source {
         aargvark::traits_impls::Source::Stdin => current_dir().stack_context(
             &log,
             "Error determining current dir for relative path normalization",
@@ -146,7 +153,7 @@ pub async fn handle_commit(c: CommitCommand) -> Result<(), loga::Error> {
             .unwrap()
             .to_path_buf(),
     };
-    for (i, t) in c.0.value.add.into_iter().enumerate() {
+    for (i, t) in c.commit.value.add.into_iter().enumerate() {
         let s =
             process_node(&log, &mut commit, &mut files, &base_dir, t.subject)
                 .await
@@ -161,7 +168,7 @@ pub async fn handle_commit(c: CommitCommand) -> Result<(), loga::Error> {
             object: o,
         });
     }
-    for (i, t) in c.0.value.remove.into_iter().enumerate() {
+    for (i, t) in c.commit.value.remove.into_iter().enumerate() {
         let s =
             process_node(&log, &mut commit, &mut files, &base_dir, t.subject)
                 .await

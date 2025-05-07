@@ -158,6 +158,11 @@ fn main() {
             args: vec![],
             returns: vec![("value", &string_)],
         },
+        Func {
+            name: "classStateSharing",
+            args: vec![],
+            returns: vec![("value", &string_)],
+        },
         // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: all
         Func {
@@ -214,8 +219,8 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         Func {
-            name: "contSpinner",
-            args: vec![],
+            name: "leafSpinner",
+            args: vec![("extraStyles", &arrstring_)],
             returns: vec![("root", &el_)],
         },
         Func {
@@ -551,6 +556,11 @@ fn main() {
         },
         // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: Link
+        Func {
+            name: "appLinkPerms",
+            args: vec![],
+            returns: vec![("root", &el_)],
+        },
         Func {
             name: "appLink",
             args: vec![],

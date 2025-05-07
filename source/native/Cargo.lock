@@ -1191,7 +1191,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7226a13a85e399971e0e65ed4e900860933df7c5117fbe3289e16c261d2c0ba7"
 dependencies = [
  "http 1.2.0",
- "htwrap 0.11.1",
+ "htwrap",
  "loga",
  "serde_json",
  "uri",
@@ -1697,40 +1697,9 @@ checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
 
 [[package]]
 name = "htwrap"
-version = "0.10.2"
+version = "0.11.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f25cac8b2c91f31ff4c2e0d89c1e3b407e8948f87557e02b6253861206812a48"
-dependencies = [
- "async-stream",
- "async-trait",
- "flowcontrol",
- "format-bytes",
- "futures",
- "hickory-resolver",
- "http 1.2.0",
- "http-body",
- "http-body-util",
- "hyper",
- "hyper-rustls",
- "hyper-util",
- "loga",
- "rand 0.8.5",
- "rustls",
- "serde",
- "serde_json",
- "sha2",
- "tokio",
- "tokio-rustls",
- "tokio-stream",
- "tokio-util",
- "tower-service",
-]
-
-[[package]]
-name = "htwrap"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d157e0479cf6c7d53aa0b3171e8f9f886d150d7ebf22a0f8afeb7ff47e3fe09"
+checksum = "7978d02fccb5daed609c02521fcf85ebf1e51befc50563f9039e85264df7e49d"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -2384,7 +2353,7 @@ dependencies = [
  "http-body",
  "http-body-util",
  "http-serde",
- "htwrap 0.10.2",
+ "htwrap",
  "hyper",
  "hyper-tungstenite",
  "hyper-util",
