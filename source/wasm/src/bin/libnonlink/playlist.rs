@@ -13,10 +13,6 @@ use {
         Duration,
         Utc,
     },
-    futures::{
-        Future,
-        FutureExt,
-    },
     gloo::{
         timers::{
             callback::Interval,
@@ -53,7 +49,6 @@ use {
         },
         collections::BTreeMap,
         ops::Bound,
-        pin::Pin,
         rc::{
             Rc,
             Weak,
@@ -61,11 +56,16 @@ use {
     },
     wasm::{
         js::{
-            async_event,
             el_audio,
             el_video,
+            is_ios,
             log,
-            LogJsErr,
+        },
+        js_media::{
+            PlaylistMediaAudio,
+            PlaylistMediaImage,
+            PlaylistMedia,
+            PlaylistMediaVideo,
         },
         websocket::Ws,
         world::generated_file_url,
@@ -76,209 +76,13 @@ use {
         JsValue,
     },
     web_sys::{
+        console::log_1,
         HtmlMediaElement,
         MediaMetadata,
     },
 };
 
 pub type PlaylistIndex = Vec<usize>;
-
-pub trait PlaylistMedia {
-    fn pm_display(&self) -> bool;
-    fn pm_play(&self);
-    fn pm_stop(&self);
-
-    fn pm_seek_forward(&self, offset_seconds: f64) {
-        let time = self.pm_get_time();
-        self.pm_seek(time + offset_seconds);
-    }
-
-    fn pm_seek_backwards(&self, offset_seconds: f64) {
-        let time = self.pm_get_time();
-        self.pm_seek(time - offset_seconds);
-    }
-    fn pm_get_time(&self) -> f64;
-    fn pm_get_max_time(&self) -> Option<f64>;
-    fn pm_seek(&self, time: f64);
-    fn pm_preload(&self);
-    fn pm_unpreload(&self);
-    fn pm_el(&self) -> &El;
-    fn pm_wait_until_buffered(&self) -> Pin<Box<dyn Future<Output = ()>>>;
-}
-
-pub struct AudioPlaylistMedia {
-    pub element: El,
-}
-
-impl AudioPlaylistMedia {
-    fn pm_media(&self) -> HtmlMediaElement {
-        return self.element.raw().dyn_ref::<HtmlMediaElement>().unwrap().to_owned();
-    }
-}
-
-impl PlaylistMedia for AudioPlaylistMedia {
-    fn pm_display(&self) -> bool {
-        return false;
-    }
-
-    fn pm_el(&self) -> &El {
-        return &self.element;
-    }
-
-    fn pm_play(&self) {
-        let audio = self.pm_media();
-        audio.play().log("Error playing audio");
-    }
-
-    fn pm_stop(&self) {
-        let audio = self.pm_media();
-        audio.pause().unwrap();
-    }
-
-    fn pm_get_max_time(&self) -> Option<f64> {
-        let audio = self.pm_media();
-        let out = audio.duration();
-        if !out.is_finite() {
-            return None;
-        } else {
-            return Some(out);
-        }
-    }
-
-    fn pm_get_time(&self) -> f64 {
-        return self.pm_media().current_time();
-    }
-
-    fn pm_seek(&self, time: f64) {
-        self.pm_media().set_current_time(time);
-    }
-
-    fn pm_preload(&self) {
-        self.element.ref_attr("preload", "auto");
-    }
-
-    fn pm_unpreload(&self) {
-        self.element.ref_attr("preload", "metadata");
-    }
-
-    fn pm_wait_until_buffered(&self) -> Pin<Box<dyn Future<Output = ()>>> {
-        let m = self.pm_media().clone();
-        return async move {
-            // `HAVE_ENOUGH_DATA`
-            if m.ready_state() < 4 {
-                async_event(&m, "canplaythrough").await;
-            }
-        }.boxed_local();
-    }
-}
-
-pub struct VideoPlaylistMedia {
-    pub element: El,
-}
-
-impl VideoPlaylistMedia {
-    fn pm_media(&self) -> HtmlMediaElement {
-        return self.element.raw().dyn_ref::<HtmlMediaElement>().unwrap().to_owned();
-    }
-}
-
-impl PlaylistMedia for VideoPlaylistMedia {
-    fn pm_display(&self) -> bool {
-        return true;
-    }
-
-    fn pm_el(&self) -> &El {
-        return &self.element;
-    }
-
-    fn pm_play(&self) {
-        let s = self.pm_media();
-        s.play().log("Error playing video");
-    }
-
-    fn pm_stop(&self) {
-        let s = self.pm_media();
-        s.pause().unwrap();
-    }
-
-    fn pm_get_max_time(&self) -> Option<f64> {
-        let s = self.pm_media();
-        let out = s.duration();
-        if !out.is_finite() {
-            return None;
-        } else {
-            return Some(out);
-        }
-    }
-
-    fn pm_get_time(&self) -> f64 {
-        return self.pm_media().current_time();
-    }
-
-    fn pm_seek(&self, time: f64) {
-        self.pm_media().set_current_time(time);
-    }
-
-    fn pm_preload(&self) {
-        self.element.ref_attr("preload", "auto");
-    }
-
-    fn pm_unpreload(&self) {
-        self.element.ref_attr("preload", "metadata");
-    }
-
-    fn pm_wait_until_buffered(&self) -> Pin<Box<dyn Future<Output = ()>>> {
-        let m = self.pm_media().clone();
-        return async move {
-            // `HAVE_ENOUGH_DATA`
-            if m.ready_state() < 4 {
-                async_event(&m, "canplaythrough").await;
-            }
-        }.boxed_local();
-    }
-}
-
-pub struct ImagePlaylistMedia {
-    pub element: El,
-}
-
-impl ImagePlaylistMedia { }
-
-impl PlaylistMedia for ImagePlaylistMedia {
-    fn pm_display(&self) -> bool {
-        return true;
-    }
-
-    fn pm_el(&self) -> &El {
-        return &self.element;
-    }
-
-    fn pm_play(&self) { }
-
-    fn pm_stop(&self) { }
-
-    fn pm_get_max_time(&self) -> Option<f64> {
-        return None;
-    }
-
-    fn pm_get_time(&self) -> f64 {
-        return 0.;
-    }
-
-    fn pm_seek(&self, _time: f64) { }
-
-    fn pm_preload(&self) {
-        self.element.ref_attr("loading", "eager");
-    }
-
-    fn pm_unpreload(&self) {
-        self.element.ref_attr("loading", "auto");
-    }
-
-    fn pm_wait_until_buffered(&self) -> Pin<Box<dyn Future<Output = ()>>> {
-        return async { }.boxed_local();
-    }
-}
 
 #[derive(Deserialize, Clone, Copy)]
 pub enum PlaylistEntryMediaType {
@@ -305,8 +109,9 @@ pub struct PlaylistState_ {
     pub playing: HistPrim<bool>,
     // Must be Some if playing, otherwise may be Some.
     pub playing_i: HistPrim<Option<PlaylistIndex>>,
+    pub media_time: Prim<f64>,
     pub playing_time: Prim<f64>,
-    pub playing_max_time: Prim<Option<f64>>,
+    pub media_max_time: Prim<Option<f64>>,
     pub share: Prim<Option<(String, Ws<WsC2S, WsS2C>)>>,
 }
 
@@ -336,6 +141,10 @@ fn playlist_first_index(state: &PlaylistState) -> Option<PlaylistIndex> {
 }
 
 pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState, rooting::ScopeValue) {
+    let is_ios = is_ios();
+    if is_ios {
+        log_1(&JsValue::from("Detected mobile ios, activating webkit workarounds."));
+    }
     let playlist_state = PlaylistState(Rc::new(PlaylistState_ {
         debounce: Cell::new(Utc::now()),
         base_url: base_url,
@@ -343,7 +152,8 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
         playing: HistPrim::new(pc, false),
         playing_i: HistPrim::new(pc, None),
         playing_time: Prim::new(0.),
-        playing_max_time: Prim::new(None),
+        media_time: Prim::new(0.),
+        media_max_time: Prim::new(None),
         ministate_menu_item_id_title: RefCell::new(None),
         share: Prim::new(None),
     }));
@@ -376,7 +186,7 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
         move |pc, _args| {
             state.0.playing.set(pc, false);
             state.0.playing_i.set(pc, None);
-            state.0.playing_max_time.set(pc, None);
+            state.0.media_max_time.set(pc, None);
         }
     })));
     media_session.set_action_handler(web_sys::MediaSessionAction::Nexttrack, Some(&media_fn(pc, {
@@ -420,14 +230,16 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
             playlist_seek(pc, &state, time);
         }
     })));
+    let bg = Rc::new(Cell::new(None));
     return (playlist_state.clone(), scope_any((
         //. .
+        // Play, pause, track switch
         link!(
             //. .
             (_pc = pc),
             (playing = playlist_state.0.playing.clone(), playing_i = playlist_state.0.playing_i.clone()),
             (),
-            (playlist_state = playlist_state.clone(), media_session = media_session, bg = Cell::new(None)) {
+            (playlist_state = playlist_state.clone(), media_session = media_session, bg = bg.clone()) {
                 match playlist_state.0.playing_i.get() {
                     Some(i) => {
                         let e = playlist_state.0.playlist.borrow().get(&i).cloned().unwrap();
@@ -524,6 +336,7 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
                 }
             }
         ),
+        // Progression of time, from media element
         Interval::new(1000, {
             let state = playlist_state.clone();
             let eg = pc.eg();
@@ -546,8 +359,8 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
                 }
                 last_state.set(Some(new_state));
                 eg.event(|pc| {
-                    state.0.playing_time.set(pc, time);
-                    state.0.playing_max_time.set(pc, max_time);
+                    state.0.media_time.set(pc, time);
+                    state.0.media_max_time.set(pc, max_time);
                 });
                 if let Some((menu_item_id, title)) = state.0.ministate_menu_item_id_title.borrow().as_ref() {
                     record_replace_ministate(&Ministate::View(MinistateView {
@@ -561,6 +374,69 @@ pub fn state_new(pc: &mut ProcessingContext, base_url: String) -> (PlaylistState
                 }
             }
         }),
+        // Sync progression of time back
+        link!(
+            //. .
+            (pc = pc),
+            (media_time = playlist_state.0.media_time.clone()),
+            (playing_time = playlist_state.0.playing_time.clone()),
+            () {
+                playing_time.set(pc, *media_time.borrow());
+            }
+        ),
+        // Seek
+        link!(
+            //. .
+            (pc = pc),
+            (playing_time = playlist_state.0.playing_time.clone()),
+            (media_time = playlist_state.0.media_time.clone()),
+            (playlist_state = playlist_state.clone(), bg = bg.clone(), is_ios = is_ios) {
+                let new_time = *playing_time.borrow();
+                media_time.set(pc, new_time);
+                if *playlist_state.0.playing.borrow() {
+                    let i = playlist_state.0.playing_i.get().unwrap();
+                    let e = playlist_state.0.playlist.borrow().get(&i).cloned().unwrap();
+                    if let Some((_, ws)) = &*playlist_state.0.share.borrow() {
+                        playlist_state.0.debounce.set(Utc::now());
+                        e.media.pm_stop();
+                        let is_ios = *is_ios;
+                        bg.set(Some(spawn_rooted({
+                            let ws = ws.clone();
+                            async move {
+                                ws.send(WsC2S::Prepare(Prepare {
+                                    artist: e.artist.clone().unwrap_or_default(),
+                                    album: e.album.clone().unwrap_or_default(),
+                                    name: e.name.clone().unwrap_or_default(),
+                                    media: match e.media_type {
+                                        PlaylistEntryMediaType::Audio => PrepareMedia::Audio(PrepareAudio {
+                                            cover_source_url: e.cover_source_url.clone(),
+                                            source_url: e.source_url.clone(),
+                                        }),
+                                        PlaylistEntryMediaType::Video => PrepareMedia::Video(e.source_url.clone()),
+                                        PlaylistEntryMediaType::Image => PrepareMedia::Image(e.source_url.clone()),
+                                    },
+                                    media_time: new_time,
+                                })).await;
+                                e.media.pm_preload();
+                                e.media.pm_wait_until_seekable().await;
+                                e.media.pm_seek(new_time);
+                                e.media.pm_wait_until_buffered().await;
+                                if is_ios {
+                                    // Ios safari can't seek until canplaythrough event and then we need to wait again
+                                    // to make sure it can playthrough from the new position... ugh
+                                    e.media.pm_seek(new_time);
+                                    e.media.pm_wait_until_buffered().await;
+                                }
+                                ws.send(WsC2S::Ready(Utc::now())).await;
+                            }
+                        })));
+                    } else {
+                        playlist_state.0.debounce.set(Utc::now());
+                        e.media.pm_seek(new_time);
+                    }
+                }
+            }
+        ),
     )));
 }
 
@@ -666,7 +542,7 @@ pub fn playlist_extend(
             PlaylistEntryMediaType::Audio => {
                 let media = el_audio(&entry.source_url.url).attr("controls", "true");
                 setup_media_element(pc, &media);
-                box_media = Box::new(AudioPlaylistMedia { element: media.clone() });
+                box_media = Box::new(PlaylistMediaAudio { element: media.clone() });
             },
             PlaylistEntryMediaType::Video => {
                 let mut sub_tracks = vec![];
@@ -700,11 +576,11 @@ pub fn playlist_extend(
                     }
                     media.ref_push(track);
                 }
-                box_media = Box::new(VideoPlaylistMedia { element: media.clone() });
+                box_media = Box::new(PlaylistMediaVideo { element: media.clone() });
             },
             PlaylistEntryMediaType::Image => {
                 let media = el("img").attr("src", &entry.source_url.url).attr("loading", "lazy");
-                box_media = Box::new(ImagePlaylistMedia { element: media.clone() });
+                box_media = Box::new(PlaylistMediaImage { element: media.clone() });
             },
         }
         playlist_state.0.playlist.borrow_mut().insert(entry_index, Rc::new(PlaylistEntry {
@@ -722,7 +598,7 @@ pub fn playlist_extend(
 pub fn playlist_clear(pc: &mut ProcessingContext, state: &PlaylistState) {
     state.0.playing.set(pc, false);
     state.0.playing_i.set(pc, None);
-    state.0.playing_max_time.set(pc, None);
+    state.0.media_max_time.set(pc, None);
     state.0.playlist.borrow_mut().clear();
 }
 
@@ -734,23 +610,22 @@ pub fn playlist_toggle_play(pc: &mut ProcessingContext, state: &PlaylistState, i
             state.0.playing.set(pc, false);
         } else {
             state.0.playing_i.set(pc, Some(i.clone()));
+            state.0.playing_time.set(pc, 0.);
         }
     } else {
         if state.0.playlist.borrow().is_empty() {
             return;
         }
         let i = i.or(state.0.playing_i.get()).unwrap_or(playlist_first_index(state).unwrap());
+        if match &*state.0.playing_i.borrow() {
+            Some(current_i) => *current_i != i,
+            None => true,
+        } {
+            state.0.playing_time.set(pc, 0.);
+        }
         state.0.playing_i.set(pc, Some(i));
         state.0.playing.set(pc, true);
     }
-}
-
-pub fn playlist_play(pc: &mut ProcessingContext, state: &PlaylistState, i: PlaylistIndex) {
-    if state.0.playlist.borrow().is_empty() {
-        return;
-    }
-    state.0.playing_i.set(pc, Some(i));
-    state.0.playing.set(pc, true);
 }
 
 pub fn playlist_next(pc: &mut ProcessingContext, state: &PlaylistState, basis: Option<PlaylistIndex>) {
@@ -759,9 +634,10 @@ pub fn playlist_next(pc: &mut ProcessingContext, state: &PlaylistState, basis: O
     };
     if let Some((i, _)) = state.0.playlist.borrow().range((Bound::Excluded(i), Bound::Unbounded)).next() {
         state.0.playing_i.set(pc, Some(i.clone()));
+        state.0.playing_time.set(pc, 0.);
     } else {
         state.0.playing_i.set(pc, None);
-        state.0.playing_max_time.set(pc, None);
+        state.0.media_max_time.set(pc, None);
         state.0.playing.set(pc, false);
         state.0.playing_time.set(pc, 0.);
         if let Some((menu_item_id, title)) = state.0.ministate_menu_item_id_title.borrow().as_ref() {
@@ -780,10 +656,12 @@ pub fn playlist_previous(pc: &mut ProcessingContext, state: &PlaylistState, basi
     };
     if let Some((i, _)) = state.0.playlist.borrow().range((Bound::Unbounded, Bound::Excluded(i))).rev().next() {
         state.0.playing_i.set(pc, Some(i.clone()));
+        state.0.playing_time.set(pc, 0.);
     } else {
         state.0.playing_i.set(pc, None);
-        state.0.playing_max_time.set(pc, None);
+        state.0.media_max_time.set(pc, None);
         state.0.playing.set(pc, false);
+        state.0.playing_time.set(pc, 0.);
     }
 }
 
@@ -804,10 +682,6 @@ pub fn playlist_resume(pc: &mut ProcessingContext, state: &PlaylistState) {
     state.0.playing.set(pc, true);
 }
 
-pub fn playlist_seek(_pc: &mut ProcessingContext, state: &PlaylistState, time: f64) {
-    let Some(i) = state.0.playing_i.get() else {
-        return;
-    };
-    let pm = state.0.playlist.borrow().get(&i).cloned().unwrap();
-    pm.media.pm_seek(time);
+pub fn playlist_seek(pc: &mut ProcessingContext, state: &PlaylistState, time: f64) {
+    state.0.playing_time.set(pc, time);
 }

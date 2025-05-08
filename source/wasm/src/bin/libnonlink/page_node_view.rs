@@ -25,7 +25,7 @@ use {
     },
     wasm::{
         js::{
-            el_async,
+            el_async_,
             style_export,
         },
         ont,
@@ -59,7 +59,7 @@ fn build_node_el(node: &Node, link: bool) -> El {
 }
 
 pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node) {
-    set_page(pc, title, el_async({
+    set_page(pc, title, el_async_(true, {
         let eg = pc.eg();
         let title = title.to_string();
         let node = node.clone();

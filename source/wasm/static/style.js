@@ -161,6 +161,7 @@
   ///////////////////////////////////////////////////////////////////////////////
   // xx Constants
 
+  const textIconClick = "\uf718";
   const textIconPlay = "\ue037";
   const textIconPause = "\ue034";
   const textIconDelete = "\ue15b";
@@ -350,6 +351,25 @@
       s.gridRow = "1";
     },
   });
+  const leafIcon =
+    /** @type {(args: {text: string, extraStyles?: string[]})=>HTMLElement} */ (
+      args
+    ) =>
+      et(
+        `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+          <g transform="translate(50 50)"><text style="
+            text-anchor: middle;
+            dominant-baseline: middle;
+            font-family: I;
+            font-size: 90px;
+          ">${args.text}</text></g>
+        </svg>
+      `,
+        {
+          styles_: args.extraStyles,
+        }
+      );
 
   presentation.contBar = /** @type {Presentation["contBar"]} */ (args) => {
     /** @type { (children: Element[]) => HTMLElement} */
@@ -544,7 +564,7 @@
         "div",
         {},
         {
-          styles_: [contGroupStyle, ...args.extraStyles],
+          styles_: [contGroupStyle],
           children_: [inner],
         }
       ),
@@ -568,6 +588,7 @@
             },
             ">span": (s) => {
               s.color = varCForegroundError;
+              s.pointerEvents = "initial";
             },
           }),
         ],
@@ -735,31 +756,29 @@
 
   // /////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: home
-  const leafLogoText = () =>
-    et(
-      `
+  const leafLogoText =
+    /** @type {(args: {extraStyles?:string[]})=>HTMLElement} */ (args) =>
+      et(
+        `
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 210.77">
               <path fill="#fefefe" d="M187.6 100.09a69.05 69.05 0 0 0-68.8-63.7A69.05 69.05 0 0 0 57 74.7c4.35-.17 8.86-.06 13.54.37a56.99 56.99 0 0 1 105.12 26.33 72.7 72.7 0 0 0 11.94-1.31zm-9.93 41.27c-4.6.16-9.37.03-14.31-.45a56.91 56.91 0 0 1-44.56 21.47 57.06 57.06 0 0 1-56.25-47.73c-4.14-.1-8.12.2-12.01.83a69 69 0 0 0 127.14 25.88Z"/>
               <path fill="none" stroke="#7ca7db" stroke-linecap="round" stroke-width="10" d="M5 110.87c20.49-9.6 40.98-19.2 68-15.39 27.02 3.81 60.58 21.04 88 25 27.42 3.97 48.71-5.32 70-14.6"/>
               <path fill="none" stroke="#fefefe" stroke-linecap="square" stroke-width="10" d="m34.52 44.15 12.13 8.81M86.6 6.3l4.64 14.27M151 6.3l-4.64 14.27m56.72 23.58-12.13 8.81m12.13 113.66-12.13-8.82M151 204.46l-4.64-14.26M86.6 204.46l4.64-14.26m-56.72-23.58 12.13-8.82"/>
-              <text x="286" y="50%" dominant-baseline="middle">sunwet</text>
+              <text x="286" y="50%" style="font-size: 140pt;" dominant-baseline="middle">sunwet</text>
             </svg>
           `,
-      {
-        styles_: [
-          ss(uniq("leaf_logo_text"), {
-            "": (s) => {
-              s.width = "min(100%, 12cm)";
-              s.padding = "0.5cm";
-            },
-            ">text": (s) => {
-              s.fontSize = "140pt";
-              s.fill = "#fefefe";
-            },
-          }),
-        ],
-      }
-    );
+        {
+          styles_: [
+            ss(uniq("leaf_logo_text"), {
+              "": (s) => {
+                s.width = "min(100%, 12cm)";
+                s.padding = "0.5cm";
+              },
+            }),
+            ...(args.extraStyles || []),
+          ],
+        }
+      );
 
   presentation.contPageHome = /** @type {Presentation["contPageHome"]} */ (
     args
@@ -783,7 +802,17 @@
             },
           }),
         ],
-        children_: [leafLogoText()],
+        children_: [
+          leafLogoText({
+            extraStyles: [
+              ss(uniq("cont_page_home_logo"), {
+                ">text": (s) => {
+                  s.fill = "#fefefe";
+                },
+              }),
+            ],
+          }),
+        ],
       }
     ),
   });
@@ -2039,6 +2068,29 @@
   ) => {
     const out = (() => {
       if (args.link != null) {
+        const img = e(
+          "img",
+          {},
+          {
+            styles_: [
+              ss(uniq("leaf_view_image_url_img"), {
+                "": (s) => {
+                  s.objectFit = "contain";
+                  s.aspectRatio = "auto";
+                  s.borderRadius = "0.2cm";
+                  s.width = "100%";
+                  s.height = "100%";
+                },
+              }),
+            ],
+          }
+        );
+        if (args.src != null) {
+          img.src = args.src;
+        }
+        if (args.text != null) {
+          img.alt = args.text;
+        }
         return e(
           "a",
           { href: args.link },
@@ -2060,37 +2112,13 @@
                 }
               })(),
             ],
-            children_: [
-              e(
-                "img",
-                {
-                  src: args.src,
-                  alt: args.text,
-                },
-                {
-                  styles_: [
-                    ss(uniq("leaf_view_image_url_img"), {
-                      "": (s) => {
-                        s.objectFit = "contain";
-                        s.aspectRatio = "auto";
-                        s.borderRadius = "0.2cm";
-                        s.width = "100%";
-                        s.height = "100%";
-                      },
-                    }),
-                  ],
-                }
-              ),
-            ],
+            children_: [img],
           }
         );
       } else {
-        return e(
+        const img = e(
           "img",
-          {
-            src: args.src,
-            alt: args.text,
-          },
+          {},
           {
             styles_: [
               ss(uniq("leaf_view_image_nourl"), {
@@ -2114,6 +2142,13 @@
             ],
           }
         );
+        if (args.src != null) {
+          img.src = args.src;
+        }
+        if (args.text != null) {
+          img.alt = args.text;
+        }
+        return img;
       }
     })();
     if (args.width) {
@@ -2215,16 +2250,53 @@
   presentation.leafViewPlayButton =
     /** @type { Presentation["leafViewPlayButton"] } */ (args) => {
       const transAlign = args.transAlign || "start";
-      const direction = args.direction || "right";
-      const playIconStyle = ss(uniq("leaf_view_play_inner"), {
+      const orientation = args.orientation || "right_down";
+      const conv1 = conv(orientation);
+      const trans1 = trans(orientation);
+      const iconStyle = ss(uniq("leaf_view_play_inner"), {
         "": (s) => {
           s.width = "100%";
           s.height = "100%";
-          s.writingMode = "horizontal-tb";
-          s.fontSize = "24pt";
+          s.objectFit = "contain";
+          s.aspectRatio = "1/1";
+          s.position = "relative";
+        },
+        " text": (s) => {
           s.fontWeight = "100";
         },
       });
+      const iconStyleConv = ss(
+        uniq("leaf_view_play_inner_conv", conv1),
+        /** @type { () => ({[suffix: string]: (s: CSSStyleDeclaration) => void}) } */ (
+          () => {
+            switch (conv1) {
+              case "up":
+                return {
+                  " text": (s) => {
+                    s.rotate = "270deg";
+                  },
+                };
+              case "down":
+                return {
+                  " text": (s) => {
+                    s.rotate = "90deg";
+                  },
+                };
+              case "left":
+                return {
+                  " text": (s) => {
+                    s.rotate = "180deg";
+                  },
+                };
+              case "right":
+                return {
+                  " text": (s) => {},
+                };
+            }
+          }
+        )()
+      );
+      const lineShift = "-0.7em";
       return {
         root: e(
           "button",
@@ -2237,53 +2309,46 @@
                   const size = "1cm";
                   s.width = size;
                   s.height = size;
-                  // Hack to override baseline using inline-block weirdness...
-                  // https://stackoverflow.com/questions/39373787/css-set-baseline-of-inline-block-element-manually-and-have-it-take-the-expected
-                  s.display = "inline-block";
-                  s.textWrapMode = "nowrap";
+                  s.position = "relative";
                 },
-                [`>div:nth-child(2)`]: (s) => {
+                [`>*:nth-child(2)`]: (s) => {
                   s.display = "none";
                 },
-                [`.${classStatePlaying}>div:nth-child(1)`]: (s) => {
+                [`.${classStatePlaying}>*:nth-child(1)`]: (s) => {
                   s.display = "none";
                 },
-                [`.${classStatePlaying}>div:nth-child(2)`]: (s) => {
+                [`.${classStatePlaying}>*:nth-child(2)`]: (s) => {
                   s.display = "initial";
                 },
               }),
               ss(
-                uniq("leaf_view_play", direction),
+                uniq("leaf_view_play_inner_trans", trans1),
                 /** @type { () => ({[suffix: string]: (s: CSSStyleDeclaration) => void}) } */ (
                   () => {
-                    switch (direction) {
+                    switch (trans1) {
                       case "up":
                         return {
                           "": (s) => {
-                            s.writingMode = "vertical-rl";
-                          },
-                          ">*": (s) => {
-                            s.rotate = "270deg";
+                            s.bottom = lineShift;
                           },
                         };
                       case "down":
                         return {
                           "": (s) => {
-                            s.writingMode = "vertical-rl";
-                          },
-                          ">*": (s) => {
-                            s.rotate = "90deg";
+                            s.top = lineShift;
                           },
                         };
                       case "left":
                         return {
-                          ">*": (s) => {
-                            s.rotate = "180deg";
+                          "": (s) => {
+                            s.right = lineShift;
                           },
                         };
                       case "right":
                         return {
-                          ">*": (s) => {},
+                          "": (s) => {
+                            s.left = lineShift;
+                          },
                         };
                     }
                   }
@@ -2301,16 +2366,14 @@
               })(),
             ],
             children_: [
-              e(
-                "div",
-                { textContent: textIconPlay },
-                { styles_: [leafIconStyle, playIconStyle] }
-              ),
-              e(
-                "div",
-                { textContent: textIconPause },
-                { styles_: [leafIconStyle, playIconStyle] }
-              ),
+              leafIcon({
+                text: textIconPlay,
+                extraStyles: [iconStyle, iconStyleConv],
+              }),
+              leafIcon({
+                text: textIconPause,
+                extraStyles: [iconStyle, iconStyleConv],
+              }),
             ],
           }
         ),
@@ -3270,8 +3333,8 @@
 
   presentation.appLinkPerms = /** @type {Presentation["appLinkPerms"]} */ (
     args
-  ) => ({
-    root: e(
+  ) => {
+    const button = e(
       "button",
       {},
       {
@@ -3302,29 +3365,53 @@
           }),
         ],
         children_: [
-          leafLogoText(),
-          e(
-            "div",
-            { textContent: textIconPlay },
-            {
-              styles_: [
-                leafIconStyle,
-                ss(uniq("app_link_perms_play"), {
-                  "": (s) => {
-                    s.color = varCForegroundFade;
-                    s.fontWeight = "100";
-                    s.fontSize = "50pt";
-                    s.width = "1.5cm";
-                    s.height = "1.5cm";
-                  },
-                }),
-              ],
-            }
-          ),
+          leafLogoText({
+            extraStyles: [
+              ss(uniq("app_link_perms_logo"), {
+                " text": (s) => {
+                  s.fill = "#fefefe";
+                  s.fontWeight = "200";
+                },
+              }),
+            ],
+          }),
+          leafIcon({
+            text: textIconClick,
+            extraStyles: [
+              ss(uniq("app_link_perms_play"), {
+                "": (s) => {
+                  s.width = "3cm";
+                  s.height = "3cm";
+                },
+                " text": (s) => {
+                  s.fill = varCForegroundDark;
+                  s.fontWeight = "100";
+                },
+              }),
+            ],
+          }),
         ],
       }
-    ),
-  });
+    );
+    return {
+      root: e(
+        "div",
+        {},
+        {
+          styles_: [
+            contStackStyle,
+            ss(uniq("app_link_perms_bg"), {
+              "": (s) => {
+                s.backgroundColor = varCBackgroundDark;
+              },
+            }),
+          ],
+          children_: [button],
+        }
+      ),
+      button: button,
+    };
+  };
 
   const varCLinkDisplayBg = v(uniq(), "rgb(35, 35, 36)");
   presentation.appLink = /** @type {Presentation["appLink"]} */ (args) => {

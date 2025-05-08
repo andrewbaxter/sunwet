@@ -75,7 +75,7 @@
                             [
                               presentation.leafViewPlayButton({
                                 transAlign: "start",
-                                direction: "down",
+                                orientation: "down_left",
                               }).root,
                               presentation.leafViewText({
                                 transAlign: "start",
@@ -104,7 +104,7 @@
                             [
                               presentation.leafViewPlayButton({
                                 transAlign: "start",
-                                direction: "down",
+                                orientation: "down_left",
                               }).root,
                               presentation.leafViewText({
                                 transAlign: "start",
@@ -168,7 +168,7 @@
                             [
                               presentation.leafViewPlayButton({
                                 transAlign: "start",
-                                direction: "down",
+                                orientation: "down_left",
                               }).root,
                               presentation.leafViewText({
                                 transAlign: "start",

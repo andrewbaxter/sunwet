@@ -63,7 +63,6 @@ let
     ./native/Cargo.lock
     ./native
     ./shared
-    ./htwrap
   ];
   native = naersk.buildPackage {
     pname = "sunwet-native";

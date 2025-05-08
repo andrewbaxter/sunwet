@@ -156,7 +156,7 @@ pub struct WidgetPlayButton {
     #[serde(default)]
     pub cover_field: Option<String>,
     #[serde(default)]
-    pub direction: Option<Direction>,
+    pub orientation: Option<Orientation>,
     #[serde(default)]
     pub trans_align: TransAlign,
 }

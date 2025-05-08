@@ -47,12 +47,10 @@ use {
         str::FromStr,
     },
     wasm::js::{
-        el_async,
+        el_async_,
         style_export,
     },
-    wasm_bindgen::{
-        JsCast,
-    },
+    wasm_bindgen::JsCast,
     web_sys::{
         HtmlElement,
         HtmlInputElement,
@@ -692,7 +690,7 @@ fn build_edit_triple(pc: &mut ProcessingContext, triple: &TripleState, new: bool
 }
 
 pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: &Node) {
-    set_page(pc, &format!("Edit {}", edit_title), el_async({
+    set_page(pc, &format!("Edit {}", edit_title), el_async_(true, {
         let eg = pc.eg();
         let node = node.clone();
         let title = edit_title.to_string();

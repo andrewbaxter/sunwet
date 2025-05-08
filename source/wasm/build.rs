@@ -177,7 +177,7 @@ fn main() {
         },
         Func {
             name: "leafAsyncBlock",
-            args: vec![("inRoot", &bool_), ("extraStyles", &arrstring_)],
+            args: vec![("inRoot", &bool_)],
             returns: vec![("root", &el_)],
         },
         Func {
@@ -412,7 +412,7 @@ fn main() {
             name: "leafViewImage",
             args: vec![
                 ("transAlign", &transalign),
-                ("src", &string_),
+                ("src", &optstring_),
                 ("link", &optstring_),
                 ("text", &optstring_),
                 ("width", &optstring_),
@@ -434,7 +434,7 @@ fn main() {
         },
         Func {
             name: "leafViewPlayButton",
-            args: vec![("transAlign", &transalign), ("direction", &direction)],
+            args: vec![("transAlign", &transalign), ("orientation", &orientation)],
             returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
@@ -559,7 +559,7 @@ fn main() {
         Func {
             name: "appLinkPerms",
             args: vec![],
-            returns: vec![("root", &el_)],
+            returns: vec![("root", &el_), ("button", &el_)],
         },
         Func {
             name: "appLink",

@@ -18,9 +18,7 @@ use {
             LocalStorage,
             Storage,
         },
-        timers::{
-            callback::Timeout,
-        },
+        timers::callback::Timeout,
     },
     lunk::ProcessingContext,
     rooting::{
@@ -51,6 +49,7 @@ use {
     },
     wasm::js::{
         el_async,
+        el_async_,
         style_export,
     },
     wasm_bindgen::JsCast,
@@ -124,7 +123,7 @@ fn build_field_enum(
 
 pub fn build_page_form_by_id(pc: &mut ProcessingContext, form_title: &str, id: &str) {
     let draft_id = format!("form-draft-{}", id);
-    set_page(pc, form_title, el_async({
+    set_page(pc, form_title, el_async_(true, {
         let eg = pc.eg();
         let id = id.to_string();
         let form_title = form_title.to_string();

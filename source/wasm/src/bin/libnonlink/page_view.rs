@@ -20,9 +20,7 @@ use {
         playlist::{
             playlist_extend,
             playlist_next,
-            playlist_play,
             playlist_previous,
-            playlist_resume,
             playlist_seek,
             playlist_set_link,
             playlist_toggle_play,
@@ -55,6 +53,7 @@ use {
             Direction,
             FieldOrLiteral,
             FieldOrLiteralString,
+            Orientation,
             QueryOrField,
             Widget,
             WidgetDataRows,
@@ -81,6 +80,7 @@ use {
         constants::LINK_HASH_PREFIX,
         js::{
             el_async,
+            el_async_,
             style_export::{
                 self,
             },
@@ -542,7 +542,12 @@ impl Build {
             ta_return!(El, String);
             return Ok(el_from_raw(style_export::leaf_view_image(style_export::LeafViewImageArgs {
                 trans_align: config_at.trans_align,
-                src: unwrap_value_media_url(&get_field_or_literal(&config_at.data, &data_stack)?)?.url,
+                src: shed!{
+                    let Some(d) = maybe_get_field_or_literal(&config_at.data, &data_stack)? else {
+                        break None;
+                    };
+                    Some(unwrap_value_media_url(&d)?.url)
+                },
                 link: shed!{
                     let Some(l) = &config_at.link else {
                         break None;
@@ -639,14 +644,14 @@ impl Build {
             }));
             let out = el_from_raw(style_export::leaf_view_play_button(style_export::LeafViewPlayButtonArgs {
                 trans_align: config_at.trans_align,
-                direction: config_at.direction.unwrap_or(Direction::Right),
+                orientation: config_at.orientation.unwrap_or(Orientation::RightDown),
             }).root.into());
             out.ref_on("click", {
                 let data_id = data_id.clone();
                 let eg = pc.eg();
                 move |_| eg.event(|pc| {
                     log_1(&JsValue::from("Press play button"));
-                    playlist_play(pc, &state().playlist, data_id.clone());
+                    playlist_toggle_play(pc, &state().playlist, Some(data_id.clone()));
                 }).unwrap()
             });
             out.ref_own(
@@ -712,7 +717,7 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
     }
 
     fn get_mouse_time(ev: &Event) -> Option<f64> {
-        let Some(max_time) = *state().playlist.0.playing_max_time.borrow() else {
+        let Some(max_time) = *state().playlist.0.media_max_time.borrow() else {
             return None;
         };
         let percent = get_mouse_pct(ev).0;
@@ -873,7 +878,7 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
     seekbar_fill.ref_own(|fill| link!(
         //. .
         (_pc = pc),
-        (time = state().playlist.0.playing_time.clone(), max_time = state().playlist.0.playing_max_time.clone()),
+        (time = state().playlist.0.playing_time.clone(), max_time = state().playlist.0.media_max_time.clone()),
         (),
         (fill = fill.weak()) {
             let Some(max_time) = *max_time.borrow() else {
@@ -926,7 +931,7 @@ pub fn build_page_view(
     menu_item_id: &str,
     restore_playlist_pos: Option<PlaylistRestorePos>,
 ) {
-    set_page(pc, menu_item_title, el_async({
+    set_page(pc, menu_item_title, el_async_(true, {
         let menu_item_id = menu_item_id.to_string();
         let menu_item_title = menu_item_title.to_string();
         let eg = pc.eg();

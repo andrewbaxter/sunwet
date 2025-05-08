@@ -1588,17 +1588,6 @@
             "null"
           ]
         },
-        "direction": {
-          "default": null,
-          "anyOf": [
-            {
-              "$ref": "#/definitions/Direction"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "media_file_field": {
           "type": "string"
         },
@@ -1615,6 +1604,17 @@
           "type": [
             "string",
             "null"
+          ]
+        },
+        "orientation": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Orientation"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "trans_align": {

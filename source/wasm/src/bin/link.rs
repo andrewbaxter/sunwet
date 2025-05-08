@@ -1,11 +1,8 @@
 use {
-    async_trait::async_trait,
     chrono::Utc,
     flowcontrol::shed,
     futures::{
         future::join_all,
-        Future,
-        FutureExt,
     },
     gloo::{
         timers::future::TimeoutFuture,
@@ -35,16 +32,21 @@ use {
     std::{
         cell::Cell,
         panic,
-        pin::Pin,
         rc::Rc,
     },
     wasm::{
         constants::LINK_HASH_PREFIX,
         js::{
-            async_event,
+            self,
             get_dom_octothorpe,
             log_js,
             style_export,
+        },
+        js_media::{
+            PlaylistMedia,
+            PlaylistMediaAudio,
+            PlaylistMediaImage,
+            PlaylistMediaVideo,
         },
         websocket::Ws,
     },
@@ -64,87 +66,6 @@ use {
         HtmlMediaElement,
     },
 };
-
-trait PlaylistMedia {
-    fn wait_until_seekable(&self) -> Pin<Box<dyn Future<Output = ()>>>;
-    fn wait_until_buffered(&self) -> Pin<Box<dyn Future<Output = ()>>>;
-    fn seek(&self, time: f64);
-    fn play(&self);
-    fn pause(&self);
-}
-
-#[derive(Clone)]
-struct PlaylistMediaImage {}
-
-impl PlaylistMedia for PlaylistMediaImage {
-    fn wait_until_seekable(&self) -> Pin<Box<dyn Future<Output = ()>>> {
-        return async {
-            // nop
-        }.boxed_local();
-    }
-
-    fn wait_until_buffered(&self) -> Pin<Box<dyn Future<Output = ()>>> {
-        return async {
-            // nop
-        }.boxed_local();
-    }
-
-    fn seek(&self, _time: f64) {
-        // nop
-    }
-
-    fn play(&self) {
-        // nop
-    }
-
-    fn pause(&self) {
-        // nop
-    }
-}
-
-#[derive(Clone)]
-struct PlaylistMediaAudioVideo {
-    media: HtmlMediaElement,
-}
-
-#[async_trait]
-impl PlaylistMedia for PlaylistMediaAudioVideo {
-    fn wait_until_seekable(&self) -> Pin<Box<dyn Future<Output = ()>>> {
-        let m = self.media.clone();
-        return async move {
-            // 1 = `HAVE_METADATA`
-            if m.ready_state() < 1 {
-                async_event(&m, "loadedmetadata").await;
-            }
-        }.boxed_local();
-    }
-
-    fn wait_until_buffered(&self) -> Pin<Box<dyn Future<Output = ()>>> {
-        let m = self.media.clone();
-        return async move {
-            // 4 = `HAVE_ENOUGH_DATA`
-            if m.ready_state() < 4 {
-                // ios doesn't load until you manually tell it to load, even if preload is set to
-                // auto. This may not be needed with the seek workaround (rare case of two wrongs
-                // making just one wrong).
-                m.load();
-                async_event(&m, "canplaythrough").await;
-            }
-        }.boxed_local();
-    }
-
-    fn seek(&self, time: f64) {
-        self.media.set_current_time(time);
-    }
-
-    fn play(&self) {
-        _ = self.media.play().unwrap();
-    }
-
-    fn pause(&self) {
-        self.media.pause().unwrap();
-    }
-}
 
 struct State_ {
     media_audio_el: El,
@@ -174,16 +95,7 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
                     loc.pathname().unwrap_throw().strip_suffix("link.html").unwrap_throw()
                 );
         }
-        let is_ios = shed!{
-            let user_agent = match window().navigator().user_agent() {
-                Ok(a) => a,
-                Err(e) => {
-                    log_js("Error getting user agent to enable ios workarounds", &e);
-                    break false;
-                },
-            };
-            break user_agent.contains("iPad") || user_agent.contains("iPhone") || user_agent.contains("iPod");
-        };
+        let is_ios = js::is_ios();
         if is_ios {
             log_1(&JsValue::from("Detected mobile ios, activating webkit workarounds."));
         }
@@ -255,12 +167,7 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
                                         let media_el = state.0.media_audio_el.clone();
                                         media_el.ref_attr("src", &audio.source_url.url);
                                         log_1(&JsValue::from("x13"));
-                                        media =
-                                            Rc::new(
-                                                PlaylistMediaAudioVideo {
-                                                    media: media_el.raw().dyn_into::<HtmlMediaElement>().unwrap(),
-                                                },
-                                            );
+                                        media = Rc::new(PlaylistMediaAudio { element: media_el });
                                         log_1(&JsValue::from("x14"));
                                     },
                                     PrepareMedia::Video(source_url) => {
@@ -269,12 +176,7 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
                                         media_el.ref_attr("src", &source_url.url);
                                         state.0.media_video_el.ref_attr("preload", "auto");
                                         state.0.display.ref_push(media_el.clone());
-                                        media =
-                                            Rc::new(
-                                                PlaylistMediaAudioVideo {
-                                                    media: media_el.raw().dyn_into::<HtmlMediaElement>().unwrap(),
-                                                },
-                                            );
+                                        media = Rc::new(PlaylistMediaVideo { element: media_el });
                                     },
                                     PrepareMedia::Image(source_url) => {
                                         state.0.display_under.ref_modify_classes(&[(&class_state_hide, true)]);
@@ -287,33 +189,33 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
                                                 document().exit_fullscreen();
                                             }
                                         });
-                                        state.0.display.ref_push(media_el);
-                                        media = Rc::new(PlaylistMediaImage {});
+                                        state.0.display.ref_push(media_el.clone());
+                                        media = Rc::new(PlaylistMediaImage { element: media_el });
                                     },
                                 }
                                 log_1(&JsValue::from("x15"));
                                 eg.event(|pc| {
                                     if let Some(old) = &*state.0.media.borrow() {
-                                        old.pause();
+                                        old.pm_stop();
                                     }
                                     state.0.media.set(pc, Some(media.clone()));
                                 });
                                 log_1(&JsValue::from("x16"));
                                 state.0.display_over.ref_modify_classes(&[(&class_state_hide, false)]);
                                 log_1(&JsValue::from("x17"));
-                                media.wait_until_seekable().await;
+                                media.pm_wait_until_seekable().await;
                                 log_1(&JsValue::from("x18"));
-                                media.seek(prepare.media_time);
+                                media.pm_seek(prepare.media_time);
                                 log_1(&JsValue::from("x19"));
-                                media.wait_until_buffered().await;
+                                media.pm_wait_until_buffered().await;
                                 log_1(&JsValue::from("x20"));
                                 if is_ios {
                                     // Ios safari can't seek until canplaythrough event and then we need to wait again
                                     // to make sure it can playthrough from the new position... ugh
                                     log_1(&JsValue::from("x18"));
-                                    media.seek(prepare.media_time);
+                                    media.pm_seek(prepare.media_time);
                                     log_1(&JsValue::from("x19"));
-                                    media.wait_until_buffered().await;
+                                    media.pm_wait_until_buffered().await;
                                 }
                                 log_1(&JsValue::from("x20b"));
                                 ws.send(WsL2S::Ready(Utc::now())).await;
@@ -329,13 +231,13 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
                                         (play_at - Utc::now()).num_milliseconds().max(0) as u32,
                                     ).await;
                                     log_1(&JsValue::from("x25"));
-                                    _ = media.play();
+                                    _ = media.pm_play();
                                     log_1(&JsValue::from("x26"));
                                 }
                             },
                             WsS2L::Pause => {
                                 if let Some(media) = &*state.0.media.borrow() {
-                                    media.pause();
+                                    media.pm_stop();
                                 }
                             },
                         }
@@ -373,7 +275,7 @@ fn main() {
                     // Work around autoplay blocking (ios safari, desktop firefox) by making it a
                     // non-auto play
                     let style_res = style_export::app_link_perms();
-                    set_root(vec![el_from_raw(style_res.root.into()).on("click", move |_| {
+                    let button = el_from_raw(style_res.button.into()).on("click", move |_| {
                         let bg =
                             vec![
                                 JsFuture::from(audio_el.play().unwrap()),
@@ -391,7 +293,8 @@ fn main() {
                                 build_link(audio_el, video_el)
                             }
                         });
-                    })]);
+                    });
+                    set_root(vec![el_from_raw(style_res.root.into()).own(|_| button)]);
                     return;
                 }
                 log_js("Error playing media to guage permissions", &e);

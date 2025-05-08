@@ -1,4 +1,5 @@
 pub mod js;
+pub mod js_media;
 pub mod world;
 pub mod websocket;
 pub mod async_;

@@ -29,6 +29,17 @@ use {
     },
 };
 
+pub fn is_ios() -> bool {
+    let user_agent = match window().navigator().user_agent() {
+        Ok(a) => a,
+        Err(e) => {
+            log_js("Error getting user agent to enable ios workarounds", &e);
+            return false;
+        },
+    };
+    return user_agent.contains("iPad") || user_agent.contains("iPhone") || user_agent.contains("iPod");
+}
+
 pub fn log(x: impl Display) {
     web_sys::console::log_1(&JsValue::from_str(&x.to_string()));
 }
@@ -297,10 +308,10 @@ pub fn el_async<E: ToString, F: 'static + Future<Output = Result<El, E>>>(f: F) 
 }
 
 pub fn el_async_<E: ToString, F: 'static + Future<Output = Result<El, E>>>(in_root: bool, f: F) -> El {
-    let out = el_from_raw(style_export::leaf_async_block(style_export::LeafAsyncBlockArgs {
-        in_root: in_root,
-        extra_styles: vec![],
-    }).root.into());
+    let out =
+        el_from_raw(
+            style_export::leaf_async_block(style_export::LeafAsyncBlockArgs { in_root: in_root }).root.into(),
+        );
     out.ref_own(|_| spawn_rooted({
         let out = out.weak();
         async move {
@@ -308,18 +319,20 @@ pub fn el_async_<E: ToString, F: 'static + Future<Output = Result<El, E>>>(in_ro
             let Some(out) = out.upgrade() else {
                 return;
             };
-            out.raw().set_inner_html("");
+            let new_el;
             match res {
                 Ok(v) => {
-                    out.ref_push(v);
+                    new_el = v;
                 },
                 Err(e) => {
-                    out.ref_push(el_from_raw(style_export::leaf_err_block(style_export::LeafErrBlockArgs {
+                    new_el = el_from_raw(style_export::leaf_err_block(style_export::LeafErrBlockArgs {
                         in_root: in_root,
                         data: e.to_string(),
-                    }).root.dyn_into().unwrap()));
+                    }).root.dyn_into().unwrap());
                 },
             }
+            out.raw().set_inner_html("");
+            out.ref_push(new_el);
         }
     }));
     return out;

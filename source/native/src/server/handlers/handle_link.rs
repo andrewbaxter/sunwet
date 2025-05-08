@@ -6,7 +6,10 @@ use {
         },
         spawn_scoped,
     },
-    chrono::Utc,
+    chrono::{
+        Duration,
+        Utc,
+    },
     flowcontrol::{
         shed,
         ta_return,
@@ -160,7 +163,7 @@ pub fn handle_ws_main(state: Arc<State>, websocket: HyperWebsocket) {
                                                         eprintln!("all readies ready {}", Utc::now().to_rfc3339());
 
                                                         // All readies received, trigger start
-                                                        let delay = delays.into_iter().max().unwrap();
+                                                        let delay = delays.into_iter().max().unwrap_or(Duration::zero());
                                                         let start_at = Utc::now() + delay * 5;
                                                         let mut bg =
                                                             vec![
