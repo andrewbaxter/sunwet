@@ -66,12 +66,10 @@ use {
             Env,
         },
         media::{
-            self,
             pm_ready_prep,
             PlaylistMedia,
-            PlaylistMediaAudio,
+            PlaylistMediaAudioVideo,
             PlaylistMediaImage,
-            PlaylistMediaVideo,
         },
         websocket::Ws,
         world::{
@@ -327,7 +325,7 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
                                     },
                                     media_time: e.media.pm_get_time(),
                                 })).await;
-                                pm_ready_prep(state().env.engine, e.media.as_ref(), new_time).await;
+                                pm_ready_prep(e.media.as_ref(), new_time).await;
                                 ws.send(WsC2S::Ready(Utc::now())).await;
                             }
                         })));
@@ -393,7 +391,7 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
             (pc = pc),
             (playing_time = playlist_state.0.playing_time.clone()),
             (media_time = playlist_state.0.media_time.clone()),
-            (playlist_state = playlist_state.clone(), bg = bg.clone(), env = env.clone()) {
+            (playlist_state = playlist_state.clone(), bg = bg.clone()) {
                 let new_time = *playing_time.borrow();
                 media_time.set(pc, new_time);
                 if *playlist_state.0.playing.borrow() {
@@ -403,7 +401,6 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
                         // Debounce: stop, not actually stopping
                         playlist_state.0.debounce.set(Utc::now());
                         e.media.pm_stop();
-                        let env = env.clone();
                         bg.set(Some(spawn_rooted({
                             let ws = ws.clone();
                             async move {
@@ -421,7 +418,7 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
                                     },
                                     media_time: new_time,
                                 })).await;
-                                pm_ready_prep(env.engine, e.media.as_ref(), new_time).await;
+                                pm_ready_prep(e.media.as_ref(), new_time).await;
                                 ws.send(WsC2S::Ready(Utc::now())).await;
                             }
                         })));
@@ -545,7 +542,7 @@ pub fn playlist_extend(
                     SourceUrl::File(v) => generated_file_url(&state().env, v, env_preferred_audio(&state().env)),
                 }).attr("controls", "true");
                 setup_media_element(pc, &media);
-                box_media = Box::new(PlaylistMediaAudio { element: media.clone() });
+                box_media = Box::new(PlaylistMediaAudioVideo::new_audio(media));
             },
             PlaylistEntryMediaType::Video => {
                 let media;
@@ -577,7 +574,7 @@ pub fn playlist_extend(
                 }
                 media.ref_attr("controls", "true");
                 setup_media_element(pc, &media);
-                box_media = Box::new(PlaylistMediaVideo { element: media.clone() });
+                box_media = Box::new(PlaylistMediaAudioVideo::new_video(media));
             },
             PlaylistEntryMediaType::Image => {
                 let media = el("img").attr("src", &match &entry.source_url {

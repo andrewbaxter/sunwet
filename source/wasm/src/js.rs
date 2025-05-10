@@ -37,7 +37,7 @@ use {
 };
 
 // Since bug detection isn't a thing, or rather I don't want to deal with that
-#[derive(Clone, PartialEq, Eq, Copy)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum Engine {
     IosSafari,
     Chrome,
