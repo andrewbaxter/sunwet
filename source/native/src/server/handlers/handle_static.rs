@@ -26,6 +26,7 @@ pub async fn handle_static(path: &str) -> Result<Response<BoxBody<Bytes, std::io
             return Ok(
                 Response::builder()
                     .status(200)
+                    .header("Accept-Ranges", "bytes")
                     .header("Content-type", f.metadata.mimetype())
                     .header("Cross-Origin-Embedder-Policy", "require-corp")
                     .header("Cross-Origin-Opener-Policy", "same-origin")

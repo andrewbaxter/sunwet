@@ -184,15 +184,9 @@ fn unwrap_value_media_url(data_at: &TreeNode) -> Result<SourceUrl, String> {
         ),
         TreeNode::Scalar(v) => {
             match v {
-                Node::File(v) => return Ok(SourceUrl {
-                    url: file_url(&state().base_url, v),
-                    file: Some(v.clone()),
-                }),
+                Node::File(v) => return Ok(SourceUrl::File(v.clone())),
                 Node::Value(v) => match v {
-                    serde_json::Value::String(v) => return Ok(SourceUrl {
-                        url: v.clone(),
-                        file: None,
-                    }),
+                    serde_json::Value::String(v) => return Ok(SourceUrl::Url(v.clone())),
                     _ => return Err(format!("Url is not a string: {}", serde_json::to_string(v).unwrap())),
                 },
             }
@@ -217,7 +211,7 @@ fn unwrap_value_move_url(
                 })));
             }
             match v {
-                Node::File(v) => return Ok(file_url(&state().base_url, v)),
+                Node::File(v) => return Ok(file_url(&state().env, v)),
                 Node::Value(v) => match v {
                     serde_json::Value::String(v) => return Ok(v.clone()),
                     _ => return Ok(serde_json::to_string(v).unwrap()),
@@ -298,7 +292,7 @@ impl Build {
                             };
                             params.insert(k.clone(), v);
                         }
-                        let res = req_post_json(&state().base_url, ReqViewQuery {
+                        let res = req_post_json(&state().env.base_url, ReqViewQuery {
                             menu_item_id: menu_item_id.clone(),
                             query: config_at.query.clone(),
                             parameters: params,
@@ -423,7 +417,7 @@ impl Build {
                             };
                             params.insert(k.clone(), v);
                         }
-                        let res = req_post_json(&state().base_url, ReqViewQuery {
+                        let res = req_post_json(&state().env.base_url, ReqViewQuery {
                             menu_item_id: menu_item_id.clone(),
                             query: config_at.query.clone(),
                             parameters: params,
@@ -546,7 +540,10 @@ impl Build {
                     let Some(d) = maybe_get_field_or_literal(&config_at.data, &data_stack)? else {
                         break None;
                     };
-                    Some(unwrap_value_media_url(&d)?.url)
+                    Some(match unwrap_value_media_url(&d)? {
+                        SourceUrl::Url(v) => v,
+                        SourceUrl::File(v) => file_url(&state().env, &v),
+                    })
                 },
                 link: shed!{
                     let Some(l) = &config_at.link else {
@@ -749,7 +746,7 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
                     sess_id
                 },
             };
-            let link = format!("{}link.html#{}{}", state().base_url, LINK_HASH_PREFIX, sess_id);
+            let link = format!("{}link.html#{}{}", state().env.base_url, LINK_HASH_PREFIX, sess_id);
             let modal_res = style_export::cont_modal_view_share(style_export::ContModalViewShareArgs {
                 qr: DomParser::new()
                     .unwrap()

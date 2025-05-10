@@ -30,15 +30,17 @@ use {
     },
     wasm::{
         async_::BgVal,
-        js::style_export,
+        js::{
+            style_export,
+            Env,
+        },
     },
 };
 
 pub struct State_ {
     pub eg: EventGraph,
     pub ministate: RefCell<Ministate>,
-    // Ends with `/`
-    pub base_url: String,
+    pub env: Env,
     pub playlist: PlaylistState,
     pub client_config: BgVal<Result<Rc<ClientConfig>, String>>,
     pub menu_open: Prim<bool>,

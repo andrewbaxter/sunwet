@@ -31,7 +31,10 @@ use {
         },
     },
     chrono::Utc,
-    flowcontrol::shed,
+    flowcontrol::{
+        shed,
+        superif,
+    },
     http::Response,
     http_body_util::{
         combinators::BoxBody,
@@ -340,7 +343,7 @@ pub async fn handle_finish_upload(
                                 let Some(lang) = stream.tags.get("language") else {
                                     continue;
                                 };
-                                let subtitle_dest = generated_path(&state.cache_dir, &file, "text/vtt", &lang)?;
+                                let subtitle_dest = generated_path(&state.genfiles_dir, &file, "text/vtt", &lang)?;
                                 if let Some(p) = subtitle_dest.parent() {
                                     create_dir_all(&p)
                                         .await
@@ -373,7 +376,7 @@ pub async fn handle_finish_upload(
                             // Webm
                             if meta.mimetype.as_str() != "video/webm" {
                                 let webm_tmp = tempdir()?;
-                                let webm_dest = generated_path(&state.cache_dir, &file, "video/webm", "")?;
+                                let webm_dest = generated_path(&state.genfiles_dir, &file, "video/webm", "")?;
                                 if let Some(p) = webm_dest.parent() {
                                     create_dir_all(&p)
                                         .await
@@ -529,23 +532,28 @@ pub async fn handle_file_get(
                 .context("Error parsing query string")
                 .err_external()?;
     } else {
-        query = FileUrlQuery { generated: None };
+        query = FileUrlQuery::default();
     }
     let mimetype;
     let local_path;
-    if let Some(generated) = query.generated {
-        if generated.mime_type == meta.mimetype && generated.name == "" {
-            mimetype = meta.mimetype;
-            local_path = file_path(&state.files_dir, &file).err_internal()?;
-        } else {
-            local_path =
-                generated_path(&state.cache_dir, &file, &generated.mime_type, &generated.name).err_internal()?;
-            mimetype = generated.mime_type;
-        }
-    } else {
+    superif!({
+        let Some((gentype, required)) = query.derivation else {
+            break 'nogen;
+        };
+        let search_node = DbNode(Node::File(file.clone()));
+        let Some(gen_meta) =
+            tx(&state.db, move |txn| Ok(db::gen_get(txn, &search_node, &gentype)?)).await.err_internal()? else {
+                if required {
+                    return Ok(response_404());
+                }
+                break 'nogen;
+            };
+        mimetype = gen_meta.mimetype;
+        local_path = state.genfiles_dir.join(gen_meta.filename);
+    } 'nogen {
         mimetype = meta.mimetype;
         local_path = file_path(&state.files_dir, &file).err_internal()?;
-    }
+    });
     return Ok(htserve::responses::response_file(&head.headers, &mimetype, &local_path).await.err_internal()?);
 }
 

@@ -201,7 +201,7 @@ pub struct State {
     pub log: Log,
     pub db: Pool,
     pub files_dir: PathBuf,
-    pub cache_dir: PathBuf,
+    pub genfiles_dir: PathBuf,
     pub stage_dir: PathBuf,
     pub finishing_uploads: Mutex<HashSet<FileHash>>,
     // Websockets

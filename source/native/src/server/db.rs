@@ -76,6 +76,15 @@ pub fn migrate(db: &mut rusqlite::Connection) -> Result<(), GoodError> {
                         "create table \"commit\" ( \"timestamp\" text not null , \"description\" text not null , constraint \"commit_timestamp\" primary key ( \"timestamp\" ) )";
                     txn.execute(query, ()).to_good_error_query(query)?
                 };
+                {
+                    let query =
+                        "create table \"generated\" ( \"filename\" text not null , \"node\" text not null , \"mimetype\" text not null , \"gentype\" text not null , constraint \"generated_file\" primary key ( \"node\" , \"gentype\" ) )";
+                    txn.execute(query, ()).to_good_error_query(query)?
+                };
+                {
+                    let query = "create unique index \"generated_filename\" on \"generated\" ( \"filename\" )";
+                    txn.execute(query, ()).to_good_error_query(query)?
+                };
             }
             let query = "update __good_version set version = $1, lock = 0";
             txn.execute(query, rusqlite::params![0i64]).to_good_error_query(query)?;
@@ -662,6 +671,107 @@ pub fn meta_filter_existing(
 pub fn meta_gc(db: &rusqlite::Connection) -> Result<(), GoodError> {
     let query =
         "delete from \"meta\" where not exists ( select 1 as \"x\" from \"triple\" where ( ( \"meta\" . \"node\" = \"triple\" . \"subject\" ) or ( \"meta\" . \"node\" = \"triple\" . \"object\" ) )  )";
+    db.execute(query, rusqlite::params![]).to_good_error_query(query)?;
+    Ok(())
+}
+
+pub fn gen_insert(
+    db: &rusqlite::Connection,
+    node: &crate::interface::triple::DbNode,
+    gentype: &str,
+    filename: &str,
+    mimetype: &str,
+) -> Result<(), GoodError> {
+    let query =
+        "insert into \"generated\" ( \"node\" , \"gentype\" , \"filename\" , \"mimetype\" ) values ( $1 , $2 , $3 , $4 ) on conflict do nothing";
+    db
+        .execute(
+            query,
+            rusqlite::params![
+                <crate::interface::triple::DbNode as good_ormning_runtime
+                ::sqlite
+                ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
+                    &node,
+                ),
+                gentype,
+                filename,
+                mimetype
+            ],
+        )
+        .to_good_error_query(query)?;
+    Ok(())
+}
+
+pub struct GenMetadata {
+    pub mimetype: String,
+    pub filename: String,
+}
+
+pub fn gen_get(
+    db: &rusqlite::Connection,
+    node: &crate::interface::triple::DbNode,
+    gentype: &str,
+) -> Result<Option<GenMetadata>, GoodError> {
+    let query =
+        "select \"generated\" . \"mimetype\" , \"generated\" . \"filename\" from \"generated\" where ( ( \"generated\" . \"node\" = $1 ) and ( \"generated\" . \"gentype\" = $2 ) ) ";
+    let mut stmt = db.prepare(query).to_good_error_query(query)?;
+    let mut rows =
+        stmt
+            .query(
+                rusqlite::params![
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
+                        &node,
+                    ),
+                    gentype
+                ],
+            )
+            .to_good_error_query(query)?;
+    let r = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))?;
+    if let Some(r) = r {
+        return Ok(Some(GenMetadata {
+            mimetype: {
+                let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
+                x
+            },
+            filename: {
+                let x: String = r.get(1usize).to_good_error(|| format!("Getting result {}", 1usize))?;
+                x
+            },
+        }));
+    }
+    Ok(None)
+}
+
+pub fn gen_peek_missing(
+    db: &rusqlite::Connection,
+    mime: &str,
+    gentype: &str,
+) -> Result<Vec<crate::interface::triple::DbNode>, GoodError> {
+    let mut out = vec![];
+    let query =
+        "select \"meta\" . \"node\" from \"meta\" where ( \"meta\" . \"mimetype\" = $1 ) limit 50 except select \"generated\" . \"node\" from \"generated\" where ( \"generated\" . \"gentype\" = $2 )";
+    let mut stmt = db.prepare(query).to_good_error_query(query)?;
+    let mut rows = stmt.query(rusqlite::params![mime, gentype]).to_good_error_query(query)?;
+    while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
+        out.push({
+            let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
+            let x =
+                <crate::interface::triple::DbNode as good_ormning_runtime
+                ::sqlite
+                ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::from_sql(
+                    x,
+                ).to_good_error(|| format!("Parsing result {}", 0usize))?;
+            x
+        });
+    }
+    Ok(out)
+}
+
+pub fn gen_gc(db: &rusqlite::Connection) -> Result<(), GoodError> {
+    let query =
+        "delete from \"generated\" where ( \"generated\" . \"node\" not in select \"meta\" . \"node\" from \"meta\"  )";
     db.execute(query, rusqlite::params![]).to_good_error_query(query)?;
     Ok(())
 }

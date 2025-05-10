@@ -462,7 +462,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, form_title: &str, id: &
                             let fs = fs.clone();
                             let field = field.clone();
                             async move {
-                                let res = req_post_json(&state().base_url, ReqQuery {
+                                let res = req_post_json(&state().env.base_url, ReqQuery {
                                     query: field.query.clone(),
                                     parameters: HashMap::new(),
                                 }).await?;
@@ -575,7 +575,7 @@ pub fn build_page_form_by_id(pc: &mut ProcessingContext, form_title: &str, id: &
                                     });
                                 }
                                 drop(data);
-                                req_post_json(&state().base_url, ReqCommit {
+                                req_post_json(&state().env.base_url, ReqCommit {
                                     add: add,
                                     remove: vec![],
                                     files: vec![],

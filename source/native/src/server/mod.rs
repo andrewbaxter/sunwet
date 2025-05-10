@@ -675,7 +675,7 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
                 log: log.clone(),
                 files_dir: files_dir,
                 stage_dir: stage_dir,
-                cache_dir: cache_dir,
+                genfiles_dir: cache_dir,
                 finishing_uploads: Mutex::new(HashSet::new()),
                 link_bg: Mutex::new(None),
                 link_ids: AtomicU8::new(0),

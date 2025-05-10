@@ -8,7 +8,10 @@ use {
         Digest,
         Sha256,
     },
-    shared::interface::triple::FileHash,
+    shared::interface::triple::{
+        FileHash,
+        FileHash_,
+    },
     std::{
         io::Write,
         path::{
@@ -27,8 +30,8 @@ use {
 };
 
 pub fn file_path(root_path: &Path, hash: &FileHash) -> Result<PathBuf, loga::Error> {
-    match hash {
-        FileHash::Sha256(hash) => {
+    match &hash.0 {
+        FileHash_::Sha256(hash) => {
             if hash.len() < 4 {
                 return Err(loga::err_with("Hash is too short", ea!(length = hash.len())));
             }
@@ -49,8 +52,8 @@ pub fn generated_path(
         suffix.push_str(".");
         suffix.push_str(name);
     }
-    match hash {
-        FileHash::Sha256(hash) => {
+    match &hash.0 {
+        FileHash_::Sha256(hash) => {
             if hash.len() < 4 {
                 return Err(loga::err_with("Hash is too short", ea!(length = hash.len())));
             }
@@ -66,8 +69,8 @@ pub fn generated_path(
 }
 
 pub fn staged_file_path(root_path: &Path, hash: &FileHash) -> Result<PathBuf, loga::Error> {
-    match hash {
-        FileHash::Sha256(hash) => {
+    match &hash.0 {
+        FileHash_::Sha256(hash) => {
             if hash.len() < 4 {
                 return Err(loga::err_with("Hash is too short", ea!(length = hash.len())));
             }
@@ -110,5 +113,5 @@ pub async fn hash_file_sha256(log: &Log, source: &Path) -> Result<FileHash, loga
     let mut got_hash = HashAsyncWriter { hash: Sha256::new() };
     copy(&mut got_file, &mut got_hash).await.stack_context(&log, "Failed to read staged uploaded file")?;
     let got_hash = hex::encode(&got_hash.hash.finalize());
-    return Ok(FileHash::Sha256(got_hash));
+    return Ok(FileHash(FileHash_::Sha256(got_hash)));
 }

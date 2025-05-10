@@ -1,15 +1,10 @@
 use {
     chrono::Utc,
     flowcontrol::shed,
-    futures::{
-        future::join_all,
-    },
+    futures::future::join_all,
     gloo::{
         timers::future::TimeoutFuture,
-        utils::{
-            document,
-            window,
-        },
+        utils::document,
     },
     lunk::{
         EventGraph,
@@ -24,10 +19,14 @@ use {
         El,
         ScopeValue,
     },
-    shared::interface::wire::link::{
-        PrepareMedia,
-        WsL2S,
-        WsS2L,
+    shared::interface::wire::{
+        file_derivation_subtitles,
+        link::{
+            PrepareMedia,
+            SourceUrl,
+            WsL2S,
+            WsS2L,
+        },
     },
     std::{
         cell::Cell,
@@ -37,30 +36,39 @@ use {
     wasm::{
         constants::LINK_HASH_PREFIX,
         js::{
-            self,
+            env_preferred_audio,
+            env_preferred_video,
             get_dom_octothorpe,
             log_js,
+            scan_env,
             style_export,
         },
-        js_media::{
+        media::{
+            pm_ready_prep,
             PlaylistMedia,
             PlaylistMediaAudio,
             PlaylistMediaImage,
             PlaylistMediaVideo,
         },
         websocket::Ws,
+        world::{
+            file_url,
+            generated_file_url,
+        },
     },
     wasm_bindgen::{
         JsCast,
         JsValue,
-        UnwrapThrowExt,
     },
     wasm_bindgen_futures::{
         spawn_local,
         JsFuture,
     },
     web_sys::{
-        console::log_1,
+        console::{
+            log_1,
+            log_2,
+        },
         DomException,
         HtmlElement,
         HtmlMediaElement,
@@ -85,26 +93,34 @@ struct State(Rc<State_>);
 fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement) {
     let eg = EventGraph::new();
     eg.event(|pc| {
-        let base_url;
-        {
-            let loc = window().location();
-            base_url =
-                format!(
-                    "{}{}",
-                    loc.origin().unwrap_throw(),
-                    loc.pathname().unwrap_throw().strip_suffix("link.html").unwrap_throw()
-                );
-        }
-        let is_ios = js::is_ios();
-        if is_ios {
-            log_1(&JsValue::from("Detected mobile ios, activating webkit workarounds."));
-        }
+        let env = scan_env();
         let class_state_hide = style_export::class_state_hide().value;
         let hash = get_dom_octothorpe().unwrap();
         let link_id = hash.strip_prefix(LINK_HASH_PREFIX).unwrap();
         let style_res = style_export::app_link();
+        let audio_el = el_from_raw(media_audio_el.clone().into());
         let state = State(Rc::new(State_ {
-            media_audio_el: el_from_raw(media_audio_el.into()),
+            media_audio_el: audio_el.on("seeked", {
+                let ele = media_audio_el.clone();
+                move |ev| {
+                    log_2(&JsValue::from(format!("seeked; time {}", ele.current_time())), ev);
+                }
+            }).on("progress", {
+                let ele = media_audio_el.clone();
+                move |ev| {
+                    log_2(&JsValue::from(format!("progress {}", ele.current_time())), ev);
+                }
+            }).on("timeupdate", {
+                let ele = media_audio_el.clone();
+                move |ev| {
+                    log_2(&JsValue::from(format!("time update {}", ele.current_time())), ev);
+                }
+            }).on("play", {
+                let ele = media_audio_el.clone();
+                move |_| {
+                    log_1(&JsValue::from(format!("play-- t {}", ele.current_time())));
+                }
+            }),
             media_video_el: el_from_raw(media_video_el.into()),
             display: el_from_raw(style_res.display.into()),
             display_under: el_from_raw(style_res.display_under.into()).clone(),
@@ -114,15 +130,17 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
             message_bg: Cell::new(scope_any(())),
             media: Prim::new(None),
         }));
-        let ws = Ws::<WsL2S, WsS2L>::new(&base_url, format!("link/{}", link_id), {
+        let ws = Ws::<WsL2S, WsS2L>::new(&env.base_url, format!("link/{}", link_id), {
             let state = state.clone();
             let eg = pc.eg();
+            let env = env.clone();
             move |ws, message| {
                 state.0.message_bg.set(scope_any(spawn_rooted({
                     let eg = eg.clone();
                     let ws = ws.clone();
                     let state = state.clone();
                     let class_state_hide = class_state_hide.clone();
+                    let env = env.clone();
                     async move {
                         match message {
                             WsS2L::Prepare(prepare) => {
@@ -150,7 +168,10 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
                                                 state
                                                     .0
                                                     .display
-                                                    .ref_push(el("img").attr("src", cover_source_url.url.as_str()))
+                                                    .ref_push(el("img").attr("src", &match cover_source_url {
+                                                        SourceUrl::Url(v) => v.clone(),
+                                                        SourceUrl::File(v) => file_url(&env, v),
+                                                    }))
                                                     .ref_attr("preload", "auto");
                                                 log_1(&JsValue::from("x9"));
                                             },
@@ -165,7 +186,14 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
                                         }
                                         log_1(&JsValue::from("x12"));
                                         let media_el = state.0.media_audio_el.clone();
-                                        media_el.ref_attr("src", &audio.source_url.url);
+                                        media_el.ref_attr("src", &match audio.source_url {
+                                            SourceUrl::Url(v) => v,
+                                            SourceUrl::File(v) => generated_file_url(
+                                                &env,
+                                                &v,
+                                                env_preferred_audio(&env),
+                                            ),
+                                        });
                                         log_1(&JsValue::from("x13"));
                                         media = Rc::new(PlaylistMediaAudio { element: media_el });
                                         log_1(&JsValue::from("x14"));
@@ -173,14 +201,45 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
                                     PrepareMedia::Video(source_url) => {
                                         state.0.display_under.ref_modify_classes(&[(&class_state_hide, true)]);
                                         let media_el = state.0.media_video_el.clone();
-                                        media_el.ref_attr("src", &source_url.url);
+                                        media_el.ref_clear();
+                                        let src;
+                                        match source_url {
+                                            SourceUrl::Url(v) => {
+                                                src = v;
+                                            },
+                                            SourceUrl::File(v) => {
+                                                src = generated_file_url(&env, &v, env_preferred_video());
+                                                for (i, lang) in env.languages.iter().enumerate() {
+                                                    let track =
+                                                        el("track")
+                                                            .attr("kind", "subtitles")
+                                                            .attr(
+                                                                "src",
+                                                                &generated_file_url(
+                                                                    &env,
+                                                                    &v,
+                                                                    file_derivation_subtitles(lang.vtt_lang),
+                                                                ),
+                                                            )
+                                                            .attr("srclang", &lang.nav_lang);
+                                                    if i == 0 {
+                                                        track.ref_attr("default", "default");
+                                                    }
+                                                    media_el.ref_push(track);
+                                                }
+                                            },
+                                        }
+                                        media_el.ref_attr("src", &src);
                                         state.0.media_video_el.ref_attr("preload", "auto");
                                         state.0.display.ref_push(media_el.clone());
                                         media = Rc::new(PlaylistMediaVideo { element: media_el });
                                     },
                                     PrepareMedia::Image(source_url) => {
                                         state.0.display_under.ref_modify_classes(&[(&class_state_hide, true)]);
-                                        let media_el = el("img").attr("src", &source_url.url).on("click", |ev| {
+                                        let media_el = el("img").attr("src", &match source_url {
+                                            SourceUrl::Url(v) => v,
+                                            SourceUrl::File(v) => file_url(&env, &v),
+                                        }).on("click", |ev| {
                                             if document().fullscreen_element().is_none() {
                                                 let img =
                                                     ev.target().unwrap().dyn_ref::<HtmlElement>().unwrap().clone();
@@ -202,21 +261,8 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
                                 });
                                 log_1(&JsValue::from("x16"));
                                 state.0.display_over.ref_modify_classes(&[(&class_state_hide, false)]);
-                                log_1(&JsValue::from("x17"));
-                                media.pm_wait_until_seekable().await;
-                                log_1(&JsValue::from("x18"));
-                                media.pm_seek(prepare.media_time);
-                                log_1(&JsValue::from("x19"));
-                                media.pm_wait_until_buffered().await;
-                                log_1(&JsValue::from("x20"));
-                                if is_ios {
-                                    // Ios safari can't seek until canplaythrough event and then we need to wait again
-                                    // to make sure it can playthrough from the new position... ugh
-                                    log_1(&JsValue::from("x18"));
-                                    media.pm_seek(prepare.media_time);
-                                    log_1(&JsValue::from("x19"));
-                                    media.pm_wait_until_buffered().await;
-                                }
+                                log_1(&JsValue::from("x17-x19"));
+                                pm_ready_prep(env.engine, media.as_ref(), prepare.media_time).await;
                                 log_1(&JsValue::from("x20b"));
                                 ws.send(WsL2S::Ready(Utc::now())).await;
                                 log_1(&JsValue::from("x21"));

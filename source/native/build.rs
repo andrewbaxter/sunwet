@@ -21,6 +21,8 @@ use {
             insert::InsertConflict,
             select_body::{
                 Order,
+                SelectJunction,
+                SelectJunctionOperator,
             },
             utils::{
                 CteBuilder,
@@ -293,59 +295,125 @@ fn main() {
     }
 
     // Metadata
+    let meta_table;
+    let meta_node;
+    let meta_mimetype;
     {
-        let t = latest_version.table("z7B1CHM4F", "meta");
-        let node = t.field(&mut latest_version, "zLQI9HQUQ", "node", FieldType::with(&node_type));
-        let mimetype = t.field(&mut latest_version, "zSZVNBP0E", "mimetype", field_str().build());
-        let fulltext = t.field(&mut latest_version, "zPI3TKEA8", "fulltext", field_str().build());
-        t.constraint(
+        meta_table = latest_version.table("z7B1CHM4F", "meta");
+        meta_node = meta_table.field(&mut latest_version, "zLQI9HQUQ", "node", FieldType::with(&node_type));
+        meta_mimetype = meta_table.field(&mut latest_version, "zSZVNBP0E", "mimetype", field_str().build());
+        let fulltext = meta_table.field(&mut latest_version, "zPI3TKEA8", "fulltext", field_str().build());
+        meta_table.constraint(
             &mut latest_version,
             "zCW5WMK7U",
             "meta_node",
-            PrimaryKey(PrimaryKeyDef { fields: vec![node.clone()] }),
+            PrimaryKey(PrimaryKeyDef { fields: vec![meta_node.clone()] }),
         );
         queries.push(
             new_insert(
-                &t,
-                vec![set_field("node", &node), set_field("mimetype", &mimetype), set_field("fulltext", &fulltext)],
+                &meta_table,
+                vec![
+                    set_field("node", &meta_node),
+                    set_field("mimetype", &meta_mimetype),
+                    set_field("fulltext", &fulltext)
+                ],
             )
                 .on_conflict(InsertConflict::DoNothing)
                 .build_query("meta_insert", QueryResCount::None),
         );
         queries.push(
-            new_delete(&t).where_(expr_field_eq("node", &node)).build_query("meta_delete", QueryResCount::None),
+            new_delete(&meta_table)
+                .where_(expr_field_eq("node", &meta_node))
+                .build_query("meta_delete", QueryResCount::None),
         );
         queries.push(
-            new_select(&t)
-                .where_(expr_field_eq("node", &node))
-                .return_fields(&[&mimetype, &fulltext])
+            new_select(&meta_table)
+                .where_(expr_field_eq("node", &meta_node))
+                .return_fields(&[&meta_mimetype, &fulltext])
                 .build_query_named_res("meta_get", QueryResCount::MaybeOne, "Metadata"),
         );
-        queries.push(new_select(&t).where_(Expr::BinOp {
-            left: Box::new(Expr::field(&node)),
+        queries.push(new_select(&meta_table).where_(Expr::BinOp {
+            left: Box::new(Expr::field(&meta_node)),
             op: BinOp::In,
             right: Box::new(Expr::Param {
                 name: "nodes".to_string(),
                 type_: node_array_type.clone(),
             }),
-        }).return_field(&node).build_query("meta_filter_existing", QueryResCount::Many));
-        queries.push(new_delete(&t).where_(Expr::Exists {
+        }).return_field(&meta_node).build_query("meta_filter_existing", QueryResCount::Many));
+        queries.push(new_delete(&meta_table).where_(Expr::Exists {
             not: true,
             body: Box::new(new_select_body(&triple_table).return_named("x", Expr::LitI32(1)).where_(Expr::BinOp {
                 left: Box::new(Expr::BinOp {
-                    left: Box::new(Expr::field(&node)),
+                    left: Box::new(Expr::field(&meta_node)),
                     op: BinOp::Equals,
                     right: Box::new(Expr::field(&triple_subject)),
                 }),
                 op: BinOp::Or,
                 right: Box::new(Expr::BinOp {
-                    left: Box::new(Expr::field(&node)),
+                    left: Box::new(Expr::field(&meta_node)),
                     op: BinOp::Equals,
                     right: Box::new(Expr::field(&triple_object)),
                 }),
             }).build()),
             body_junctions: vec![],
         }).build_query("meta_gc", QueryResCount::None));
+    }
+
+    // Generated
+    {
+        let t = latest_version.table("ywyc97a308uwk6", "generated");
+        let node = t.field(&mut latest_version, "ll73nt097vqp9h", "node", FieldType::with(&node_type));
+        let gentype = t.field(&mut latest_version, "9ws4mwxpqo8f2t", "gentype", field_str().build());
+        let gen_filename = t.field(&mut latest_version, "p69uci2ryf4nd3", "filename", field_str().build());
+        let mimetype = t.field(&mut latest_version, "cxp4q2vrhu3164", "mimetype", field_str().build());
+        t.constraint(
+            &mut latest_version,
+            "66tg3ve8apuxrz",
+            "generated_file",
+            PrimaryKey(PrimaryKeyDef { fields: vec![node.clone(), gentype.clone()] }),
+        );
+        t.index("y2cqctw0ycg1wt", "generated_filename", &[&gen_filename]).unique().build(&mut latest_version);
+        queries.push(
+            new_insert(
+                &t,
+                vec![
+                    set_field("node", &node),
+                    set_field("gentype", &gentype),
+                    set_field("filename", &gen_filename),
+                    set_field("mimetype", &mimetype)
+                ],
+            )
+                .on_conflict(InsertConflict::DoNothing)
+                .build_query("gen_insert", QueryResCount::None),
+        );
+        queries.push(
+            new_select(&t)
+                .where_(expr_and(vec![expr_field_eq("node", &node), expr_field_eq("gentype", &gentype)]))
+                .return_fields(&[&mimetype, &gen_filename])
+                .build_query_named_res("gen_get", QueryResCount::MaybeOne, "GenMetadata"),
+        );
+        queries.push(
+            new_select(&meta_table)
+                .return_field(&meta_node)
+                .where_(expr_field_eq("mime", &meta_mimetype))
+                .junction(SelectJunction {
+                    op: SelectJunctionOperator::Except,
+                    body: new_select_body(&t)
+                        .where_(expr_field_eq("gentype", &gentype))
+                        .return_field(&node)
+                        .build(),
+                })
+                .limit(Expr::LitI32(50))
+                .build_query("gen_peek_missing", QueryResCount::Many),
+        );
+        queries.push(new_delete(&t).where_(Expr::BinOp {
+            left: Box::new(Expr::field(&node)),
+            op: BinOp::NotIn,
+            right: Box::new(Expr::Select {
+                body: Box::new(new_select_body(&meta_table).return_field(&meta_node).build()),
+                body_junctions: vec![],
+            }),
+        }).build_query("gen_gc", QueryResCount::None));
     }
 
     // File access

@@ -34,6 +34,7 @@ use {
         ResultContext,
     },
     shared::interface::wire::link::{
+        SourceUrl,
         WsC2S,
         WsL2S,
         WsS2C,
@@ -103,24 +104,20 @@ pub fn handle_ws_main(state: Arc<State>, websocket: HyperWebsocket) {
                                                     link_public.clear();
                                                     match &prepare.media {
                                                         shared::interface::wire::link::PrepareMedia::Audio(m) => {
-                                                            if let Some(file) = m.source_url.file.as_ref() {
+                                                            if let SourceUrl::File(file) = &m.source_url {
                                                                 link_public.insert(file.clone());
                                                             }
-                                                            if let Some(file) =
-                                                                m
-                                                                    .cover_source_url
-                                                                    .as_ref()
-                                                                    .and_then(|x| x.file.as_ref()) {
+                                                            if let Some(SourceUrl::File(file)) = &m.cover_source_url {
                                                                 link_public.insert(file.clone());
                                                             }
                                                         },
                                                         shared::interface::wire::link::PrepareMedia::Video(m) => {
-                                                            if let Some(file) = m.file.as_ref() {
+                                                            if let SourceUrl::File(file) = m {
                                                                 link_public.insert(file.clone());
                                                             }
                                                         },
                                                         shared::interface::wire::link::PrepareMedia::Image(m) => {
-                                                            if let Some(file) = m.file.as_ref() {
+                                                            if let SourceUrl::File(file) = m {
                                                                 link_public.insert(file.clone());
                                                             }
                                                         },

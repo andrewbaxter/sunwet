@@ -1,6 +1,8 @@
 use {
     crate::js::{
         async_event,
+        Engine,
+        Env,
         LogJsErr,
     },
     futures::FutureExt,
@@ -9,18 +11,30 @@ use {
         future::Future,
         pin::Pin,
     },
-    wasm_bindgen::JsCast,
-    web_sys::HtmlMediaElement,
+    wasm_bindgen::{
+        JsCast,
+        JsValue,
+    },
+    web_sys::{
+        console::{
+            log_1,
+            log_2,
+        },
+        HtmlMediaElement,
+    },
 };
 
-fn pm_wait_until_buffered(m: HtmlMediaElement) -> Pin<Box<dyn Future<Output = ()>>> {
+fn pm_wait_until_buffered(eng: Option<Engine>, m: HtmlMediaElement) -> Pin<Box<dyn Future<Output = ()>>> {
     return async move {
         // 4 = `HAVE_ENOUGH_DATA`
         if m.ready_state() < 4 {
-            // ios doesn't load until you manually tell it to load, even if preload is set to
-            // auto. This may not be needed with the seek workaround (rare case of two wrongs
-            // making just one wrong).
-            m.load();
+            if eng == Some(Engine::IosSafari) {
+                // ios doesn't load until you manually tell it to load, even if preload is set to
+                // auto. This may not be needed with the seek workaround (rare case of two wrongs
+                // making just one wrong).
+                m.load();
+                // (doing this causes currentTime to reset in chrome.)
+            }
             async_event(&m, "canplaythrough").await;
         }
     }.boxed_local();
@@ -39,16 +53,6 @@ pub trait PlaylistMedia {
     fn pm_display(&self) -> bool;
     fn pm_play(&self);
     fn pm_stop(&self);
-
-    fn pm_seek_forward(&self, offset_seconds: f64) {
-        let time = self.pm_get_time();
-        self.pm_seek(time + offset_seconds);
-    }
-
-    fn pm_seek_backwards(&self, offset_seconds: f64) {
-        let time = self.pm_get_time();
-        self.pm_seek(time - offset_seconds);
-    }
     fn pm_get_time(&self) -> f64;
     fn pm_get_max_time(&self) -> Option<f64>;
     fn pm_seek(&self, time: f64);
@@ -56,7 +60,7 @@ pub trait PlaylistMedia {
     fn pm_unpreload(&self);
     fn pm_el(&self) -> &El;
     fn pm_wait_until_seekable(&self) -> Pin<Box<dyn Future<Output = ()>>>;
-    fn pm_wait_until_buffered(&self) -> Pin<Box<dyn Future<Output = ()>>>;
+    fn pm_wait_until_buffered(&self, eng: Option<Engine>) -> Pin<Box<dyn Future<Output = ()>>>;
 }
 
 pub struct PlaylistMediaAudio {
@@ -104,6 +108,10 @@ impl PlaylistMedia for PlaylistMediaAudio {
 
     fn pm_seek(&self, time: f64) {
         self.pm_media().set_current_time(time);
+        log_2(
+            &JsValue::from(format!("seek to {}, new time is {}", time, self.pm_media().current_time())),
+            &self.pm_media(),
+        );
     }
 
     fn pm_preload(&self) {
@@ -118,8 +126,8 @@ impl PlaylistMedia for PlaylistMediaAudio {
         return pm_wait_until_seekable(self.pm_media().clone());
     }
 
-    fn pm_wait_until_buffered(&self) -> Pin<Box<dyn Future<Output = ()>>> {
-        return pm_wait_until_buffered(self.pm_media().clone());
+    fn pm_wait_until_buffered(&self, eng: Option<Engine>) -> Pin<Box<dyn Future<Output = ()>>> {
+        return pm_wait_until_buffered(eng, self.pm_media().clone());
     }
 }
 
@@ -182,8 +190,8 @@ impl PlaylistMedia for PlaylistMediaVideo {
         return pm_wait_until_seekable(self.pm_media().clone());
     }
 
-    fn pm_wait_until_buffered(&self) -> Pin<Box<dyn Future<Output = ()>>> {
-        return pm_wait_until_buffered(self.pm_media().clone());
+    fn pm_wait_until_buffered(&self, eng: Option<Engine>) -> Pin<Box<dyn Future<Output = ()>>> {
+        return pm_wait_until_buffered(eng, self.pm_media().clone());
     }
 }
 
@@ -228,7 +236,25 @@ impl PlaylistMedia for PlaylistMediaImage {
         return async { }.boxed_local();
     }
 
-    fn pm_wait_until_buffered(&self) -> Pin<Box<dyn Future<Output = ()>>> {
+    fn pm_wait_until_buffered(&self, _eng: Option<Engine>) -> Pin<Box<dyn Future<Output = ()>>> {
         return async { }.boxed_local();
+    }
+}
+
+pub async fn pm_ready_prep(engine: Option<Engine>, media: &dyn PlaylistMedia, new_time: f64) {
+    log_1(&JsValue::from(format!("ready prep____________________")));
+    media.pm_preload();
+    media.pm_wait_until_seekable().await;
+    log_1(&JsValue::from(format!("now seekable")));
+    media.pm_seek(new_time);
+    log_1(&JsValue::from(format!("waiting until buffered 1")));
+    media.pm_wait_until_buffered(engine).await;
+    log_1(&JsValue::from(format!("now buffered")));
+    if engine == Some(Engine::IosSafari) {
+        // Ios safari can't seek until canplaythrough event and then we need to wait again
+        // to make sure it can playthrough from the new position... ugh
+        media.pm_seek(new_time);
+        log_1(&JsValue::from(format!("waiting until buffered again")));
+        media.pm_wait_until_buffered(engine).await;
     }
 }

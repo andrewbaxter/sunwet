@@ -696,7 +696,7 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
         let title = edit_title.to_string();
         async move {
             ta_return!(El, String);
-            let triples = req_post_json(&state().base_url, ReqGetTriplesAround { node: node.clone() }).await?;
+            let triples = req_post_json(&state().env.base_url, ReqGetTriplesAround { node: node.clone() }).await?;
             return eg.event(|pc| {
                 let error_slot =
                     el_from_raw(
@@ -965,7 +965,7 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                                     }
 
                                     // Send compiled changes
-                                    req_post_json(&state().base_url, ReqCommit {
+                                    req_post_json(&state().env.base_url, ReqCommit {
                                         add: add,
                                         remove: remove,
                                         files: vec![],

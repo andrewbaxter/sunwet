@@ -1,8 +1,6 @@
 use {
     super::{
-        config::{
-            ClientConfig,
-        },
+        config::ClientConfig,
         query::Query,
     },
     crate::interface::triple::{
@@ -18,9 +16,12 @@ use {
         Deserialize,
         Serialize,
     },
-    std::collections::{
-        BTreeMap,
-        HashMap,
+    std::{
+        collections::{
+            BTreeMap,
+            HashMap,
+        },
+        str::FromStr,
     },
 };
 
@@ -275,16 +276,53 @@ pub enum C2SReq {
     WhoAmI(ReqWhoAmI),
 }
 
-// # ?
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct FileGenerated {
-    pub mime_type: String,
-    pub name: String,
+pub fn file_derivation_mime(mime: String) -> FileUrlQuery {
+    return FileUrlQuery { derivation: Some((format!("mime_{}", mime), false)) };
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Copy)]
+pub enum VttLang {
+    Eng,
+    Jpn,
+}
+
+// Match ffmpeg languages
+const VTT_LANG_ENG: &str = "eng";
+const VTT_LANG_JPN: &str = "jpn";
+
+impl VttLang {
+    pub fn to_string(&self) -> &'static str {
+        match self {
+            VttLang::Eng => return VTT_LANG_ENG,
+            VttLang::Jpn => return VTT_LANG_JPN,
+        }
+    }
+}
+
+impl FromStr for VttLang {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            VTT_LANG_ENG => return Ok(VttLang::Eng),
+            VTT_LANG_JPN => return Ok(VttLang::Jpn),
+            _ => return Err(format!("Unrecognized/implemented VTT lang {}", s)),
+        }
+    }
+}
+
+pub fn file_derivation_subtitles(lang: VttLang) -> FileUrlQuery {
+    return FileUrlQuery { derivation: Some((format!("vtt_{}", lang.to_string()), false)) };
+}
+
+// Why not ACCEPT header? Accept header only accepts mime types, we need more high
+// level data and I don't want to do extra-standard stuff.
+#[derive(Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FileUrlQuery {
-    pub generated: Option<FileGenerated>,
+    /// Derivation name, like `mime-image/jpg` or `vtt-eng`, and whether it's required.
+    /// If not required and the derivation is missing, respond with the original file
+    /// data, otherwise 404.
+    #[serde(skip_serializing_if = "Option::is_none", rename = "d", default)]
+    pub derivation: Option<(String, bool)>,
 }

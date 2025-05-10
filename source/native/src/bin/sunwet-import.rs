@@ -202,6 +202,7 @@ fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
         artist: Vec<String>,
         artist_sort: Vec<String>,
         tracks: Vec<Rc<RefCell<GatherTrack>>>,
+        discogs_id: Option<String>,
     }
 
     #[derive(Default)]
@@ -343,6 +344,7 @@ fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
                         artist: vec![],
                         artist_sort: vec![],
                         tracks: vec![],
+                        discogs_id: None,
                     }));
                     albumset.albums.push(a.clone());
                     a
@@ -625,6 +627,7 @@ fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
                         artist: vec![],
                         artist_sort: vec![],
                         tracks: vec![],
+                        discogs_id: None,
                     }));
                     albumset.albums.push(a.clone());
                     a

@@ -65,7 +65,7 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
         let node = node.clone();
         async move {
             ta_return!(El, String);
-            let triples = req_post_json(&state().base_url, ReqGetTriplesAround { node: node.clone() }).await?;
+            let triples = req_post_json(&state().env.base_url, ReqGetTriplesAround { node: node.clone() }).await?;
             return eg.event(|_pc| {
                 let mut out = vec![];
 

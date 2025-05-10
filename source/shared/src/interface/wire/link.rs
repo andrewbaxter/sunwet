@@ -12,11 +12,9 @@ use {
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct SourceUrl {
-    pub url: String,
-    // If the url refers to a file, the file hash - used for setting up temporary
-    // sharing permissions
-    pub file: Option<FileHash>,
+pub enum SourceUrl {
+    Url(String),
+    File(FileHash),
 }
 
 #[derive(Serialize, Deserialize, Clone)]

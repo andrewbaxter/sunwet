@@ -3,6 +3,7 @@ use {
     gloo::{
         events::EventListener,
         storage::{
+            LocalStorage,
             SessionStorage,
             Storage,
         },
@@ -29,8 +30,10 @@ use {
             MinistateView,
             SESSIONSTORAGE_POST_REDIRECT,
         },
+        page_view::LOCALSTORAGE_SHARE_SESSION_ID,
         playlist::{
             self,
+            playlist_set_link,
         },
         state::{
             build_ministate,
@@ -69,15 +72,13 @@ use {
         async_::bg_val,
         js::{
             el_async_,
+            scan_env,
             style_export::{
                 self,
             },
         },
     },
-    wasm_bindgen::{
-        JsCast,
-        UnwrapThrowExt,
-    },
+    wasm_bindgen::JsCast,
     web_sys::{
         Element,
         HtmlElement,
@@ -90,11 +91,7 @@ pub fn main() {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
     let eg = EventGraph::new();
     eg.event(|pc| {
-        let base_url;
-        {
-            let loc = window().location();
-            base_url = format!("{}{}", loc.origin().unwrap_throw(), loc.pathname().unwrap_throw());
-        }
+        let env = scan_env();
         let stack =
             el_from_raw(style_export::cont_stack(style_export::ContStackArgs { children: vec![] }).root.into());
         let modal_stack =
@@ -102,9 +99,9 @@ pub fn main() {
         let main_body =
             el_from_raw(style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root.into());
         let client_config = bg_val({
-            let base_url = base_url.clone();
+            let env = env.clone();
             async move {
-                let config = match req_post_json(&base_url, ReqGetClientConfig).await {
+                let config = match req_post_json(&env.base_url, ReqGetClientConfig).await {
                     Ok(menu) => menu,
                     Err(e) => {
                         return Err(format!("Error retrieving menu: {:?}", e));
@@ -116,11 +113,11 @@ pub fn main() {
         let menu_body = el_async_(true, {
             let eg = pc.eg();
             let client_config = client_config.clone();
-            let base_url = base_url.clone();
+            let env = env.clone();
             async move {
-                let whoami = req_post_json(&base_url, ReqWhoAmI).await?;
+                let whoami = req_post_json(&env.base_url, ReqWhoAmI).await?;
                 if want_logged_in() && whoami == RespWhoAmI::Public {
-                    redirect_login(&state().base_url);
+                    redirect_login(&env.base_url);
                 }
                 let client_config = client_config.get().await?;
 
@@ -170,7 +167,7 @@ pub fn main() {
                             let eg = eg.clone();
                             move |_| eg.event(|_pc| {
                                 set_want_logged_in();
-                                redirect_login(&state().base_url);
+                                redirect_login(&env.base_url);
                             }).unwrap()
                         });
                         bar_children.push(button)
@@ -181,7 +178,7 @@ pub fn main() {
                             let eg = eg.clone();
                             move |_| eg.event(|_pc| {
                                 unset_want_logged_in();
-                                redirect_logout(&state().base_url);
+                                redirect_logout(&env.base_url);
                             }).unwrap()
                         });
                         bar_children.push(button)
@@ -219,7 +216,7 @@ pub fn main() {
             el_from_raw(
                 root_res.root.into(),
             ).own(|_| (main_title.clone(), main_body.clone(), menu_body.clone(), admenu_button));
-        let (playlist_state, playlist_root) = playlist::state_new(pc, base_url.clone());
+        let (playlist_state, playlist_root) = playlist::state_new(pc, env.clone());
 
         // Build app state
         STATE.with(|s| *s.borrow_mut() = Some(Rc::new(State_ {
@@ -235,7 +232,7 @@ pub fn main() {
                 read_ministate()
             })),
             menu_open: Prim::new(false),
-            base_url: base_url.clone(),
+            env: env.clone(),
             playlist: playlist_state,
             modal_stack: modal_stack.clone(),
             main_title: main_title,
@@ -243,6 +240,13 @@ pub fn main() {
             menu_body: menu_body,
             client_config: client_config,
         })));
+
+        // Restore share state
+        {
+            if let Ok(sess_id) = LocalStorage::get::<String>(LOCALSTORAGE_SHARE_SESSION_ID) {
+                playlist_set_link(pc, &state().playlist, &sess_id);
+            };
+        }
 
         // Load initial view
         build_ministate(pc, &state().ministate.borrow());

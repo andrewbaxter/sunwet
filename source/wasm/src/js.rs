@@ -1,4 +1,5 @@
 use {
+    flowcontrol::shed,
     futures::channel::oneshot::channel,
     gloo::{
         events::EventListener,
@@ -11,6 +12,11 @@ use {
         spawn_rooted,
         El,
     },
+    shared::interface::wire::{
+        file_derivation_mime,
+        FileUrlQuery,
+        VttLang,
+    },
     std::{
         fmt::Display,
         future::Future,
@@ -18,6 +24,7 @@ use {
     wasm_bindgen::{
         JsCast,
         JsValue,
+        UnwrapThrowExt,
     },
     web_sys::{
         console::{
@@ -29,15 +36,97 @@ use {
     },
 };
 
-pub fn is_ios() -> bool {
-    let user_agent = match window().navigator().user_agent() {
-        Ok(a) => a,
-        Err(e) => {
-            log_js("Error getting user agent to enable ios workarounds", &e);
-            return false;
+// Since bug detection isn't a thing, or rather I don't want to deal with that
+#[derive(Clone, PartialEq, Eq, Copy)]
+pub enum Engine {
+    IosSafari,
+    Chrome,
+}
+
+#[derive(Clone)]
+pub struct Lang {
+    // Lang as it comes from navigator
+    pub nav_lang: String,
+    // Lang name for vtt subtitle selection
+    pub vtt_lang: VttLang,
+}
+
+#[derive(Clone)]
+pub struct Env {
+    // Ends with `/`
+    pub base_url: String,
+    pub engine: Option<Engine>,
+    pub languages: Vec<Lang>,
+}
+
+pub fn scan_env() -> Env {
+    return Env {
+        base_url: shed!{
+            let loc = window().location();
+            break format!(
+                "{}{}/",
+                loc.origin().unwrap_throw(),
+                loc.pathname().unwrap_throw().rsplit_once("/").unwrap_throw().0
+            );
         },
-    };
-    return user_agent.contains("iPad") || user_agent.contains("iPhone") || user_agent.contains("iPod");
+        engine: shed!{
+            'found _;
+            shed!{
+                let user_agent = match window().navigator().user_agent() {
+                    Ok(a) => a,
+                    Err(e) => {
+                        log_js("Error getting user agent to enable ios workarounds", &e);
+                        break;
+                    },
+                };
+                if user_agent.contains("iPad") || user_agent.contains("iPhone") || user_agent.contains("iPod") {
+                    log_1(&JsValue::from("Detected mobile ios, activating webkit workarounds."));
+                    break 'found Some(Engine::IosSafari);
+                }
+            }
+            if js_sys::Reflect::has(&window(), &JsValue::from("chrome")).unwrap() {
+                log_1(&JsValue::from("Detected chrome(ish), activating chrome workarounds."));
+                break 'found Some(Engine::Chrome);
+            }
+            break None;
+        },
+        languages: shed!{
+            let mut out = vec![];
+            for nav_lang in window().navigator().languages() {
+                let nav_lang = nav_lang.as_string().unwrap();
+                let short_lang = if let Some((l, _)) = nav_lang.split_once("-") {
+                    l
+                } else {
+                    &nav_lang
+                };
+                let vtt_lang = match short_lang {
+                    "en" => VttLang::Eng,
+                    "jp" => VttLang::Jpn,
+                    _ => {
+                        log(format!("Unhandled subtitle translation for language {}", short_lang));
+                        continue;
+                    },
+                };
+                out.push(Lang {
+                    nav_lang: nav_lang,
+                    vtt_lang: vtt_lang,
+                });
+            }
+            break out;
+        },
+    }
+}
+
+pub fn env_preferred_audio(env: &Env) -> FileUrlQuery {
+    if env.engine == Some(Engine::IosSafari) {
+        return file_derivation_mime("audio/aac".to_string());
+    } else {
+        return FileUrlQuery::default();
+    }
+}
+
+pub fn env_preferred_video() -> FileUrlQuery {
+    return file_derivation_mime("video/webm".to_string());
 }
 
 pub fn log(x: impl Display) {
