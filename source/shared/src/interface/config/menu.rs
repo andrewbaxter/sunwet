@@ -18,8 +18,9 @@ pub struct ClientMenuItemSection {
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ClientMenuItemView {
-    pub name: String,
     pub id: String,
+    pub name: String,
+    pub view_id: String,
     #[serde(default)]
     pub arguments: HashMap<String, Node>,
 }
@@ -27,8 +28,9 @@ pub struct ClientMenuItemView {
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ClientMenuItemForm {
-    pub name: String,
     pub id: String,
+    pub name: String,
+    pub form_id: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]

@@ -807,7 +807,7 @@ pub fn file_access_clear_nonversion(
     version_hash: i64,
 ) -> Result<(), GoodError> {
     let query =
-        "delete from \"file_access\" where ( ( \"file_access\" . \"page\" = $1 ) and ( \"file_access\" . \"page_version_hash\" = $2 ) )";
+        "delete from \"file_access\" where ( ( \"file_access\" . \"page\" = $1 ) and ( \"file_access\" . \"page_version_hash\" != $2 ) )";
     db.execute(query, rusqlite::params![access, version_hash]).to_good_error_query(query)?;
     Ok(())
 }

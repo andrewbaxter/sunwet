@@ -418,6 +418,7 @@ fn main() {
 
     // File access
     {
+        // TODO `s/page/view/g`
         let t = latest_version.table("zFFF18JKY", "file_access");
         let file = t.field(&mut latest_version, "zLQI9HQUQ", "file", FieldType::with(&filehash_type));
         let page = t.field(&mut latest_version, "zSZVNBP0E", "page", FieldType::with(&file_access_type));
@@ -442,7 +443,7 @@ fn main() {
         );
         queries.push(new_delete(&t).where_(expr_and(vec![expr_field_eq("access", &page), Expr::BinOp {
             left: Box::new(Expr::Binding(Binding::field(&page_version_hash))),
-            op: BinOp::Equals,
+            op: BinOp::NotEquals,
             right: Box::new(Expr::Param {
                 name: "version_hash".into(),
                 type_: page_version_hash.type_.type_.clone(),

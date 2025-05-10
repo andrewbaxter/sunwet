@@ -344,7 +344,15 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     }
                                     return Ok(response_401());
                                 }
-                                let view = global_config.views.get(&req.menu_item_id).unwrap();
+                                let view =
+                                    global_config
+                                        .views
+                                        .get(&menu_item.item.view_id)
+                                        .context_with(
+                                            "Menu item configuration references nonexistent view",
+                                            ea!(menu_item = req.menu_item_id, view = menu_item.item.view_id),
+                                        )
+                                        .err_internal()?;
                                 let Some(query) = view.queries.get(&req.query) else {
                                     return Err(
                                         loga::err_with(

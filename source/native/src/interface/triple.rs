@@ -4,7 +4,6 @@ use {
         FileHash,
         Node,
     },
-    std::str::FromStr,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

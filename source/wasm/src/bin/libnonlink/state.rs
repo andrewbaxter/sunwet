@@ -4,7 +4,9 @@ use {
             record_new_ministate,
             Ministate,
         },
-        page_form::build_page_form_by_id,
+        page_form::{
+            build_page_form,
+        },
         page_node_edit::build_page_node_edit,
         page_node_view::build_page_node_view,
         page_view::build_page_view,
@@ -23,14 +25,19 @@ use {
         el_from_raw,
         El,
     },
-    shared::interface::config::ClientConfig,
+    shared::interface::config::{
+        menu::ClientMenuItem,
+        ClientConfig,
+    },
     std::{
         cell::RefCell,
+        collections::HashMap,
         rc::Rc,
     },
     wasm::{
         async_::BgVal,
         js::{
+            el_async_,
             style_export,
             Env,
         },
@@ -42,7 +49,7 @@ pub struct State_ {
     pub ministate: RefCell<Ministate>,
     pub env: Env,
     pub playlist: PlaylistState,
-    pub client_config: BgVal<Result<Rc<ClientConfig>, String>>,
+    pub client_config: BgVal<Result<Rc<(ClientConfig, HashMap<String, ClientMenuItem>)>, String>>,
     pub menu_open: Prim<bool>,
     // Arcmutex due to OnceLock, should El use sync alternatives?
     pub main_title: El,
@@ -87,11 +94,30 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
         Ministate::Home => {
             set_page_(pc, "Home", true, el_from_raw(style_export::cont_page_home().root.into()));
         },
-        Ministate::View(ms) => {
-            build_page_view(pc, &ms.title, &ms.menu_item_id, ms.pos.clone());
-        },
-        Ministate::Form(ms) => {
-            build_page_form_by_id(pc, &ms.title, &ms.menu_item_id);
+        Ministate::MenuItem(ms) => {
+            set_page(pc, &ms.title, el_async_(true, {
+                let title = ms.title.clone();
+                let menu_item_id = ms.menu_item_id.clone();
+                let pos = ms.pos.clone();
+                let eg = pc.eg();
+                async move {
+                    let client_config = state().client_config.get().await?;
+                    let Some(menu_item) = client_config.1.get(&menu_item_id) else {
+                        return Err(format!("No menu item with id [{}] in config", menu_item_id));
+                    };
+                    match menu_item {
+                        ClientMenuItem::Section(_) => {
+                            return Err(format!("Menu item [{}] is a section, nothing to display.", menu_item_id));
+                        },
+                        ClientMenuItem::View(menu_item) => {
+                            return build_page_view(eg, &client_config.0, title, menu_item.clone(), pos);
+                        },
+                        ClientMenuItem::Form(menu_item) => {
+                            return build_page_form(eg, client_config.0.clone(), title, menu_item.clone());
+                        },
+                    }
+                }
+            }));
         },
         Ministate::NodeEdit(ms) => {
             build_page_node_edit(pc, &ms.title, &ms.node);

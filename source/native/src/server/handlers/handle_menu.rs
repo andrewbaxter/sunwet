@@ -68,8 +68,9 @@ pub async fn handle_get_filtered_client_config(
                     return ClientView { config: view.config.clone() };
                 });
                 return Some(ClientMenuItem::View(ClientMenuItemView {
-                    name: at.item.name.clone(),
                     id: at_id.clone(),
+                    name: at.item.name.clone(),
+                    view_id: at.item.view_id.clone(),
                     arguments: at.item.arguments.clone(),
                 }));
             },
@@ -85,8 +86,9 @@ pub async fn handle_get_filtered_client_config(
                     };
                 });
                 return Some(ClientMenuItem::Form(ClientMenuItemForm {
-                    name: at.item.name.clone(),
                     id: at_id.clone(),
+                    name: at.item.name.clone(),
+                    form_id: at.item.form_id.clone(),
                 }));
             },
         }

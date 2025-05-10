@@ -2,7 +2,7 @@ use {
     super::{
         ministate::{
             Ministate,
-            MinistateView,
+            MinistateMenuItem,
             PlaylistRestorePos,
         },
         state::state,
@@ -364,7 +364,7 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
                     state.0.media_max_time.set(pc, max_time);
                 });
                 if let Some((menu_item_id, title)) = state.0.ministate_menu_item_id_title.borrow().as_ref() {
-                    record_replace_ministate(&Ministate::View(MinistateView {
+                    record_replace_ministate(&Ministate::MenuItem(MinistateMenuItem {
                         menu_item_id: menu_item_id.clone(),
                         title: title.clone(),
                         pos: Some(PlaylistRestorePos {
@@ -499,14 +499,14 @@ pub fn playlist_extend(
                 let eg = pc.eg();
                 let entry_index = entry_index.clone();
                 move |_| eg.event(|pc| {
-                    // Debounce: pause due to ended
-                    state().playlist.0.debounce.set(Utc::now());
+                    log_1(&JsValue::from("got media ended"));
                     playlist_next(pc, &state().playlist, Some(entry_index.clone()));
                 }).unwrap()
             });
             media.ref_on("pause", {
                 let eg = pc.eg();
                 move |_| eg.event(|pc| {
+                    log_1(&JsValue::from("got media pause"));
                     if !debounce_pass(&state().playlist) {
                         return;
                     }
@@ -640,6 +640,7 @@ pub fn playlist_next(pc: &mut ProcessingContext, state: &PlaylistState, basis: O
     );
     if let Some((i, _)) = state.0.playlist.borrow().range((Bound::Excluded(i), Bound::Unbounded)).next() {
         log_1(&JsValue::from(format!("Got next track, playing: {:?}", i)));
+        state.0.playing.set(pc, true);
         state.0.playing_i.set(pc, Some(i.clone()));
         state.0.playing_time.set(pc, 0.);
     } else {
@@ -648,7 +649,7 @@ pub fn playlist_next(pc: &mut ProcessingContext, state: &PlaylistState, basis: O
         state.0.playing.set(pc, false);
         state.0.playing_time.set(pc, 0.);
         if let Some((menu_item_id, title)) = state.0.ministate_menu_item_id_title.borrow().as_ref() {
-            record_replace_ministate(&Ministate::View(MinistateView {
+            record_replace_ministate(&Ministate::MenuItem(MinistateMenuItem {
                 menu_item_id: menu_item_id.clone(),
                 title: title.clone(),
                 pos: None,

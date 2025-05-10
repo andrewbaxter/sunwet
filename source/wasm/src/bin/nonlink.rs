@@ -26,8 +26,7 @@ use {
             read_ministate,
             record_replace_ministate,
             Ministate,
-            MinistateForm,
-            MinistateView,
+            MinistateMenuItem,
             SESSIONSTORAGE_POST_REDIRECT,
         },
         page_view::LOCALSTORAGE_SHARE_SESSION_ID,
@@ -65,6 +64,7 @@ use {
     },
     std::{
         cell::RefCell,
+        collections::HashMap,
         panic,
         rc::Rc,
     },
@@ -102,12 +102,33 @@ pub fn main() {
             let env = env.clone();
             async move {
                 let config = match req_post_json(&env.base_url, ReqGetClientConfig).await {
-                    Ok(menu) => menu,
+                    Ok(c) => c,
                     Err(e) => {
                         return Err(format!("Error retrieving menu: {:?}", e));
                     },
                 };
-                return Ok(Rc::new(config));
+                let mut menu_items = HashMap::new();
+
+                fn build_lookup(out: &mut HashMap<String, ClientMenuItem>, item: &ClientMenuItem) {
+                    match item {
+                        ClientMenuItem::Section(i) => {
+                            for item in &i.children {
+                                build_lookup(out, item);
+                            }
+                        },
+                        ClientMenuItem::View(i) => {
+                            out.insert(i.view_id.clone(), ClientMenuItem::View(i.clone()));
+                        },
+                        ClientMenuItem::Form(i) => {
+                            out.insert(i.id.clone(), ClientMenuItem::Form(i.clone()));
+                        },
+                    }
+                }
+
+                for item in &config.menu {
+                    build_lookup(&mut menu_items, item);
+                }
+                return Ok(Rc::new((config, menu_items)));
             }
         });
         let menu_body = el_async_(true, {
@@ -136,8 +157,8 @@ pub fn main() {
                         ClientMenuItem::View(item) => {
                             return style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
                                 title: item.name.clone(),
-                                href: ministate_octothorpe(&Ministate::View(MinistateView {
-                                    menu_item_id: item.id.clone(),
+                                href: ministate_octothorpe(&Ministate::MenuItem(MinistateMenuItem {
+                                    menu_item_id: item.view_id.clone(),
                                     title: item.name.clone(),
                                     pos: None,
                                 })),
@@ -146,9 +167,10 @@ pub fn main() {
                         ClientMenuItem::Form(item) => {
                             return style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
                                 title: item.name.clone(),
-                                href: ministate_octothorpe(&Ministate::Form(MinistateForm {
+                                href: ministate_octothorpe(&Ministate::MenuItem(MinistateMenuItem {
                                     menu_item_id: item.id.clone(),
                                     title: item.name.clone(),
+                                    pos: None,
                                 })),
                             }).root;
                         },
@@ -156,8 +178,8 @@ pub fn main() {
                 }
 
                 let mut root = vec![];
-                for item in &client_config.menu {
-                    root.push(build_menu_item(&client_config, item).dyn_into::<Element>().unwrap());
+                for item in &client_config.0.menu {
+                    root.push(build_menu_item(&client_config.0, item).dyn_into::<Element>().unwrap());
                 }
                 let mut bar_children = vec![];
                 match &whoami {

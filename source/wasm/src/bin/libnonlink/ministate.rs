@@ -1,6 +1,7 @@
 use {
     super::playlist::PlaylistIndex,
     gloo::utils::window,
+    js_sys::decode_uri,
     serde::{
         Deserialize,
         Serialize,
@@ -24,17 +25,10 @@ pub struct PlaylistRestorePos {
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct MinistateView {
+pub struct MinistateMenuItem {
     pub menu_item_id: String,
     pub title: String,
     pub pos: Option<PlaylistRestorePos>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct MinistateForm {
-    pub menu_item_id: String,
-    pub title: String,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -55,8 +49,7 @@ pub struct MinistateNodeView {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Ministate {
     Home,
-    View(MinistateView),
-    Form(MinistateForm),
+    MenuItem(MinistateMenuItem),
     NodeEdit(MinistateNodeEdit),
     NodeView(MinistateNodeView),
 }
@@ -68,8 +61,7 @@ pub fn ministate_octothorpe(s: &Ministate) -> String {
 pub fn ministate_title(s: &Ministate) -> String {
     match s {
         Ministate::Home => return format!("Home"),
-        Ministate::View(s) => return s.title.clone(),
-        Ministate::Form(s) => return s.title.clone(),
+        Ministate::MenuItem(s) => return s.title.clone(),
         Ministate::NodeEdit(s) => return s.title.clone(),
         Ministate::NodeView(s) => return s.title.clone(),
     }
@@ -99,12 +91,18 @@ pub fn read_ministate() -> Ministate {
     let Some(s) = get_dom_octothorpe() else {
         return Ministate::Home;
     };
-    let s = match serde_json::from_str::<Ministate>(s.as_ref()) {
-        Ok(s) => s,
-        Err(e) => {
-            log(format!("Unable to parse url anchor state: {:?}\nAnchor: {}", e, s));
-            return Ministate::Home;
+    match serde_json::from_str::<Ministate>(s.as_ref()) {
+        Ok(s) => return s,
+        Err(_) => {
+            // nop
         },
     };
-    return s;
+    match serde_json::from_str::<Ministate>(&decode_uri(s.as_str()).unwrap().as_string().unwrap()) {
+        Ok(s) => return s,
+        Err(_) => {
+            // nop
+        },
+    }
+    log(format!("Unable to parse url anchor state: [{}]", s));
+    return Ministate::Home;
 }

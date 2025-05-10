@@ -6,8 +6,6 @@ use {
         },
         playlist::PlaylistIndex,
         state::{
-            build_home_page,
-            set_page,
             state,
         },
     },
@@ -39,29 +37,35 @@ use {
     },
     lunk::{
         link,
+        EventGraph,
         Prim,
         ProcessingContext,
     },
     qrcode::QrCode,
     rooting::{
-        el,
         el_from_raw,
         El,
     },
     shared::interface::{
-        config::view::{
-            Direction,
-            FieldOrLiteral,
-            FieldOrLiteralString,
-            Orientation,
-            QueryOrField,
-            Widget,
-            WidgetDataRows,
-            WidgetImage,
-            WidgetLayout,
-            WidgetPlayButton,
-            WidgetRootDataRows,
-            WidgetText,
+        config::{
+            menu::{
+                ClientMenuItemView,
+            },
+            view::{
+                Direction,
+                FieldOrLiteral,
+                FieldOrLiteralString,
+                Orientation,
+                QueryOrField,
+                Widget,
+                WidgetDataRows,
+                WidgetImage,
+                WidgetLayout,
+                WidgetPlayButton,
+                WidgetRootDataRows,
+                WidgetText,
+            },
+            ClientConfig,
         },
         triple::Node,
         wire::{
@@ -80,7 +84,6 @@ use {
         constants::LINK_HASH_PREFIX,
         js::{
             el_async,
-            el_async_,
             style_export::{
                 self,
             },
@@ -923,59 +926,45 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
 }
 
 pub fn build_page_view(
-    pc: &mut ProcessingContext,
-    menu_item_title: &str,
-    menu_item_id: &str,
+    eg: EventGraph,
+    config: &ClientConfig,
+    menu_item_title: String,
+    menu_item: ClientMenuItemView,
     restore_playlist_pos: Option<PlaylistRestorePos>,
-) {
-    set_page(pc, menu_item_title, el_async_(true, {
-        let menu_item_id = menu_item_id.to_string();
-        let menu_item_title = menu_item_title.to_string();
-        let eg = pc.eg();
-        async move {
-            // # Async
-            let client_config = state().client_config.get().await?;
-            let Some(view) = client_config.views.get(&menu_item_id) else {
-                log_1(&JsValue::from(format!("No view with id [{}] in config", menu_item_id)));
-                eg.event(|pc| {
-                    build_home_page(pc);
-                }).unwrap();
-                return Ok(el("div")) as Result<_, String>;
-            };
-
-            // # Content
-            return eg.event(|pc| {
-                let mut build = Build {
-                    menu_item_id: menu_item_id.clone(),
-                    menu_item_title: menu_item_title.clone(),
-                    restore_playlist_pos: restore_playlist_pos.clone(),
-                    playlist_add: Default::default(),
-                    want_media: false,
-                    have_media: Rc::new(Cell::new(false)),
-                    transport_slot: el_from_raw(
-                        style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root.into(),
-                    ),
-                };
-                let data_rows_res =
-                    build.build_widget_root_data_rows(
-                        pc,
-                        &view.config,
-                        &vec![],
-                        &vec![TreeNode::Record(Default::default())],
-                    );
-                playlist_extend(
-                    pc,
-                    &state().playlist,
-                    &menu_item_id,
-                    &menu_item_title,
-                    build.playlist_add,
-                    &restore_playlist_pos,
-                );
-                return Ok(el_from_raw(style_export::cont_page_view(style_export::ContPageViewArgs {
-                    transport: Some(build.transport_slot.raw().dyn_into().unwrap()),
-                    rows: data_rows_res.raw().dyn_into().unwrap(),
-                }).root.into()).own(|_| (build.transport_slot, data_rows_res)));
-            }).unwrap();
-        }
-    }));
+) -> Result<El, String> {
+    let Some(view) = config.views.get(&menu_item.view_id) else {
+        return Err(format!("Menu item refers to unknown view [{}]", menu_item.view_id));
+    };
+    return eg.event(|pc| {
+        let mut build = Build {
+            menu_item_id: menu_item.id.clone(),
+            menu_item_title: menu_item_title.to_string(),
+            restore_playlist_pos: restore_playlist_pos.clone(),
+            playlist_add: Default::default(),
+            want_media: false,
+            have_media: Rc::new(Cell::new(false)),
+            transport_slot: el_from_raw(
+                style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root.into(),
+            ),
+        };
+        let data_rows_res =
+            build.build_widget_root_data_rows(
+                pc,
+                &view.config,
+                &vec![],
+                &vec![TreeNode::Record(Default::default())],
+            );
+        playlist_extend(
+            pc,
+            &state().playlist,
+            &menu_item.id,
+            &menu_item_title,
+            build.playlist_add,
+            &restore_playlist_pos,
+        );
+        return Ok(el_from_raw(style_export::cont_page_view(style_export::ContPageViewArgs {
+            transport: Some(build.transport_slot.raw().dyn_into().unwrap()),
+            rows: data_rows_res.raw().dyn_into().unwrap(),
+        }).root.into()).own(|_| (build.transport_slot, data_rows_res)));
+    }).unwrap();
 }
