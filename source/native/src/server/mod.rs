@@ -28,25 +28,6 @@ use {
         ta_return,
     },
     fsutil::create_dirs,
-    handlers::{
-        handle_files::{
-            handle_commit,
-            handle_file_get,
-            handle_file_head,
-            handle_file_post,
-            handle_finish_upload,
-            handle_form_commit,
-        },
-        handle_gc::handle_gc,
-        handle_link::{
-            handle_ws,
-            handle_ws_link,
-            handle_ws_main,
-        },
-        handle_menu::handle_get_filtered_client_config,
-        handle_oidc,
-        handle_static,
-    },
     http::{
         status,
         Uri,
@@ -132,7 +113,30 @@ use {
         },
         time::Duration,
     },
-    tokio::net::TcpListener,
+    subsystems::{
+        generate_files::start_generate_files,
+        files::{
+            handle_commit,
+            handle_file_get,
+            handle_file_head,
+            handle_file_post,
+            handle_finish_upload,
+            handle_form_commit,
+        },
+        gc::handle_gc,
+        link::{
+            handle_ws,
+            handle_ws_link,
+            handle_ws_main,
+        },
+        menu::handle_get_filtered_client_config,
+        oidc,
+        static_,
+    },
+    tokio::{
+        net::TcpListener,
+        sync::mpsc,
+    },
     tokio_stream::wrappers::TcpListenerStream,
 };
 
@@ -145,7 +149,7 @@ pub mod query;
 pub mod query_test;
 pub mod access;
 pub mod fsutil;
-pub mod handlers;
+pub mod subsystems;
 
 async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<BoxBody<Bytes, std::io::Error>> {
     let url = req.uri().clone();
@@ -193,14 +197,14 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                 match path_first {
                     "oidc" => {
                         if let Some(oidc_state) = state.oidc_state.as_ref() {
-                            return Ok(handle_oidc::handle_oidc(oidc_state, head).await?);
+                            return Ok(oidc::handle_oidc(oidc_state, head).await?);
                         } else {
                             return Ok(response_404());
                         }
                     },
                     "logout" => {
                         if let Some(oidc_state) = state.oidc_state.as_ref() {
-                            return Ok(handle_oidc::handle_logout(oidc_state, &state.log, head).await?);
+                            return Ok(oidc::handle_logout(oidc_state, &state.log, head).await?);
                         } else {
                             return Ok(response_404());
                         }
@@ -536,7 +540,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                         }
                     },
                     _ => {
-                        return handle_static::handle_static(head.uri.path().trim_matches('/')).await;
+                        return static_::handle_static(head.uri.path().trim_matches('/')).await;
                     },
                 }
             }
@@ -586,139 +590,149 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
         true => loga::DEBUG,
         false => loga::INFO,
     });
-    let cache_dir = config.cache_dir;
-    create_dirs(&cache_dir).await?;
-    create_dirs(&config.graph_dir).await?;
-    let stage_dir = config.files_dir.join("stage");
-    create_dirs(&stage_dir).await?;
-    let files_dir = config.files_dir.join("ready");
-    create_dirs(&files_dir).await?;
-    let db_path = config.graph_dir.join("db.sqlite3");
-    let db = deadpool_sqlite::Config::new(&db_path).create_pool(deadpool_sqlite::Runtime::Tokio1).unwrap();
-    db.get().await?.interact(|db| {
-        db::migrate(db)?;
-        db.execute(include_str!("setup_fts.sql"), ())?;
-        return Ok(()) as Result<_, loga::Error>;
-    }).await?.context_with("Migration failed", ea!(action = "db_init", path = db_path.to_string_lossy()))?;
     let tm = taskmanager::TaskManager::new();
+    {
+        let genfiles_dir = config.cache_dir.join("genfiles");
+        create_dirs(&genfiles_dir).await?;
+        create_dirs(&config.graph_dir).await?;
+        let stage_dir = config.files_dir.join("stage");
+        create_dirs(&stage_dir).await?;
+        let files_dir = config.files_dir.join("ready");
+        create_dirs(&files_dir).await?;
+        let db_path = config.graph_dir.join("db.sqlite3");
+        let db = deadpool_sqlite::Config::new(&db_path).create_pool(deadpool_sqlite::Runtime::Tokio1).unwrap();
+        db.get().await?.interact(|db| {
+            db::migrate(db)?;
+            db.execute(include_str!("setup_fts.sql"), ())?;
+            return Ok(()) as Result<_, loga::Error>;
+        }).await?.context_with("Migration failed", ea!(action = "db_init", path = db_path.to_string_lossy()))?;
 
-    // GC
-    tm.periodic("Garbage collection", Duration::from_secs(24 * 60 * 60), cap_fn!(()(log, db, files_dir, cache_dir) {
-        let log = log.fork(ea!(sys = "gc"));
-        match handle_gc(&log, &db, &files_dir, &cache_dir).await {
-            Ok(_) => { },
-            Err(e) => {
-                log.log_err(loga::WARN, e.context("Error performing database garbage collection"));
+        // Setup state
+        let oidc_state = match &config.oidc {
+            Some(oidc_config) => {
+                Some(oidc::new_state(&log, oidc_config.clone()).await?)
             },
-        }
-    }));
-
-    // Client<->server
-    tm.critical_stream(
-        "Server",
-        TcpListenerStream::new(
-            TcpListener::bind(config.bind_addr).await.stack_context(&log, "Error binding to address")?,
-        ),
-        {
-            let oidc_state = match &config.oidc {
-                Some(oidc_config) => {
-                    Some(handle_oidc::new_state(&log, oidc_config.clone()).await?)
-                },
-                None => None,
-            };
-            let fdap_state = match &config.fdap {
-                Some(fdap_config) => {
-                    Some(
-                        FdapState {
-                            fdap_client: fdap::Client::builder()
-                                .with_base_url(Uri::from_str(&fdap_config.url).context("Invalid fdap url")?)
-                                .with_token(fdap_config.token.clone())
-                                .build()?,
-                        },
-                    )
-                },
-                None => None,
-            };
-            let global_state = match &config.global {
-                MaybeFdap::Fdap(subpath) => {
-                    let Some(fdap) = &fdap_state else {
-                        return Err(
-                            loga::err("Global config set to use FDAP but no FDAP configured at config root"),
-                        );
-                    };
-                    GlobalState::Fdap(FdapGlobalState {
-                        fdap: fdap.clone(),
-                        subpath: subpath.clone(),
-                        cache: Mutex::new(None),
-                    })
-                },
-                MaybeFdap::Local(global_config) => {
-                    GlobalState::Local(build_global_config(global_config)?)
-                },
-            };
-            let users_state = match &config.user {
-                MaybeFdap::Fdap(subpath) => {
-                    let Some(fdap) = &fdap_state else {
-                        return Err(loga::err("User config set to use FDAP but no FDAP configured at config root"));
-                    };
-                    UsersState::Fdap(FdapUsersState {
-                        fdap: fdap.clone(),
-                        user_subpath: subpath.clone(),
-                        cache: Cache::builder().time_to_live(Duration::from_secs(10)).build(),
-                    })
-                },
-                MaybeFdap::Local(users_config) => UsersState::Local(
-                    LocalUsersState {
-                        users: users_config.users.iter().map(|(k, v)| (k.clone(), Arc::new(v.clone()))).collect(),
+            None => None,
+        };
+        let fdap_state = match &config.fdap {
+            Some(fdap_config) => {
+                Some(
+                    FdapState {
+                        fdap_client: fdap::Client::builder()
+                            .with_base_url(Uri::from_str(&fdap_config.url).context("Invalid fdap url")?)
+                            .with_token(fdap_config.token.clone())
+                            .build()?,
                     },
-                ),
-            };
-            let state = Arc::new(State {
-                oidc_state: oidc_state,
-                fdap_state: fdap_state,
-                global_state: global_state,
-                users_state: users_state,
-                tm: tm.clone(),
-                db: db.clone(),
-                log: log.clone(),
-                files_dir: files_dir,
-                stage_dir: stage_dir,
-                genfiles_dir: cache_dir,
-                finishing_uploads: Mutex::new(HashSet::new()),
-                link_bg: Mutex::new(None),
-                link_ids: AtomicU8::new(0),
-                link_main: Mutex::new(None),
-                link_links: Mutex::new(HashMap::new()),
-                link_public_files: Mutex::new(HashSet::new()),
-                link_session: Mutex::new(None),
-            });
-            cap_fn!((stream)(log, state) {
-                let stream = match stream {
-                    Ok(s) => s,
-                    Err(e) => {
-                        log.log_err(loga::DEBUG, e.context("Error opening peer stream"));
-                        return Ok(());
-                    },
+                )
+            },
+            None => None,
+        };
+        let global_state = match &config.global {
+            MaybeFdap::Fdap(subpath) => {
+                let Some(fdap) = &fdap_state else {
+                    return Err(loga::err("Global config set to use FDAP but no FDAP configured at config root"));
                 };
-                let io = TokioIo::new(stream);
-                tokio::task::spawn(async move {
-                    match async {
-                        ta_return!((), loga::Error);
-                        http1::Builder::new().serve_connection(io, service_fn(cap_fn!((req)(state) {
-                            return Ok(handle_req(state, req).await) as Result<_, std::io::Error>;
-                        }))).with_upgrades().await?;
-                        return Ok(());
-                    }.await {
-                        Ok(_) => (),
+                GlobalState::Fdap(FdapGlobalState {
+                    fdap: fdap.clone(),
+                    subpath: subpath.clone(),
+                    cache: Mutex::new(None),
+                })
+            },
+            MaybeFdap::Local(global_config) => {
+                GlobalState::Local(build_global_config(global_config)?)
+            },
+        };
+        let users_state = match &config.user {
+            MaybeFdap::Fdap(subpath) => {
+                let Some(fdap) = &fdap_state else {
+                    return Err(loga::err("User config set to use FDAP but no FDAP configured at config root"));
+                };
+                UsersState::Fdap(FdapUsersState {
+                    fdap: fdap.clone(),
+                    user_subpath: subpath.clone(),
+                    cache: Cache::builder().time_to_live(Duration::from_secs(10)).build(),
+                })
+            },
+            MaybeFdap::Local(users_config) => UsersState::Local(
+                LocalUsersState {
+                    users: users_config.users.iter().map(|(k, v)| (k.clone(), Arc::new(v.clone()))).collect(),
+                },
+            ),
+        };
+        let (generate_files_tx, generate_files_rx) = mpsc::unbounded_channel();
+        let state = Arc::new(State {
+            temp_dir: config.temp_dir,
+            oidc_state: oidc_state,
+            fdap_state: fdap_state,
+            global_state: global_state,
+            users_state: users_state,
+            tm: tm.clone(),
+            db: db.clone(),
+            log: log.clone(),
+            files_dir: files_dir.clone(),
+            stage_dir: stage_dir,
+            genfiles_dir: genfiles_dir.clone(),
+            finishing_uploads: Mutex::new(HashSet::new()),
+            generate_files: generate_files_tx,
+            link_bg: Mutex::new(None),
+            link_ids: AtomicU8::new(0),
+            link_main: Mutex::new(None),
+            link_links: Mutex::new(HashMap::new()),
+            link_public_files: Mutex::new(HashSet::new()),
+            link_session: Mutex::new(None),
+        });
+
+        // GC
+        tm.periodic("Garbage collection", Duration::from_secs(24 * 60 * 60), cap_fn!(()(state) {
+            let log = state.log.fork(ea!(sys = "gc"));
+            let state = state.clone();
+            match handle_gc(&state, &log).await {
+                Ok(_) => { },
+                Err(e) => {
+                    log.log_err(loga::WARN, e.context("Error performing database garbage collection"));
+                },
+            }
+        }));
+
+        // Generate files
+        state.generate_files.send(None).log(&log, loga::WARN, "Error triggering initial generate files scan");
+        start_generate_files(&state, &tm, generate_files_rx);
+
+        // Client<->server
+        tm.critical_stream(
+            "Server",
+            TcpListenerStream::new(
+                TcpListener::bind(config.bind_addr).await.stack_context(&log, "Error binding to address")?,
+            ),
+            {
+                cap_fn!((stream)(log, state) {
+                    let stream = match stream {
+                        Ok(s) => s,
                         Err(e) => {
-                            log.log_err(loga::DEBUG, e.context("Error serving connection"));
+                            log.log_err(loga::DEBUG, e.context("Error opening peer stream"));
+                            return Ok(());
                         },
-                    }
-                });
-                return Ok(());
-            })
-        },
-    );
+                    };
+                    let io = TokioIo::new(stream);
+                    tokio::task::spawn(async move {
+                        match async {
+                            ta_return!((), loga::Error);
+                            http1::Builder::new().serve_connection(io, service_fn(cap_fn!((req)(state) {
+                                return Ok(handle_req(state, req).await) as Result<_, std::io::Error>;
+                            }))).with_upgrades().await?;
+                            return Ok(());
+                        }.await {
+                            Ok(_) => (),
+                            Err(e) => {
+                                log.log_err(loga::DEBUG, e.context("Error serving connection"));
+                            },
+                        }
+                    });
+                    return Ok(());
+                })
+            },
+        );
+    }
 
     // Wait for shutdown, cleanup
     tm.join(&log).await?;

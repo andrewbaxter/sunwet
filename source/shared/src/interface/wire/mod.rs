@@ -21,7 +21,6 @@ use {
             BTreeMap,
             HashMap,
         },
-        str::FromStr,
     },
 };
 
@@ -276,43 +275,20 @@ pub enum C2SReq {
     WhoAmI(ReqWhoAmI),
 }
 
-pub fn file_derivation_mime(mime: String) -> FileUrlQuery {
-    return FileUrlQuery { derivation: Some((format!("mime_{}", mime), false)) };
+pub fn alphanumeric_only(s: &str) -> String {
+    return s.chars().map(|c| match c {
+        'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' => c,
+        _ => '_',
+    }).collect::<String>();
 }
 
-#[derive(Clone, Copy)]
-pub enum VttLang {
-    Eng,
-    Jpn,
+pub fn gentype_transcode(mime: &str) -> String {
+    return format!("mime_{}", alphanumeric_only(mime));
 }
 
-// Match ffmpeg languages
-const VTT_LANG_ENG: &str = "eng";
-const VTT_LANG_JPN: &str = "jpn";
-
-impl VttLang {
-    pub fn to_string(&self) -> &'static str {
-        match self {
-            VttLang::Eng => return VTT_LANG_ENG,
-            VttLang::Jpn => return VTT_LANG_JPN,
-        }
-    }
-}
-
-impl FromStr for VttLang {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            VTT_LANG_ENG => return Ok(VttLang::Eng),
-            VTT_LANG_JPN => return Ok(VttLang::Jpn),
-            _ => return Err(format!("Unrecognized/implemented VTT lang {}", s)),
-        }
-    }
-}
-
-pub fn file_derivation_subtitles(lang: VttLang) -> FileUrlQuery {
-    return FileUrlQuery { derivation: Some((format!("vtt_{}", lang.to_string()), false)) };
+// Lang is as given by VTT
+pub fn gentype_vtt(lang: &str) -> String {
+    return format!("vtt_{}", alphanumeric_only(lang));
 }
 
 // Why not ACCEPT header? Accept header only accepts mime types, we need more high

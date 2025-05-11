@@ -71,6 +71,7 @@
                         presentation.contViewTable({
                           orientation: "right_down",
                           xScroll: true,
+                          gap: "0.2cm",
                           children: [
                             [
                               presentation.leafViewPlayButton({
@@ -164,6 +165,7 @@
                         presentation.contViewTable({
                           orientation: "right_down",
                           xScroll: true,
+                          gap: "0.2cm",
                           children: [
                             [
                               presentation.leafViewPlayButton({
@@ -216,7 +218,6 @@
               mainTitle: presentation.leafTitle({ text: "" }).root,
               mainBody: presentation.leafAsyncBlock({
                 inRoot: true,
-                extraStyles: [],
               }).root,
               menuBody: stagingMenu,
             }).root

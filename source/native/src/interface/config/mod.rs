@@ -152,6 +152,7 @@ pub struct FdapConfig {
 pub struct Config {
     #[serde(default)]
     pub debug: bool,
+    pub temp_dir: PathBuf,
     pub graph_dir: PathBuf,
     pub files_dir: PathBuf,
     pub cache_dir: PathBuf,

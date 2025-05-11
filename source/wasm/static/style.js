@@ -360,7 +360,7 @@
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
           <g transform="translate(50 50)"><text style="
             text-anchor: middle;
-            dominant-baseline: middle;
+            dominant-baseline: central;
             font-family: I;
             font-size: 90px;
           ">${args.text}</text></g>
@@ -1885,23 +1885,11 @@
                       "": (s) => {
                         s.flexDirection = "row-reverse";
                       },
-                      [`>.${classViewTransverseStart}`]: (s) => {
-                        s.alignSelf = "first baseline";
-                      },
-                      [`>.${classViewTransverseEnd}`]: (s) => {
-                        s.alignSelf = "last baseline";
-                      },
                     };
                   case "right":
                     return {
                       "": (s) => {
                         s.flexDirection = "row";
-                      },
-                      [`>.${classViewTransverseStart}`]: (s) => {
-                        s.alignSelf = "first baseline";
-                      },
-                      [`>.${classViewTransverseEnd}`]: (s) => {
-                        s.alignSelf = "last baseline";
                       },
                     };
                 }
@@ -1977,60 +1965,6 @@
                 s.display = "contents";
               },
             }),
-            ss(
-              uniq("cont_view_table_conv", conv(args.orientation)),
-              /** @type { () => ({[prefix: string]: (s: CSSStyleDeclaration) => void}) } */ (
-                () => {
-                  switch (conv(args.orientation)) {
-                    case "up":
-                    case "down":
-                      return {
-                        "": (s) => {},
-                        [`>.${classViewTransverseStart}`]: (s) => {
-                          s.alignSelf = "first baseline";
-                        },
-                        [`>.${classViewTransverseEnd}`]: (s) => {
-                          s.alignSelf = "last baseline";
-                        },
-                      };
-                    case "left":
-                    case "right":
-                      return {
-                        "": (s) => {},
-                        [`>.${classViewTransverseStart}`]: (s) => {
-                          s.justifySelf = "first baseline";
-                        },
-                        [`>.${classViewTransverseEnd}`]: (s) => {
-                          s.justifySelf = "last baseline";
-                        },
-                      };
-                  }
-                }
-              )()
-            ),
-            ss(
-              uniq("cont_view_table_trans", trans(args.orientation)),
-              /** @type { () => ({[prefix: string]: (s: CSSStyleDeclaration) => void}) } */ (
-                () => {
-                  switch (trans(args.orientation)) {
-                    case "up":
-                    case "left":
-                      return {
-                        "": (s) => {
-                          s.justifyItems = "end";
-                        },
-                      };
-                    case "down":
-                    case "right":
-                      return {
-                        "": (s) => {
-                          s.justifyItems = "start";
-                        },
-                      };
-                  }
-                }
-              )()
-            ),
           ],
           children_: children1,
         }
@@ -2049,11 +1983,86 @@
           out.style.gridTemplateColumns = `${template.join(" ")} 1fr`;
           break;
       }
+      if (args.gap != null) {
+        switch (conv(args.orientation)) {
+          case "up":
+          case "down":
+            out.style.rowGap = args.gap;
+            break;
+          case "left":
+          case "right":
+            out.style.columnGap = args.gap;
+            break;
+        }
+      }
       if (args.xScroll) {
         out.style.overflowX = "scroll";
       }
       return { root: out };
     };
+
+  const viewLeafTransStyle =
+    /** @type { (args:{orientation: Orientation, transAlign: TransAlign})=>string } */ (
+      args
+    ) =>
+      ss(uniq("view_leaf_trans_style", args.orientation, args.transAlign), {
+        "": (s) => {
+          switch (trans(args.orientation)) {
+            case "up":
+              switch (args.transAlign) {
+                case "start":
+                  s.alignSelf = "end";
+                  break;
+                case "middle":
+                  s.alignSelf = "middle";
+                  break;
+                case "end":
+                  s.alignSelf = "start";
+                  break;
+              }
+              break;
+            case "down":
+              switch (args.transAlign) {
+                case "start":
+                  s.alignSelf = "start";
+                  break;
+                case "middle":
+                  s.alignSelf = "middle";
+                  break;
+                case "end":
+                  s.alignSelf = "end";
+                  break;
+              }
+              break;
+            case "left":
+              switch (args.transAlign) {
+                case "start":
+                  s.justifySelf = "end";
+                  break;
+                case "middle":
+                  s.justifySelf = "middle";
+                  break;
+                case "end":
+                  s.justifySelf = "start";
+                  break;
+              }
+              break;
+            case "right":
+              switch (args.transAlign) {
+                case "start":
+                  s.justifySelf = "start";
+                  break;
+                case "middle":
+                  s.justifySelf = "middle";
+                  break;
+                case "end":
+                  s.justifySelf = "end";
+                  break;
+              }
+              break;
+          }
+        },
+      });
 
   presentation.leafViewImage = /** @type { Presentation["leafViewImage"] } */ (
     args
@@ -2093,16 +2102,6 @@
                   s.flexShrink = "0";
                 },
               }),
-              (() => {
-                switch (args.transAlign) {
-                  case "start":
-                    return classViewTransverseStart;
-                  case "middle":
-                    return classViewTransverseMiddle;
-                  case "end":
-                    return classViewTransverseEnd;
-                }
-              })(),
             ],
             children_: [img],
           }
@@ -2121,16 +2120,6 @@
                   s.borderRadius = "0.2cm";
                 },
               }),
-              (() => {
-                switch (args.transAlign) {
-                  case "start":
-                    return classViewTransverseStart;
-                  case "middle":
-                    return classViewTransverseMiddle;
-                  case "end":
-                    return classViewTransverseEnd;
-                }
-              })(),
             ],
           }
         );
@@ -2143,6 +2132,7 @@
         return img;
       }
     })();
+    // todo add viewLeafTransStyle, need to add orientation
     if (args.width) {
       out.style.width = args.width;
     }
@@ -2186,17 +2176,10 @@
         }
       )(),
     });
-    /** @type {string} */
-    const alignStyle = (() => {
-      switch (args.transAlign) {
-        case "start":
-          return classViewTransverseStart;
-        case "middle":
-          return classViewTransverseMiddle;
-        case "end":
-          return classViewTransverseEnd;
-      }
-    })();
+    const alignStyle = viewLeafTransStyle({
+      orientation: args.orientation,
+      transAlign: args.transAlign,
+    });
     const out = (() => {
       if (args.link == null) {
         return e(
@@ -2346,16 +2329,10 @@
                   }
                 )()
               ),
-              (() => {
-                switch (transAlign) {
-                  case "start":
-                    return classViewTransverseStart;
-                  case "middle":
-                    return classViewTransverseMiddle;
-                  case "end":
-                    return classViewTransverseEnd;
-                }
-              })(),
+              viewLeafTransStyle({
+                orientation: args.orientation,
+                transAlign: args.transAlign,
+              }),
             ],
             children_: [
               leafIcon({

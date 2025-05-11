@@ -33,6 +33,7 @@ let
       cd $out
       ${linkLines}
     '';
+
   workspaceWasm = stageWorkspace "sunwet-wasm" [
     ./nixbuild/wasm/Cargo.toml
     ./wasm/Cargo.lock
@@ -58,19 +59,49 @@ let
     ${pkgs.ffmpeg}/bin/ffmpeg -f lavfi -i anullsrc=r=11025:cl=mono -t 0.1 -acodec mp3 $out/audiotest.mp3
     ${pkgs.ffmpeg}/bin/ffmpeg -f lavfi -i anullsrc=r=11025:cl=mono -f lavfi -i "color=c=black:size=1x1" -t 0.1 $out/videotest.webm
   '';
+
   workspaceNative = stageWorkspace "sunwet-native" [
     ./nixbuild/native/Cargo.toml
     ./native/Cargo.lock
     ./native
     ./shared
   ];
+  wrapBinary =
+    {
+      bin,
+      packages ? null,
+      libraries ? null,
+    }:
+    let
+      path = (
+        lib.strings.concatStringsSep ":" (
+          [ "$out/bin" ] ++ (map (p: "${p}/bin") (if packages != null then packages else [ ]))
+        )
+      );
+      wrapArgs =
+        [ ]
+        ++ [ "--prefix PATH : ${path}" ]
+        ++ (lib.lists.optionals (libraries != null) [
+          "--prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath libraries}"
+        ]);
+    in
+    ''
+      wrapProgram $out/bin/${bin} ${lib.strings.concatStringsSep " " wrapArgs}
+    '';
   native = naersk.buildPackage {
     pname = "sunwet-native";
     root = workspaceNative;
     release = false;
     STATIC_DIR = "${static}";
     GIT_HASH = "fakehash";
+    nativeBuildInputs = [
+      pkgs.makeWrapper
+    ];
     buildInputs = [ pkgs.sqlite ];
+    postInstall = wrapBinary {
+      bin = "sunwet";
+      packages = [ pkgs.ffmpeg ];
+    };
   };
 in
 native

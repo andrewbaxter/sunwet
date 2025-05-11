@@ -4,7 +4,11 @@ use {
         server::{
             db,
             dbutil::tx,
-            filesutil::file_path,
+            filesutil::{
+                file_path,
+                get_hash_from_file_path,
+            },
+            state::State,
         },
     },
     async_walkdir::WalkDir,
@@ -13,6 +17,7 @@ use {
     flowcontrol::exenum,
     loga::{
         ea,
+        DebugDisplay,
         ErrContext,
         Log,
         ResultContext,
@@ -24,23 +29,22 @@ use {
     std::{
         collections::HashMap,
         path::{
-            Component,
-            Path,
             PathBuf,
         },
-        str::FromStr,
+        sync::Arc,
     },
     tokio::fs::remove_file,
     tokio_stream::StreamExt,
 };
 
-pub async fn handle_gc(log: &Log, dbc: &Pool, files_dir: &Path, cache_dir: &Path) -> Result<(), loga::Error> {
+pub async fn handle_gc(state: &Arc<State>, log: &Log) -> Result<(), loga::Error> {
     // Clean graph
-    tx(&dbc, |txn| {
+    tx(&state.db, |txn| {
         let epoch = Utc::now() - chrono::Duration::days(365);
         db::triple_gc_deleted(txn, epoch)?;
         db::meta_gc(txn)?;
         db::commit_gc(txn)?;
+        db::gen_gc(txn)?;
         return Ok(());
     }).await?;
 
@@ -54,44 +58,21 @@ pub async fn handle_gc(log: &Log, dbc: &Pool, files_dir: &Path, cache_dir: &Path
             batch.remove(&exenum!(key.0, Node:: File(x) => x).unwrap());
         }
         for path in batch.values() {
-            match remove_file(path).await {
-                Ok(_) => { },
-                Err(e) => {
-                    log.log_err(
-                        loga::WARN,
-                        e.context_with("Failed to delete unreferenced file", ea!(path = path.display().to_string())),
-                    );
-                },
-            };
+            log.log_with(loga::DEBUG, "Garbage collecting file", ea!(file = path.dbg_str()));
+            remove_file(path)
+                .await
+                .log_with(
+                    &log,
+                    loga::WARN,
+                    "Failed to delete unreferenced file",
+                    ea!(path = path.display().to_string()),
+                );
         }
         batch.clear();
         return Ok(());
     }
 
-    fn get_file_hash(log: &Log, root: &Path, path: &Path) -> Option<FileHash> {
-        let components = path.strip_prefix(root).unwrap().components().filter_map(|c| match c {
-            Component::Normal(c) => Some(c),
-            _ => None,
-        }).collect::<Vec<_>>();
-        let Some(hash_type) = components.first().and_then(|c| c.to_str()) else {
-            log.log(loga::WARN, "File in files dir not in hash type directory");
-            return None;
-        };
-        let Some(hash_hash) = components.last().and_then(|c| c.to_str()) else {
-            log.log(loga::WARN, "File in files dir has non-utf8 last path segment");
-            return None;
-        };
-        let hash = match FileHash::from_str(&format!("{}:{}", hash_type, hash_hash)) {
-            Ok(h) => h,
-            Err(e) => {
-                log.log_err(loga::WARN, loga::err(e).context("Failed to determine hash for file"));
-                return None;
-            },
-        };
-        return Some(hash);
-    }
-
-    let mut walk = WalkDir::new(&files_dir);
+    let mut walk = WalkDir::new(&state.files_dir);
     let mut batch = HashMap::new();
     while let Some(entry) = walk.next().await {
         let entry = match entry {
@@ -106,20 +87,20 @@ pub async fn handle_gc(log: &Log, dbc: &Pool, files_dir: &Path, cache_dir: &Path
         if !entry.metadata().await.stack_context(&log, "Error reading metadata")?.is_file() {
             continue;
         }
-        let Some(hash) = get_file_hash(&log, &files_dir, &path) else {
+        let Some(hash) = get_hash_from_file_path(&log, &state.files_dir, &path) else {
             continue;
         };
         batch.insert(hash.clone(), path);
         if batch.len() >= 1000 {
-            clean_batch(&log, &dbc, &mut batch).await?;
+            clean_batch(&log, &state.db, &mut batch).await?;
         }
     }
     if !batch.is_empty() {
-        clean_batch(&log, &dbc, &mut batch).await?;
+        clean_batch(&log, &state.db, &mut batch).await?;
     }
 
     // Clean up unreferenced generated files
-    let mut walk = WalkDir::new(&cache_dir);
+    let mut walk = WalkDir::new(&state.genfiles_dir);
     while let Some(entry) = walk.next().await {
         let entry = match entry {
             Ok(entry) => entry,
@@ -133,22 +114,19 @@ pub async fn handle_gc(log: &Log, dbc: &Pool, files_dir: &Path, cache_dir: &Path
         if !entry.metadata().await.stack_context(&log, "Error reading metadata")?.is_file() {
             continue;
         }
-        let Some(hash) = get_file_hash(&log, &cache_dir, &path) else {
+        let Some(hash) = get_hash_from_file_path(&log, &state.genfiles_dir, &path) else {
             continue;
         };
-        if !file_path(&files_dir, &hash).unwrap().exists() {
-            match remove_file(&path).await {
-                Ok(_) => { },
-                Err(e) => {
-                    log.log_err(
-                        loga::WARN,
-                        e.context_with(
-                            "Failed to delete unreferenced generated file",
-                            ea!(path = path.display().to_string()),
-                        ),
-                    );
-                },
-            };
+        if !file_path(&state, &hash).unwrap().exists() {
+            log.log_with(loga::DEBUG, "Garbage collecting generated file", ea!(file = path.dbg_str()));
+            remove_file(&path)
+                .await
+                .log_with(
+                    &log,
+                    loga::WARN,
+                    "Failed to delete unreferenced generated file",
+                    ea!(path = path.display().to_string()),
+                );
         }
     }
 

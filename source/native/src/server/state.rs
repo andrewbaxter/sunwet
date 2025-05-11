@@ -1,7 +1,7 @@
 use {
     super::{
         access::Identity,
-        handlers::handle_oidc,
+        subsystems::oidc,
     },
     crate::{
         interface::{
@@ -24,9 +24,7 @@ use {
     },
     moka::future::Cache,
     shared::interface::{
-        config::{
-            form::ClientForm,
-        },
+        config::form::ClientForm,
         iam::UserIdentityId,
         triple::FileHash,
         wire::link::{
@@ -52,7 +50,10 @@ use {
     },
     taskmanager::TaskManager,
     tokio::sync::{
-        mpsc,
+        mpsc::{
+            self,
+            UnboundedSender,
+        },
         oneshot,
     },
 };
@@ -193,17 +194,19 @@ pub enum UsersState {
 }
 
 pub struct State {
-    pub oidc_state: Option<handle_oidc::OidcState>,
+    pub oidc_state: Option<oidc::OidcState>,
     pub fdap_state: Option<FdapState>,
     pub global_state: GlobalState,
     pub users_state: UsersState,
     pub tm: TaskManager,
     pub log: Log,
     pub db: Pool,
+    pub temp_dir: PathBuf,
     pub files_dir: PathBuf,
     pub genfiles_dir: PathBuf,
     pub stage_dir: PathBuf,
     pub finishing_uploads: Mutex<HashSet<FileHash>>,
+    pub generate_files: UnboundedSender<Option<FileHash>>,
     // Websockets
     pub link_ids: AtomicU8,
     pub link_main: Mutex<Option<Arc<WsState<WsS2C>>>>,

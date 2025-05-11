@@ -34,16 +34,13 @@ use {
         El,
     },
     serde::Deserialize,
-    shared::interface::wire::{
-        file_derivation_subtitles,
-        link::{
-            Prepare,
-            PrepareAudio,
-            PrepareMedia,
-            SourceUrl,
-            WsC2S,
-            WsS2C,
-        },
+    shared::interface::wire::link::{
+        Prepare,
+        PrepareAudio,
+        PrepareMedia,
+        SourceUrl,
+        WsC2S,
+        WsS2C,
     },
     std::{
         cell::{
@@ -63,6 +60,7 @@ use {
             el_video,
             env_preferred_audio,
             env_preferred_video,
+            file_derivation_subtitles,
             Env,
         },
         media::{
@@ -558,13 +556,9 @@ pub fn playlist_extend(
                                     .attr("kind", "subtitles")
                                     .attr(
                                         "src",
-                                        &generated_file_url(
-                                            &state().env,
-                                            v,
-                                            file_derivation_subtitles(lang.vtt_lang),
-                                        ),
+                                        &generated_file_url(&state().env, v, file_derivation_subtitles(lang)),
                                     )
-                                    .attr("srclang", &lang.nav_lang);
+                                    .attr("srclang", &lang);
                             if i == 0 {
                                 track.ref_attr("default", "default");
                             }

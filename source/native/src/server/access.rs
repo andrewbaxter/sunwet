@@ -8,7 +8,7 @@ use {
     },
     crate::{
         interface::config::IamGrants,
-        server::handlers::handle_oidc::get_req_session,
+        server::subsystems::oidc::get_req_session,
     },
     flowcontrol::shed,
     http::HeaderMap,

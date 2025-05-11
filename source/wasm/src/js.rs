@@ -13,9 +13,9 @@ use {
         El,
     },
     shared::interface::wire::{
-        file_derivation_mime,
+        gentype_transcode,
+        gentype_vtt,
         FileUrlQuery,
-        VttLang,
     },
     std::{
         fmt::Display,
@@ -47,8 +47,6 @@ pub enum Engine {
 pub struct Lang {
     // Lang as it comes from navigator
     pub nav_lang: String,
-    // Lang name for vtt subtitle selection
-    pub vtt_lang: VttLang,
 }
 
 #[derive(Clone)]
@@ -56,7 +54,8 @@ pub struct Env {
     // Ends with `/`
     pub base_url: String,
     pub engine: Option<Engine>,
-    pub languages: Vec<Lang>,
+    // Languages as they come from the navigator
+    pub languages: Vec<String>,
 }
 
 pub fn scan_env() -> Env {
@@ -94,27 +93,29 @@ pub fn scan_env() -> Env {
             let mut out = vec![];
             for nav_lang in window().navigator().languages() {
                 let nav_lang = nav_lang.as_string().unwrap();
-                let short_lang = if let Some((l, _)) = nav_lang.split_once("-") {
-                    l
-                } else {
-                    &nav_lang
-                };
-                let vtt_lang = match short_lang {
-                    "en" => VttLang::Eng,
-                    "jp" => VttLang::Jpn,
-                    _ => {
-                        log(format!("Unhandled subtitle translation for language {}", short_lang));
-                        continue;
-                    },
-                };
-                out.push(Lang {
-                    nav_lang: nav_lang,
-                    vtt_lang: vtt_lang,
-                });
+                out.push(nav_lang);
             }
             break out;
         },
     }
+}
+
+pub fn file_derivation_mime(mime: String) -> FileUrlQuery {
+    return FileUrlQuery { derivation: Some((gentype_transcode(&mime), false)) };
+}
+
+pub fn file_derivation_subtitles(nav_lang: &str) -> FileUrlQuery {
+    let short_lang = if let Some((l, _)) = nav_lang.split_once("-") {
+        l
+    } else {
+        &nav_lang
+    };
+    let vtt_lang = match short_lang {
+        "en" => "eng",
+        "jp" => "jpn",
+        x => x,
+    };
+    return FileUrlQuery { derivation: Some((gentype_vtt(vtt_lang), true)) };
 }
 
 pub fn env_preferred_audio(env: &Env) -> FileUrlQuery {

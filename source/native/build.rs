@@ -13,6 +13,7 @@ use {
             helpers::{
                 expr_and,
                 expr_field_eq,
+                expr_field_gt,
                 expr_field_gte,
                 expr_field_lt,
                 fn_max,
@@ -21,8 +22,6 @@ use {
             insert::InsertConflict,
             select_body::{
                 Order,
-                SelectJunction,
-                SelectJunctionOperator,
             },
             utils::{
                 CteBuilder,
@@ -364,24 +363,17 @@ fn main() {
         let t = latest_version.table("ywyc97a308uwk6", "generated");
         let node = t.field(&mut latest_version, "ll73nt097vqp9h", "node", FieldType::with(&node_type));
         let gentype = t.field(&mut latest_version, "9ws4mwxpqo8f2t", "gentype", field_str().build());
-        let gen_filename = t.field(&mut latest_version, "p69uci2ryf4nd3", "filename", field_str().build());
         let mimetype = t.field(&mut latest_version, "cxp4q2vrhu3164", "mimetype", field_str().build());
         t.constraint(
             &mut latest_version,
             "66tg3ve8apuxrz",
-            "generated_file",
+            "generated_pk",
             PrimaryKey(PrimaryKeyDef { fields: vec![node.clone(), gentype.clone()] }),
         );
-        t.index("y2cqctw0ycg1wt", "generated_filename", &[&gen_filename]).unique().build(&mut latest_version);
         queries.push(
             new_insert(
                 &t,
-                vec![
-                    set_field("node", &node),
-                    set_field("gentype", &gentype),
-                    set_field("filename", &gen_filename),
-                    set_field("mimetype", &mimetype)
-                ],
+                vec![set_field("node", &node), set_field("gentype", &gentype), set_field("mimetype", &mimetype)],
             )
                 .on_conflict(InsertConflict::DoNothing)
                 .build_query("gen_insert", QueryResCount::None),
@@ -389,70 +381,57 @@ fn main() {
         queries.push(
             new_select(&t)
                 .where_(expr_and(vec![expr_field_eq("node", &node), expr_field_eq("gentype", &gentype)]))
-                .return_fields(&[&mimetype, &gen_filename])
+                .return_fields(&[&mimetype])
                 .build_query_named_res("gen_get", QueryResCount::MaybeOne, "GenMetadata"),
         );
-        queries.push(
-            new_select(&meta_table)
-                .return_field(&meta_node)
-                .where_(expr_field_eq("mime", &meta_mimetype))
-                .junction(SelectJunction {
-                    op: SelectJunctionOperator::Except,
-                    body: new_select_body(&t)
-                        .where_(expr_field_eq("gentype", &gentype))
-                        .return_field(&node)
-                        .build(),
-                })
-                .limit(Expr::LitI32(50))
-                .build_query("gen_peek_missing", QueryResCount::Many),
-        );
-        queries.push(new_delete(&t).where_(Expr::BinOp {
-            left: Box::new(Expr::field(&node)),
-            op: BinOp::NotIn,
-            right: Box::new(Expr::Select {
-                body: Box::new(new_select_body(&meta_table).return_field(&meta_node).build()),
-                body_junctions: vec![],
-            }),
+        queries.push(new_delete(&t).where_(Expr::Exists {
+            not: true,
+            body: Box::new(new_select_body(&meta_table).return_named("x", Expr::LitI32(1)).where_(Expr::BinOp {
+                left: Box::new(Expr::field(&node)),
+                op: BinOp::Equals,
+                right: Box::new(Expr::field(&meta_node)),
+            }).build()),
+            body_junctions: vec![],
         }).build_query("gen_gc", QueryResCount::None));
     }
 
     // File access
     {
-        // TODO `s/page/view/g`
         let t = latest_version.table("zFFF18JKY", "file_access");
         let file = t.field(&mut latest_version, "zLQI9HQUQ", "file", FieldType::with(&filehash_type));
-        let page = t.field(&mut latest_version, "zSZVNBP0E", "page", FieldType::with(&file_access_type));
-        let page_version_hash = t.field(&mut latest_version, "zWZT5PZHR", "page_version_hash", field_i64().build());
+        let menu_item_id =
+            t.field(&mut latest_version, "zSZVNBP0E", "menu_item_id", FieldType::with(&file_access_type));
+        let spec_hash = t.field(&mut latest_version, "zWZT5PZHR", "spec_hash", field_i64().build());
         t.constraint(
             &mut latest_version,
             "zCW5WMK7U",
-            "meta_node",
-            PrimaryKey(PrimaryKeyDef { fields: vec![file.clone(), page.clone(), page_version_hash.clone()] }),
+            "file_access_pk",
+            PrimaryKey(PrimaryKeyDef { fields: vec![file.clone(), menu_item_id.clone(), spec_hash.clone()] }),
         );
         queries.push(
             new_insert(
                 &t,
                 vec![
                     set_field("file", &file),
-                    set_field("page", &page),
-                    set_field("page_version_hash", &page_version_hash)
+                    set_field("menu_item_id", &menu_item_id),
+                    set_field("spec_hash", &spec_hash)
                 ],
             )
                 .on_conflict(InsertConflict::DoNothing)
                 .build_query("file_access_insert", QueryResCount::None),
         );
-        queries.push(new_delete(&t).where_(expr_and(vec![expr_field_eq("access", &page), Expr::BinOp {
-            left: Box::new(Expr::Binding(Binding::field(&page_version_hash))),
+        queries.push(new_delete(&t).where_(expr_and(vec![expr_field_eq("menu_item_id", &menu_item_id), Expr::BinOp {
+            left: Box::new(Expr::Binding(Binding::field(&spec_hash))),
             op: BinOp::NotEquals,
             right: Box::new(Expr::Param {
                 name: "version_hash".into(),
-                type_: page_version_hash.type_.type_.clone(),
+                type_: spec_hash.type_.type_.clone(),
             }),
         }])).build_query("file_access_clear_nonversion", QueryResCount::None));
         queries.push(
             new_select(&t)
                 .where_(expr_field_eq("file", &file))
-                .return_field(&page)
+                .return_field(&menu_item_id)
                 .build_query("file_access_get", QueryResCount::Many),
         );
     }

@@ -45,7 +45,7 @@ impl std::str::FromStr for FileHash {
             HASH_PREFIX_SHA256 => {
                 const WANT_LEN: usize = 64;
                 if suffix.len() != WANT_LEN {
-                    return Err(format!("Invalid file hash; expected length {} but got {}", suffix.len(), WANT_LEN));
+                    return Err(format!("Invalid file hash; expected length {} but got {}", WANT_LEN, suffix.len()));
                 }
                 return Ok(FileHash(FileHash_::Sha256(suffix.to_string())));
             },

@@ -19,14 +19,11 @@ use {
         El,
         ScopeValue,
     },
-    shared::interface::wire::{
-        file_derivation_subtitles,
-        link::{
-            PrepareMedia,
-            SourceUrl,
-            WsL2S,
-            WsS2L,
-        },
+    shared::interface::wire::link::{
+        PrepareMedia,
+        SourceUrl,
+        WsL2S,
+        WsS2L,
     },
     std::{
         cell::Cell,
@@ -38,6 +35,7 @@ use {
         js::{
             env_preferred_audio,
             env_preferred_video,
+            file_derivation_subtitles,
             get_dom_octothorpe,
             log_js,
             scan_env,
@@ -46,8 +44,8 @@ use {
         media::{
             pm_ready_prep,
             PlaylistMedia,
-            PlaylistMediaImage,
             PlaylistMediaAudioVideo,
+            PlaylistMediaImage,
         },
         websocket::Ws,
         world::{
@@ -55,9 +53,7 @@ use {
             generated_file_url,
         },
     },
-    wasm_bindgen::{
-        JsCast,
-    },
+    wasm_bindgen::JsCast,
     wasm_bindgen_futures::{
         spawn_local,
         JsFuture,
@@ -177,10 +173,10 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
                                                                 &generated_file_url(
                                                                     &env,
                                                                     &v,
-                                                                    file_derivation_subtitles(lang.vtt_lang),
+                                                                    file_derivation_subtitles(lang),
                                                                 ),
                                                             )
-                                                            .attr("srclang", &lang.nav_lang);
+                                                            .attr("srclang", &lang);
                                                     if i == 0 {
                                                         track.ref_attr("default", "default");
                                                     }

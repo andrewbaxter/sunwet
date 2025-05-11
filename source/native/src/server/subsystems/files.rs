@@ -18,7 +18,8 @@ use {
             dbutil::tx,
             filesutil::{
                 file_path,
-                generated_path,
+                genfile_path,
+                get_meta,
                 hash_file_sha256,
                 staged_file_path,
             },
@@ -31,10 +32,7 @@ use {
         },
     },
     chrono::Utc,
-    flowcontrol::{
-        shed,
-        superif,
-    },
+    flowcontrol::superif,
     http::Response,
     http_body_util::{
         combinators::BoxBody,
@@ -59,10 +57,8 @@ use {
     },
     loga::{
         ea,
-        DebugDisplay,
         ResultContext,
     },
-    serde::Deserialize,
     shared::{
         form::build_form_commit,
         interface::{
@@ -81,10 +77,7 @@ use {
         },
     },
     std::{
-        collections::{
-            HashMap,
-            HashSet,
-        },
+        collections::HashSet,
         hash::{
             DefaultHasher,
             Hash,
@@ -93,10 +86,8 @@ use {
         io::{
             self,
         },
-        process::Stdio,
         sync::Arc,
     },
-    tempfile::tempdir,
     tokio::{
         fs::{
             create_dir_all,
@@ -107,20 +98,8 @@ use {
             AsyncSeekExt,
             AsyncWriteExt,
         },
-        process::Command,
     },
 };
-
-async fn get_meta(state: &Arc<State>, hash: &FileHash) -> Result<Option<db::Metadata>, loga::Error> {
-    let state = state.clone();
-    let hash = hash.clone();
-    let Some(meta) = tx(&state.db, move |txn| {
-        return Ok(db::meta_get(txn, &DbNode(Node::File(hash)))?);
-    }).await? else {
-        return Ok(None);
-    };
-    return Ok(Some(meta));
-}
 
 async fn commit(
     state: Arc<State>,
@@ -128,10 +107,10 @@ async fn commit(
     update_access_reqs: Option<(MenuItemId, u64)>,
 ) -> Result<RespCommit, loga::Error> {
     for info in &c.files {
-        if file_path(&state.files_dir, &info.hash)?.exists() {
+        if file_path(&state, &info.hash)?.exists() {
             continue;
         }
-        let path = staged_file_path(&state.stage_dir, &info.hash)?;
+        let path = staged_file_path(&state, &info.hash)?;
         if let Some(parent) = path.parent() {
             create_dir_all(&parent).await.stack_context(&state.log, "Failed to create upload staging dirs")?;
         }
@@ -259,7 +238,7 @@ pub async fn handle_finish_upload(
         return Ok(None);
     }
     let done;
-    if file_path(&state.files_dir, &file)?.exists() {
+    if file_path(&state, &file)?.exists() {
         done = true;
     } else {
         done = false;
@@ -268,7 +247,7 @@ pub async fn handle_finish_upload(
                 let state = state.clone();
                 async move {
                     match async {
-                        let source = staged_file_path(&state.stage_dir, &file)?;
+                        let source = staged_file_path(&state, &file)?;
 
                         // Validate hash
                         let got_hash = hash_file_sha256(&state.log, &source).await.context("Failed to hash staged uploaded file")?;
@@ -281,162 +260,8 @@ pub async fn handle_finish_upload(
                             );
                         }
 
-                        // Pre-generate web files for video
-                        shed!{
-                            let Some(meta) = get_meta(&state, &file).await? else {
-                                break;
-                            };
-                            match meta.mimetype.as_str() {
-                                "video/x-matroska" | "video/mp4" | "video/webm" => { },
-                                _ => {
-                                    break;
-                                },
-                            }
-
-                            // Extract subs
-                            let streams_res =
-                                Command::new("ffprobe")
-                                    .stdin(Stdio::null())
-                                    .args(&["-v", "quiet"])
-                                    .args(&["-print_format", "json"])
-                                    .arg("-show_streams")
-                                    .arg(&source)
-                                    .output()
-                                    .await?;
-                            if !streams_res.status.success() {
-                                return Err(
-                                    loga::err_with(
-                                        "Getting video streams failed",
-                                        ea!(output = streams_res.pretty_dbg_str()),
-                                    ),
-                                );
-                            }
-
-                            #[derive(Deserialize)]
-                            struct Stream {
-                                index: usize,
-                                codec_type: String,
-                                codec_name: String,
-                                #[serde(default)]
-                                tags: HashMap<String, String>,
-                            }
-
-                            #[derive(Deserialize)]
-                            struct Streams {
-                                streams: Vec<Stream>,
-                            }
-
-                            let streams =
-                                serde_json::from_slice::<Streams>(
-                                    &streams_res.stdout,
-                                ).context("Error parsing video streams json")?;
-                            for stream in streams.streams {
-                                if stream.codec_type != "subtitle" {
-                                    continue
-                                }
-                                match stream.codec_name.as_str() {
-                                    "ass" | "srt" | "ssa" | "webvtt" | "subrip" | "stl" => { },
-                                    _ => {
-                                        continue
-                                    },
-                                }
-                                let Some(lang) = stream.tags.get("language") else {
-                                    continue;
-                                };
-                                let subtitle_dest = generated_path(&state.genfiles_dir, &file, "text/vtt", &lang)?;
-                                if let Some(p) = subtitle_dest.parent() {
-                                    create_dir_all(&p)
-                                        .await
-                                        .context_with(
-                                            "Failed to create parent directories for generated subtitle file",
-                                            ea!(path = subtitle_dest.display()),
-                                        )?;
-                                }
-                                let extract_res =
-                                    Command::new("ffmpeg")
-                                        .stdin(Stdio::null())
-                                        .arg("-i")
-                                        .arg(&source)
-                                        .args(&["-map", "0:s:0"])
-                                        .args(&["-codec:s", "webvtt"])
-                                        .args(&["-f", "webvtt"])
-                                        .arg(&subtitle_dest)
-                                        .output()
-                                        .await?;
-                                if !extract_res.status.success() {
-                                    return Err(
-                                        loga::err_with(
-                                            "Extracting subtitle track failed",
-                                            ea!(track = stream.index, output = extract_res.pretty_dbg_str()),
-                                        ),
-                                    );
-                                }
-                            }
-
-                            // Webm
-                            if meta.mimetype.as_str() != "video/webm" {
-                                let webm_tmp = tempdir()?;
-                                let webm_dest = generated_path(&state.genfiles_dir, &file, "video/webm", "")?;
-                                if let Some(p) = webm_dest.parent() {
-                                    create_dir_all(&p)
-                                        .await
-                                        .context_with(
-                                            "Failed to create parent directories for generated webm file",
-                                            ea!(path = webm_dest.display()),
-                                        )?;
-                                }
-                                let pass1_res =
-                                    Command::new("ffmpeg")
-                                        .stdin(Stdio::null())
-                                        .arg("-i")
-                                        .arg(&source)
-                                        .args(&["-b:v", "0"])
-                                        .args(&["-crf", "30"])
-                                        .args(&["-pass", "1"])
-                                        .arg("-passlogfile")
-                                        .arg(&webm_tmp.path().join("passlog"))
-                                        .arg("-an")
-                                        .args(&["-f", "webm"])
-                                        .args(&["-y", "/dev/null"])
-                                        .output()
-                                        .await
-                                        .context("Error starting webm conversion pass 1")?;
-                                if !pass1_res.status.success() {
-                                    return Err(
-                                        loga::err_with(
-                                            "Generating webm, pass 1 failed",
-                                            ea!(output = pass1_res.pretty_dbg_str()),
-                                        ),
-                                    );
-                                }
-                                let pass2_res =
-                                    Command::new("ffmpeg")
-                                        .stdin(Stdio::null())
-                                        .arg("-i")
-                                        .arg(&source)
-                                        .args(&["-b:v", "0"])
-                                        .args(&["-crf", "30"])
-                                        .args(&["-pass", "2"])
-                                        .arg("-passlogfile")
-                                        .arg(&webm_tmp.path().join("passlog"))
-                                        .args(&["-f", "webm"])
-                                        .arg(webm_dest)
-                                        .output()
-                                        .await
-                                        .context("Error starting webm conversion pass 1")?;
-                                if !pass2_res.status.success() {
-                                    return Err(
-                                        loga::err_with(
-                                            "Generating webm, pass 2 failed",
-                                            ea!(output = pass2_res.pretty_dbg_str()),
-                                        ),
-                                    );
-                                }
-                            }
-                        }
-
                         // Place file
-                        let dest = file_path(&state.files_dir, &file)?;
+                        let dest = file_path(&state, &file)?;
                         if let Some(p) = dest.parent() {
                             create_dir_all(&p)
                                 .await
@@ -446,6 +271,9 @@ pub async fn handle_finish_upload(
                                 )?;
                         }
                         rename(&source, &dest).await.context("Failed to place uploaded file")?;
+
+                        // Trigger generation
+                        state.generate_files.send(Some(file.clone())).ignore();
                         return Ok(());
                     }.await {
                         Ok(_) => { },
@@ -541,18 +369,20 @@ pub async fn handle_file_get(
             break 'nogen;
         };
         let search_node = DbNode(Node::File(file.clone()));
-        let Some(gen_meta) =
-            tx(&state.db, move |txn| Ok(db::gen_get(txn, &search_node, &gentype)?)).await.err_internal()? else {
-                if required {
-                    return Ok(response_404());
-                }
-                break 'nogen;
-            };
-        mimetype = gen_meta.mimetype;
-        local_path = state.genfiles_dir.join(gen_meta.filename);
+        let Some(gen_mimetype) = tx(&state.db, {
+            let gentype = gentype.clone();
+            move |txn| Ok(db::gen_get(txn, &search_node, &gentype)?)
+        }).await.err_internal()? else {
+            if required {
+                return Ok(response_404());
+            }
+            break 'nogen;
+        };
+        mimetype = gen_mimetype;
+        local_path = genfile_path(&state, &file, &gentype).err_internal()?;
     } 'nogen {
         mimetype = meta.mimetype;
-        local_path = file_path(&state.files_dir, &file).err_internal()?;
+        local_path = file_path(&state, &file).err_internal()?;
     });
     return Ok(htserve::responses::response_file(&head.headers, &mimetype, &local_path).await.err_internal()?);
 }
@@ -580,7 +410,7 @@ pub async fn handle_file_post(
         ) as
             Result<u64, loga::Error>
     }.await.stack_context_with(&state.log, "Error reading header", ea!(header = HEADER_OFFSET))?;
-    let file_path = staged_file_path(&state.stage_dir, &file)?;
+    let file_path = staged_file_path(&state, &file)?;
     let mut file =
         File::options()
             .write(true)
