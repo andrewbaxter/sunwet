@@ -1654,55 +1654,46 @@
     };
   };
 
-  const transportButtonClipPaths = new Map();
   const leafTransportButton =
     /** @type {(args: { title: string, icons: {[s: string]: string}, extraStyles?: string[] }) => { root: HTMLElement }} */
     (args) => {
       const size = "1cm";
       const statePairs = Object.entries(args.icons);
       statePairs.sort();
+      const children = [];
       const buildStyleId = [];
       /** @type {{[s:string]: (s: CSSStyleDeclaration) => void}} */
       const buildStyle = {};
-      for (const [state, icon] of Object.entries(args.icons)) {
-        if (!transportButtonClipPaths.has(icon)) {
-          const clipPathId = window.crypto.randomUUID();
-          // Debug by adding 0-1 viewbox and moving text outside of defs/clipPath; y is scaled by scale so 100x it
-          document.body.appendChild(
-            et(`
-              <svg width="0" height="0">
-                <defs>
-                  <clipPath id="${clipPathId}" clipPathUnits="objectBoundingBox">
-                    <text x="50" y="96" style="
-                      text-anchor: middle;
-                      font-family: I;
-                      font-weight: 100;
-                      font-size: 90px;
-                      scale: 1%;
-                    ">${icon}</text>
-                  </clipPath>
-                </defs>
-              </svg>
-            `)
-          );
-          transportButtonClipPaths.set(icon, clipPathId);
-        }
-        const clipPathId = transportButtonClipPaths.get(icon);
+      for (const [state, icon] of statePairs) {
         buildStyleId.push(state);
-        buildStyleId.push(clipPathId);
-        buildStyle[
-          (() => {
+        buildStyleId.push(
+          JSON.stringify(icon).replaceAll(/[^a-zA-Z0-9]*/g, "_")
+        );
+        const parentState = (() => {
+          if (state == "") {
+            return "";
+          } else {
+            return `.${state}`;
+          }
+        })();
+        for (const [otherState, _] of statePairs) {
+          const childMark = (() => {
             if (state == "") {
-              return "";
+              return "default";
             } else {
-              return `.${state}`;
+              return state;
             }
-          })() + ">div"
-        ] = (s) => {
-          s.clipPath = `url(#${clipPathId})`;
-        };
+          })();
+          if (otherState == state) {
+            children.push(leafIcon({ text: icon, extraStyles: [childMark] }));
+            continue;
+          } else {
+            buildStyle[`${parentState}>.${childMark}`] = (s) => {
+              s.display = "none";
+            };
+          }
+        }
       }
-      const extraStyles = args.extraStyles || [];
       const out = e(
         "button",
         {
@@ -1716,17 +1707,18 @@
                 s.width = size;
                 s.height = size;
               },
-              ">div": (s) => {
-                s.display = "inline-block";
+              ">*": (s) => {
                 s.width = "100%";
                 s.height = "100%";
-                s.backdropFilter = "grayscale() brightness(0.8) invert(1)";
+              },
+              ">* text": (s) => {
+                s.fontWeight = "100";
               },
             }),
             ss(uniq(...buildStyleId), buildStyle),
-            ...extraStyles,
+            ...(args.extraStyles || []),
           ],
-          children_: [e("div", {}, {})],
+          children_: children,
         }
       );
       return { root: out };
