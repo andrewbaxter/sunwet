@@ -224,7 +224,7 @@
   const varCBorderError = vs(uniq(), "rgb(192, 61, 80)", "rgb(0,0,0)");
   const varCInputBorder = vs(uniq(), "rgb(154, 157, 168)", "rgb(0,0,0)");
   const varCSpinner = v(uniq(), "rgb(155, 178, 229)");
-  const varCHighlightBold = vs(uniq(), "rgb(78, 124, 224)", "rgb(0,0,0)");
+  const varCHighlightBold = vs(uniq(), "rgb(152, 183, 255)", "rgb(0,0,0)");
   const varCNodeCenter = varCBg2;
 
   // xx State classes
@@ -358,7 +358,7 @@
       et(
         `
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-          <g transform="translate(50 50)"><text style="
+          <g transform="translate(50 50)"><text fill="currentColor" style="
             text-anchor: middle;
             dominant-baseline: central;
             font-family: I;
@@ -1223,9 +1223,8 @@
         icons: { "": textIconLink },
         extraStyles: [
           ss(uniq("cont_bar_view_transport_share_button"), {
-            [`.${classStateSharing}>div`]: (s) => {
-              s.backdropFilter = "none";
-              s.background = varCHighlightBold;
+            [`.${classStateSharing} text`]: (s) => {
+              s.color = varCHighlightBold;
             },
           }),
         ],
@@ -1244,7 +1243,7 @@
                 s.height = "100%";
                 s.width = "30%";
                 s.borderRadius = "0.05cm";
-                s.backgroundColor = varCSeekbarFill;
+                s.backgroundColor = varCHighlightBold;
               },
             }),
           ],
@@ -1757,6 +1756,8 @@
                         s.flexGrow = "1";
                         s.aspectRatio = "1/1";
                         s.alignSelf = "center";
+                        s.maxWidth = "100%";
+                        s.maxHeight = "100%";
                       },
                     }),
                   ],

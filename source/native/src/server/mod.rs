@@ -602,6 +602,7 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
         let db_path = config.graph_dir.join("db.sqlite3");
         let db = deadpool_sqlite::Config::new(&db_path).create_pool(deadpool_sqlite::Runtime::Tokio1).unwrap();
         db.get().await?.interact(|db| {
+            rusqlite::vtab::array::load_module(&db)?;
             db::migrate(db)?;
             db.execute(include_str!("setup_fts.sql"), ())?;
             return Ok(()) as Result<_, loga::Error>;

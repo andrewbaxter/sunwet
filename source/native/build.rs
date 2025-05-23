@@ -13,7 +13,6 @@ use {
             helpers::{
                 expr_and,
                 expr_field_eq,
-                expr_field_gt,
                 expr_field_gte,
                 expr_field_lt,
                 fn_max,

@@ -1,0 +1,20 @@
+[package]
+name = "native-import"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+shared = { path = "../shared" }
+aargvark = { version = "0.6", features = ["serde_json"] }
+loga = "0.5"
+taglib = "1"
+zip = "0.6"
+walkdir = "2"
+symphonia = { version = "0.5", features = ["all"] }
+uuid = { version = "1", features = ["v4"] }
+mkvparser = "0.2"
+mkvdump = "0.6"
+flowcontrol = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
