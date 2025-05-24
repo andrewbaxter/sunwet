@@ -312,8 +312,12 @@ async fn can_access_file(state: &State, identity: &Identity, file: &FileHash) ->
             }
         },
     }
-    if state.link_public_files.lock().unwrap().contains(&file) {
-        return Ok(true);
+    if let Identity::Link(l) = identity {
+        if let Some(session) = state.link_sessions.get(l).await {
+            if session.public_files.lock().unwrap().contains(&file) {
+                return Ok(true);
+            }
+        }
     }
     return Ok(false);
 }

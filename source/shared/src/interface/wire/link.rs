@@ -10,6 +10,8 @@ use {
     },
 };
 
+pub const COOKIE_LINK_SESSION: &str = "link-id";
+
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum SourceUrl {

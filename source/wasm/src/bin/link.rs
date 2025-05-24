@@ -24,6 +24,7 @@ use {
         SourceUrl,
         WsL2S,
         WsS2L,
+        COOKIE_LINK_SESSION,
     },
     std::{
         cell::Cell,
@@ -60,6 +61,7 @@ use {
     },
     web_sys::{
         DomException,
+        HtmlDocument,
         HtmlElement,
         HtmlMediaElement,
     },
@@ -87,6 +89,11 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
         let class_state_hide = style_export::class_state_hide().value;
         let hash = get_dom_octothorpe().unwrap();
         let link_id = hash.strip_prefix(LINK_HASH_PREFIX).unwrap();
+        document()
+            .dyn_into::<HtmlDocument>()
+            .unwrap()
+            .set_cookie(&format!("{}={}", COOKIE_LINK_SESSION, link_id))
+            .unwrap();
         let style_res = style_export::app_link();
         let state = State(Rc::new(State_ {
             media_audio_el: el_from_raw(media_audio_el.clone().into()),

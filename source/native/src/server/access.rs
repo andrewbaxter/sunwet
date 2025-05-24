@@ -1,17 +1,19 @@
 use {
-    super::{
-        state::{
-            get_global_config,
-            get_user_config,
-            State,
-        },
+    super::state::{
+        get_global_config,
+        get_user_config,
+        State,
     },
     crate::{
         interface::config::IamGrants,
         server::subsystems::oidc::get_req_session,
     },
+    cookie::Cookie,
     flowcontrol::shed,
-    http::HeaderMap,
+    http::{
+        header::COOKIE,
+        HeaderMap,
+    },
     htwrap::htserve::{
         self,
         viserr::{
@@ -19,12 +21,16 @@ use {
             VisErr,
         },
     },
-    shared::interface::iam::UserIdentityId,
+    shared::interface::{
+        iam::UserIdentityId,
+        wire::link::COOKIE_LINK_SESSION,
+    },
 };
 
 pub enum Identity {
     Token(IamGrants),
     User(UserIdentityId),
+    Link(String),
     Public,
 }
 
@@ -49,10 +55,28 @@ pub async fn identify_requester(
                 state
                     .log
                     .log(loga::DEBUG, format!("Request has session id [{}] but no matching session found", session));
-                return Ok(Some(Identity::Public));
+                break;
             };
             state.log.log(loga::DEBUG, format!("Request user identified as [{}]", user.0));
             return Ok(Some(Identity::User(user)));
+        }
+    }
+    shed!{
+        let Some(cookies) = headers.get(COOKIE) else {
+            break;
+        };
+        let Ok(cookies) = cookies.to_str() else {
+            break;
+        };
+        for c in Cookie::split_parse(cookies) {
+            let Ok(c) = c else {
+                continue;
+            };
+            if c.name() != COOKIE_LINK_SESSION {
+                eprintln!("link cookie not link session: {} (want {})", c.name(), COOKIE_LINK_SESSION);
+                continue;
+            };
+            return Ok(Some(Identity::Link(c.value().to_string())));
         }
     }
     state.log.log(loga::DEBUG, "Request user identified as public");
@@ -81,6 +105,9 @@ pub async fn is_admin(state: &State, identity: &Identity) -> Result<bool, loga::
                     return Ok(false);
                 },
             }
+        },
+        Identity::Link(_) => {
+            return Ok(false);
         },
         Identity::Public => {
             return Ok(false);

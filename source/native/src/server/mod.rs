@@ -1,3 +1,14 @@
+pub mod db;
+pub mod filesutil;
+pub mod defaultviews;
+pub mod state;
+pub mod dbutil;
+pub mod query;
+pub mod query_test;
+pub mod access;
+pub mod fsutil;
+pub mod subsystems;
+
 use {
     crate::{
         cap_fn,
@@ -23,6 +34,10 @@ use {
     },
     chrono::DateTime,
     dbutil::tx,
+    deadpool_sqlite::{
+        Hook,
+        HookError,
+    },
     flowcontrol::{
         shed,
         ta_return,
@@ -97,7 +112,6 @@ use {
     std::{
         collections::{
             BTreeMap,
-            HashMap,
             HashSet,
         },
         hash::{
@@ -107,14 +121,12 @@ use {
         },
         str::FromStr,
         sync::{
-            atomic::AtomicU8,
             Arc,
             Mutex,
         },
         time::Duration,
     },
     subsystems::{
-        generate_files::start_generate_files,
         files::{
             handle_commit,
             handle_file_get,
@@ -124,8 +136,9 @@ use {
             handle_form_commit,
         },
         gc::handle_gc,
+        generate_files::start_generate_files,
         link::{
-            handle_ws,
+            handle_link_ws,
             handle_ws_link,
             handle_ws_main,
         },
@@ -139,17 +152,6 @@ use {
     },
     tokio_stream::wrappers::TcpListenerStream,
 };
-
-pub mod db;
-pub mod filesutil;
-pub mod defaultviews;
-pub mod state;
-pub mod dbutil;
-pub mod query;
-pub mod query_test;
-pub mod access;
-pub mod fsutil;
-pub mod subsystems;
 
 async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<BoxBody<Bytes, std::io::Error>> {
     let url = req.uri().clone();
@@ -165,22 +167,17 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                 let (head, _) = req.into_parts();
                 let mut path_iter = head.uri.path().trim_matches('/').split('/');
                 let link_type = path_iter.next().unwrap();
-                let session = path_iter.next().unwrap();
+                let link_session = path_iter.next().unwrap();
                 match link_type {
                     "link" => {
-                        {
-                            let Some(want_session) = &*state.link_session.lock().unwrap() else {
-                                return Ok(response_401());
-                            };
-                            if want_session.as_str() != session {
-                                return Ok(response_401());
-                            }
-                        }
-                        return Ok(handle_ws(state, head, upgrade, handle_ws_link));
+                        return Ok(
+                            handle_link_ws(state, link_session.to_string(), head, upgrade, handle_ws_link).await,
+                        );
                     },
                     "main" => {
-                        *state.link_session.lock().unwrap() = Some(session.to_string());
-                        return Ok(handle_ws(state, head, upgrade, handle_ws_main));
+                        return Ok(
+                            handle_link_ws(state, link_session.to_string(), head, upgrade, handle_ws_main).await,
+                        );
                     },
                     _ => {
                         state
@@ -511,6 +508,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 resp = req.respond()(match identity {
                                     access::Identity::Token(_) => RespWhoAmI::Token,
                                     access::Identity::User(ident) => RespWhoAmI::User(ident.0),
+                                    access::Identity::Link(_) => RespWhoAmI::Public,
                                     access::Identity::Public => RespWhoAmI::Public,
                                 });
                             },
@@ -600,9 +598,21 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
         let files_dir = config.files_dir.join("ready");
         create_dirs(&files_dir).await?;
         let db_path = config.graph_dir.join("db.sqlite3");
-        let db = deadpool_sqlite::Config::new(&db_path).create_pool(deadpool_sqlite::Runtime::Tokio1).unwrap();
+        let db =
+            deadpool_sqlite::Config::new(&db_path)
+                .builder(deadpool_sqlite::Runtime::Tokio1)
+                .context("Error creating sqlite pool builder")?
+                .post_create(Hook::async_fn(|db, _| Box::pin(async {
+                    db
+                        .interact(|db| rusqlite::vtab::array::load_module(db))
+                        .await
+                        .map_err(|e| HookError::Message(e.to_string().into()))?
+                        .map_err(|e| HookError::Backend(e))?;
+                    return Ok(());
+                })))
+                .build()
+                .context("Error creating sqlite pool")?;
         db.get().await?.interact(|db| {
-            rusqlite::vtab::array::load_module(&db)?;
             db::migrate(db)?;
             db.execute(include_str!("setup_fts.sql"), ())?;
             return Ok(()) as Result<_, loga::Error>;
@@ -676,11 +686,7 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
             finishing_uploads: Mutex::new(HashSet::new()),
             generate_files: generate_files_tx,
             link_bg: Mutex::new(None),
-            link_ids: AtomicU8::new(0),
-            link_main: Mutex::new(None),
-            link_links: Mutex::new(HashMap::new()),
-            link_public_files: Mutex::new(HashSet::new()),
-            link_session: Mutex::new(None),
+            link_sessions: Cache::builder().time_to_idle(Duration::from_secs(24 * 60 * 60)).build(),
         });
 
         // GC

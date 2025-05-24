@@ -117,7 +117,7 @@ pub fn main() {
                             }
                         },
                         ClientMenuItem::View(i) => {
-                            out.insert(i.view_id.clone(), ClientMenuItem::View(i.clone()));
+                            out.insert(i.id.clone(), ClientMenuItem::View(i.clone()));
                         },
                         ClientMenuItem::Form(i) => {
                             out.insert(i.id.clone(), ClientMenuItem::Form(i.clone()));
@@ -158,7 +158,7 @@ pub fn main() {
                             return style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
                                 title: item.name.clone(),
                                 href: ministate_octothorpe(&Ministate::MenuItem(MinistateMenuItem {
-                                    menu_item_id: item.view_id.clone(),
+                                    menu_item_id: item.id.clone(),
                                     title: item.name.clone(),
                                     pos: None,
                                 })),

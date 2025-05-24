@@ -15,6 +15,7 @@ use {
         },
         ScopeValue,
     },
+    by_address::ByAddress,
     cookie::time::ext::InstantExt,
     deadpool_sqlite::Pool,
     loga::{
@@ -28,7 +29,6 @@ use {
         iam::UserIdentityId,
         triple::FileHash,
         wire::link::{
-            WsS2C,
             WsS2L,
         },
     },
@@ -39,7 +39,6 @@ use {
         },
         path::PathBuf,
         sync::{
-            atomic::AtomicU8,
             Arc,
             Mutex,
         },
@@ -58,7 +57,7 @@ use {
     },
 };
 
-pub struct WsState<M> {
+pub struct WsLinkState<M> {
     pub send: mpsc::Sender<M>,
     pub ready: Mutex<Option<oneshot::Sender<chrono::Duration>>>,
 }
@@ -193,6 +192,11 @@ pub enum UsersState {
     Local(LocalUsersState),
 }
 
+pub struct LinkSessionState {
+    pub links: Mutex<HashSet<ByAddress<Arc<WsLinkState<WsS2L>>>>>,
+    pub public_files: Mutex<HashSet<FileHash>>,
+}
+
 pub struct State {
     pub oidc_state: Option<oidc::OidcState>,
     pub fdap_state: Option<FdapState>,
@@ -208,12 +212,8 @@ pub struct State {
     pub finishing_uploads: Mutex<HashSet<FileHash>>,
     pub generate_files: UnboundedSender<Option<FileHash>>,
     // Websockets
-    pub link_ids: AtomicU8,
-    pub link_main: Mutex<Option<Arc<WsState<WsS2C>>>>,
-    pub link_links: Mutex<HashMap<u8, Arc<WsState<WsS2L>>>>,
+    pub link_sessions: Cache<String, Arc<LinkSessionState>>,
     pub link_bg: Mutex<Option<ScopeValue>>,
-    pub link_public_files: Mutex<HashSet<FileHash>>,
-    pub link_session: Mutex<Option<String>>,
 }
 
 pub async fn get_global_config(state: &State) -> Result<Arc<GlobalConfig>, loga::Error> {
@@ -315,7 +315,7 @@ pub async fn get_iam_grants(state: &State, identity: &Identity) -> Result<IamGra
                 },
             }
         },
-        Identity::Public => {
+        Identity::Public | Identity::Link(_) => {
             return Ok(IamGrants::Limited(get_global_config(state).await?.public_iam_grants.clone()));
         },
     }

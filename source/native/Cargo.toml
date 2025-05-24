@@ -53,6 +53,7 @@ rustemo = "0.7"
 schemars = "0.8"
 # A dep just to disable rustemo logs
 log = { version = "*", features = ["release_max_level_off"] }
+by_address = "1"
 
 
 [build-dependencies]

@@ -224,7 +224,7 @@
   const varCBorderError = vs(uniq(), "rgb(192, 61, 80)", "rgb(0,0,0)");
   const varCInputBorder = vs(uniq(), "rgb(154, 157, 168)", "rgb(0,0,0)");
   const varCSpinner = v(uniq(), "rgb(155, 178, 229)");
-  const varCHighlightBold = vs(uniq(), "rgb(152, 183, 255)", "rgb(0,0,0)");
+  const varCHighlightBold = vs(uniq(), "rgb(62, 119, 251)", "rgb(0,0,0)");
   const varCNodeCenter = varCBg2;
 
   // xx State classes
@@ -1225,6 +1225,7 @@
           ss(uniq("cont_bar_view_transport_share_button"), {
             [`.${classStateSharing} text`]: (s) => {
               s.color = varCHighlightBold;
+              s.fontWeight = "300";
             },
           }),
         ],
@@ -1320,7 +1321,19 @@
             contBarMainStyle,
             ss(uniq("cont_bar_main_transport"), {
               "": (s) => {
+                s.position = "relative";
                 s.backdropFilter = "blur(0.2cm)";
+              },
+              "::before": (s) => {
+                s.display = "block";
+                s.content = '""';
+                s.position = "absolute";
+                s.left = "0";
+                s.right = "0";
+                s.top = "0";
+                s.bottom = "0";
+                s.backgroundColor = varCBackground;
+                s.opacity = "0.3";
               },
             }),
           ],

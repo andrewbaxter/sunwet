@@ -1,11 +1,13 @@
 use {
     crate::{
         server::state::{
+            LinkSessionState,
             State,
-            WsState,
+            WsLinkState,
         },
         spawn_scoped,
     },
+    by_address::ByAddress,
     chrono::{
         Duration,
         Utc,
@@ -40,10 +42,12 @@ use {
         WsS2C,
         WsS2L,
     },
-    std::sync::{
-        atomic::Ordering,
-        Arc,
-        Mutex,
+    std::{
+        future::Future,
+        sync::{
+            Arc,
+            Mutex,
+        },
     },
     tokio::{
         select,
@@ -55,21 +59,34 @@ use {
     tokio_stream::StreamExt,
 };
 
-pub fn handle_ws_main(state: Arc<State>, websocket: HyperWebsocket) {
-    let (tx, mut rx) = mpsc::channel(10);
-    *state.link_main.lock().unwrap() = Some(Arc::new(WsState {
-        send: tx,
-        ready: Mutex::new(None),
-    }));
+pub async fn handle_ws_main(state: Arc<State>, session: String, websocket: HyperWebsocket) {
+    let (s2c_tx, mut s2c_rx) = mpsc::channel(10);
+    let session_state = state.link_sessions.entry(session.clone()).and_upsert_with(|x| async {
+        match x {
+            Some(x) => {
+                return x.into_value();
+            },
+            None => {
+                return Arc::new(LinkSessionState {
+                    links: Default::default(),
+                    public_files: Default::default(),
+                });
+            },
+        }
+    }).await.into_value();
     tokio::spawn(async move {
         match async {
             ta_return!((), loga::Error);
             let mut websocket = websocket.await?;
+            let main_ready = Arc::new(Mutex::new(None));
+            let s2c_tx = Arc::new(s2c_tx);
             loop {
+                let s2c_tx = s2c_tx.clone();
                 match async {
                     ta_return!(bool, loga::Error);
                     select!{
-                        m = rx.recv() => {
+                        m = s2c_rx.recv() => {
+                            // Need to do this to avoid websocket movement issues.
                             let Some(to_remote) = m else {
                                 return Ok(false);
                             };
@@ -94,13 +111,9 @@ pub fn handle_ws_main(state: Arc<State>, websocket: HyperWebsocket) {
                                             &m,
                                         ).context("Error parsing message json")? {
                                             WsC2S::Prepare(prepare) => {
-                                                let Some(main) = state.link_main.lock().unwrap().clone() else {
-                                                    continue;
-                                                };
-
                                                 // Make referenced files temporarily public
                                                 {
-                                                    let mut link_public = state.link_public_files.lock().unwrap();
+                                                    let mut link_public = session_state.public_files.lock().unwrap();
                                                     link_public.clear();
                                                     match &prepare.media {
                                                         shared::interface::wire::link::PrepareMedia::Audio(m) => {
@@ -125,11 +138,11 @@ pub fn handle_ws_main(state: Arc<State>, websocket: HyperWebsocket) {
                                                 }
 
                                                 // .
-                                                let links = state.link_links.lock().unwrap().values().cloned().collect::<Vec<_>>();
+                                                let links = session_state.links.lock().unwrap().clone();
 
                                                 // Start waiting for ready reports
                                                 let (main_ready_tx, main_ready_rx) = oneshot::channel();
-                                                *main.ready.lock().unwrap() = Some(main_ready_tx);
+                                                *main_ready.lock().unwrap() = Some(main_ready_tx);
                                                 let mut link_readies = vec![];
                                                 for link in &links {
                                                     let (ready_tx, ready_rx) = oneshot::channel();
@@ -164,8 +177,7 @@ pub fn handle_ws_main(state: Arc<State>, websocket: HyperWebsocket) {
                                                         let start_at = Utc::now() + delay * 5;
                                                         let mut bg =
                                                             vec![
-                                                                main
-                                                                    .send
+                                                                s2c_tx
                                                                     .send(WsS2C::Play(start_at))
                                                                     .map(|_| ())
                                                                     .boxed()
@@ -194,24 +206,14 @@ pub fn handle_ws_main(state: Arc<State>, websocket: HyperWebsocket) {
                                             },
                                             WsC2S::Ready(sent_at) => {
                                                 shed!{
-                                                    let Some(main) = state.link_main.lock().unwrap().clone() else {
-                                                        break;
-                                                    };
-                                                    let Some(ready) = main.ready.lock().unwrap().take() else {
+                                                    let Some(ready) = main_ready.lock().unwrap().take() else {
                                                         break;
                                                     };
                                                     _ = ready.send(Utc::now() - sent_at);
                                                 }
                                             },
                                             WsC2S::Pause => {
-                                                let links =
-                                                    state
-                                                        .link_links
-                                                        .lock()
-                                                        .unwrap()
-                                                        .values()
-                                                        .cloned()
-                                                        .collect::<Vec<_>>();
+                                                let links = session_state.links.lock().unwrap().clone();
                                                 {
                                                     let mut bg = vec![];
                                                     for link in &links {
@@ -254,18 +256,19 @@ pub fn handle_ws_main(state: Arc<State>, websocket: HyperWebsocket) {
                 state.log.log_err(loga::DEBUG, e.context("Error in websocket connection"));
             },
         }
-        *state.link_main.lock().unwrap() = None;
-        *state.link_session.lock().unwrap() = None;
     });
 }
 
-pub fn handle_ws_link(state: Arc<State>, websocket: HyperWebsocket) {
-    let id = state.link_ids.fetch_add(1, Ordering::Relaxed);
+pub async fn handle_ws_link(state: Arc<State>, session: String, websocket: HyperWebsocket) {
+    let Some(session_state) = state.link_sessions.get(&session).await else {
+        return;
+    };
     let (tx, mut rx) = mpsc::channel(10);
-    state.link_links.lock().unwrap().insert(id, Arc::new(WsState {
+    let link_state = Arc::new(WsLinkState {
         send: tx,
         ready: Mutex::new(None),
-    }));
+    });
+    session_state.links.lock().unwrap().insert(ByAddress::from(link_state.clone()));
     tokio::spawn(async move {
         match async {
             ta_return!((), loga::Error);
@@ -297,11 +300,7 @@ pub fn handle_ws_link(state: Arc<State>, websocket: HyperWebsocket) {
                                     match serde_json::from_str::<WsL2S>(&m).context("Error parsing message json")? {
                                         WsL2S::Ready(sent_at) => {
                                             shed!{
-                                                let links = state.link_links.lock().unwrap();
-                                                let Some(link) = links.get(&id) else {
-                                                    break;
-                                                };
-                                                let Some(ready) = link.ready.lock().unwrap().take() else {
+                                                let Some(ready) = link_state.ready.lock().unwrap().take() else {
                                                     break;
                                                 };
                                                 _ = ready.send(Utc::now() - sent_at);
@@ -340,19 +339,22 @@ pub fn handle_ws_link(state: Arc<State>, websocket: HyperWebsocket) {
                 state.log.log_err(loga::DEBUG, e.context("Error in link websocket connection"));
             },
         }
-        state.link_links.lock().unwrap().remove(&id);
+        session_state.links.lock().unwrap().remove(&ByAddress::from(link_state));
     });
 }
 
-pub fn handle_ws(
+pub async fn handle_link_ws<
+    F: Future<Output = ()>,
+>(
     state: Arc<State>,
+    session_id: String,
     head: http::request::Parts,
     upgrade:
         Result<
             (hyper::Response<Full<Bytes>>, HyperWebsocket),
             hyper_tungstenite::tungstenite::error::ProtocolError,
         >,
-    handle: fn(Arc<State>, HyperWebsocket) -> (),
+    handle: fn(Arc<State>, String, HyperWebsocket) -> F,
 ) -> Response<BoxBody<Bytes, std::io::Error>> {
     let (response, websocket) = match upgrade {
         Ok(x) => x,
@@ -364,7 +366,7 @@ pub fn handle_ws(
                 .unwrap();
         },
     };
-    handle(state, websocket);
+    handle(state, session_id, websocket).await;
     let (resp_header, resp_body) = response.into_parts();
     return Response::from_parts(resp_header, resp_body.map_err(|_| std::io::Error::other("")).boxed());
 }
