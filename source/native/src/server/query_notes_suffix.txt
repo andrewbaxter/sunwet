@@ -1,0 +1,6 @@
+{
+    => note_id
+    ( -> "sunwet/1/datetime" first { => datetime } )
+    ( -> "sunwet/1/text" first { => text } )
+    ( -> "sunwet/1/file" first { => file } )
+}

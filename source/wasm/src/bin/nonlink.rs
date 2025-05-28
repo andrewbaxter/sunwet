@@ -47,7 +47,6 @@ use {
         Prim,
     },
     rooting::{
-        el_from_raw,
         set_root,
         El,
     },
@@ -80,7 +79,6 @@ use {
     },
     wasm_bindgen::JsCast,
     web_sys::{
-        Element,
         HtmlElement,
     },
 };
@@ -211,7 +209,7 @@ pub fn main() {
                     },
                     RespWhoAmI::Token => { },
                 }
-                return Ok(style_export::cont_menu_body(style_export::ContMenuBodyArgs {
+                return Ok(vec![style_export::cont_menu_body(style_export::ContMenuBodyArgs {
                     children: root,
                     user: match whoami {
                         RespWhoAmI::Public => "Guest".to_string(),
@@ -219,7 +217,7 @@ pub fn main() {
                         RespWhoAmI::Token => "Token".to_string(),
                     },
                     bar_children: bar_children,
-                }).root) as Result<_, String>;
+                }).root]) as Result<_, String>;
             }
         });
         let main_title = style_export::leaf_title(style_export::LeafTitleArgs { text: "Sunwet".to_string() }).root;
@@ -257,7 +255,6 @@ pub fn main() {
             modal_stack: modal_stack.clone(),
             main_title: main_title,
             main_body: main_body,
-            menu_body: menu_body,
             client_config: client_config,
         })));
 

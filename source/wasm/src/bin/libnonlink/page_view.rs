@@ -64,7 +64,6 @@ use {
                 WidgetRootDataRows,
                 WidgetText,
             },
-            ClientConfig,
         },
         triple::Node,
         wire::{
@@ -367,7 +366,7 @@ impl Build {
                         build.transport_slot.ref_push(build_transport(pc));
                         build.have_media.set(true);
                     }
-                    return Ok(out);
+                    return Ok(vec![out]);
                 }).unwrap();
             }
         });
@@ -467,7 +466,7 @@ impl Build {
                         build.transport_slot.ref_push(build_transport(pc));
                         build.have_media.set(true);
                     }
-                    return Ok(out);
+                    return Ok(vec![out]);
                 }).unwrap();
             }
         });
@@ -904,7 +903,6 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
 
 pub fn build_page_view(
     eg: EventGraph,
-    config: &ClientConfig,
     menu_item_title: String,
     view: ClientView,
     restore_playlist_pos: Option<PlaylistRestorePos>,

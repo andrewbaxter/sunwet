@@ -24,7 +24,6 @@ use {
     },
     moka::future::Cache,
     shared::interface::{
-        config::form::ClientForm,
         iam::UserIdentityId,
         triple::FileHash,
         wire::link::{

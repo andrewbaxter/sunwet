@@ -307,22 +307,12 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         Func {
+            name: "leafInputTextMedia",
+            args: vec![("id", &optstring_), ("title", &string_), ("value", &string_)],
+            returns: vec![("root", &el_), ("input", &el_), ("media", &el_)],
+        },
+        Func {
             name: "leafInputFile",
-            args: vec![("id", &optstring_), ("title", &string_)],
-            returns: vec![("root", &el_), ("input", &el_)],
-        },
-        Func {
-            name: "leafInputImage",
-            args: vec![("id", &optstring_), ("title", &string_)],
-            returns: vec![("root", &el_), ("input", &el_)],
-        },
-        Func {
-            name: "leafInputVideo",
-            args: vec![("id", &optstring_), ("title", &string_)],
-            returns: vec![("root", &el_), ("input", &el_)],
-        },
-        Func {
-            name: "leafInputAudio",
             args: vec![("id", &optstring_), ("title", &string_)],
             returns: vec![("root", &el_), ("input", &el_)],
         },
@@ -373,21 +363,6 @@ fn main() {
         },
         Func {
             name: "leafInputPairFile",
-            args: vec![("id", &string_), ("title", &string_)],
-            returns: vec![("root", &el_), ("input", &el_)],
-        },
-        Func {
-            name: "leafInputPairImage",
-            args: vec![("id", &string_), ("title", &string_)],
-            returns: vec![("root", &el_), ("input", &el_)],
-        },
-        Func {
-            name: "leafInputPairVideo",
-            args: vec![("id", &string_), ("title", &string_)],
-            returns: vec![("root", &el_), ("input", &el_)],
-        },
-        Func {
-            name: "leafInputPairAudio",
             args: vec![("id", &string_), ("title", &string_)],
             returns: vec![("root", &el_), ("input", &el_)],
         },

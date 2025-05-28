@@ -494,7 +494,7 @@ fn test_gc() {
         db::triple_list_all(&db)
             .unwrap()
             .into_iter()
-            .map(|r| format!("{:?}", (r.subject.0, r.predicate, r.object.0, r.timestamp, r.exists)))
+            .map(|r| format!("{:?}", (r.subject.0, r.predicate, r.object.0, r.commit, r.exists)))
             .collect::<Vec<_>>();
     have.sort();
     pretty_assertions::assert_eq!(want, have);
@@ -503,7 +503,7 @@ fn test_gc() {
         db::triple_list_all(&db)
             .unwrap()
             .into_iter()
-            .map(|r| format!("{:?}", (r.subject.0, r.predicate, r.object.0, r.timestamp, r.exists)))
+            .map(|r| format!("{:?}", (r.subject.0, r.predicate, r.object.0, r.commit, r.exists)))
             .collect::<Vec<_>>();
     have.sort();
     pretty_assertions::assert_eq!(want, have);

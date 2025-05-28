@@ -21,7 +21,6 @@ use {
         ProcessingContext,
     },
     rooting::{
-        el_from_raw,
         El,
     },
     shared::interface::config::{
@@ -53,7 +52,6 @@ pub struct State_ {
     // Arcmutex due to OnceLock, should El use sync alternatives?
     pub main_title: El,
     pub main_body: El,
-    pub menu_body: El,
     pub modal_stack: El,
 }
 
@@ -109,10 +107,15 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
                             return Err(format!("Menu item [{}] is a section, nothing to display.", menu_item_id));
                         },
                         ClientMenuItem::View(menu_item) => {
-                            return build_page_view(eg, &client_config.0, title, menu_item.clone(), pos);
+                            return build_page_view(eg, title, menu_item.clone(), pos).map(|x| vec![x]);
                         },
                         ClientMenuItem::Form(menu_item) => {
-                            return build_page_form(eg, client_config.0.clone(), title, menu_item.clone());
+                            return build_page_form(
+                                eg,
+                                client_config.0.clone(),
+                                title,
+                                menu_item.clone(),
+                            ).map(|x| vec![x]);
                         },
                         ClientMenuItem::History => {
                             unreachable!();

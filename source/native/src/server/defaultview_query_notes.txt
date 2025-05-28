@@ -1,4 +1,0 @@
-"sunwet/1/note" <- "sunwet/1/is" {
-    => note_id
-    ( -> "sunwet/1/text" first { => text } )
-}

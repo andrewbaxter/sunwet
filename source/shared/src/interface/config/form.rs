@@ -58,21 +58,6 @@ pub struct FormFieldQueryEnum {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub enum FormFieldFileType {
-    Any,
-    Image,
-    Video,
-    Audio,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct FormFieldFile {
-    pub r#type: FormFieldFileType,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum FormFieldType {
     /// Generate a unique id (uuid) - no visible entry.
     Id,
@@ -91,7 +76,7 @@ pub enum FormFieldType {
     /// fields: `name` (the text presented to the user) and `id` (the value to store in
     /// the relation).
     QueryEnum(FormFieldQueryEnum),
-    File(FormFieldFile),
+    File,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]

@@ -90,6 +90,7 @@ use {
             C2SReq,
             RespGetTriplesAround,
             RespHistoryCommit,
+            RespNodeMeta,
             RespQuery,
             RespWhoAmI,
             TreeNode,
@@ -259,6 +260,8 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
 
                             impl ReqResp for shared::interface::wire::ReqViewQuery { }
 
+                            impl ReqResp for shared::interface::wire::ReqGetNodeMeta { }
+
                             impl ReqResp for shared::interface::wire::ReqHistory { }
 
                             impl ReqResp for shared::interface::wire::ReqHistoryCommitCount { }
@@ -404,6 +407,16 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     }
                                 }).await.err_internal()?;
                                 resp = responder(RespQuery { records: records });
+                            },
+                            C2SReq::GetNodeMeta(req) => {
+                                let responder = req.respond();
+                                let meta = tx(&state.db, move |txn| {
+                                    return Ok(db::meta_get(txn, &DbNode(req.node))?);
+                                }).await.err_internal()?;
+                                resp = responder(match meta {
+                                    Some(m) => Some(RespNodeMeta { mime: m.mimetype }),
+                                    None => None,
+                                });
                             },
                             C2SReq::History(req) => {
                                 if !is_admin(&state, &identity).await.err_internal()? {

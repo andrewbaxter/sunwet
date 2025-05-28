@@ -8,7 +8,6 @@ use {
         ROOT,
         STEP,
     },
-    sha2::digest::generic_array::arr::Inc,
     shared::interface::{
         query::{
             Chain,
@@ -39,7 +38,6 @@ use {
         collections::HashMap,
         fs::read_to_string,
         path::{
-            Path,
             PathBuf,
         },
     },

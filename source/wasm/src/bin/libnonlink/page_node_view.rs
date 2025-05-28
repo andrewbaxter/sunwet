@@ -16,7 +16,6 @@ use {
     flowcontrol::ta_return,
     lunk::ProcessingContext,
     rooting::{
-        el_from_raw,
         El,
     },
     shared::interface::{
@@ -30,7 +29,6 @@ use {
         },
         ont,
     },
-    wasm_bindgen::JsCast,
 };
 
 pub fn node_to_text(node: &Node) -> String {
@@ -64,7 +62,7 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
         let title = title.to_string();
         let node = node.clone();
         async move {
-            ta_return!(El, String);
+            ta_return!(Vec < El >, String);
             let triples = req_post_json(&state().env.base_url, ReqGetTriplesAround { node: node.clone() }).await?;
             return eg.event(|_pc| {
                 let mut out = vec![];
@@ -147,10 +145,12 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                         ).root,
                     );
                 }
-                return Ok(style_export::cont_page_node_view_and_history(style_export::ContPageNodeViewAndHistoryArgs {
-                    page_button_children: buttons_out,
-                    children: out,
-                }).root);
+                return Ok(
+                    vec![style_export::cont_page_node_view_and_history(style_export::ContPageNodeViewAndHistoryArgs {
+                        page_button_children: buttons_out,
+                        children: out,
+                    }).root],
+                );
             }).unwrap();
         }
     }));

@@ -68,10 +68,22 @@ fn test_default_albums() {
 
 #[test]
 fn test_default_albums_tracks() {
-    compile_query(None, include_str!("../server/query_audio_tracks.txt")).unwrap();
+    compile_query(
+        IncludeContext::Preloaded(
+            [
+                (
+                    format!("query_audio_tracks_suffix.txt"),
+                    include_str!("../server/query_audio_tracks_suffix.txt").to_string(),
+                ),
+            ]
+                .into_iter()
+                .collect(),
+        ),
+        include_str!("../server/query_audio_tracks_search_name.txt"),
+    ).unwrap();
 }
 
 #[test]
 fn test_default_notes() {
-    compile_query(None, include_str!("../server/defaultview_query_notes.txt")).unwrap();
+    compile_query(Default::default(), include_str!("../server/query_notes.txt")).unwrap();
 }

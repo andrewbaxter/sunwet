@@ -4,6 +4,11 @@ use {
         state::set_page,
     },
     crate::libnonlink::{
+        commit::{
+            commit,
+            CommitNode,
+            CommitTriple,
+        },
         ministate::{
             ministate_octothorpe,
             MinistateNodeView,
@@ -12,6 +17,7 @@ use {
     },
     flowcontrol::{
         exenum,
+        superif,
         ta_return,
     },
     lunk::{
@@ -21,7 +27,7 @@ use {
         ProcessingContext,
     },
     rooting::{
-        el_from_raw,
+        el,
         spawn_rooted,
         El,
     },
@@ -35,7 +41,7 @@ use {
             Node,
         },
         wire::{
-            ReqCommit,
+            ReqGetNodeMeta,
             ReqGetTriplesAround,
             Triple,
         },
@@ -46,12 +52,17 @@ use {
         rc::Rc,
         str::FromStr,
     },
-    wasm::js::{
-        el_async_,
-        style_export,
+    wasm::{
+        js::{
+            el_async,
+            el_async_,
+            style_export,
+        },
+        world::file_url,
     },
     wasm_bindgen::JsCast,
     web_sys::{
+        File,
         HtmlElement,
         HtmlInputElement,
     },
@@ -59,17 +70,32 @@ use {
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 enum NodeEditType {
+    // Value = str
     Str,
+    // Value = str
     Num,
+    // Value = bool
     Bool,
+    // Value = str
     Json,
+    // Value = str
     File,
+    // Value = upload
+    FileUpload,
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq)]
+struct NodeEditValueUpload {
+    // Keep if user accidentally selects
+    old: String,
+    new: Option<File>,
+}
+
+#[derive(Clone, PartialEq, Eq)]
 enum NodeEditValue {
     String(String),
     Bool(bool),
+    Upload(NodeEditValueUpload),
 }
 
 #[derive(Clone)]
@@ -88,62 +114,50 @@ fn new_node_state(pc: &mut ProcessingContext, node: &Node) -> NodeState {
     };
 }
 
-// Produce a valid node from whatever state this element is in
-fn type_value_to_node(type_: &NodeEditType, value: &NodeEditValue) -> Node {
-    match (type_, value) {
-        (NodeEditType::File, NodeEditValue::String(v)) => {
-            if let Ok(v) = FileHash::from_str(&v) {
-                return Node::File(v);
+fn type_value_to_node(unique: usize, type_: &NodeEditType, value: &NodeEditValue) -> CommitNode {
+    match type_ {
+        NodeEditType::Str => {
+            let v = exenum!(value, NodeEditValue:: String(v) => v).unwrap();
+            return CommitNode::Node(Node::Value(serde_json::Value::String(v.clone())));
+        },
+        NodeEditType::Num => {
+            let v = exenum!(value, NodeEditValue:: String(v) => v).unwrap();
+            if let Ok(n) = serde_json::from_str::<serde_json::Number>(v) {
+                return CommitNode::Node(Node::Value(serde_json::Value::Number(n)));
             } else {
-                return Node::Value(serde_json::Value::String(v.clone()));
+                return CommitNode::Node(Node::Value(serde_json::Value::String(v.clone())));
             }
         },
-        (NodeEditType::File, NodeEditValue::Bool(v)) => {
-            return Node::Value(serde_json::Value::String(if *v {
-                "true"
-            } else {
-                "false"
-            }.to_string()));
+        NodeEditType::Bool => {
+            let v = exenum!(value, NodeEditValue:: Bool(v) => v).unwrap();
+            return CommitNode::Node(Node::Value(serde_json::Value::Bool(*v)));
         },
-        (NodeEditType::Str, NodeEditValue::String(v)) => {
-            return Node::Value(serde_json::Value::String(v.clone()));
-        },
-        (NodeEditType::Str, NodeEditValue::Bool(v)) => {
-            return Node::Value(serde_json::Value::String(if *v {
-                "true"
-            } else {
-                "false"
-            }.to_string()));
-        },
-        (NodeEditType::Num, NodeEditValue::String(v)) => {
-            if let Ok(n) = serde_json::from_str::<serde_json::Number>(&v) {
-                return Node::Value(serde_json::Value::Number(n));
-            } else {
-                return Node::Value(serde_json::Value::String(v.clone()));
-            }
-        },
-        (NodeEditType::Num, NodeEditValue::Bool(v)) => {
-            return Node::Value(serde_json::Value::String(if *v {
-                "true"
-            } else {
-                "false"
-            }.to_string()));
-        },
-        (NodeEditType::Bool, NodeEditValue::String(v)) => {
-            return Node::Value(serde_json::Value::String(v.clone()));
-        },
-        (NodeEditType::Bool, NodeEditValue::Bool(v)) => {
-            return Node::Value(serde_json::Value::Bool(*v));
-        },
-        (NodeEditType::Json, NodeEditValue::String(v)) => {
+        NodeEditType::Json => {
+            let v = exenum!(value, NodeEditValue:: String(v) => v).unwrap();
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(&v) {
-                return Node::Value(v);
+                return CommitNode::Node(Node::Value(v));
             } else {
-                return Node::Value(serde_json::Value::String(v.clone()));
+                return CommitNode::Node(Node::Value(serde_json::Value::String(v.clone())));
             }
         },
-        (NodeEditType::Json, NodeEditValue::Bool(v)) => {
-            return Node::Value(serde_json::Value::Bool(*v));
+        NodeEditType::File => {
+            let v = exenum!(value, NodeEditValue:: String(v) => v).unwrap();
+            if let Ok(v) = FileHash::from_str(v) {
+                return CommitNode::Node(Node::File(v));
+            } else {
+                return CommitNode::Node(Node::Value(serde_json::Value::String(v.clone())));
+            }
+        },
+        NodeEditType::FileUpload => {
+            let v = exenum!(value, NodeEditValue:: Upload(v) => v).unwrap();
+            match &v.new {
+                Some(n) => {
+                    return CommitNode::File(unique, n.clone());
+                },
+                None => {
+                    return CommitNode::Node(Node::Value(serde_json::Value::String(v.old.clone())));
+                },
+            }
         },
     }
 }
@@ -229,6 +243,7 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> El {
             (NodeEditType::Bool, "Bool"),
             (NodeEditType::Json, "JSON"),
             (NodeEditType::File, "File"),
+            (NodeEditType::FileUpload, "Upload new file"),
         ]
             .into_iter()
             .map(|(k, v)| (serde_json::to_string(&k).unwrap(), v.to_string()))
@@ -248,6 +263,9 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> El {
             node.type_.set(pc, serde_json::from_str::<NodeEditType>(&inp_ele.value()).unwrap());
         }).unwrap()
     });
+
+    // When changing element type, munge the value to fit the new type and replace the
+    // input element
     inp_type_el.ref_own(
         |_| link!(
             (pc = pc),
@@ -255,36 +273,42 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> El {
             (node_value = node.value.clone()),
             (inp_value_group_el = inp_value_group_el.clone()),
             {
-                let convert_str_node_value = |pc: &mut ProcessingContext| {
-                    match &*node_type.borrow() {
-                        NodeEditType::Str => {
-                            // nop, leave as maybe invalid string
-                        },
-                        NodeEditType::Num => {
-                            // nop, leave as maybe invalid string
-                        },
-                        NodeEditType::Bool => {
-                            let NodeEditValue::Bool(v) = &*node_value.borrow() else {
-                                unreachable!();
-                            };
-                            node_value.set(pc, NodeEditValue::String(if *v {
+                let node_value_as_string = || -> String {
+                    let s = match &*node_value.borrow() {
+                        NodeEditValue::String(s) => s.clone(),
+                        NodeEditValue::Bool(v) => {
+                            return if *v {
                                 "true"
                             } else {
                                 "false"
-                            }.to_string()));
+                            }.to_string();
+                        },
+                        NodeEditValue::Upload(v) => {
+                            return v.old.clone();
+                        },
+                    };
+                    match &*node_type.borrow() {
+                        NodeEditType::Str => {
+                            return s.clone();
+                        },
+                        NodeEditType::Num => {
+                            return s.clone();
+                        },
+                        NodeEditType::Bool => {
+                            unreachable!();
                         },
                         NodeEditType::Json => {
-                            let NodeEditValue::String(v) = &*node_value.borrow() else {
-                                unreachable!();
-                            };
-                            if let Ok(serde_json::Value::String(v)) = serde_json::from_str::<serde_json::Value>(v) {
-                                node_value.set(pc, NodeEditValue::String(v.clone()));
-                            } else {
-                                // nop, leave as maybe valid json string (ok if number, invalid otherwise)
-                            }
+                            let Ok(serde_json::Value::String(v)) =
+                                serde_json::from_str::<serde_json::Value>(&s) else {
+                                    return s.clone();
+                                };
+                            return v;
                         },
                         NodeEditType::File => {
-                            // nop, leave as maybe invalid string
+                            return s.clone();
+                        },
+                        NodeEditType::FileUpload => {
+                            unreachable!();
                         },
                     }
                 };
@@ -304,17 +328,13 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> El {
                             }
                         }
                     });
-                    input_.ref_own(|input_el| (
+                    input_.ref_own(|input_| (
                         //. .
-                        link!((pc = pc), (node_value = node_value.clone()), (input_value = input_value.clone()), (input_el = input_el.weak()), {
-                            let input_el = input_el.upgrade()?;
-                            match &*node_value.borrow() {
-                                NodeEditValue::String(v) => {
-                                    input_value.set(pc, v.clone());
-                                    input_el.raw().dyn_ref::<HtmlElement>().unwrap().set_text_content(Some(v));
-                                },
-                                NodeEditValue::Bool(_) => unreachable!(),
-                            }
+                        link!((pc = pc), (node_value = node_value.clone()), (input_value = input_value.clone()), (input_ = input_.weak()), {
+                            let input_ = input_.upgrade()?;
+                            let v = exenum!(&*node_value.borrow(), NodeEditValue:: String(v) => v.clone()).unwrap();
+                            input_value.set(pc, v.clone());
+                            input_.ref_text(&v);
                         }),
                         link!((pc = pc), (input_value = input_value.clone()), (node_value = node_value.clone()), (), {
                             node_value.set(pc, NodeEditValue::String(input_value.borrow().clone()));
@@ -322,14 +342,18 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> El {
                     ));
                     return input_;
                 };
+
+                // Convert to expected value type, create a new input for the new input type
                 let new_input;
+                let new_value;
                 match &*node_type.borrow() {
                     NodeEditType::Num => {
-                        convert_str_node_value(pc);
+                        let s = node_value_as_string();
+                        new_value = NodeEditValue::String(s.clone());
                         let input_ = style_export::leaf_input_number(style_export::LeafInputNumberArgs {
                             id: None,
                             title: "Node".into(),
-                            value: "".into(),
+                            value: s,
                         }).root;
                         let input_value = Prim::new("".to_string());
                         input_.ref_on("input", {
@@ -342,17 +366,14 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> El {
                                 }).unwrap();
                             }
                         });
-                        input_.ref_own(|input_el| (
+                        input_.ref_own(|input_| (
                             //. .
-                            link!((pc = pc), (node_value = node_value.clone()), (input_value = input_value.clone()), (input_el = input_el.weak()), {
-                                let input_el = input_el.upgrade()?;
-                                match &*node_value.borrow() {
-                                    NodeEditValue::String(v) => {
-                                        input_value.set(pc, v.clone());
-                                        input_el.raw().dyn_ref::<HtmlInputElement>().unwrap().set_value(v);
-                                    },
-                                    NodeEditValue::Bool(_) => unreachable!(),
-                                }
+                            link!((pc = pc), (node_value = node_value.clone()), (input_value = input_value.clone()), (input_ = input_.weak()), {
+                                let input_ = input_.upgrade()?;
+                                let v =
+                                    exenum!(&*node_value.borrow(), NodeEditValue:: String(v) => v.clone()).unwrap();
+                                input_value.set(pc, v.clone());
+                                input_.ref_text(&v);
                             }),
                             link!(
                                 (pc = pc),
@@ -367,13 +388,47 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> El {
                         new_input = input_;
                     },
                     NodeEditType::Bool => {
-                        let new_value = false;
-                        node_value.set(pc, NodeEditValue::Bool(new_value));
+                        let new_value1 = (|| {
+                            let s = match &*node_value.borrow() {
+                                NodeEditValue::String(s) => s.clone(),
+                                NodeEditValue::Bool(v) => {
+                                    return *v;
+                                },
+                                NodeEditValue::Upload(v) => {
+                                    v.old.clone()
+                                },
+                            };
+                            match &*node_type.borrow() {
+                                NodeEditType::Str => {
+                                    return false;
+                                },
+                                NodeEditType::Num => {
+                                    return false;
+                                },
+                                NodeEditType::Bool => {
+                                    unreachable!();
+                                },
+                                NodeEditType::Json => {
+                                    let Ok(serde_json::Value::Bool(v)) =
+                                        serde_json::from_str::<serde_json::Value>(&s) else {
+                                            return false;
+                                        };
+                                    return v;
+                                },
+                                NodeEditType::File => {
+                                    return false;
+                                },
+                                NodeEditType::FileUpload => {
+                                    return false;
+                                },
+                            }
+                        })();
+                        new_value = NodeEditValue::Bool(new_value1);
                         let input_value = Prim::new(false);
                         new_input = style_export::leaf_input_bool(style_export::LeafInputBoolArgs {
                             id: None,
                             title: "Value".to_string(),
-                            value: new_value,
+                            value: new_value1,
                         }).root;
                         new_input.ref_on("input", {
                             let eg = pc.eg();
@@ -415,72 +470,187 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> El {
                         ));
                     },
                     NodeEditType::Str => {
-                        convert_str_node_value(pc);
+                        let s = node_value_as_string();
+                        new_value = NodeEditValue::String(s.clone());
                         new_input =
                             build_text_input(pc, style_export::leaf_input_text(style_export::LeafInputTextArgs {
                                 id: None,
                                 title: "Node".into(),
-                                value: "".into(),
+                                value: s,
                             }).root);
                     },
                     NodeEditType::Json => {
-                        match node_type.get_old() {
-                            NodeEditType::Str => {
-                                node_value.set(
-                                    pc,
-                                    NodeEditValue::String(
-                                        serde_json::to_string_pretty(
-                                            exenum!(&*node_value.borrow(), NodeEditValue:: String(v) => v).unwrap(),
-                                        ).unwrap(),
-                                    ),
-                                );
-                            },
-                            NodeEditType::Num => {
-                                // nop
-                            },
-                            NodeEditType::Bool => {
-                                node_value.set(
-                                    pc,
-                                    NodeEditValue::String(
-                                        if exenum!(&*node_value.borrow(), NodeEditValue:: Bool(v) =>* v).unwrap() {
-                                            "true"
-                                        } else {
-                                            "false"
-                                        }.to_string(),
-                                    ),
-                                );
-                            },
-                            NodeEditType::Json => {
-                                // nop
-                            },
-                            NodeEditType::File => {
-                                node_value.set(
-                                    pc,
-                                    NodeEditValue::String(
-                                        serde_json::to_string_pretty(
-                                            exenum!(&*node_value.borrow(), NodeEditValue:: String(v) => v).unwrap(),
-                                        ).unwrap(),
-                                    ),
-                                );
-                            },
-                        }
+                        let s = node_value_as_string();
+                        new_value = NodeEditValue::String(s.clone());
                         new_input =
                             build_text_input(pc, style_export::leaf_input_text(style_export::LeafInputTextArgs {
                                 id: None,
                                 title: "Node".into(),
-                                value: "".into(),
+                                value: s,
                             }).root);
                     },
                     NodeEditType::File => {
-                        convert_str_node_value(pc);
-                        new_input =
-                            build_text_input(pc, style_export::leaf_input_text(style_export::LeafInputTextArgs {
-                                id: None,
-                                title: "Node".into(),
-                                value: "".into(),
-                            }).root);
+                        let s = node_value_as_string();
+                        new_value = NodeEditValue::String(s.clone());
+                        let input_value = Prim::new("".to_string());
+                        let style_res = style_export::leaf_input_text_media(style_export::LeafInputTextMediaArgs {
+                            id: None,
+                            title: "Node".into(),
+                            value: s,
+                        });
+                        let input_ = style_res.input;
+                        input_.ref_on("input", {
+                            let eg = pc.eg();
+                            let input_value = input_value.clone();
+                            let input_ = input_.weak();
+                            move |_| eg.event(|pc| {
+                                let Some(input_) = input_.upgrade() else {
+                                    return;
+                                };
+                                let v = input_.raw().dyn_into::<HtmlInputElement>().unwrap().value();
+                                input_value.set(pc, v);
+                            }).unwrap()
+                        });
+                        input_.ref_own(|input_| (
+                            //. .
+                            link!((pc = pc), (node_value = node_value.clone()), (input_value = input_value.clone()), (input_ = input_.weak()), {
+                                let input_ = input_.upgrade()?;
+                                let v =
+                                    exenum!(&*node_value.borrow(), NodeEditValue:: String(v) => v.clone()).unwrap();
+                                input_value.set(pc, v.clone());
+                                input_.ref_text(&v);
+                            }),
+                            link!(
+                                (pc = pc),
+                                (input_value = input_value.clone()),
+                                (node_value = node_value.clone()),
+                                (),
+                                {
+                                    node_value.set(pc, NodeEditValue::String(input_value.borrow().clone()));
+                                }
+                            ),
+                            link!(
+                                (_pc = pc),
+                                (input_value = input_value.clone()),
+                                (),
+                                (media = style_res.media.weak()),
+                                {
+                                    let media = media.upgrade()?;
+                                    media.ref_clear();
+                                    let Ok(h) = FileHash::from_str(&*input_value.borrow()) else {
+                                        return None;
+                                    };
+                                    let src_url = file_url(&state().env, &h);
+                                    media.ref_push(el_async(async move {
+                                        ta_return!(Vec < El >, String);
+                                        let meta =
+                                            req_post_json(
+                                                &state().env.base_url,
+                                                ReqGetNodeMeta { node: Node::File(h.clone()) },
+                                            ).await?;
+                                        match meta {
+                                            Some(meta) => {
+                                                match meta.mime.split("/").next().unwrap() {
+                                                    "image" => {
+                                                        return Ok(vec![el("img").attr("src", &src_url)]);
+                                                    },
+                                                    "video" => {
+                                                        return Ok(
+                                                            vec![
+                                                                el("video")
+                                                                    .attr("controls", "true")
+                                                                    .attr("src", &src_url)
+                                                            ],
+                                                        );
+                                                    },
+                                                    "audio" => {
+                                                        return Ok(
+                                                            vec![
+                                                                el("audio")
+                                                                    .attr("controls", "true")
+                                                                    .attr("src", &src_url)
+                                                            ],
+                                                        );
+                                                    },
+                                                    _ => {
+                                                        return Ok(vec![]);
+                                                    },
+                                                }
+                                            },
+                                            None => {
+                                                return Ok(vec![]);
+                                            },
+                                        }
+                                    }));
+                                }
+                            ),
+                        ));
+                        new_input = style_res.root;
+                    },
+                    NodeEditType::FileUpload => {
+                        new_value = NodeEditValue::Upload(NodeEditValueUpload {
+                            old: node_value_as_string(),
+                            new: None,
+                        });
+                        let style_res = style_export::leaf_input_file(style_export::LeafInputFileArgs {
+                            id: None,
+                            title: format!("Node"),
+                        });
+                        let input_ = style_res.input;
+                        let input_value = Prim::new(None);
+                        input_.ref_on("input", {
+                            let eg = pc.eg();
+                            let input_value = input_value.clone();
+                            let input_ = input_.weak();
+                            move |_| {
+                                let Some(input_) = input_.upgrade() else {
+                                    return;
+                                };
+                                eg.event(|pc| {
+                                    superif!({
+                                        let Some(files) =
+                                            input_.raw().dyn_into::<HtmlInputElement>().unwrap().files() else {
+                                                break 'nope;
+                                            };
+                                        let Some(file) = files.item(0) else {
+                                            break 'nope;
+                                        };
+                                        input_value.set(pc, Some(file));
+                                    } 'nope {
+                                        input_value.set(pc, None);
+                                    });
+                                }).unwrap();
+                            }
+                        });
+                        input_.ref_own(|input_| (
+                            //. .
+                            link!((_pc = pc), (_node_value = node_value.clone()), (_input_value = input_value.clone()), (_input_ = input_.weak()), {
+                                // Should only be called on restore, but initial values should never be files
+                                if true {
+                                    unreachable!("restoring file input");
+                                }
+                            }),
+                            link!(
+                                (pc = pc),
+                                (input_value = input_value.clone()),
+                                (node_value = node_value.clone()),
+                                (),
+                                {
+                                    let new_v = NodeEditValue::Upload(NodeEditValueUpload {
+                                        old: exenum!(&*node_value.borrow(), NodeEditValue:: Upload(v) => v)
+                                            .unwrap()
+                                            .old
+                                            .clone(),
+                                        new: input_value.borrow().clone(),
+                                    });
+                                    node_value.set(pc, new_v);
+                                }
+                            ),
+                        ));
+                        new_input = style_res.root;
                     },
                 }
+                node_value.set(pc, new_value);
                 inp_value_group_el.ref_clear();
                 inp_value_group_el.ref_push(new_input);
             }
@@ -490,74 +660,67 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> El {
         input_type: inp_type_el,
         input_value: inp_value_group_el,
     }).root;
-    out.ref_own(
-        |out| (
-            link!(
-                (_pc = pc),
-                (input_type = node.type_.clone(), input_value = node.value.clone(), initial = node.initial.clone()),
-                (),
-                (out = out.weak()),
-                {
-                    let input_el = out.upgrade()?;
-                    let initial = initial.borrow();
-                    let initial_type = &initial.0;
-                    let initial_value = &initial.1;
-                    let modified;
-                    let invalid;
-                    if !match input_type.get() {
-                        NodeEditType::Str => {
-                            match &*input_value.borrow() {
-                                NodeEditValue::String(_v) => true,
-                                NodeEditValue::Bool(_v) => false,
-                            }
-                        },
-                        NodeEditType::Num => {
-                            match &*input_value.borrow() {
-                                NodeEditValue::String(v) => exenum!(
-                                    serde_json::from_str::<serde_json::Value>(&v),
-                                    Ok(serde_json::Value::Number(_)) =>()
-                                ).is_some(),
-                                NodeEditValue::Bool(_v) => false,
-                            }
-                        },
-                        NodeEditType::Bool => {
-                            match &*input_value.borrow() {
-                                NodeEditValue::String(_v) => false,
-                                NodeEditValue::Bool(_v) => true,
-                            }
-                        },
-                        NodeEditType::Json => {
-                            match &*input_value.borrow() {
-                                NodeEditValue::String(v) => serde_json::from_str::<serde_json::Value>(v).is_ok(),
-                                NodeEditValue::Bool(_v) => false,
-                            }
-                        },
-                        NodeEditType::File => {
-                            match &*input_value.borrow() {
-                                NodeEditValue::String(v) => FileHash::from_str(v).is_ok(),
-                                NodeEditValue::Bool(_v) => false,
-                            }
-                        },
-                    } {
-                        modified = false;
-                        invalid = true;
-                    } else if &*input_type.borrow() != initial_type || &*input_value.borrow() != initial_value {
-                        modified = true;
-                        invalid = false;
-                    } else {
-                        modified = false;
-                        invalid = false;
-                    }
-                    input_el.ref_modify_classes(
-                        &[
-                            (&style_export::class_state_invalid().value, invalid),
-                            (&style_export::class_state_modified().value, modified),
-                        ],
-                    );
+    out.ref_own(|out| (
+        // Update modified/invalid flags
+        link!(
+            (_pc = pc),
+            (input_type = node.type_.clone(), input_value = node.value.clone(), initial = node.initial.clone()),
+            (),
+            (out = out.weak()),
+            {
+                let input_el = out.upgrade()?;
+                let initial = initial.borrow();
+                let initial_type = &initial.0;
+                let initial_value = &initial.1;
+                let modified;
+                let invalid;
+                if !match input_type.get() {
+                    NodeEditType::Str => {
+                        true
+                    },
+                    NodeEditType::Num => {
+                        exenum!(
+                            serde_json::from_str::<serde_json::Value>(
+                                exenum!(&*input_value.borrow(), NodeEditValue:: String(v) => v).unwrap(),
+                            ),
+                            Ok(serde_json::Value::Number(_)) =>()
+                        ).is_some()
+                    },
+                    NodeEditType::Bool => {
+                        true
+                    },
+                    NodeEditType::Json => {
+                        serde_json::from_str::<serde_json::Value>(
+                            exenum!(&*input_value.borrow(), NodeEditValue:: String(v) => v).unwrap(),
+                        ).is_ok()
+                    },
+                    NodeEditType::File => {
+                        FileHash::from_str(
+                            exenum!(&*input_value.borrow(), NodeEditValue:: String(v) => v).unwrap(),
+                        ).is_ok()
+                    },
+                    NodeEditType::FileUpload => {
+                        true
+                    },
+                } {
+                    modified = false;
+                    invalid = true;
+                } else if &*input_type.borrow() != initial_type || &*input_value.borrow() != initial_value {
+                    modified = true;
+                    invalid = false;
+                } else {
+                    modified = false;
+                    invalid = false;
                 }
-            ),
+                input_el.ref_modify_classes(
+                    &[
+                        (&style_export::class_state_invalid().value, invalid),
+                        (&style_export::class_state_modified().value, modified),
+                    ],
+                );
+            }
         ),
-    );
+    ));
     return out;
 }
 
@@ -674,7 +837,7 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
         let node = node.clone();
         let title = edit_title.to_string();
         async move {
-            ta_return!(El, String);
+            ta_return!(Vec < El >, String);
             let triples = req_post_json(&state().env.base_url, ReqGetTriplesAround { node: node.clone() }).await?;
             return eg.event(|pc| {
                 let error_slot = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
@@ -852,24 +1015,30 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                             let eg = eg.clone();
                             async move {
                                 let mut triple_nodes_predicates = vec![];
-                                let pivot_node =
-                                    type_value_to_node(
-                                        &*pivot_state.0.node.type_.borrow(),
-                                        &*pivot_state.0.node.value.borrow(),
-                                    );
+                                let mut file_unique = 0usize;
+                                let pivot_node = type_value_to_node({
+                                    file_unique += 1;
+                                    file_unique
+                                }, &*pivot_state.0.node.type_.borrow(), &*pivot_state.0.node.value.borrow());
                                 let res = async {
-                                    ta_return!((), String);
+                                    ta_return!(HashMap < usize, FileHash >, String);
                                     let mut add = vec![];
                                     let mut remove = vec![];
                                     let delete_all = *pivot_state.0.delete.borrow();
                                     let pivot_node_initial = {
                                         let pivot_node_initial = pivot_state.0.node.initial.borrow();
-                                        type_value_to_node(&pivot_node_initial.0, &pivot_node_initial.1)
+                                        type_value_to_node({
+                                            file_unique += 1;
+                                            file_unique
+                                        }, &pivot_node_initial.0, &pivot_node_initial.1)
                                     };
                                     let pivot_changed = pivot_node != pivot_node_initial;
                                     for triple in &*RefCell::borrow(&triple_states) {
                                         // Get current values
-                                        let triple_node = type_value_to_node(&*triple.0.node.type_.borrow(), &*triple.0.node.value.borrow());
+                                        let triple_node = type_value_to_node({
+                                            file_unique += 1;
+                                            file_unique
+                                        }, &*triple.0.node.type_.borrow(), &*triple.0.node.value.borrow());
                                         let triple_predicate = triple.0.predicate.borrow().clone();
                                         triple_nodes_predicates.push(
                                             (triple_predicate.clone(), triple_node.clone()),
@@ -879,7 +1048,10 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                                         let triple_predicate_initial = triple.0.initial_predicate.borrow();
                                         let triple_node_initial = {
                                             let triple_node_initial = triple.0.node.initial.borrow();
-                                            type_value_to_node(&triple_node_initial.0, &triple_node_initial.1)
+                                            type_value_to_node({
+                                                file_unique += 1;
+                                                file_unique
+                                            }, &triple_node_initial.0, &triple_node_initial.1)
                                         };
 
                                         // Classify if changed/deleted
@@ -899,9 +1071,9 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                                                 old_object = triple_node_initial.clone();
                                             }
                                             remove.push(Triple {
-                                                subject: old_subject,
+                                                subject: exenum!(old_subject, CommitNode:: Node(v) => v).unwrap(),
                                                 predicate: triple_predicate_initial.clone(),
-                                                object: old_object,
+                                                object: exenum!(old_object, CommitNode:: Node(v) => v).unwrap(),
                                             });
                                         }
 
@@ -916,7 +1088,7 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                                                 subject = pivot_node.clone();
                                                 object = triple_node;
                                             }
-                                            add.push(Triple {
+                                            add.push(CommitTriple {
                                                 subject: subject,
                                                 predicate: triple.0.predicate.borrow().clone(),
                                                 object: object,
@@ -925,18 +1097,18 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                                     }
 
                                     // Send compiled changes
-                                    req_post_json(&state().env.base_url, ReqCommit {
-                                        add: add,
-                                        remove: remove,
-                                        files: vec![],
-                                    }).await?;
-                                    return Ok(());
+                                    return Ok(commit(add, remove).await?);
                                 }.await;
                                 button.class_list().remove_1(&style_export::class_state_thinking().value).unwrap();
                                 match res {
-                                    Ok(_) => {
+                                    Ok(mut file_lookup) => {
                                         eg.event(|pc| {
-                                            pivot_state.0.node.initial.set(pc, node_to_type_value(&pivot_node));
+                                            pivot_state.0.node.initial.set(pc, node_to_type_value(&match pivot_node {
+                                                CommitNode::Node(n) => n,
+                                                CommitNode::File(unique, _) => Node::File(
+                                                    file_lookup.remove(&unique).unwrap(),
+                                                ),
+                                            }));
                                             for (
                                                 triple,
                                                 (sent_pred, sent_node),
@@ -945,7 +1117,12 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                                                 triple_nodes_predicates.into_iter(),
                                             ) {
                                                 triple.0.initial_predicate.set(pc, sent_pred);
-                                                triple.0.node.initial.set(pc, node_to_type_value(&sent_node));
+                                                triple.0.node.initial.set(pc, node_to_type_value(&match sent_node {
+                                                    CommitNode::Node(n) => n,
+                                                    CommitNode::File(unique, _) => Node::File(
+                                                        file_lookup.remove(&unique).unwrap(),
+                                                    ),
+                                                }));
                                             }
                                         }).unwrap();
                                     },
@@ -966,11 +1143,11 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                     }
                 });
                 bar_out.push(button_save);
-                return Ok(style_export::cont_page_node_edit(style_export::ContPageNodeEditArgs {
+                return Ok(vec![style_export::cont_page_node_edit(style_export::ContPageNodeEditArgs {
                     page_button_children: buttons_out,
                     children: out,
                     bar_children: bar_out,
-                }).root);
+                }).root]);
             }).unwrap();
         }
     }));

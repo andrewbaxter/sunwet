@@ -352,7 +352,7 @@
                     title: "Text",
                     value: "#445566",
                   }).root,
-                  presentation.leafInputPairImage({
+                  presentation.leafInputPairFile({
                     id: "item3",
                     title: "Image",
                   }).root,

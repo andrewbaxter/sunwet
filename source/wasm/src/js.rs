@@ -4,11 +4,11 @@ use {
     gloo::{
         events::EventListener,
         storage::errors::StorageError,
+        timers::future::TimeoutFuture,
         utils::window,
     },
     rooting::{
         el,
-        el_from_raw,
         spawn_rooted,
         El,
     },
@@ -22,7 +22,6 @@ use {
         future::Future,
     },
     wasm_bindgen::{
-        JsCast,
         JsValue,
         UnwrapThrowExt,
     },
@@ -407,15 +406,18 @@ pub mod style_export {
     include!(concat!(env!("OUT_DIR"), "/style_export.rs"));
 }
 
-pub fn el_async<E: ToString, F: 'static + Future<Output = Result<El, E>>>(f: F) -> El {
+pub fn el_async<E: ToString, F: 'static + Future<Output = Result<Vec<El>, E>>>(f: F) -> El {
     return el_async_(false, f);
 }
 
-pub fn el_async_<E: ToString, F: 'static + Future<Output = Result<El, E>>>(in_root: bool, f: F) -> El {
+pub fn el_async_<E: ToString, F: 'static + Future<Output = Result<Vec<El>, E>>>(in_root: bool, f: F) -> El {
     let out = style_export::leaf_async_block(style_export::LeafAsyncBlockArgs { in_root: in_root }).root;
     out.ref_own(|_| spawn_rooted({
         let out = out.weak();
         async move {
+            // To ensure this doesn't happen synchronously with caller, so the caller can root
+            // the element before it gets replaced (i.e. view, with non-query data)
+            TimeoutFuture::new(0).await;
             let res = f.await;
             let Some(out) = out.upgrade() else {
                 return;
@@ -426,14 +428,13 @@ pub fn el_async_<E: ToString, F: 'static + Future<Output = Result<El, E>>>(in_ro
                     new_el = v;
                 },
                 Err(e) => {
-                    new_el = style_export::leaf_err_block(style_export::LeafErrBlockArgs {
+                    new_el = vec![style_export::leaf_err_block(style_export::LeafErrBlockArgs {
                         in_root: in_root,
                         data: e.to_string(),
-                    }).root;
+                    }).root];
                 },
             }
-            out.raw().set_inner_html("");
-            out.ref_push(new_el);
+            out.ref_replace(new_el);
         }
     }));
     return out;

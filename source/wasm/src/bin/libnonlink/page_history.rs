@@ -21,7 +21,6 @@ use {
     },
     lunk::ProcessingContext,
     rooting::{
-        el_from_raw,
         spawn_rooted,
         El,
         WeakEl,
@@ -30,7 +29,6 @@ use {
         triple::Node,
         wire::{
             ReqCommit,
-            ReqHistory,
             ReqHistoryCommitCount,
             Triple,
         },
@@ -47,15 +45,10 @@ use {
         },
         rc::Rc,
     },
-    tokio::sync::{
-        mpsc,
-        Notify,
-    },
+    tokio::sync::mpsc,
     wasm::js::{
         el_async,
-        el_async_,
         style_export,
-        LogJsErr,
     },
 };
 
@@ -67,7 +60,7 @@ struct HistState {
 
 fn build_result_chunk(hist_state: Rc<HistState>, end: DateTime<Utc>) -> El {
     return el_async(async move {
-        ta_return!(El, String);
+        ta_return!(Vec < El >, String);
         let mut commits = req_post_json(&state().env.base_url, ReqHistoryCommitCount { end_excl: end }).await?;
         commits.sort_by_cached_key(|c| Reverse(c.timestamp));
         let out = style_export::cont_vbox(style_export::ContVboxArgs { children: vec![] }).root;
@@ -193,7 +186,7 @@ fn build_result_chunk(hist_state: Rc<HistState>, end: DateTime<Utc>) -> El {
                 children: commit_children,
             }).root);
         }
-        return Ok(out);
+        return Ok(vec![out]);
     });
 }
 

@@ -1105,86 +1105,99 @@
     out.value = args.value;
     return { root: out };
   };
-  const leafInputFile =
-    /** @type {(title: string, id?:String, display?: Element) => {root: Element, input: HTMLInputElement}} */ (
-      title,
-      id,
-      display
-    ) => {
+  presentation.leafInputTextMedia =
+    /** @type {Presentation["leafInputTextMedia"]} */ (args) => {
+      const media = e("div", {}, { styles_: [contGroupStyle] });
       const input = e(
         "input",
         {
-          type: "file",
-          title: title,
+          type: "text",
+          title: args.title,
         },
         {
           styles_: [leafInputStyle],
         }
       );
-      if (id != null) {
-        input.id = id;
-        input.name = id;
+      if (args.id != null) {
+        input.id = args.id;
+        input.name = args.id;
       }
-      input.addEventListener("input", () => {
-        if (display != null) {
-          const r = new FileReader();
-          r.addEventListener("load", (e) => {
-            display.setAttribute("src", /** @type {string} */ (r.result));
-          });
-          r.readAsDataURL(/** @type { File } */ (input.files?.item(0)));
-        }
-      });
-      const children = [];
-      if (display != null) {
-        children.push(display);
-      }
-      children.push(input);
       return {
         root: e(
           "div",
           {},
           {
             styles_: [contVboxStyle, leafInputBorderStyle],
-            children_: children,
+            children_: [media, input],
           }
         ),
         input: input,
+        media: media,
       };
     };
   presentation.leafInputFile = /** @type {Presentation["leafInputFile"]} */ (
     args
   ) => {
-    const out = leafInputFile(args.title, args.id);
-    return { root: out.root, input: out.input };
-  };
-  presentation.leafInputImage = /** @type {Presentation["leafInputImage"]} */ (
-    args
-  ) => {
-    const display = e("img", {}, {});
-    const out = leafInputFile(args.title, args.id, display);
+    const media = e("div", {}, { styles_: [contGroupStyle] });
+    const input = e(
+      "input",
+      {
+        type: "file",
+        title: args.title,
+      },
+      {
+        styles_: [leafInputStyle],
+      }
+    );
+    if (args.id != null) {
+      input.id = args.id;
+      input.name = args.id;
+    }
+    input.addEventListener("input", () => {
+      media.innerHTML = "";
+      const r = new FileReader();
+      const f = /** @type { File } */ (input.files?.item(0));
+      r.addEventListener("load", (_) => {
+        const url = /** @type {string} */ (r.result);
+        switch (f.type.split("/")[0]) {
+          case "image":
+            {
+              media.appendChild(e("img", { src: url }, {}));
+            }
+            break;
+          case "video":
+            {
+              media.appendChild(e("video", { src: url, controls: true }, {}));
+            }
+            break;
+          case "audio":
+            {
+              media.appendChild(
+                e(
+                  "audio",
+                  {
+                    src: url,
+                    controls: true,
+                  },
+                  {}
+                )
+              );
+            }
+            break;
+        }
+      });
+      r.readAsDataURL(f);
+    });
     return {
-      root: out.root,
-      input: out.input,
-    };
-  };
-  presentation.leafInputVideo = /** @type {Presentation["leafInputVideo"]} */ (
-    args
-  ) => {
-    const display = e("img", {}, {});
-    const out = leafInputFile(args.title, args.id, display);
-    return {
-      root: out.root,
-      input: out.input,
-    };
-  };
-  presentation.leafInputAudio = /** @type {Presentation["leafInputAudio"]} */ (
-    args
-  ) => {
-    const display = e("img", {}, {});
-    const out = leafInputFile(args.title, args.id, display);
-    return {
-      root: out.root,
-      input: out.input,
+      root: e(
+        "div",
+        {},
+        {
+          styles_: [contVboxStyle, leafInputBorderStyle],
+          children_: [media, input],
+        }
+      ),
+      input: input,
     };
   };
 
@@ -1320,51 +1333,6 @@
   presentation.leafInputPairFile =
     /** @type {Presentation["leafInputPairFile"]} */ (args) => {
       const input = presentation.leafInputFile({
-        id: args.id,
-        title: args.title,
-      });
-      return {
-        root: presentation.leafInputPair({
-          label: args.title,
-          inputId: args.id,
-          input: input.root,
-        }).root,
-        input: input.input,
-      };
-    };
-  presentation.leafInputPairImage =
-    /** @type {Presentation["leafInputPairImage"]} */ (args) => {
-      const input = presentation.leafInputImage({
-        id: args.id,
-        title: args.title,
-      });
-      return {
-        root: presentation.leafInputPair({
-          label: args.title,
-          inputId: args.id,
-          input: input.root,
-        }).root,
-        input: input.input,
-      };
-    };
-  presentation.leafInputPairVideo =
-    /** @type {Presentation["leafInputPairVideo"]} */ (args) => {
-      const input = presentation.leafInputVideo({
-        id: args.id,
-        title: args.title,
-      });
-      return {
-        root: presentation.leafInputPair({
-          label: args.title,
-          inputId: args.id,
-          input: input.root,
-        }).root,
-        input: input.input,
-      };
-    };
-  presentation.leafInputPairAudio =
-    /** @type {Presentation["leafInputPairAudio"]} */ (args) => {
-      const input = presentation.leafInputAudio({
         id: args.id,
         title: args.title,
       });

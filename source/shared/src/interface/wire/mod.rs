@@ -192,6 +192,29 @@ impl C2SReqTrait for ReqGetTriplesAround {
     type Resp = RespGetTriplesAround;
 }
 
+// # Get node meta
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct ReqGetNodeMeta {
+    pub node: Node,
+}
+
+impl Into<C2SReq> for ReqGetNodeMeta {
+    fn into(self) -> C2SReq {
+        return C2SReq::GetNodeMeta(self);
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct RespNodeMeta {
+    pub mime: String,
+}
+
+impl C2SReqTrait for ReqGetNodeMeta {
+    type Resp = Option<RespNodeMeta>;
+}
+
 // # History
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
@@ -288,6 +311,7 @@ pub enum C2SReq {
     /// Read from the graph via a view (uses view permissions)
     ViewQuery(ReqViewQuery),
     GetTriplesAround(ReqGetTriplesAround),
+    GetNodeMeta(ReqGetNodeMeta),
     History(ReqHistory),
     HistoryCommitCount(ReqHistoryCommitCount),
     GetClientConfig(ReqGetClientConfig),
