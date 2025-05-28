@@ -169,6 +169,13 @@ pub enum QuerySortDir {
     Desc,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum QuerySort {
+    Random,
+    Fields(Vec<(QuerySortDir, String)>),
+}
+
 /// Right now, all fields are turned into a single top level record - this is
 /// useful for recursion which could otherwise lead to large nested objects when a
 /// flat list is desired.  A new `nest` step may be introduced later to create
@@ -177,7 +184,7 @@ pub enum QuerySortDir {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct Query {
     pub chain: Chain,
-    #[serde(skip_serializing_if = "std::vec::Vec::is_empty")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
-    pub sort: Vec<(QuerySortDir, String)>,
+    pub sort: Option<QuerySort>,
 }

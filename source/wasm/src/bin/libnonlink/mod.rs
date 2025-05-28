@@ -5,4 +5,5 @@ pub mod page_view;
 pub mod page_form;
 pub mod page_node_edit;
 pub mod page_node_view;
+pub mod page_history;
 pub mod api;

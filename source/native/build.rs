@@ -62,7 +62,7 @@ fn main() {
 
     // Triple
     let triple_table;
-    let triple_event_stamp;
+    let triple_commit;
     let triple_subject;
     let triple_object;
     {
@@ -70,28 +70,23 @@ fn main() {
         let subject = t.field(&mut latest_version, "zLQI9HQUQ", "subject", FieldType::with(&node_type));
         let predicate = t.field(&mut latest_version, "zSZVNBP0E", "predicate", field_str().build());
         let object = t.field(&mut latest_version, "zII52SWQB", "object", FieldType::with(&node_type));
-        let event_stamp = t.field(&mut latest_version, "zK21ECBE5", "timestamp", field_utctime_ms().build());
-        let event_exist = t.field(&mut latest_version, "z0ZOJM2UT", "exists", field_bool().build());
+        let commit = t.field(&mut latest_version, "zK21ECBE5", "commit", field_utctime_ms().build());
+        let exist = t.field(&mut latest_version, "z0ZOJM2UT", "exists", field_bool().build());
         t.constraint(
             &mut latest_version,
             "z1T10QI43",
             "triple_pk",
             PrimaryKey(
-                PrimaryKeyDef {
-                    fields: vec![subject.clone(), predicate.clone(), object.clone(), event_stamp.clone()],
-                },
+                PrimaryKeyDef { fields: vec![subject.clone(), predicate.clone(), object.clone(), commit.clone()] },
             ),
         );
         t
-            .index("zXIMPRLIR", "triple_index_obj_pred_subj", &[&object, &predicate, &subject, &event_stamp])
+            .index("zXIMPRLIR", "triple_index_obj_pred_subj", &[&object, &predicate, &subject, &commit])
             .unique()
             .build(&mut latest_version);
-        t
-            .index("zBZVX51AR", "triple_index_pred_subj", &[&predicate, &subject, &event_stamp])
-            .build(&mut latest_version);
-        t
-            .index("zTVLKA6GQ", "triple_index_pred_obj", &[&predicate, &object, &event_stamp])
-            .build(&mut latest_version);
+        t.index("zBZVX51AR", "triple_index_pred_subj", &[&predicate, &subject, &commit]).build(&mut latest_version);
+        t.index("zTVLKA6GQ", "triple_index_pred_obj", &[&predicate, &object, &commit]).build(&mut latest_version);
+        t.index("woeehiw2a9lszj", "triple_commit_exists", &[&commit, &exist]).build(&mut latest_version);
         queries.push(
             new_insert(
                 &t,
@@ -99,11 +94,11 @@ fn main() {
                     set_field("subject", &subject),
                     set_field("predicate", &predicate),
                     set_field("object", &object),
-                    set_field("stamp", &event_stamp),
-                    set_field("exist", &event_exist)
+                    set_field("commit", &commit),
+                    set_field("exist", &exist)
                 ],
             )
-                .on_conflict(InsertConflict::DoUpdate(vec![set_field("exist", &event_exist)]))
+                .on_conflict(InsertConflict::DoUpdate(vec![set_field("exist", &exist)]))
                 .build_query("triple_insert", QueryResCount::None),
         );
         queries.push(
@@ -111,8 +106,8 @@ fn main() {
                 .return_field(&subject)
                 .return_field(&predicate)
                 .return_field(&object)
-                .return_field(&event_stamp)
-                .return_field(&event_exist)
+                .return_field(&commit)
+                .return_field(&exist)
                 .where_(
                     expr_and(
                         vec![
@@ -123,7 +118,7 @@ fn main() {
                     ),
                 )
                 .limit(Expr::LitI32(1))
-                .order(Expr::field(&event_stamp), Order::Desc)
+                .order(Expr::field(&commit), Order::Desc)
                 .build_query("triple_get", QueryResCount::MaybeOne),
         );
         queries.push(
@@ -131,8 +126,8 @@ fn main() {
                 .return_field(&subject)
                 .return_field(&predicate)
                 .return_field(&object)
-                .return_named("event_stamp", fn_max(Expr::field(&event_stamp)))
-                .return_field(&event_exist)
+                .return_named("event_commit", fn_max(Expr::field(&commit)))
+                .return_field(&exist)
                 .where_(expr_and(vec![expr_field_eq("subject", &subject)]))
                 .group(vec![Expr::field(&subject), Expr::field(&predicate), Expr::field(&object)])
                 .build_query("triple_list_from", QueryResCount::Many),
@@ -142,8 +137,8 @@ fn main() {
                 .return_field(&subject)
                 .return_field(&predicate)
                 .return_field(&object)
-                .return_named("event_stamp", fn_max(Expr::field(&event_stamp)))
-                .return_field(&event_exist)
+                .return_named("event_commit", fn_max(Expr::field(&commit)))
+                .return_field(&exist)
                 .where_(expr_and(vec![expr_field_eq("object", &object)]))
                 .group(vec![Expr::field(&subject), Expr::field(&predicate), Expr::field(&object)])
                 .build_query("triple_list_to", QueryResCount::Many),
@@ -153,8 +148,8 @@ fn main() {
                 .return_field(&subject)
                 .return_field(&predicate)
                 .return_field(&object)
-                .return_field(&event_stamp)
-                .return_field(&event_exist)
+                .return_field(&commit)
+                .return_field(&exist)
                 .build_query("triple_list_all", QueryResCount::Many),
         );
         queries.push(
@@ -162,13 +157,9 @@ fn main() {
                 .return_field(&subject)
                 .return_field(&predicate)
                 .return_field(&object)
-                .return_field(&event_stamp)
-                .return_field(&event_exist)
-                .where_(
-                    expr_and(
-                        vec![expr_field_gte("start_incl", &event_stamp), expr_field_lt("end_excl", &event_stamp)],
-                    ),
-                )
+                .return_field(&commit)
+                .return_field(&exist)
+                .where_(expr_and(vec![expr_field_gte("start_incl", &commit), expr_field_lt("end_excl", &commit)]))
                 .build_query("triple_list_between", QueryResCount::Many),
         );
         queries.push({
@@ -180,23 +171,23 @@ fn main() {
                         .return_field(&subject)
                         .return_field(&predicate)
                         .return_field(&object)
-                        .return_named("timestamp", fn_max(Expr::field(&event_stamp)))
+                        .return_named("commit", fn_max(Expr::field(&commit)))
                         .build(),
                 );
             let current_subject = current.field("subject", subject.type_.type_.clone());
             let current_predicate = current.field("predicate", predicate.type_.type_.clone());
             let current_object = current.field("object", object.type_.type_.clone());
-            let current_stamp = current.field("event_stamp", event_stamp.type_.type_.clone());
+            let current_commit = current.field("commit", commit.type_.type_.clone());
             let (current_table, current_cte) = current.build();
             new_delete(&t).with(With {
                 recursive: false,
                 ctes: vec![current_cte],
             }).where_(expr_and(vec![
                 //. .
-                expr_field_lt("epoch", &event_stamp),
+                expr_field_lt("epoch", &commit),
                 Expr::BinOp {
                     left: Box::new(Expr::BinOp {
-                        left: Box::new(Expr::Binding(Binding::field(&event_exist))),
+                        left: Box::new(Expr::Binding(Binding::field(&exist))),
                         op: BinOp::Equals,
                         right: Box::new(Expr::LitBool(false)),
                     }),
@@ -222,9 +213,9 @@ fn main() {
                                     right: Box::new(Expr::Binding(Binding::field(&current_object))),
                                 },
                                 Expr::BinOp {
-                                    left: Box::new(Expr::Binding(Binding::field(&event_stamp))),
+                                    left: Box::new(Expr::Binding(Binding::field(&commit))),
                                     op: BinOp::Equals,
-                                    right: Box::new(Expr::Binding(Binding::field(&current_stamp))),
+                                    right: Box::new(Expr::Binding(Binding::field(&current_commit))),
                                 }
                             ])).build(),
                         ),
@@ -234,7 +225,7 @@ fn main() {
             ])).build_query("triple_gc_deleted", QueryResCount::None)
         });
         triple_table = t;
-        triple_event_stamp = event_stamp;
+        triple_commit = commit;
         triple_subject = subject;
         triple_object = object;
     }
@@ -267,13 +258,22 @@ fn main() {
                 )
                 .build_query("commit_list_between", QueryResCount::Many),
         );
+        queries.push(
+            new_select(&t)
+                .return_field(&event_stamp)
+                .return_field(&desc)
+                .where_(expr_field_lt("end_excl", &event_stamp))
+                .order(Expr::field(&event_stamp), Order::Desc)
+                .limit(Expr::LitU32(50))
+                .build_query("commit_list_count", QueryResCount::Many),
+        );
         queries.push({
             let mut active_commits =
                 CteBuilder::new(
                     "active_commits",
-                    new_select_body(&triple_table).distinct().return_field(&triple_event_stamp).build(),
+                    new_select_body(&triple_table).distinct().return_field(&triple_commit).build(),
                 );
-            let active_commits_stamp = active_commits.field("stamp", triple_event_stamp.type_.type_.clone());
+            let active_commits_stamp = active_commits.field("stamp", triple_commit.type_.type_.clone());
             let (table_active_commits, cte_active) = active_commits.build();
             new_delete(&t).with(With {
                 recursive: false,

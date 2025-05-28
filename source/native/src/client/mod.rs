@@ -8,6 +8,7 @@ use {
             AargvarkFile,
             AargvarkFromStr,
             AargvarkJson,
+            Source,
         },
         Aargvark,
     },
@@ -21,11 +22,12 @@ use {
         Log,
         ResultContext,
     },
-    query::compile_query,
+    query::{
+        compile_query,
+        IncludeContext,
+    },
     shared::interface::{
-        query::{
-            Query,
-        },
+        query::Query,
         triple::{
             FileHash,
             Node,
@@ -38,6 +40,7 @@ use {
     },
     std::{
         collections::HashMap,
+        env::current_dir,
         str::FromStr,
     },
 };
@@ -116,6 +119,7 @@ pub struct CompileQueryCommand {
 
 pub fn handle_compile_query(c: CompileQueryCommand) -> Result<(), loga::Error> {
     let query;
+    let include_context;
     if let Some(q) = c.query {
         query = q;
         if c.file.is_some() {
@@ -123,12 +127,21 @@ pub fn handle_compile_query(c: CompileQueryCommand) -> Result<(), loga::Error> {
                 loga::err("A query was both specified on the command line and via file, you can only do one"),
             );
         }
+        include_context = IncludeContext::Filesystem(current_dir()?);
     } else if let Some(q_file) = c.file {
         query = String::from_utf8(q_file.value).context("Query was not valid utf-8")?;
+        match q_file.source {
+            Source::Stdin => {
+                include_context = IncludeContext::Filesystem(current_dir()?);
+            },
+            Source::File(source) => {
+                include_context = IncludeContext::Filesystem(source);
+            },
+        }
     } else {
         return Err(loga::err("Must specify a query, either on the command line or as a file"));
     }
-    let out = compile_query(&query)?;
+    let out = compile_query(include_context, &query)?;
     println!("{}", serde_json::to_string_pretty(&out).unwrap());
     return Ok(());
 }

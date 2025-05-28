@@ -53,8 +53,8 @@ use {
     },
     shared::interface::{
         config::{
-            menu::ClientMenuItem,
             ClientConfig,
+            ClientMenuItem,
         },
         wire::{
             ReqGetClientConfig,
@@ -92,12 +92,9 @@ pub fn main() {
     let eg = EventGraph::new();
     eg.event(|pc| {
         let env = scan_env();
-        let stack =
-            el_from_raw(style_export::cont_stack(style_export::ContStackArgs { children: vec![] }).root.into());
-        let modal_stack =
-            el_from_raw(style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root.into());
-        let main_body =
-            el_from_raw(style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root.into());
+        let stack = style_export::cont_stack(style_export::ContStackArgs { children: vec![] }).root;
+        let modal_stack = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
+        let main_body = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
         let client_config = bg_val({
             let env = env.clone();
             async move {
@@ -122,6 +119,7 @@ pub fn main() {
                         ClientMenuItem::Form(i) => {
                             out.insert(i.id.clone(), ClientMenuItem::Form(i.clone()));
                         },
+                        ClientMenuItem::History => { },
                     }
                 }
 
@@ -142,12 +140,12 @@ pub fn main() {
                 }
                 let client_config = client_config.get().await?;
 
-                fn build_menu_item(config: &ClientConfig, item: &ClientMenuItem) -> Element {
+                fn build_menu_item(config: &ClientConfig, item: &ClientMenuItem) -> El {
                     match item {
                         ClientMenuItem::Section(item) => {
                             let mut children = vec![];
                             for child in &item.children {
-                                children.push(build_menu_item(config, &child).dyn_into::<Element>().unwrap());
+                                children.push(build_menu_item(config, &child));
                             }
                             return style_export::cont_menu_group(style_export::ContMenuGroupArgs {
                                 title: item.name.clone(),
@@ -174,17 +172,23 @@ pub fn main() {
                                 })),
                             }).root;
                         },
+                        ClientMenuItem::History => {
+                            return style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
+                                title: "History".to_string(),
+                                href: ministate_octothorpe(&Ministate::History),
+                            }).root;
+                        },
                     }
                 }
 
                 let mut root = vec![];
                 for item in &client_config.0.menu {
-                    root.push(build_menu_item(&client_config.0, item).dyn_into::<Element>().unwrap());
+                    root.push(build_menu_item(&client_config.0, item));
                 }
                 let mut bar_children = vec![];
                 match &whoami {
                     RespWhoAmI::Public => {
-                        let button = el_from_raw(style_export::leaf_menu_bar_button_login().root.into());
+                        let button = style_export::leaf_menu_bar_button_login().root;
                         button.ref_on("click", {
                             let eg = eg.clone();
                             move |_| eg.event(|_pc| {
@@ -195,7 +199,7 @@ pub fn main() {
                         bar_children.push(button)
                     },
                     RespWhoAmI::User(_) => {
-                        let button = el_from_raw(style_export::leaf_menu_bar_button_logout().root.into());
+                        let button = style_export::leaf_menu_bar_button_logout().root;
                         button.ref_on("click", {
                             let eg = eg.clone();
                             move |_| eg.event(|_pc| {
@@ -207,37 +211,31 @@ pub fn main() {
                     },
                     RespWhoAmI::Token => { },
                 }
-                return Ok(el_from_raw(style_export::cont_menu_body(style_export::ContMenuBodyArgs {
+                return Ok(style_export::cont_menu_body(style_export::ContMenuBodyArgs {
                     children: root,
                     user: match whoami {
                         RespWhoAmI::Public => "Guest".to_string(),
                         RespWhoAmI::User(u) => u,
                         RespWhoAmI::Token => "Token".to_string(),
                     },
-                    bar_children: bar_children.iter().map(|x| x.raw().dyn_into().unwrap()).collect(),
-                }).root.into()).own(|_| bar_children)) as Result<_, String>;
+                    bar_children: bar_children,
+                }).root) as Result<_, String>;
             }
         });
-        let main_title =
-            el_from_raw(
-                style_export::leaf_title(style_export::LeafTitleArgs { text: "Sunwet".to_string() }).root.into(),
-            );
+        let main_title = style_export::leaf_title(style_export::LeafTitleArgs { text: "Sunwet".to_string() }).root;
         let root_res = style_export::app_main(style_export::AppMainArgs {
-            main_title: main_title.raw().dyn_into().unwrap(),
-            main_body: main_body.raw().dyn_into().unwrap(),
-            menu_body: menu_body.raw().dyn_into().unwrap(),
+            main_title: main_title.clone(),
+            main_body: main_body.clone(),
+            menu_body: menu_body.clone(),
         });
-        let admenu_button = el_from_raw(root_res.admenu_button.into()).on("click", {
+        root_res.admenu_button.on("click", {
             let eg = pc.eg();
             move |_| eg.event(|pc| {
                 let current_open = *state().menu_open.borrow();
                 state().menu_open.set(pc, !current_open);
             }).unwrap()
         });
-        let root =
-            el_from_raw(
-                root_res.root.into(),
-            ).own(|_| (main_title.clone(), main_body.clone(), menu_body.clone(), admenu_button));
+        let root = root_res.root;
         let (playlist_state, playlist_root) = playlist::state_new(pc, env.clone());
 
         // Build app state
@@ -312,23 +310,23 @@ pub fn main() {
                     let media_el = e.media.pm_el();
                     let modal =
                         style_export::cont_media_fullscreen(
-                            style_export::ContMediaFullscreenArgs { media: media_el.raw().dyn_into().unwrap() },
+                            style_export::ContMediaFullscreenArgs { media: media_el.clone() },
                         );
-                    let modal =
-                        el_from_raw(modal.root.into()).own(|_| (el_from_raw(modal.button_close.into()).on("click", {
-                            let state = state.clone();
-                            let current = Rc::downgrade(&current);
-                            let eg = pc.eg();
-                            move |_| eg.event(|pc| {
-                                let Some(current) = current.upgrade() else {
-                                    return;
-                                };
-                                if let Some(current) = current.borrow_mut().take() {
-                                    current.ref_replace(vec![]);
-                                }
-                                state().playlist.0.playing.set(pc, false);
-                            }).unwrap()
-                        })));
+                    modal.button_close.on("click", {
+                        let state = state.clone();
+                        let current = Rc::downgrade(&current);
+                        let eg = pc.eg();
+                        move |_| eg.event(|pc| {
+                            let Some(current) = current.upgrade() else {
+                                return;
+                            };
+                            if let Some(current) = current.borrow_mut().take() {
+                                current.ref_replace(vec![]);
+                            }
+                            state().playlist.0.playing.set(pc, false);
+                        }).unwrap()
+                    });
+                    let modal = modal.root;
                     *current.borrow_mut() = Some(modal.clone());
                     stack.ref_push(modal);
                     _ = e.media.pm_el().raw().request_fullscreen();

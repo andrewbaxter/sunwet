@@ -52,12 +52,6 @@ use {
             BTreeMap,
             HashMap,
         },
-        io::Write,
-        path::PathBuf,
-        process::{
-            Command,
-            Stdio,
-        },
     },
 };
 
@@ -134,19 +128,20 @@ fn test_base() {
         &[
             &[
                 ("album_id", TreeNode::Scalar(s("a"))),
+                ("ablum_add_stamp", TreeNode::Scalar(s(DateTime::UNIX_EPOCH.to_rfc3339()))),
                 ("album_name", TreeNode::Scalar(s("a_name"))),
                 ("artist_id", TreeNode::Scalar(s("a_a"))),
                 ("artist_name", TreeNode::Scalar(s("a_a_name"))),
                 ("cover", TreeNode::Scalar(n())),
             ],
         ],
-        compile_query(include_str!("defaultview_query_albums.txt")).unwrap(),
+        compile_query(Default::default(), include_str!("query_audio_albums_by_add_date.txt")).unwrap(),
     );
 }
 
 #[test]
 fn test_versions() {
-    let query = compile_query("\"x\" -> \"y\" { => y }").unwrap();
+    let query = compile_query(Default::default(), "\"x\" -> \"y\" { => y }").unwrap();
     let (query, query_values) = build_root_chain(query.chain, HashMap::new()).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
     db::migrate(&mut db).unwrap();
@@ -177,15 +172,16 @@ fn test_versions() {
             println!("explain row: {:?}", row);
         }
     }
-    let got = execute_sql_query(&db, query, query_values, vec![]).unwrap();
+    let got = execute_sql_query(&db, query, query_values, None).unwrap();
     assert_eq!(
         got,
         vec![[("y".to_string(), TreeNode::Scalar(s("no")))].into_iter().collect::<BTreeMap<_, _>>()]
     );
 }
+
 #[test]
 fn test_delete() {
-    let query = compile_query("\"x\" -> \"y\" { => y }").unwrap();
+    let query = compile_query(Default::default(), "\"x\" -> \"y\" { => y }").unwrap();
     let (query, query_values) = build_root_chain(query.chain, HashMap::new()).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
     db::migrate(&mut db).unwrap();
@@ -216,15 +212,13 @@ fn test_delete() {
             println!("explain row: {:?}", row);
         }
     }
-    let got = execute_sql_query(&db, query, query_values, vec![]).unwrap();
-    assert_eq!(
-        got,
-        vec![]
-    );
+    let got = execute_sql_query(&db, query, query_values, None).unwrap();
+    assert_eq!(got, vec![]);
 }
+
 #[test]
 fn test_undelete() {
-    let query = compile_query("\"x\" -> \"y\" { => y }").unwrap();
+    let query = compile_query(Default::default(), "\"x\" -> \"y\" { => y }").unwrap();
     let (query, query_values) = build_root_chain(query.chain, HashMap::new()).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
     db::migrate(&mut db).unwrap();
@@ -263,7 +257,7 @@ fn test_undelete() {
             println!("explain row: {:?}", row);
         }
     }
-    let got = execute_sql_query(&db, query, query_values, vec![]).unwrap();
+    let got = execute_sql_query(&db, query, query_values, None).unwrap();
     assert_eq!(
         got,
         vec![[("y".to_string(), TreeNode::Scalar(s("no")))].into_iter().collect::<BTreeMap<_, _>>()]
@@ -316,7 +310,7 @@ fn test_recurse() {
                 select: Some("name".to_string()),
                 subchains: vec![],
             },
-            sort: vec![],
+            sort: None,
         },
     );
 }
@@ -363,7 +357,7 @@ fn test_filter_eq() {
                 select: Some("id".to_string()),
                 subchains: vec![],
             },
-            sort: vec![],
+            sort: None,
         },
     );
 }
@@ -410,7 +404,7 @@ fn test_filter_lt() {
                 select: Some("id".to_string()),
                 subchains: vec![],
             },
-            sort: vec![],
+            sort: None,
         },
     );
 }
@@ -463,7 +457,7 @@ fn test_chain_union() {
                 select: Some("id".to_string()),
                 subchains: vec![],
             },
-            sort: vec![],
+            sort: None,
         },
     );
 }

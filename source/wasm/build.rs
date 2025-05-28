@@ -16,6 +16,7 @@ use {
     },
 };
 
+#[derive(PartialEq, Eq)]
 enum TypeMod {
     None,
     Opt,
@@ -28,6 +29,14 @@ struct Type {
     rust_type: TokenStream,
     ts_type: String,
 }
+
+impl PartialEq<Type> for Type {
+    fn eq(&self, other: &Type) -> bool {
+        self.mod_ == other.mod_ && self.ts_type == other.ts_type
+    }
+}
+
+impl Eq for Type { }
 
 fn type_opt(t: &Type) -> Type {
     return Type {
@@ -77,22 +86,12 @@ fn main() {
     let optstring_ = type_opt(&string_);
     let el_ = Type {
         mod_: TypeMod::None,
-        rust_type: quote!(web_sys::Element),
+        rust_type: quote!(rooting::El),
         ts_type: "Element".to_string(),
     };
     let optel_ = type_opt(&el_);
     let arrel_ = type_arr(&el_);
     let arrarrel_ = type_arr2(&el_);
-    let inpel_ = Type {
-        mod_: TypeMod::None,
-        rust_type: quote!(web_sys::HtmlInputElement),
-        ts_type: "HTMLInputElement".to_string(),
-    };
-    let selel_ = Type {
-        mod_: TypeMod::None,
-        rust_type: quote!(web_sys::HtmlSelectElement),
-        ts_type: "HTMLSelectElement".to_string(),
-    };
     let strmap = Type {
         mod_: TypeMod::None,
         rust_type: quote!(std::collections::HashMap < String, String >),
@@ -130,6 +129,11 @@ fn main() {
         },
         Func {
             name: "classStateHide",
+            args: vec![],
+            returns: vec![("value", &string_)],
+        },
+        Func {
+            name: "classStateDisabled",
             args: vec![],
             returns: vec![("value", &string_)],
         },
@@ -172,6 +176,11 @@ fn main() {
         },
         Func {
             name: "contStack",
+            args: vec![("children", &arrel_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "contVbox",
             args: vec![("children", &arrel_)],
             returns: vec![("root", &el_)],
         },
@@ -265,37 +274,57 @@ fn main() {
         Func {
             name: "leafInputNumber",
             args: vec![("id", &optstring_), ("title", &string_), ("value", &string_)],
-            returns: vec![("root", &inpel_)],
+            returns: vec![("root", &el_)],
         },
         Func {
             name: "leafInputBool",
             args: vec![("id", &optstring_), ("title", &string_), ("value", &bool_)],
-            returns: vec![("root", &inpel_)],
+            returns: vec![("root", &el_)],
         },
         Func {
             name: "leafInputDate",
             args: vec![("id", &optstring_), ("title", &string_), ("value", &string_)],
-            returns: vec![("root", &inpel_)],
+            returns: vec![("root", &el_)],
         },
         Func {
             name: "leafInputTime",
             args: vec![("id", &optstring_), ("title", &string_), ("value", &string_)],
-            returns: vec![("root", &inpel_)],
+            returns: vec![("root", &el_)],
         },
         Func {
             name: "leafInputDatetime",
             args: vec![("id", &optstring_), ("title", &string_), ("value", &string_)],
-            returns: vec![("root", &inpel_)],
+            returns: vec![("root", &el_)],
         },
         Func {
             name: "leafInputColor",
             args: vec![("id", &optstring_), ("title", &string_), ("value", &string_)],
-            returns: vec![("root", &inpel_)],
+            returns: vec![("root", &el_)],
         },
         Func {
             name: "leafInputEnum",
             args: vec![("id", &optstring_), ("title", &string_), ("options", &strmap), ("value", &string_)],
-            returns: vec![("root", &selel_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafInputFile",
+            args: vec![("id", &optstring_), ("title", &string_)],
+            returns: vec![("root", &el_), ("input", &el_)],
+        },
+        Func {
+            name: "leafInputImage",
+            args: vec![("id", &optstring_), ("title", &string_)],
+            returns: vec![("root", &el_), ("input", &el_)],
+        },
+        Func {
+            name: "leafInputVideo",
+            args: vec![("id", &optstring_), ("title", &string_)],
+            returns: vec![("root", &el_), ("input", &el_)],
+        },
+        Func {
+            name: "leafInputAudio",
+            args: vec![("id", &optstring_), ("title", &string_)],
+            returns: vec![("root", &el_), ("input", &el_)],
         },
         Func {
             name: "leafInputPair",
@@ -310,37 +339,57 @@ fn main() {
         Func {
             name: "leafInputPairNumber",
             args: vec![("id", &string_), ("title", &string_), ("value", &string_)],
-            returns: vec![("root", &el_), ("input", &inpel_)],
+            returns: vec![("root", &el_), ("input", &el_)],
         },
         Func {
             name: "leafInputPairBool",
             args: vec![("id", &string_), ("title", &string_), ("value", &bool_)],
-            returns: vec![("root", &el_), ("input", &inpel_)],
+            returns: vec![("root", &el_), ("input", &el_)],
         },
         Func {
             name: "leafInputPairDate",
             args: vec![("id", &string_), ("title", &string_), ("value", &string_)],
-            returns: vec![("root", &el_), ("input", &inpel_)],
+            returns: vec![("root", &el_), ("input", &el_)],
         },
         Func {
             name: "leafInputPairTime",
             args: vec![("id", &string_), ("title", &string_), ("value", &string_)],
-            returns: vec![("root", &el_), ("input", &inpel_)],
+            returns: vec![("root", &el_), ("input", &el_)],
         },
         Func {
             name: "leafInputPairDatetime",
             args: vec![("id", &string_), ("title", &string_), ("value", &string_)],
-            returns: vec![("root", &el_), ("input", &inpel_)],
+            returns: vec![("root", &el_), ("input", &el_)],
         },
         Func {
             name: "leafInputPairColor",
             args: vec![("id", &string_), ("title", &string_), ("value", &string_)],
-            returns: vec![("root", &el_), ("input", &inpel_)],
+            returns: vec![("root", &el_), ("input", &el_)],
         },
         Func {
             name: "leafInputPairEnum",
             args: vec![("id", &string_), ("title", &string_), ("value", &string_), ("options", &strmap)],
-            returns: vec![("root", &el_), ("input", &selel_)],
+            returns: vec![("root", &el_), ("input", &el_)],
+        },
+        Func {
+            name: "leafInputPairFile",
+            args: vec![("id", &string_), ("title", &string_)],
+            returns: vec![("root", &el_), ("input", &el_)],
+        },
+        Func {
+            name: "leafInputPairImage",
+            args: vec![("id", &string_), ("title", &string_)],
+            returns: vec![("root", &el_), ("input", &el_)],
+        },
+        Func {
+            name: "leafInputPairVideo",
+            args: vec![("id", &string_), ("title", &string_)],
+            returns: vec![("root", &el_), ("input", &el_)],
+        },
+        Func {
+            name: "leafInputPairAudio",
+            args: vec![("id", &string_), ("title", &string_)],
+            returns: vec![("root", &el_), ("input", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: page, view
@@ -450,7 +499,7 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
-        // xx Components, styles: page, view/edit node
+        // xx Components, styles: page, view/edit/history node
         Func {
             name: "contPageNodeSectionRel",
             args: vec![("children", &arrel_)],
@@ -472,11 +521,11 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
-        // xx Components, styles: page, node view
+        // xx Components, styles: page, node view, history
         Func {
-            name: "contPageNodeView",
+            name: "contPageNodeViewAndHistory",
             args: vec![("pageButtonChildren", &arrel_), ("children", &arrel_)],
-            returns: vec![("root", &el_)],
+            returns: vec![("root", &el_), ("body", &el_)],
         },
         Func {
             name: "leafNodeViewPredicate",
@@ -513,6 +562,28 @@ fn main() {
         Func {
             name: "leafNodeEditPredicate",
             args: vec![("value", &string_)],
+            returns: vec![("root", &el_)],
+        },
+        // /////////////////////////////////////////////////////////////////////////////
+        // xx Components, styles: page, history
+        Func {
+            name: "contHistoryCommit",
+            args: vec![("stamp", &string_), ("desc", &string_), ("children", &arrel_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "contHistorySubject",
+            args: vec![("center", &arrel_), ("rows", &arrel_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "contHistoryPredicateObjectRemove",
+            args: vec![("children", &arrel_)],
+            returns: vec![("root", &el_), ("button", &el_)],
+        },
+        Func {
+            name: "contHistoryPredicateObjectAdd",
+            args: vec![("children", &arrel_)],
             returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
@@ -620,6 +691,7 @@ fn main() {
         }));
 
         // Rust side
+        let mut postbuild_root_own1 = vec![];
         let rust_name = format_ident!("{}", method.name.to_case(Case::Snake));
         let rust_args_struct_declare;
         let rust_args_declare;
@@ -634,6 +706,9 @@ fn main() {
             let mut build = vec![];
             for (ts_name, type_) in &method.args {
                 let rust_name = format_ident!("{}", ts_name.to_case(Case::Snake));
+                if **type_ == el_ || **type_ == arrel_ || **type_ == arrarrel_ {
+                    postbuild_root_own1.push(quote!(args.#rust_name));
+                }
                 let rust_type;
                 match type_.mod_ {
                     TypeMod::None => {
@@ -684,8 +759,15 @@ fn main() {
             let ident = format_ident!("{}Ret", method.name.to_case(Case::UpperCamel));
             let mut spec = vec![];
             let mut build = vec![];
+            let mut has_root = false;
             for (ts_name, type_) in &method.returns {
                 let rust_name = format_ident!("{}", ts_name.to_case(Case::Snake));
+                if *ts_name == "root" {
+                    has_root = true;
+                }
+                if *ts_name != "root" && **type_ == el_ {
+                    postbuild_root_own1.push(quote!(_ret2.#rust_name.clone()));
+                }
                 let rust_type;
                 match type_.mod_ {
                     TypeMod::None => {
@@ -709,12 +791,22 @@ fn main() {
                     #rust_name: js_get(&_ret, #ts_name)
                 });
             }
+            let postbuild_root_own;
+            if !postbuild_root_own1.is_empty() && has_root {
+                postbuild_root_own = quote!(_ret2.root.ref_own(| _ |(#(#postbuild_root_own1,) *)););
+            } else {
+                postbuild_root_own = quote!();
+            }
             call1 = quote!{
                 let _ret = #call 
                 //. .
-                return #ident {
+                let _ret2 = #ident {
                     #(#build,) *
                 };
+                //. .
+                #postbuild_root_own 
+                //. .
+                return _ret2;
             };
             rust_ret = quote!(#ident);
             rust_ret_struct_declare = quote!{

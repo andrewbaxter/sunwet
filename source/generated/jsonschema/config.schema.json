@@ -8,6 +8,7 @@
     "files_dir",
     "global",
     "graph_dir",
+    "temp_dir",
     "user"
   ],
   "properties": {
@@ -49,6 +50,9 @@
           "type": "null"
         }
       ]
+    },
+    "temp_dir": {
+      "type": "string"
     },
     "user": {
       "$ref": "#/definitions/MaybeFdap_for_UsersConfig"
@@ -157,29 +161,14 @@
         }
       ]
     },
-    "ClientForm": {
-      "type": "object",
-      "required": [
-        "fields",
-        "outputs"
-      ],
-      "properties": {
-        "fields": {
-          "description": "Form fields and generated data (ids)",
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/FormField"
-          }
-        },
-        "outputs": {
-          "description": "Triples to generate from the inputs",
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/FormOutput"
-          }
-        }
-      },
-      "additionalProperties": false
+    "ClientViewParam": {
+      "type": "string",
+      "enum": [
+        "text",
+        "bool",
+        "number",
+        "json"
+      ]
     },
     "DataRowsLayout": {
       "oneOf": [
@@ -500,20 +489,187 @@
         "gte"
       ]
     },
+    "Form": {
+      "type": "object",
+      "required": [
+        "fields",
+        "name",
+        "outputs"
+      ],
+      "properties": {
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FormField"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FormOutput"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "FormField": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "type"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/definitions/FormFieldType"
+        }
+      },
+      "additionalProperties": false
+    },
+    "FormFieldBool": {
+      "type": "object",
+      "properties": {
+        "initial_on": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "FormFieldComment": {
+      "type": "object",
+      "required": [
+        "text"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "FormFieldConstEnum": {
+      "type": "object",
+      "required": [
+        "choices"
+      ],
+      "properties": {
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/definitions/Node"
+              }
+            ],
+            "maxItems": 2,
+            "minItems": 2
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "FormFieldFile": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/FormFieldFileType"
+        }
+      },
+      "additionalProperties": false
+    },
+    "FormFieldFileType": {
+      "type": "string",
+      "enum": [
+        "any",
+        "image",
+        "video",
+        "audio"
+      ]
+    },
+    "FormFieldNumber": {
+      "type": "object",
+      "properties": {
+        "placeholder": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "FormFieldQueryEnum": {
+      "type": "object",
+      "required": [
+        "query"
+      ],
+      "properties": {
+        "query": {
+          "$ref": "#/definitions/Query"
+        }
+      },
+      "additionalProperties": false
+    },
+    "FormFieldRgbU8": {
+      "type": "object",
+      "properties": {
+        "initial": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "FormFieldText": {
+      "type": "object",
+      "properties": {
+        "placeholder": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "FormFieldType": {
       "oneOf": [
         {
+          "type": "string",
+          "enum": [
+            "date",
+            "time",
+            "datetime"
+          ]
+        },
+        {
           "description": "Generate a unique id (uuid) - no visible entry.",
-          "type": "object",
-          "required": [
+          "type": "string",
+          "enum": [
             "id"
-          ],
-          "properties": {
-            "id": {
-              "$ref": "#/definitions/FormFieldId"
-            }
-          },
-          "additionalProperties": false
+          ]
         },
         {
           "description": "Add text to the form, no interactive entry.",
@@ -567,42 +723,6 @@
         {
           "type": "object",
           "required": [
-            "date"
-          ],
-          "properties": {
-            "date": {
-              "$ref": "#/definitions/FormFieldDate"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "time"
-          ],
-          "properties": {
-            "time": {
-              "$ref": "#/definitions/FormFieldTime"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "datetime"
-          ],
-          "properties": {
-            "datetime": {
-              "$ref": "#/definitions/FormFieldDatetime"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
             "rgb_u8"
           ],
           "properties": {
@@ -637,222 +757,20 @@
             }
           },
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "file"
+          ],
+          "properties": {
+            "file": {
+              "$ref": "#/definitions/FormFieldFile"
+            }
+          },
+          "additionalProperties": false
         }
       ]
-    },
-    "FormFieldBool": {
-      "type": "object",
-      "required": [
-        "id",
-        "label"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "initial_on": {
-          "default": false,
-          "type": "boolean"
-        },
-        "label": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
-    },
-    "FormFieldComment": {
-      "type": "object",
-      "required": [
-        "text"
-      ],
-      "properties": {
-        "text": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
-    },
-    "FormFieldConstEnum": {
-      "type": "object",
-      "required": [
-        "choices",
-        "id",
-        "label"
-      ],
-      "properties": {
-        "choices": {
-          "type": "array",
-          "items": {
-            "type": "array",
-            "items": [
-              {
-                "type": "string"
-              },
-              {
-                "$ref": "#/definitions/Node"
-              }
-            ],
-            "maxItems": 2,
-            "minItems": 2
-          }
-        },
-        "id": {
-          "type": "string"
-        },
-        "label": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
-    },
-    "FormFieldDate": {
-      "type": "object",
-      "required": [
-        "id",
-        "label"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "label": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
-    },
-    "FormFieldDatetime": {
-      "type": "object",
-      "required": [
-        "id",
-        "label"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "label": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
-    },
-    "FormFieldId": {
-      "type": "object",
-      "required": [
-        "id"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
-    },
-    "FormFieldNumber": {
-      "type": "object",
-      "required": [
-        "id",
-        "label"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "label": {
-          "type": "string"
-        },
-        "placeholder": {
-          "default": null,
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "additionalProperties": false
-    },
-    "FormFieldQueryEnum": {
-      "type": "object",
-      "required": [
-        "id",
-        "label",
-        "query"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "label": {
-          "type": "string"
-        },
-        "query": {
-          "$ref": "#/definitions/Query"
-        }
-      },
-      "additionalProperties": false
-    },
-    "FormFieldRgbU8": {
-      "type": "object",
-      "required": [
-        "id",
-        "label"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "initial": {
-          "default": null,
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "label": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
-    },
-    "FormFieldText": {
-      "type": "object",
-      "required": [
-        "id",
-        "label"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "label": {
-          "type": "string"
-        },
-        "placeholder": {
-          "default": null,
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "additionalProperties": false
-    },
-    "FormFieldTime": {
-      "type": "object",
-      "required": [
-        "id",
-        "label"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "label": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
     },
     "FormOutput": {
       "type": "object",
@@ -878,21 +796,13 @@
       "type": "object",
       "required": [
         "api_tokens",
-        "forms",
-        "menu",
-        "views"
+        "menu"
       ],
       "properties": {
         "api_tokens": {
           "type": "object",
           "additionalProperties": {
             "$ref": "#/definitions/IamGrants"
-          }
-        },
-        "forms": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/definitions/ClientForm"
           }
         },
         "menu": {
@@ -908,12 +818,6 @@
             "type": "string"
           },
           "uniqueItems": true
-        },
-        "views": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/definitions/View"
-          }
         }
       },
       "additionalProperties": false
@@ -1109,29 +1013,6 @@
       },
       "additionalProperties": false
     },
-    "MenuItemForm": {
-      "type": "object",
-      "required": [
-        "form_id",
-        "name"
-      ],
-      "properties": {
-        "arguments": {
-          "default": {},
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/definitions/Node"
-          }
-        },
-        "form_id": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
-    },
     "MenuItemSection": {
       "type": "object",
       "required": [
@@ -1154,6 +1035,12 @@
     "MenuItemSub": {
       "oneOf": [
         {
+          "type": "string",
+          "enum": [
+            "history"
+          ]
+        },
+        {
           "type": "object",
           "required": [
             "section"
@@ -1172,7 +1059,7 @@
           ],
           "properties": {
             "view": {
-              "$ref": "#/definitions/MenuItemView"
+              "$ref": "#/definitions/View"
             }
           },
           "additionalProperties": false
@@ -1184,35 +1071,12 @@
           ],
           "properties": {
             "form": {
-              "$ref": "#/definitions/MenuItemForm"
+              "$ref": "#/definitions/Form"
             }
           },
           "additionalProperties": false
         }
       ]
-    },
-    "MenuItemView": {
-      "type": "object",
-      "required": [
-        "name",
-        "view_id"
-      ],
-      "properties": {
-        "arguments": {
-          "default": {},
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/definitions/Node"
-          }
-        },
-        "name": {
-          "type": "string"
-        },
-        "view_id": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
     },
     "MoveDirection": {
       "type": "string",
@@ -1222,17 +1086,7 @@
       ]
     },
     "Node": {
-      "type": "object",
-      "required": [
-        "t",
-        "v"
-      ],
-      "properties": {
-        "t": {
-          "$ref": "#/definitions/SerdeNodeType"
-        },
-        "v": true
-      }
+      "$ref": "#/definitions/SerdeNode_"
     },
     "OidcConfig": {
       "type": "object",
@@ -1280,20 +1134,14 @@
           "$ref": "#/definitions/Chain"
         },
         "sort": {
-          "type": "array",
-          "items": {
-            "type": "array",
-            "items": [
-              {
-                "$ref": "#/definitions/QuerySortDir"
-              },
-              {
-                "type": "string"
-              }
-            ],
-            "maxItems": 2,
-            "minItems": 2
-          }
+          "anyOf": [
+            {
+              "$ref": "#/definitions/QuerySort"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false
@@ -1345,6 +1193,41 @@
       },
       "additionalProperties": false
     },
+    "QuerySort": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "random"
+          ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "fields"
+          ],
+          "properties": {
+            "fields": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": [
+                  {
+                    "$ref": "#/definitions/QuerySortDir"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ],
+                "maxItems": 2,
+                "minItems": 2
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "QuerySortDir": {
       "type": "string",
       "enum": [
@@ -1358,6 +1241,19 @@
         "f",
         "v"
       ]
+    },
+    "SerdeNode_": {
+      "type": "object",
+      "required": [
+        "t",
+        "v"
+      ],
+      "properties": {
+        "t": {
+          "$ref": "#/definitions/SerdeNodeType"
+        },
+        "v": true
+      }
     },
     "Step": {
       "oneOf": [
@@ -1535,18 +1431,29 @@
     "View": {
       "type": "object",
       "required": [
-        "config",
-        "queries"
+        "name",
+        "queries",
+        "root"
       ],
       "properties": {
-        "config": {
-          "$ref": "#/definitions/WidgetRootDataRows"
+        "name": {
+          "type": "string"
+        },
+        "parameters": {
+          "default": {},
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/ClientViewParam"
+          }
         },
         "queries": {
           "type": "object",
           "additionalProperties": {
             "$ref": "#/definitions/Query"
           }
+        },
+        "root": {
+          "$ref": "#/definitions/WidgetRootDataRows"
         }
       },
       "additionalProperties": false

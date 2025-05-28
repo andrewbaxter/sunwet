@@ -33,7 +33,7 @@ pub trait C2SReqTrait: Serialize + DeserializeOwned + Into<C2SReq> {
 }
 
 // # Commit
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct Triple {
     pub subject: Node,
@@ -117,6 +117,7 @@ impl C2SReqTrait for ReqUploadFinish {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqQuery {
     pub query: Query,
+    #[serde(default)]
     pub parameters: HashMap<String, Node>,
 }
 
@@ -195,8 +196,8 @@ impl C2SReqTrait for ReqGetTriplesAround {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqHistory {
-    pub start_incl: DateTime<Utc>,
     pub end_excl: DateTime<Utc>,
+    pub start_incl: DateTime<Utc>,
 }
 
 impl Into<C2SReq> for ReqHistory {
@@ -215,6 +216,23 @@ pub struct RespHistoryCommit {
 }
 
 impl C2SReqTrait for ReqHistory {
+    type Resp = Vec<RespHistoryCommit>;
+}
+
+// # History, commits
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct ReqHistoryCommitCount {
+    pub end_excl: DateTime<Utc>,
+}
+
+impl Into<C2SReq> for ReqHistoryCommitCount {
+    fn into(self) -> C2SReq {
+        return C2SReq::HistoryCommitCount(self);
+    }
+}
+
+impl C2SReqTrait for ReqHistoryCommitCount {
     type Resp = Vec<RespHistoryCommit>;
 }
 
@@ -271,6 +289,7 @@ pub enum C2SReq {
     ViewQuery(ReqViewQuery),
     GetTriplesAround(ReqGetTriplesAround),
     History(ReqHistory),
+    HistoryCommitCount(ReqHistoryCommitCount),
     GetClientConfig(ReqGetClientConfig),
     WhoAmI(ReqWhoAmI),
 }

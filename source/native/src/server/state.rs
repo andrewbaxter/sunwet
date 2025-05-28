@@ -10,7 +10,6 @@ use {
                 IamGrants,
                 MenuItemId,
                 UserConfig,
-                View,
             },
         },
         ScopeValue,
@@ -74,12 +73,12 @@ pub struct MenuItemSection {
 }
 
 pub struct MenuItemView {
-    pub item: interface::config::MenuItemView,
+    pub item: interface::config::View,
     pub self_and_ancestors: HashSet<String>,
 }
 
 pub struct MenuItemForm {
-    pub item: interface::config::MenuItemForm,
+    pub item: interface::config::Form,
     pub self_and_ancestors: HashSet<String>,
 }
 
@@ -87,14 +86,13 @@ pub enum MenuItem {
     Section(MenuItemSection),
     View(MenuItemView),
     Form(MenuItemForm),
+    History,
 }
 
 pub struct GlobalConfig {
     pub public_iam_grants: HashSet<MenuItemId>,
     pub menu: Vec<String>,
     pub menu_items: HashMap<String, MenuItem>,
-    pub views: HashMap<String, View>,
-    pub forms: HashMap<String, ClientForm>,
     pub api_tokens: HashMap<String, IamGrants>,
 }
 
@@ -125,26 +123,19 @@ pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<
                 }));
             },
             interface::config::MenuItemSub::View(sub) => {
-                if !config0.views.contains_key(&sub.view_id) {
-                    return Err(
-                        loga::err(format!("Menu item [{}] references missing view [{}]", at.id, sub.view_id)),
-                    );
-                }
                 menu_items_out.insert(at.id.clone(), MenuItem::View(MenuItemView {
                     item: sub.clone(),
                     self_and_ancestors: ancestry,
                 }));
             },
             interface::config::MenuItemSub::Form(sub) => {
-                if !config0.forms.contains_key(&sub.form_id) {
-                    return Err(
-                        loga::err(format!("Menu item [{}] references missing form [{}]", at.id, sub.form_id)),
-                    );
-                }
                 menu_items_out.insert(at.id.clone(), MenuItem::Form(MenuItemForm {
                     item: sub.clone(),
                     self_and_ancestors: ancestry,
                 }));
+            },
+            interface::config::MenuItemSub::History => {
+                menu_items_out.insert(at.id.clone(), MenuItem::History);
             },
         }
         menu_out.push(at.id.clone());
@@ -160,8 +151,6 @@ pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<
         public_iam_grants: config0.public_iam_grants.clone(),
         menu: menu,
         menu_items: menu_items,
-        views: config0.views.clone(),
-        forms: config0.forms.clone(),
         api_tokens: config0.api_tokens.clone(),
     }));
 }

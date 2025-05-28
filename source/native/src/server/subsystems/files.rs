@@ -215,13 +215,12 @@ pub async fn handle_form_commit(state: Arc<State>, c: ReqFormCommit) -> Result<R
     let Some(MenuItem::Form(menu_item_form)) = global_config.menu_items.get(&c.menu_item_id) else {
         return Err(loga::err_with("No known form menu item with id", ea!(id = c.menu_item_id))).err_external();
     };
-    let form = global_config.forms.get(&menu_item_form.item.form_id).unwrap();
     let mut form_hash = DefaultHasher::new();
-    form.hash(&mut form_hash);
+    menu_item_form.item.hash(&mut form_hash);
     return Ok(
         commit(
             state,
-            build_form_commit(form, &c.parameters).map_err(loga::err).err_external()?,
+            build_form_commit(&menu_item_form.item.outputs, &c.parameters).map_err(loga::err).err_external()?,
             Some((c.menu_item_id, form_hash.finish())),
         )
             .await

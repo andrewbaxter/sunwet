@@ -98,11 +98,11 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
         let state = State(Rc::new(State_ {
             media_audio_el: el_from_raw(media_audio_el.clone().into()),
             media_video_el: el_from_raw(media_video_el.into()),
-            display: el_from_raw(style_res.display.into()),
-            display_under: el_from_raw(style_res.display_under.into()).clone(),
-            display_over: el_from_raw(style_res.display_over.into()).clone(),
-            album_artist: el_from_raw(style_res.album_artist.into()).clone(),
-            name: el_from_raw(style_res.title.into()).clone(),
+            display: style_res.display,
+            display_under: style_res.display_under.clone(),
+            display_over: style_res.display_over.clone(),
+            album_artist: style_res.album_artist.clone(),
+            name: style_res.title.clone(),
             message_bg: Cell::new(scope_any(())),
             media: Prim::new(None),
         }));
@@ -243,7 +243,7 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
                 })));
             }
         });
-        set_root(vec![el_from_raw(style_res.root.into()).own(|_| ws)]);
+        set_root(vec![style_res.root.own(|_| ws)]);
     });
 }
 
@@ -273,7 +273,7 @@ fn main() {
                     // Work around autoplay blocking (ios safari, desktop firefox) by making it a
                     // non-auto play
                     let style_res = style_export::app_link_perms();
-                    let button = el_from_raw(style_res.button.into()).on("click", move |_| {
+                    style_res.button.on("click", move |_| {
                         let bg =
                             vec![
                                 JsFuture::from(audio_el.play().unwrap()),
@@ -292,7 +292,7 @@ fn main() {
                             }
                         });
                     });
-                    set_root(vec![el_from_raw(style_res.root.into()).own(|_| button)]);
+                    set_root(vec![style_res.root]);
                     return;
                 }
                 log_js("Error playing media to guage permissions", &e);

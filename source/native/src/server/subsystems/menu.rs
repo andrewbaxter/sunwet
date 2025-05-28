@@ -11,16 +11,13 @@ use {
             },
         },
     },
+    flowcontrol::exenum,
     shared::interface::config::{
         form::ClientForm,
-        menu::{
-            ClientMenuItem,
-            ClientMenuItemForm,
-            ClientMenuItemSection,
-            ClientMenuItemView,
-        },
+        view::ClientView,
         ClientConfig,
-        ClientView,
+        ClientMenuItem,
+        ClientMenuSection,
     },
     std::{
         collections::HashMap,
@@ -54,7 +51,7 @@ pub async fn handle_get_filtered_client_config(
                 if children.is_empty() {
                     return None;
                 }
-                return Some(ClientMenuItem::Section(ClientMenuItemSection {
+                return Some(ClientMenuItem::Section(ClientMenuSection {
                     name: at.name.clone(),
                     children: children,
                 }));
@@ -63,33 +60,29 @@ pub async fn handle_get_filtered_client_config(
                 if !iam_grants.match_set(&at.self_and_ancestors) {
                     return None;
                 }
-                views.entry(at.item.view_id.clone()).or_insert_with(|| {
-                    let view = config.views.get(&at.item.view_id).unwrap();
-                    return ClientView { config: view.config.clone() };
-                });
-                return Some(ClientMenuItem::View(ClientMenuItemView {
+                return Some(ClientMenuItem::View(ClientView {
                     id: at_id.clone(),
                     name: at.item.name.clone(),
-                    view_id: at.item.view_id.clone(),
-                    arguments: at.item.arguments.clone(),
+                    root: at.item.root.clone(),
+                    parameters: at.item.parameters.clone(),
                 }));
             },
             crate::server::state::MenuItem::Form(at) => {
                 if !iam_grants.match_set(&at.self_and_ancestors) {
                     return None;
                 }
-                forms.entry(at.item.form_id.clone()).or_insert_with(|| {
-                    let form = config.forms.get(&at.item.form_id).unwrap();
-                    return ClientForm {
-                        fields: form.fields.clone(),
-                        outputs: form.outputs.clone(),
-                    };
-                });
-                return Some(ClientMenuItem::Form(ClientMenuItemForm {
+                return Some(ClientMenuItem::Form(ClientForm {
                     id: at_id.clone(),
                     name: at.item.name.clone(),
-                    form_id: at.item.form_id.clone(),
+                    fields: at.item.fields.clone(),
+                    outputs: at.item.outputs.clone(),
                 }));
+            },
+            crate::server::state::MenuItem::History => {
+                if exenum!(iam_grants, IamGrants:: Admin =>()).is_none() {
+                    return None;
+                }
+                return Some(ClientMenuItem::History);
             },
         }
     }
@@ -103,9 +96,5 @@ pub async fn handle_get_filtered_client_config(
         };
         menu.push(item);
     }
-    return Ok(ClientConfig {
-        menu: menu,
-        views: views,
-        forms: forms,
-    });
+    return Ok(ClientConfig { menu: menu });
 }

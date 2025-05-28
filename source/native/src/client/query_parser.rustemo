@@ -1,7 +1,10 @@
-QUERY: CHAIN SORT_PAIR* ;
+QUERY: CHAIN SORT? ;
 
-CHAIN: CHAIN_BODY sym_open_curly CHAIN_ACTION* sym_end_curly ;
+CHAIN: CHAIN_BODY CHAIN_TAIL ;
 CHAIN_BODY: ROOT? STEP* ;
+CHAIN_TAIL: CHAIN_TAIL_SELECT | CHAIN_TAIL_INCLUDE ;
+CHAIN_TAIL_SELECT: sym_open_curly CHAIN_ACTION* sym_end_curly ;
+CHAIN_TAIL_INCLUDE: kw_include STR_VAL ;
 
 ROOT: VAL | ROOT_SEARCH ;
 ROOT_SEARCH: kw_search STR_VAL ;
@@ -9,9 +12,9 @@ ROOT_SEARCH: kw_search STR_VAL ;
 STEP: STEP_MOVE_UP | STEP_MOVE_DOWN | STEP_RECURSE | STEP_JUNCT_AND | STEP_JUNCT_OR ;
 STEP_MOVE_DOWN: sym_move_down STR_VAL FILTER? FIRST? ;
 STEP_MOVE_UP: sym_move_up STR_VAL FILTER? FIRST? ;
-STEP_RECURSE: sym_open_recurse CHAIN_BODY sym_end_paren FIRST? ;
-STEP_JUNCT_AND: sym_open_junct_and JUNCT_SUBCHAIN+ sym_end_paren ;
-STEP_JUNCT_OR: sym_open_junct_or JUNCT_SUBCHAIN+ sym_end_paren ;
+STEP_RECURSE: sym_open_recurse sym_open_paren CHAIN_BODY sym_end_paren FIRST? ;
+STEP_JUNCT_AND: sym_open_junct_and sym_open_paren JUNCT_SUBCHAIN+ sym_end_paren ;
+STEP_JUNCT_OR: sym_open_junct_or sym_open_paren JUNCT_SUBCHAIN+ sym_end_paren ;
 JUNCT_SUBCHAIN: sym_open_paren CHAIN_BODY sym_end_paren ;
 FIRST: kw_first ;
 
@@ -29,26 +32,33 @@ CHAIN_ACTION: CHAIN_ACTION_SELECT | CHAIN_ACTION_SUBCHAIN ;
 CHAIN_ACTION_SELECT: sym_select ident ;
 CHAIN_ACTION_SUBCHAIN: sym_open_paren CHAIN sym_end_paren ;
 
+SORT: SORT_PAIRS | kw_sort_random ;
+SORT_PAIRS: SORT_PAIR* ;
 SORT_PAIR: SORT_PAIR_ASC | SORT_PAIR_DESC ;
-SORT_PAIR_ASC: kw_asc ident ;
-SORT_PAIR_DESC: kw_desc ident ;
+SORT_PAIR_ASC: kw_sort_asc ident ;
+SORT_PAIR_DESC: kw_sort_desc ident ;
 
 STR_VAL: str_ ;
 VAL: str_ | num | true_ | false_ | null | json | param;
 
 terminals
 
+kw_include: "include";
 kw_search: "search";
 kw_first: "first";
-kw_asc: "asc";
-kw_desc: "desc";
+kw_sort_asc: "asc";
+kw_sort_desc: "desc";
+kw_sort_random: "shuffle";
 
 sym_select: "=>";
 sym_move_down: "->";
-sym_move_up: "<-";
-sym_open_recurse: "*(";
-sym_open_junct_and: "&(";
-sym_open_junct_or: "|(";
+// Trochus operator
+sym_move_up: "-<";
+// Uchiko operator
+sym_open_recurse: "-*";
+sym_open_junct_and: "-&";
+// Crepe operator
+sym_open_junct_or: "-|";
 sym_open_exist: "?(";
 sym_open_not_exist: "!(";
 sym_open_paren: "(";

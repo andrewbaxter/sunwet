@@ -12,28 +12,13 @@ use {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct FormFieldId {
-    pub id: String,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FormFieldComment {
     pub text: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct FormFieldConstant {
-    pub id: String,
-    pub value: Node,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FormFieldText {
-    pub id: String,
-    pub label: String,
     #[serde(default)]
     pub placeholder: Option<String>,
 }
@@ -41,8 +26,6 @@ pub struct FormFieldText {
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FormFieldNumber {
-    pub id: String,
-    pub label: String,
     #[serde(default)]
     pub placeholder: Option<String>,
 }
@@ -50,38 +33,13 @@ pub struct FormFieldNumber {
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FormFieldBool {
-    pub id: String,
-    pub label: String,
     #[serde(default)]
     pub initial_on: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct FormFieldDate {
-    pub id: String,
-    pub label: String,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct FormFieldTime {
-    pub id: String,
-    pub label: String,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct FormFieldDatetime {
-    pub id: String,
-    pub label: String,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FormFieldRgbU8 {
-    pub id: String,
-    pub label: String,
     #[serde(default)]
     pub initial: Option<String>,
 }
@@ -89,32 +47,43 @@ pub struct FormFieldRgbU8 {
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FormFieldConstEnum {
-    pub id: String,
-    pub label: String,
     pub choices: Vec<(String, Node)>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FormFieldQueryEnum {
-    pub id: String,
-    pub label: String,
     pub query: Query,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub enum FormField {
+pub enum FormFieldFileType {
+    Any,
+    Image,
+    Video,
+    Audio,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct FormFieldFile {
+    pub r#type: FormFieldFileType,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum FormFieldType {
     /// Generate a unique id (uuid) - no visible entry.
-    Id(FormFieldId),
+    Id,
     /// Add text to the form, no interactive entry.
     Comment(FormFieldComment),
     Text(FormFieldText),
     Number(FormFieldNumber),
     Bool(FormFieldBool),
-    Date(FormFieldDate),
-    Time(FormFieldTime),
-    Datetime(FormFieldDatetime),
+    Date,
+    Time,
+    Datetime,
     RgbU8(FormFieldRgbU8),
     /// Present a selection of fixed choices.
     ConstEnum(FormFieldConstEnum),
@@ -122,6 +91,15 @@ pub enum FormField {
     /// fields: `name` (the text presented to the user) and `id` (the value to store in
     /// the relation).
     QueryEnum(FormFieldQueryEnum),
+    File(FormFieldFile),
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct FormField {
+    pub id: String,
+    pub label: String,
+    pub r#type: FormFieldType,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
@@ -149,6 +127,8 @@ pub struct FormOutput {
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ClientForm {
+    pub id: String,
+    pub name: String,
     /// Form fields and generated data (ids)
     pub fields: Vec<FormField>,
     /// Triples to generate from the inputs

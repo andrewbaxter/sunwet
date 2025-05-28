@@ -5,9 +5,7 @@ use {
             PlaylistRestorePos,
         },
         playlist::PlaylistIndex,
-        state::{
-            state,
-        },
+        state::state,
     },
     crate::libnonlink::{
         api::req_post_json,
@@ -41,17 +39,18 @@ use {
         Prim,
         ProcessingContext,
     },
-    qrcode::QrCode,
+    qrcode::{
+        render::svg::Color,
+        QrCode,
+    },
     rooting::{
         el_from_raw,
         El,
     },
     shared::interface::{
         config::{
-            menu::{
-                ClientMenuItemView,
-            },
             view::{
+                ClientView,
                 Direction,
                 FieldOrLiteral,
                 FieldOrLiteralString,
@@ -242,19 +241,16 @@ impl Build {
         data_id: &Vec<usize>,
         data_at: &Vec<TreeNode>,
     ) -> El {
-        let mut children_raw = vec![];
         let mut children = vec![];
         for config_at in &config_at.elements {
-            let child_el = self.build_widget(pc, config_at, data_id, data_at);
-            children_raw.push(child_el.raw());
-            children.push(child_el);
+            children.push(self.build_widget(pc, config_at, data_id, data_at));
         }
-        return el_from_raw(style_export::cont_view_list(style_export::ContViewListArgs {
+        return style_export::cont_view_list(style_export::ContViewListArgs {
             direction: config_at.direction,
             x_scroll: config_at.x_scroll,
-            children: children_raw,
+            children: children,
             gap: config_at.gap.clone(),
-        }).root.into()).own(|_| children);
+        }).root;
     }
 
     fn build_widget_data_rows(
@@ -321,26 +317,22 @@ impl Build {
                     match &config_at.row_widget {
                         shared::interface::config::view::DataRowsLayout::Unaligned(row_widget) => {
                             let mut children = vec![];
-                            let mut children_raw = vec![];
                             for (i, new_data_at_top) in new_data_at_tops.into_iter().enumerate() {
                                 let mut data_at = data_at.clone();
                                 data_at.push(new_data_at_top);
                                 let mut data_id = data_id.clone();
                                 data_id.push(i);
-                                let child = build.build_widget(pc, &row_widget.widget, &data_id, &data_at);
-                                children_raw.push(child.raw());
-                                children.push(child);
+                                children.push(build.build_widget(pc, &row_widget.widget, &data_id, &data_at));
                             }
-                            out = el_from_raw(style_export::cont_view_list(style_export::ContViewListArgs {
+                            out = style_export::cont_view_list(style_export::ContViewListArgs {
                                 direction: row_widget.direction.unwrap_or(Direction::Down),
                                 x_scroll: row_widget.x_scroll,
-                                children: children_raw,
+                                children: children,
                                 gap: row_widget.gap.clone(),
-                            }).root.into()).own(|_| children);
+                            }).root;
                         },
                         shared::interface::config::view::DataRowsLayout::Table(row_widget) => {
                             let mut rows = vec![];
-                            let mut rows_raw = vec![];
                             for (i, new_data_at_top) in new_data_at_tops.into_iter().enumerate() {
                                 let mut data_at = data_at.clone();
                                 data_at.push(new_data_at_top);
@@ -354,14 +346,13 @@ impl Build {
                                     columns.push(column);
                                 }
                                 rows.push(columns);
-                                rows_raw.push(columns_raw);
                             }
-                            out = el_from_raw(style_export::cont_view_table(style_export::ContViewTableArgs {
+                            out = style_export::cont_view_table(style_export::ContViewTableArgs {
                                 orientation: row_widget.orientation,
                                 x_scroll: row_widget.x_scroll,
-                                children: rows_raw,
+                                children: rows,
                                 gap: row_widget.gap.clone(),
-                            }).root.into()).own(|_| rows);
+                            }).root;
                         },
                     }
                     playlist_extend(
@@ -443,40 +434,27 @@ impl Build {
                         transport_slot: transport_slot,
                     };
                     let mut children = vec![];
-                    let mut children_raw = vec![];
                     for (i, new_data_at_top) in new_data_at_tops.into_iter().enumerate() {
                         let mut data_at = data_at.clone();
                         data_at.push(new_data_at_top);
                         let mut data_id = data_id.clone();
                         data_id.push(i);
                         let mut blocks = vec![];
-                        let mut blocks_raw = vec![];
                         for config_at in &config_at.row_blocks {
                             let block_contents = build.build_widget(pc, &config_at.widget, &data_id, &data_at);
-                            let block = el_from_raw(style_export::cont_view_block(style_export::ContViewBlockArgs {
-                                children: vec![block_contents.raw().dyn_into().unwrap()],
+                            blocks.push(style_export::cont_view_block(style_export::ContViewBlockArgs {
+                                children: vec![block_contents],
                                 width: config_at.width.clone(),
-                            }).root.into()).own(|_| block_contents);
-                            blocks_raw.push(block.raw());
-                            blocks.push(block);
+                            }).root);
                         }
-                        let row =
-                            el_from_raw(
-                                style_export::cont_view_row(style_export::ContViewRowArgs { blocks: blocks_raw })
-                                    .root
-                                    .into(),
-                            ).own(|_| blocks);
-                        children_raw.push(row.raw());
-                        children.push(row);
+                        children.push(
+                            style_export::cont_view_row(style_export::ContViewRowArgs { blocks: blocks }).root,
+                        );
                     }
                     let out =
-                        el_from_raw(
-                            style_export::cont_view_root_rows(
-                                style_export::ContViewRootRowsArgs { rows: children_raw },
-                            )
-                                .root
-                                .into(),
-                        ).own(|_| children);
+                        style_export::cont_view_root_rows(
+                            style_export::ContViewRootRowsArgs { rows: children },
+                        ).root;
                     playlist_extend(
                         pc,
                         &state().playlist,
@@ -498,7 +476,7 @@ impl Build {
     fn build_widget_text(&mut self, config_at: &WidgetText, data_at: &Vec<TreeNode>) -> El {
         match (|| {
             ta_return!(El, String);
-            return Ok(el_from_raw(style_export::leaf_view_text(style_export::LeafViewTextArgs {
+            return Ok(style_export::leaf_view_text(style_export::LeafViewTextArgs {
                 trans_align: config_at.trans_align,
                 orientation: config_at.orientation,
                 text: format!(
@@ -524,20 +502,20 @@ impl Build {
                             Result<_, String>,
                     )
                     .transpose()?,
-            }).root.into()));
+            }).root);
         })() {
             Ok(e) => return e,
-            Err(e) => return el_from_raw(style_export::leaf_err_block(style_export::LeafErrBlockArgs {
+            Err(e) => return style_export::leaf_err_block(style_export::LeafErrBlockArgs {
                 in_root: false,
                 data: e,
-            }).root.into()),
+            }).root,
         }
     }
 
     fn build_widget_image(&mut self, config_at: &WidgetImage, data_stack: &Vec<TreeNode>) -> El {
         match (|| {
             ta_return!(El, String);
-            return Ok(el_from_raw(style_export::leaf_view_image(style_export::LeafViewImageArgs {
+            return Ok(style_export::leaf_view_image(style_export::LeafViewImageArgs {
                 trans_align: config_at.trans_align,
                 src: shed!{
                     let Some(d) = maybe_get_field_or_literal(&config_at.data, &data_stack)? else {
@@ -568,13 +546,13 @@ impl Build {
                 },
                 width: config_at.width.clone(),
                 height: config_at.height.clone(),
-            }).root.into()));
+            }).root);
         })() {
             Ok(e) => return e,
-            Err(e) => return el_from_raw(style_export::leaf_err_block(style_export::LeafErrBlockArgs {
+            Err(e) => return style_export::leaf_err_block(style_export::LeafErrBlockArgs {
                 in_root: false,
                 data: e,
-            }).root.into()),
+            }).root,
         }
     }
 
@@ -642,10 +620,10 @@ impl Build {
                 source_url: src_url,
                 media_type: media_type,
             }));
-            let out = el_from_raw(style_export::leaf_view_play_button(style_export::LeafViewPlayButtonArgs {
+            let out = style_export::leaf_view_play_button(style_export::LeafViewPlayButtonArgs {
                 trans_align: config_at.trans_align,
                 orientation: config_at.orientation.unwrap_or(Orientation::RightDown),
-            }).root.into());
+            }).root;
             out.ref_on("click", {
                 let data_id = data_id.clone();
                 let eg = pc.eg();
@@ -675,10 +653,10 @@ impl Build {
             return Ok(out);
         })() {
             Ok(e) => return e,
-            Err(e) => return el_from_raw(style_export::leaf_err_block(style_export::LeafErrBlockArgs {
+            Err(e) => return style_export::leaf_err_block(style_export::LeafErrBlockArgs {
                 in_root: false,
                 data: e,
-            }).root.into()),
+            }).root,
         }
     }
 
@@ -725,7 +703,7 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
     }
 
     let transport_res = style_export::cont_bar_view_transport();
-    let button_share = el_from_raw(transport_res.button_share.into());
+    let button_share = transport_res.button_share;
     button_share.ref_on("click", {
         let eg = pc.eg();
         move |_| eg.event(|pc| {
@@ -751,30 +729,31 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
             };
             let link = format!("{}link.html#{}{}", state().env.base_url, LINK_HASH_PREFIX, sess_id);
             let modal_res = style_export::cont_modal_view_share(style_export::ContModalViewShareArgs {
-                qr: DomParser::new()
-                    .unwrap()
-                    .parse_from_string(
-                        &QrCode::new(&link)
-                            .unwrap()
-                            .render::<qrcode::render::svg::Color>()
-                            .quiet_zone(false)
-                            .build(),
-                        web_sys::SupportedType::ImageSvgXml,
-                    )
-                    .unwrap()
-                    .first_element_child()
-                    .unwrap()
-                    .dyn_into()
-                    .unwrap(),
+                qr: el_from_raw(
+                    DomParser::new()
+                        .unwrap()
+                        .parse_from_string(
+                            &QrCode::new(&link)
+                                .unwrap()
+                                .render::<qrcode::render::svg::Color>()
+                                .dark_color(Color("currentColor"))
+                                .light_color(Color("transparent"))
+                                .quiet_zone(false)
+                                .build(),
+                            web_sys::SupportedType::ImageSvgXml,
+                        )
+                        .unwrap()
+                        .first_element_child()
+                        .unwrap()
+                        .dyn_into()
+                        .unwrap(),
+                ),
                 link: link,
             });
-            let bg_el = el_from_raw(modal_res.bg.into());
-            let button_close_el = el_from_raw(modal_res.button_close.into());
-            let button_unshare_el = el_from_raw(modal_res.button_unshare.into());
-            let modal_el =
-                el_from_raw(
-                    modal_res.root.into(),
-                ).own(|_| (bg_el.clone(), button_close_el.clone(), button_unshare_el.clone()));
+            let bg_el = modal_res.bg;
+            let button_close_el = modal_res.button_close;
+            let button_unshare_el = modal_res.button_unshare;
+            let modal_el = modal_res.root;
             button_close_el.ref_on("click", {
                 let modal_el = modal_el.weak();
                 let eg = pc.eg();
@@ -816,7 +795,7 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
     }));
 
     // Prev
-    let button_prev = el_from_raw(transport_res.button_prev.into());
+    let button_prev = transport_res.button_prev;
     button_prev.ref_on("click", {
         let eg = pc.eg();
         move |_| eg.event(|pc| {
@@ -825,7 +804,7 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
     });
 
     // Next
-    let button_next = el_from_raw(transport_res.button_next.into());
+    let button_next = transport_res.button_next;
     button_next.ref_on("click", {
         let eg = pc.eg();
         move |_| eg.event(|pc| {
@@ -834,7 +813,7 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
     });
 
     // Play
-    let button_play = el_from_raw(transport_res.button_play.into());
+    let button_play = transport_res.button_play;
     button_play.ref_on("click", {
         let eg = pc.eg();
         move |_| eg.event(|pc| {
@@ -849,7 +828,7 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
     );
 
     // Seekbar
-    let seekbar = el_from_raw(transport_res.seekbar.into());
+    let seekbar = transport_res.seekbar;
     seekbar.ref_on("mousemove", {
         let eg = pc.eg();
         let hover_time = hover_time.clone();
@@ -873,7 +852,7 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
             playlist_seek(pc, &state().playlist, time);
         }).unwrap()
     });
-    let seekbar_fill = el_from_raw(transport_res.seekbar_fill.into());
+    let seekbar_fill = transport_res.seekbar_fill;
     seekbar_fill.ref_attr("style", &format!("width: 0%;"));
     seekbar_fill.ref_own(|fill| link!(
         //. .
@@ -888,7 +867,7 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
             fill.ref_attr("style", &format!("width: {}%;", *time.borrow() / max_time.max(0.0001) * 100.));
         }
     ));
-    let seekbar_label = el_from_raw(transport_res.seekbar_label.into());
+    let seekbar_label = transport_res.seekbar_label;
     seekbar_label.ref_own(|label| link!(
         //. .
         (_pc = pc),
@@ -920,51 +899,32 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
     ));
 
     // Assemble
-    return el_from_raw(
-        transport_res.root.into(),
-    ).own(|_| (button_share, button_prev, button_next, button_play, seekbar, seekbar_fill, seekbar_label));
+    return transport_res.root;
 }
 
 pub fn build_page_view(
     eg: EventGraph,
     config: &ClientConfig,
     menu_item_title: String,
-    menu_item: ClientMenuItemView,
+    view: ClientView,
     restore_playlist_pos: Option<PlaylistRestorePos>,
 ) -> Result<El, String> {
-    let Some(view) = config.views.get(&menu_item.view_id) else {
-        return Err(format!("Menu item refers to unknown view [{}]", menu_item.view_id));
-    };
     return eg.event(|pc| {
         let mut build = Build {
-            menu_item_id: menu_item.id.clone(),
+            menu_item_id: view.id.clone(),
             menu_item_title: menu_item_title.to_string(),
             restore_playlist_pos: restore_playlist_pos.clone(),
             playlist_add: Default::default(),
             want_media: false,
             have_media: Rc::new(Cell::new(false)),
-            transport_slot: el_from_raw(
-                style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root.into(),
-            ),
+            transport_slot: style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root,
         };
         let data_rows_res =
-            build.build_widget_root_data_rows(
-                pc,
-                &view.config,
-                &vec![],
-                &vec![TreeNode::Record(Default::default())],
-            );
-        playlist_extend(
-            pc,
-            &state().playlist,
-            &menu_item.id,
-            &menu_item_title,
-            build.playlist_add,
-            &restore_playlist_pos,
-        );
-        return Ok(el_from_raw(style_export::cont_page_view(style_export::ContPageViewArgs {
-            transport: Some(build.transport_slot.raw().dyn_into().unwrap()),
-            rows: data_rows_res.raw().dyn_into().unwrap(),
-        }).root.into()).own(|_| (build.transport_slot, data_rows_res)));
+            build.build_widget_root_data_rows(pc, &view.root, &vec![], &vec![TreeNode::Record(Default::default())]);
+        playlist_extend(pc, &state().playlist, &view.id, &menu_item_title, build.playlist_add, &restore_playlist_pos);
+        return Ok(style_export::cont_page_view(style_export::ContPageViewArgs {
+            transport: Some(build.transport_slot),
+            rows: data_rows_res,
+        }).root);
     }).unwrap();
 }

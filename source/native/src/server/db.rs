@@ -43,22 +43,26 @@ pub fn migrate(db: &mut rusqlite::Connection) -> Result<(), GoodError> {
             if version < 0i64 {
                 {
                     let query =
-                        "create table \"triple\" ( \"predicate\" text not null , \"subject\" text not null , \"timestamp\" text not null , \"object\" text not null , \"exists\" integer not null , constraint \"triple_pk\" primary key ( \"subject\" , \"predicate\" , \"object\" , \"timestamp\" ) )";
+                        "create table \"triple\" ( \"predicate\" text not null , \"subject\" text not null , \"commit\" text not null , \"object\" text not null , \"exists\" integer not null , constraint \"triple_pk\" primary key ( \"subject\" , \"predicate\" , \"object\" , \"commit\" ) )";
                     txn.execute(query, ()).to_good_error_query(query)?
                 };
                 {
                     let query =
-                        "create index \"triple_index_pred_subj\" on \"triple\" ( \"predicate\" , \"subject\" , \"timestamp\" )";
+                        "create index \"triple_index_pred_subj\" on \"triple\" ( \"predicate\" , \"subject\" , \"commit\" )";
                     txn.execute(query, ()).to_good_error_query(query)?
                 };
                 {
                     let query =
-                        "create unique index \"triple_index_obj_pred_subj\" on \"triple\" ( \"object\" , \"predicate\" , \"subject\" , \"timestamp\" )";
+                        "create unique index \"triple_index_obj_pred_subj\" on \"triple\" ( \"object\" , \"predicate\" , \"subject\" , \"commit\" )";
                     txn.execute(query, ()).to_good_error_query(query)?
                 };
                 {
                     let query =
-                        "create index \"triple_index_pred_obj\" on \"triple\" ( \"predicate\" , \"object\" , \"timestamp\" )";
+                        "create index \"triple_index_pred_obj\" on \"triple\" ( \"predicate\" , \"object\" , \"commit\" )";
+                    txn.execute(query, ()).to_good_error_query(query)?
+                };
+                {
+                    let query = "create index \"triple_commit_exists\" on \"triple\" ( \"commit\" , \"exists\" )";
                     txn.execute(query, ()).to_good_error_query(query)?
                 };
                 {
@@ -124,11 +128,11 @@ pub fn triple_insert(
     subject: &crate::interface::triple::DbNode,
     predicate: &str,
     object: &crate::interface::triple::DbNode,
-    stamp: chrono::DateTime<chrono::Utc>,
+    commit: chrono::DateTime<chrono::Utc>,
     exist: bool,
 ) -> Result<(), GoodError> {
     let query =
-        "insert into \"triple\" ( \"subject\" , \"predicate\" , \"object\" , \"timestamp\" , \"exists\" ) values ( $1 , $2 , $3 , $4 , $5 ) on conflict do update set \"exists\" = $5";
+        "insert into \"triple\" ( \"subject\" , \"predicate\" , \"object\" , \"commit\" , \"exists\" ) values ( $1 , $2 , $3 , $4 , $5 ) on conflict do update set \"exists\" = $5";
     db
         .execute(
             query,
@@ -144,7 +148,7 @@ pub fn triple_insert(
                 ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
                     &object,
                 ),
-                stamp.to_rfc3339(),
+                commit.to_rfc3339(),
                 exist
             ],
         )
@@ -156,7 +160,7 @@ pub struct DbRes1 {
     pub subject: crate::interface::triple::DbNode,
     pub predicate: String,
     pub object: crate::interface::triple::DbNode,
-    pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub commit: chrono::DateTime<chrono::Utc>,
     pub exists: bool,
 }
 
@@ -167,7 +171,7 @@ pub fn triple_get(
     object: &crate::interface::triple::DbNode,
 ) -> Result<Option<DbRes1>, GoodError> {
     let query =
-        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , \"triple\" . \"timestamp\" , \"triple\" . \"exists\" from \"triple\" where ( ( \"triple\" . \"subject\" = $1 ) and ( \"triple\" . \"predicate\" = $2 ) and ( \"triple\" . \"object\" = $3 ) ) order by \"triple\" . \"timestamp\" desc limit 1 ";
+        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , \"triple\" . \"commit\" , \"triple\" . \"exists\" from \"triple\" where ( ( \"triple\" . \"subject\" = $1 ) and ( \"triple\" . \"predicate\" = $2 ) and ( \"triple\" . \"object\" = $3 ) ) order by \"triple\" . \"commit\" desc limit 1 ";
     let mut stmt = db.prepare(query).to_good_error_query(query)?;
     let mut rows =
         stmt
@@ -214,7 +218,7 @@ pub fn triple_get(
                     ).to_good_error(|| format!("Parsing result {}", 2usize))?;
                 x
             },
-            timestamp: {
+            commit: {
                 let x: String = r.get(3usize).to_good_error(|| format!("Getting result {}", 3usize))?;
                 let x =
                     chrono::DateTime::<chrono::Utc>::from(
@@ -237,7 +241,7 @@ pub struct DbRes2 {
     pub subject: crate::interface::triple::DbNode,
     pub predicate: String,
     pub object: crate::interface::triple::DbNode,
-    pub event_stamp: chrono::DateTime<chrono::Utc>,
+    pub event_commit: chrono::DateTime<chrono::Utc>,
     pub exists: bool,
 }
 
@@ -247,7 +251,7 @@ pub fn triple_list_from(
 ) -> Result<Vec<DbRes2>, GoodError> {
     let mut out = vec![];
     let query =
-        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , max ( \"triple\" . \"timestamp\" ) as \"event_stamp\" , \"triple\" . \"exists\" from \"triple\" where ( ( \"triple\" . \"subject\" = $1 ) ) group by \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" ";
+        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , max ( \"triple\" . \"commit\" ) as \"event_commit\" , \"triple\" . \"exists\" from \"triple\" where ( ( \"triple\" . \"subject\" = $1 ) ) group by \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" ";
     let mut stmt = db.prepare(query).to_good_error_query(query)?;
     let mut rows =
         stmt
@@ -287,7 +291,7 @@ pub fn triple_list_from(
                     ).to_good_error(|| format!("Parsing result {}", 2usize))?;
                 x
             },
-            event_stamp: {
+            event_commit: {
                 let x: String = r.get(3usize).to_good_error(|| format!("Getting result {}", 3usize))?;
                 let x =
                     chrono::DateTime::<chrono::Utc>::from(
@@ -312,7 +316,7 @@ pub fn triple_list_to(
 ) -> Result<Vec<DbRes2>, GoodError> {
     let mut out = vec![];
     let query =
-        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , max ( \"triple\" . \"timestamp\" ) as \"event_stamp\" , \"triple\" . \"exists\" from \"triple\" where ( ( \"triple\" . \"object\" = $1 ) ) group by \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" ";
+        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , max ( \"triple\" . \"commit\" ) as \"event_commit\" , \"triple\" . \"exists\" from \"triple\" where ( ( \"triple\" . \"object\" = $1 ) ) group by \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" ";
     let mut stmt = db.prepare(query).to_good_error_query(query)?;
     let mut rows =
         stmt
@@ -352,7 +356,7 @@ pub fn triple_list_to(
                     ).to_good_error(|| format!("Parsing result {}", 2usize))?;
                 x
             },
-            event_stamp: {
+            event_commit: {
                 let x: String = r.get(3usize).to_good_error(|| format!("Getting result {}", 3usize))?;
                 let x =
                     chrono::DateTime::<chrono::Utc>::from(
@@ -374,7 +378,7 @@ pub fn triple_list_to(
 pub fn triple_list_all(db: &rusqlite::Connection) -> Result<Vec<DbRes1>, GoodError> {
     let mut out = vec![];
     let query =
-        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , \"triple\" . \"timestamp\" , \"triple\" . \"exists\" from \"triple\" ";
+        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , \"triple\" . \"commit\" , \"triple\" . \"exists\" from \"triple\" ";
     let mut stmt = db.prepare(query).to_good_error_query(query)?;
     let mut rows = stmt.query(rusqlite::params![]).to_good_error_query(query)?;
     while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
@@ -403,7 +407,7 @@ pub fn triple_list_all(db: &rusqlite::Connection) -> Result<Vec<DbRes1>, GoodErr
                     ).to_good_error(|| format!("Parsing result {}", 2usize))?;
                 x
             },
-            timestamp: {
+            commit: {
                 let x: String = r.get(3usize).to_good_error(|| format!("Getting result {}", 3usize))?;
                 let x =
                     chrono::DateTime::<chrono::Utc>::from(
@@ -429,7 +433,7 @@ pub fn triple_list_between(
 ) -> Result<Vec<DbRes1>, GoodError> {
     let mut out = vec![];
     let query =
-        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , \"triple\" . \"timestamp\" , \"triple\" . \"exists\" from \"triple\" where ( ( \"triple\" . \"timestamp\" >= $1 ) and ( \"triple\" . \"timestamp\" < $2 ) ) ";
+        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , \"triple\" . \"commit\" , \"triple\" . \"exists\" from \"triple\" where ( ( \"triple\" . \"commit\" >= $1 ) and ( \"triple\" . \"commit\" < $2 ) ) ";
     let mut stmt = db.prepare(query).to_good_error_query(query)?;
     let mut rows =
         stmt.query(rusqlite::params![start_incl.to_rfc3339(), end_excl.to_rfc3339()]).to_good_error_query(query)?;
@@ -459,7 +463,7 @@ pub fn triple_list_between(
                     ).to_good_error(|| format!("Parsing result {}", 2usize))?;
                 x
             },
-            timestamp: {
+            commit: {
                 let x: String = r.get(3usize).to_good_error(|| format!("Getting result {}", 3usize))?;
                 let x =
                     chrono::DateTime::<chrono::Utc>::from(
@@ -480,7 +484,7 @@ pub fn triple_list_between(
 
 pub fn triple_gc_deleted(db: &rusqlite::Connection, epoch: chrono::DateTime<chrono::Utc>) -> Result<(), GoodError> {
     let query =
-        "with current ( subject , predicate , object , event_stamp ) as ( select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , max ( \"triple\" . \"timestamp\" ) as \"timestamp\" from \"triple\" group by \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" ) delete from \"triple\" where ( ( \"triple\" . \"timestamp\" < $1 ) and ( ( \"triple\" . \"exists\" = false ) or not exists ( select 1 as \"x\" from \"current\" where ( ( \"triple\" . \"subject\" = \"current\" . \"subject\" ) and ( \"triple\" . \"predicate\" = \"current\" . \"predicate\" ) and ( \"triple\" . \"object\" = \"current\" . \"object\" ) and ( \"triple\" . \"timestamp\" = \"current\" . \"event_stamp\" ) )  ) ) )";
+        "with current ( subject , predicate , object , commit ) as ( select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , max ( \"triple\" . \"commit\" ) as \"commit\" from \"triple\" group by \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" ) delete from \"triple\" where ( ( \"triple\" . \"commit\" < $1 ) and ( ( \"triple\" . \"exists\" = false ) or not exists ( select 1 as \"x\" from \"current\" where ( ( \"triple\" . \"subject\" = \"current\" . \"subject\" ) and ( \"triple\" . \"predicate\" = \"current\" . \"predicate\" ) and ( \"triple\" . \"object\" = \"current\" . \"object\" ) and ( \"triple\" . \"commit\" = \"current\" . \"commit\" ) )  ) ) )";
     db.execute(query, rusqlite::params![epoch.to_rfc3339()]).to_good_error_query(query)?;
     Ok(())
 }
@@ -532,9 +536,39 @@ pub fn commit_list_between(
     Ok(out)
 }
 
+pub fn commit_list_count(
+    db: &rusqlite::Connection,
+    end_excl: chrono::DateTime<chrono::Utc>,
+) -> Result<Vec<DbRes3>, GoodError> {
+    let mut out = vec![];
+    let query =
+        "select \"commit\" . \"timestamp\" , \"commit\" . \"description\" from \"commit\" where ( \"commit\" . \"timestamp\" < $1 ) order by \"commit\" . \"timestamp\" desc limit 50 ";
+    let mut stmt = db.prepare(query).to_good_error_query(query)?;
+    let mut rows = stmt.query(rusqlite::params![end_excl.to_rfc3339()]).to_good_error_query(query)?;
+    while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
+        out.push(DbRes3 {
+            timestamp: {
+                let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
+                let x =
+                    chrono::DateTime::<chrono::Utc>::from(
+                        chrono::DateTime::<chrono::FixedOffset>::parse_from_rfc3339(
+                            &x,
+                        ).to_good_error(|| format!("Getting result {}", 0usize))?,
+                    );
+                x
+            },
+            description: {
+                let x: String = r.get(1usize).to_good_error(|| format!("Getting result {}", 1usize))?;
+                x
+            },
+        });
+    }
+    Ok(out)
+}
+
 pub fn commit_gc(db: &rusqlite::Connection) -> Result<(), GoodError> {
     let query =
-        "with active_commits ( stamp ) as ( select distinct \"triple\" . \"timestamp\" from \"triple\" ) delete from \"commit\" where not exists ( select 1 as \"x\" from \"active_commits\" where ( \"commit\" . \"timestamp\" = \"active_commits\" . \"stamp\" )  )";
+        "with active_commits ( stamp ) as ( select distinct \"triple\" . \"commit\" from \"triple\" ) delete from \"commit\" where not exists ( select 1 as \"x\" from \"active_commits\" where ( \"commit\" . \"timestamp\" = \"active_commits\" . \"stamp\" )  )";
     db.execute(query, rusqlite::params![]).to_good_error_query(query)?;
     Ok(())
 }

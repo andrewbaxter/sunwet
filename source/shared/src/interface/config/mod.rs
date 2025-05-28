@@ -1,29 +1,34 @@
 pub mod form;
-pub mod menu;
 pub mod view;
 
 use {
     form::ClientForm,
-    menu::ClientMenuItem,
     schemars::JsonSchema,
     serde::{
         Deserialize,
         Serialize,
     },
-    std::collections::HashMap,
-    view::WidgetRootDataRows,
+    view::ClientView,
 };
 
-#[derive(Clone, Serialize, Deserialize, Debug, Hash, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct ClientView {
-    pub config: WidgetRootDataRows,
+pub struct ClientMenuSection {
+    pub name: String,
+    pub children: Vec<ClientMenuItem>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum ClientMenuItem {
+    Section(ClientMenuSection),
+    View(ClientView),
+    Form(ClientForm),
+    History,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ClientConfig {
     pub menu: Vec<ClientMenuItem>,
-    pub views: HashMap<String, ClientView>,
-    pub forms: HashMap<String, ClientForm>,
 }

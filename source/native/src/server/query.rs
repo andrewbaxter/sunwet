@@ -6,6 +6,10 @@ use {
         ea,
         ResultContext,
     },
+    rand::{
+        seq::SliceRandom,
+        thread_rng,
+    },
     sea_query::{
         extension::sqlite::SqliteExpr,
         Alias,
@@ -31,6 +35,7 @@ use {
             JunctionType,
             MoveDirection,
             Query,
+            QuerySort,
             QuerySortDir,
             Step,
             Value,
@@ -881,7 +886,7 @@ pub fn execute_sql_query(
     db: &rusqlite::Connection,
     sql_query: String,
     sql_parameters: sea_query_rusqlite::RusqliteValues,
-    sort: Vec<(QuerySortDir, String)>,
+    sort: Option<QuerySort>,
 ) -> Result<Vec<BTreeMap<String, TreeNode>>, loga::Error> {
     let mut s = db.prepare(&sql_query)?;
     let column_names = s.column_names().into_iter().map(|k| k.to_string()).collect::<Vec<_>>();
@@ -901,26 +906,35 @@ pub fn execute_sql_query(
         }
         out.push(got_row1);
     }
-    out.sort_unstable_by(|a, b| {
-        for (dir, key) in &sort {
-            let res = a.get(key).partial_cmp(&b.get(key)).unwrap_or(Ordering::Equal);
-            let rev = *dir == QuerySortDir::Desc;
-            match res {
-                Ordering::Less => if rev {
-                    return Ordering::Greater;
-                } else {
-                    return Ordering::Less;
-                },
-                Ordering::Equal => { },
-                Ordering::Greater => if rev {
-                    return Ordering::Less;
-                } else {
-                    return Ordering::Greater;
-                },
-            }
+    if let Some(sort) = sort {
+        match sort {
+            QuerySort::Random => {
+                out.shuffle(&mut thread_rng());
+            },
+            QuerySort::Fields(sort) => {
+                out.sort_unstable_by(|a, b| {
+                    for (dir, key) in &sort {
+                        let res = a.get(key).partial_cmp(&b.get(key)).unwrap_or(Ordering::Equal);
+                        let rev = *dir == QuerySortDir::Desc;
+                        match res {
+                            Ordering::Less => if rev {
+                                return Ordering::Greater;
+                            } else {
+                                return Ordering::Less;
+                            },
+                            Ordering::Equal => { },
+                            Ordering::Greater => if rev {
+                                return Ordering::Less;
+                            } else {
+                                return Ordering::Greater;
+                            },
+                        }
+                    }
+                    return Ordering::Equal;
+                });
+            },
         }
-        return Ordering::Equal;
-    });
+    }
     return Ok(out);
 }
 

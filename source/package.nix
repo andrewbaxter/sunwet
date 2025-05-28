@@ -44,7 +44,7 @@ let
   wasm = naersk.buildPackage {
     pname = "sunwet-wasm";
     root = workspaceWasm;
-    release = false;
+    release = true;
     CARGO_BUILD_TARGET = "wasm32-unknown-unknown";
   };
   nativeBindgen = naersk.buildPackage {

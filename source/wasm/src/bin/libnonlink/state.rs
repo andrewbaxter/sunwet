@@ -4,9 +4,8 @@ use {
             record_new_ministate,
             Ministate,
         },
-        page_form::{
-            build_page_form,
-        },
+        page_form::build_page_form,
+        page_history::build_page_history,
         page_node_edit::build_page_node_edit,
         page_node_view::build_page_node_view,
         page_view::build_page_view,
@@ -26,8 +25,8 @@ use {
         El,
     },
     shared::interface::config::{
-        menu::ClientMenuItem,
         ClientConfig,
+        ClientMenuItem,
     },
     std::{
         cell::RefCell,
@@ -86,13 +85,13 @@ pub fn set_page_(pc: &mut ProcessingContext, title: &str, no_main_title: bool, b
 }
 
 pub fn build_home_page(pc: &mut ProcessingContext) {
-    set_page_(pc, "Home", true, el_from_raw(style_export::cont_page_home().root.into()));
+    set_page_(pc, "Home", true, style_export::cont_page_home().root);
 }
 
 pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
     match s {
         Ministate::Home => {
-            set_page_(pc, "Home", true, el_from_raw(style_export::cont_page_home().root.into()));
+            set_page_(pc, "Home", true, style_export::cont_page_home().root);
         },
         Ministate::MenuItem(ms) => {
             set_page(pc, &ms.title, el_async_(true, {
@@ -115,6 +114,9 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
                         ClientMenuItem::Form(menu_item) => {
                             return build_page_form(eg, client_config.0.clone(), title, menu_item.clone());
                         },
+                        ClientMenuItem::History => {
+                            unreachable!();
+                        },
                     }
                 }
             }));
@@ -124,6 +126,9 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
         },
         Ministate::NodeView(ms) => {
             build_page_node_view(pc, &ms.title, &ms.node);
+        },
+        Ministate::History => {
+            build_page_history(pc);
         },
     }
 }

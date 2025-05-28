@@ -261,6 +261,8 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
 
                             impl ReqResp for shared::interface::wire::ReqHistory { }
 
+                            impl ReqResp for shared::interface::wire::ReqHistoryCommitCount { }
+
                             impl ReqResp for shared::interface::wire::ReqGetTriplesAround { }
 
                             impl ReqResp for shared::interface::wire::ReqUploadFinish { }
@@ -345,25 +347,16 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     }
                                     return Ok(response_401());
                                 }
-                                let view =
-                                    global_config
-                                        .views
-                                        .get(&menu_item.item.view_id)
-                                        .context_with(
-                                            "Menu item configuration references nonexistent view",
-                                            ea!(menu_item = req.menu_item_id, view = menu_item.item.view_id),
-                                        )
-                                        .err_internal()?;
-                                let Some(query) = view.queries.get(&req.query) else {
+                                let Some(query) = menu_item.item.queries.get(&req.query) else {
                                     return Err(
                                         loga::err_with(
                                             "No known query with id in view",
-                                            ea!(view = menu_item.item.view_id, query = req.query),
+                                            ea!(menu_item = req.menu_item_id, query = req.query),
                                         ),
                                     ).err_external();
                                 };
                                 let mut view_hash = DefaultHasher::new();
-                                view.hash(&mut view_hash);
+                                menu_item.item.hash(&mut view_hash);
                                 let view_hash = view_hash.finish();
                                 let records =
                                     query::execute_query(&state.db, query.clone(), req.parameters)
@@ -436,14 +429,64 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     });
                                 }
                                 for t in triples {
-                                    let Some(commit) = out.get_mut(&t.timestamp) else {
+                                    let Some(commit) = out.get_mut(&t.commit) else {
                                         state
                                             .log
                                             .log_with(
                                                 loga::WARN,
                                                 "Triple detached from commit - this is probably a bug",
                                                 ea!(
-                                                    stamp = t.timestamp,
+                                                    stamp = t.commit,
+                                                    subject = t.subject.0.dbg_str(),
+                                                    predicate = t.predicate,
+                                                    object = t.object.0.dbg_str()
+                                                ),
+                                            );
+                                        continue;
+                                    };
+                                    let t1 = Triple {
+                                        subject: t.subject.0,
+                                        predicate: t.predicate,
+                                        object: t.object.0,
+                                    };
+                                    if t.exists {
+                                        commit.add.push(t1);
+                                    } else {
+                                        commit.remove.push(t1)
+                                    }
+                                }
+                                resp = req.respond()(out.into_values().collect());
+                            },
+                            C2SReq::HistoryCommitCount(req) => {
+                                if !is_admin(&state, &identity).await.err_internal()? {
+                                    return Ok(response_401());
+                                }
+                                let (commits, triples) = tx(&state.db, move |txn| {
+                                    let end = DateTime::from_str(&req.end_excl.to_string()).unwrap();
+                                    let commits = db::commit_list_count(txn, end)?;
+                                    let Some(start) = commits.iter().map(|c| c.timestamp).min() else {
+                                        return Ok((commits, vec![]));
+                                    };
+                                    return Ok((commits, db::triple_list_between(txn, start, end)?));
+                                }).await.err_internal()?;
+                                let mut out = BTreeMap::new();
+                                for c in commits {
+                                    out.insert(c.timestamp, RespHistoryCommit {
+                                        timestamp: c.timestamp.to_rfc3339().parse().unwrap(),
+                                        desc: c.description,
+                                        add: vec![],
+                                        remove: vec![],
+                                    });
+                                }
+                                for t in triples {
+                                    let Some(commit) = out.get_mut(&t.commit) else {
+                                        state
+                                            .log
+                                            .log_with(
+                                                loga::WARN,
+                                                "Triple detached from commit - this is probably a bug",
+                                                ea!(
+                                                    stamp = t.commit,
                                                     subject = t.subject.0.dbg_str(),
                                                     predicate = t.predicate,
                                                     object = t.object.0.dbg_str()
@@ -538,7 +581,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                         }
                     },
                     _ => {
-                        return static_::handle_static(head.uri.path().trim_matches('/')).await;
+                        return static_::handle_static(&head.headers, head.uri.path().trim_matches('/')).await;
                     },
                 }
             }

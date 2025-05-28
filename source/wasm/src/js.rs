@@ -168,6 +168,10 @@ pub fn get_dom_octothorpe() -> Option<String> {
 pub mod style_export {
     use {
         gloo::utils::format::JsValueSerdeExt,
+        rooting::{
+            el_from_raw,
+            El,
+        },
         shared::interface::config::view::{
             Direction,
             Orientation,
@@ -248,6 +252,16 @@ pub mod style_export {
 
         fn to_js(&self) -> JsValue {
             return JsValue::from(*self);
+        }
+    }
+
+    impl JsExport for El {
+        fn from_js(v: &JsValue) -> Self {
+            return el_from_raw(v.dyn_ref::<Element>().unwrap().clone());
+        }
+
+        fn to_js(&self) -> JsValue {
+            return JsValue::from(self.raw());
         }
     }
 
@@ -398,10 +412,7 @@ pub fn el_async<E: ToString, F: 'static + Future<Output = Result<El, E>>>(f: F) 
 }
 
 pub fn el_async_<E: ToString, F: 'static + Future<Output = Result<El, E>>>(in_root: bool, f: F) -> El {
-    let out =
-        el_from_raw(
-            style_export::leaf_async_block(style_export::LeafAsyncBlockArgs { in_root: in_root }).root.into(),
-        );
+    let out = style_export::leaf_async_block(style_export::LeafAsyncBlockArgs { in_root: in_root }).root;
     out.ref_own(|_| spawn_rooted({
         let out = out.weak();
         async move {
@@ -415,10 +426,10 @@ pub fn el_async_<E: ToString, F: 'static + Future<Output = Result<El, E>>>(in_ro
                     new_el = v;
                 },
                 Err(e) => {
-                    new_el = el_from_raw(style_export::leaf_err_block(style_export::LeafErrBlockArgs {
+                    new_el = style_export::leaf_err_block(style_export::LeafErrBlockArgs {
                         in_root: in_root,
                         data: e.to_string(),
-                    }).root.dyn_into().unwrap());
+                    }).root;
                 },
             }
             out.raw().set_inner_html("");

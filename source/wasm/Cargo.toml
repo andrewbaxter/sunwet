@@ -35,6 +35,7 @@ web-sys = { version = "0.3", features = [
     "DomParser",
     "SupportedType",
     "CssStyleDeclaration",
+    "StorageManager",
 ] }
 futures = "0.3"
 tokio = { version = "1", features = ["macros", "sync"] }
@@ -58,3 +59,9 @@ convert_case = "0.8.0"
 genemichaels-lib = "0.7.2"
 proc-macro2 = "1.0.95"
 quote = "1.0.40"
+
+[profile.release]
+# Voodoo https://github.com/johnthagen/min-sized-rust
+strip = true
+lto = true
+codegen-units = 1

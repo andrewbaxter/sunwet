@@ -6,6 +6,13 @@ use {
         Deserialize,
         Serialize,
     },
+    sha2::{
+        digest::{
+            generic_array::GenericArray,
+            OutputSizeUser,
+        },
+        Sha256,
+    },
     std::hash::Hash,
 };
 
@@ -19,6 +26,12 @@ pub enum FileHash_ {
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, JsonSchema)]
 pub struct FileHash(pub FileHash_);
+
+impl FileHash {
+    pub fn from_sha256(hash: GenericArray<u8, <Sha256 as OutputSizeUser>::OutputSize>) -> Self {
+        return Self(FileHash_::Sha256(hex::encode(&hash)));
+    }
+}
 
 impl ToString for FileHash {
     fn to_string(&self) -> String {
@@ -113,6 +126,12 @@ impl Hash for Node {
 
 impl PartialOrd for Node {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        return Some(self.cmp(other));
+    }
+}
+
+impl Ord for Node {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         {
             fn prio(n: &Node) -> u8 {
                 return match n {
@@ -124,48 +143,45 @@ impl PartialOrd for Node {
             let self_prio = prio(self);
             let other_prio = prio(other);
             if self_prio != other_prio {
-                return self_prio.partial_cmp(&other_prio);
+                return self_prio.cmp(&other_prio);
             }
         }
         match (self, other) {
             (Node::File(self_v), Node::File(other_v)) => {
-                return self_v.partial_cmp(other_v);
+                return self_v.cmp(other_v);
             },
             (Node::Value(self_v), Node::Value(other_v)) => {
-                fn json_partial_cmp_seq(
+                fn json_cmp_seq(
                     self_iter: &mut dyn Iterator<Item = Option<&serde_json::Value>>,
                     other_iter: &mut dyn Iterator<Item = Option<&serde_json::Value>>,
-                ) -> Option<std::cmp::Ordering> {
+                ) -> std::cmp::Ordering {
                     for (s, o) in Iterator::zip(&mut *self_iter, &mut *other_iter) {
                         if s.is_none() && o.is_none() {
                             continue;
                         }
                         if s.is_some() {
-                            return Some(std::cmp::Ordering::Greater);
+                            return std::cmp::Ordering::Greater;
                         } else if o.is_some() {
-                            return Some(std::cmp::Ordering::Less);
+                            return std::cmp::Ordering::Less;
                         }
                         let s = s.unwrap();
                         let o = o.unwrap();
-                        let c = json_partial_cmp(&s, &o);
-                        if c == Some(std::cmp::Ordering::Equal) {
+                        let c = json_cmp(&s, &o);
+                        if c == std::cmp::Ordering::Equal {
                             continue;
                         }
                         return c;
                     }
                     if self_iter.next().is_some() {
-                        return Some(std::cmp::Ordering::Greater);
+                        return std::cmp::Ordering::Greater;
                     } else if other_iter.next().is_some() {
-                        return Some(std::cmp::Ordering::Less);
+                        return std::cmp::Ordering::Less;
                     } else {
-                        return Some(std::cmp::Ordering::Equal);
+                        return std::cmp::Ordering::Equal;
                     }
                 }
 
-                fn json_partial_cmp(
-                    self_v: &serde_json::Value,
-                    other_v: &serde_json::Value,
-                ) -> Option<std::cmp::Ordering> {
+                fn json_cmp(self_v: &serde_json::Value, other_v: &serde_json::Value) -> std::cmp::Ordering {
                     {
                         fn prio(v: &serde_json::Value) -> u8 {
                             return match v {
@@ -181,15 +197,15 @@ impl PartialOrd for Node {
                         let self_prio = prio(self_v);
                         let other_prio = prio(other_v);
                         if self_prio != other_prio {
-                            return self_prio.partial_cmp(&other_prio);
+                            return self_prio.cmp(&other_prio);
                         }
                     }
                     match (self_v, other_v) {
                         (serde_json::Value::Null, serde_json::Value::Null) => {
-                            return Some(std::cmp::Ordering::Equal);
+                            return std::cmp::Ordering::Equal;
                         },
                         (serde_json::Value::Bool(self_v), serde_json::Value::Bool(other_v)) => {
-                            return self_v.partial_cmp(other_v);
+                            return self_v.cmp(other_v);
                         },
                         (serde_json::Value::Number(self_v), serde_json::Value::Number(other_v)) => {
                             #[derive(Clone, Copy)]
@@ -225,27 +241,27 @@ impl PartialOrd for Node {
                                 let self_prio = prio(self_v);
                                 let other_prio = prio(other_v);
                                 if self_prio != other_prio {
-                                    return self_prio.partial_cmp(&other_prio);
+                                    return self_prio.cmp(&other_prio);
                                 }
                             }
                             match (self_v, other_v) {
                                 (NumEnum::U64(self_v), NumEnum::U64(other_v)) => {
-                                    return self_v.partial_cmp(&other_v);
+                                    return self_v.cmp(&other_v);
                                 },
                                 (NumEnum::I64(self_v), NumEnum::I64(other_v)) => {
-                                    return self_v.partial_cmp(&other_v);
+                                    return self_v.cmp(&other_v);
                                 },
                                 (NumEnum::F64(self_v), NumEnum::F64(other_v)) => {
-                                    return self_v.partial_cmp(&other_v);
+                                    return self_v.total_cmp(&other_v);
                                 },
                                 _ => unreachable!(),
                             }
                         },
                         (serde_json::Value::String(self_v), serde_json::Value::String(other_v)) => {
-                            return self_v.partial_cmp(other_v);
+                            return self_v.cmp(other_v);
                         },
                         (serde_json::Value::Array(self_v), serde_json::Value::Array(other_v)) => {
-                            return json_partial_cmp_seq(
+                            return json_cmp_seq(
                                 &mut self_v.iter().map(|x| Some(x)),
                                 &mut other_v.iter().map(|x| Some(x)),
                             );
@@ -256,7 +272,7 @@ impl PartialOrd for Node {
                             ord_keys.extend(self_v.keys());
                             ord_keys.extend(other_v.keys());
                             ord_keys.sort();
-                            return json_partial_cmp_seq(
+                            return json_cmp_seq(
                                 &mut ord_keys.iter().map(|k| self_v.get(*k)),
                                 &mut ord_keys.iter().map(|k| other_v.get(*k)),
                             );
@@ -265,7 +281,7 @@ impl PartialOrd for Node {
                     }
                 }
 
-                return json_partial_cmp(self_v, other_v);
+                return json_cmp(self_v, other_v);
             },
             _ => unreachable!(),
         }

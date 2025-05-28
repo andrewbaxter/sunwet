@@ -1,11 +1,15 @@
 use {
+    super::form::FormField,
     crate::interface::triple::Node,
     schemars::JsonSchema,
     serde::{
         Deserialize,
         Serialize,
     },
-    std::collections::BTreeMap,
+    std::collections::{
+        BTreeMap,
+        HashMap,
+    },
 };
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, JsonSchema, Hash)]
@@ -243,4 +247,23 @@ pub enum Widget {
     Text(WidgetText),
     Image(WidgetImage),
     PlayButton(WidgetPlayButton),
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum ClientViewParam {
+    Text,
+    Bool,
+    Number,
+    Json,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct ClientView {
+    pub id: String,
+    pub name: String,
+    pub root: WidgetRootDataRows,
+    #[serde(default)]
+    pub parameters: BTreeMap<String, ClientViewParam>,
 }

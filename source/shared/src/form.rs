@@ -1,21 +1,24 @@
 use {
     crate::interface::{
         config::form::{
-            ClientForm,
+            FormOutput,
             InputOrInline,
             InputOrInlineText,
         },
         triple::Node,
         wire::{
-            TreeNode,
             ReqCommit,
+            TreeNode,
             Triple,
         },
     },
     std::collections::HashMap,
 };
 
-pub fn build_form_commit(form: &ClientForm, params: &HashMap<String, TreeNode>) -> Result<ReqCommit, String> {
+pub fn build_form_commit(
+    outputs: &Vec<FormOutput>,
+    params: &HashMap<String, TreeNode>,
+) -> Result<ReqCommit, String> {
     let mut add = vec![];
     let get_data = |field| {
         let v = params.get(field).unwrap();
@@ -38,7 +41,7 @@ pub fn build_form_commit(form: &ClientForm, params: &HashMap<String, TreeNode>) 
             },
         }
     };
-    for triple in &form.outputs {
+    for triple in outputs {
         let subjects;
         match &triple.subject {
             InputOrInline::Input(field) => {

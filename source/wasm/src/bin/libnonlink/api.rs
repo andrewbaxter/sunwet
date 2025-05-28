@@ -14,10 +14,15 @@ use {
         },
         utils::window,
     },
+    js_sys::Uint8Array,
     reqwasm::http::Request,
-    shared::interface::wire::{
-        C2SReq,
-        C2SReqTrait,
+    shared::interface::{
+        triple::FileHash,
+        wire::{
+            C2SReq,
+            C2SReqTrait,
+            HEADER_OFFSET,
+        },
     },
     wasm::js::LogJsErr,
     wasm_bindgen::UnwrapThrowExt,
@@ -70,11 +75,7 @@ pub fn redirect_logout(base_url: &str) -> ! {
     unreachable!();
 }
 
-pub async fn req_post_json<T: C2SReqTrait>(base_url: &str, req: T) -> Result<T::Resp, String> {
-    let req =
-        Request::post(&format!("{}api", base_url))
-            .header("Content-type", "application/json")
-            .body(serde_json::to_string(&C2SReq::from(req.into())).unwrap_throw());
+async fn post(base_url: &str, req: Request) -> Result<Vec<u8>, String> {
     let resp = match req.send().await {
         Ok(r) => r,
         Err(e) => {
@@ -94,6 +95,15 @@ pub async fn req_post_json<T: C2SReqTrait>(base_url: &str, req: T) -> Result<T::
     if status >= 400 {
         return Err(format!("Got error response [{}]: [{}]", status, String::from_utf8_lossy(&body)));
     }
+    return Ok(body);
+}
+
+pub async fn req_post_json<T: C2SReqTrait>(base_url: &str, req: T) -> Result<T::Resp, String> {
+    let req =
+        Request::post(&format!("{}api", base_url))
+            .header("Content-type", "application/json")
+            .body(serde_json::to_string(&C2SReq::from(req.into())).unwrap_throw());
+    let body = post(base_url, req).await?;
     return Ok(
         serde_json::from_slice::<T::Resp>(
             &body,
@@ -101,4 +111,13 @@ pub async fn req_post_json<T: C2SReqTrait>(base_url: &str, req: T) -> Result<T::
             |e| format!("Error parsing JSON response from server: {}\nBody: {}", e, String::from_utf8_lossy(&body)),
         )?,
     );
+}
+
+pub async fn file_post_json(base_url: &str, hash: &FileHash, chunk_start: u64, body: &[u8]) -> Result<(), String> {
+    let req =
+        Request::post(&format!("{}file/{}", base_url, hash.to_string()))
+            .header(HEADER_OFFSET, &chunk_start.to_string())
+            .body(Uint8Array::from(body));
+    post(base_url, req).await?;
+    return Ok(());
 }

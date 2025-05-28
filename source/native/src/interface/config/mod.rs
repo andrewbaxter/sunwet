@@ -6,14 +6,17 @@ use {
     },
     shared::interface::{
         config::{
-            form::ClientForm,
+            form::{
+                FormField,
+                FormOutput,
+            },
             view::{
+                ClientViewParam,
                 WidgetRootDataRows,
             },
         },
         iam::UserIdentityId,
         query::Query,
-        triple::Node,
     },
     std::{
         collections::{
@@ -37,28 +40,11 @@ pub struct MenuItemSection {
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct MenuItemView {
-    pub name: String,
-    pub view_id: String,
-    #[serde(default)]
-    pub arguments: HashMap<String, Node>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct MenuItemForm {
-    pub name: String,
-    pub form_id: String,
-    #[serde(default)]
-    pub arguments: HashMap<String, Node>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum MenuItemSub {
     Section(MenuItemSection),
-    View(MenuItemView),
-    Form(MenuItemForm),
+    View(View),
+    Form(Form),
+    History,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
@@ -71,8 +57,19 @@ pub struct MenuItem {
 #[derive(Clone, Serialize, Deserialize, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct View {
+    pub name: String,
+    #[serde(default)]
+    pub parameters: BTreeMap<String, ClientViewParam>,
     pub queries: BTreeMap<String, Query>,
-    pub config: WidgetRootDataRows,
+    pub root: WidgetRootDataRows,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, Hash, JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct Form {
+    pub name: String,
+    pub fields: Vec<FormField>,
+    pub outputs: Vec<FormOutput>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, JsonSchema)]
@@ -82,8 +79,6 @@ pub struct GlobalConfig {
     #[serde(default)]
     pub public_iam_grants: HashSet<MenuItemId>,
     pub menu: Vec<MenuItem>,
-    pub views: HashMap<String, View>,
-    pub forms: HashMap<String, ClientForm>,
 }
 
 #[derive(Serialize, Deserialize, Clone, JsonSchema)]

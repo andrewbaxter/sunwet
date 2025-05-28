@@ -52,6 +52,7 @@ pub enum Ministate {
     MenuItem(MinistateMenuItem),
     NodeEdit(MinistateNodeEdit),
     NodeView(MinistateNodeView),
+    History,
 }
 
 pub fn ministate_octothorpe(s: &Ministate) -> String {
@@ -64,6 +65,7 @@ pub fn ministate_title(s: &Ministate) -> String {
         Ministate::MenuItem(s) => return s.title.clone(),
         Ministate::NodeEdit(s) => return s.title.clone(),
         Ministate::NodeView(s) => return s.title.clone(),
+        Ministate::History => return format!("History"),
     }
 }
 

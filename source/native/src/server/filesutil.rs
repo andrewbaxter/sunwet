@@ -105,8 +105,7 @@ pub async fn hash_file_sha256(log: &Log, source: &Path) -> Result<FileHash, loga
 
     let mut got_hash = HashAsyncWriter { hash: Sha256::new() };
     copy(&mut got_file, &mut got_hash).await.stack_context(&log, "Failed to read staged uploaded file")?;
-    let got_hash = hex::encode(&got_hash.hash.finalize());
-    return Ok(FileHash(FileHash_::Sha256(got_hash)));
+    return Ok(FileHash::from_sha256(got_hash.hash.finalize()));
 }
 
 pub async fn get_meta(state: &Arc<State>, hash: &FileHash) -> Result<Option<db::Metadata>, loga::Error> {

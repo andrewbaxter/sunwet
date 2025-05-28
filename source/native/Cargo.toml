@@ -30,10 +30,10 @@ deadpool-sqlite = "0.9"
 futures = "0.3"
 http-body = "1"
 http-serde = "2"
-sha2 = "0.10"
 tempfile = "3"
 tokio-util = "0.7"
 urlencoding = "2"
+sha2 = "0.10"
 hex = "0.4"
 rust-embed = { version = "8.5.0", features = [
     "mime-guess",

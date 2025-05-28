@@ -6,44 +6,66 @@ use {
             state,
         },
     },
+    crate::libnonlink::api::file_post_json,
     chrono::{
         Local,
         LocalResult,
         NaiveDateTime,
         Utc,
     },
-    flowcontrol::exenum,
+    flowcontrol::{
+        exenum,
+        shed,
+    },
     gloo::{
+        file::{
+            callbacks::{
+                self,
+                FileReader,
+            },
+            Blob,
+        },
         storage::{
             LocalStorage,
             Storage,
         },
-        timers::callback::Timeout,
+        timers::{
+            callback::Timeout,
+            future::TimeoutFuture,
+        },
+        utils::window,
     },
-    lunk::{
-        EventGraph,
-    },
+    lunk::EventGraph,
     rooting::{
         el,
         el_from_raw,
         spawn_rooted,
         El,
     },
+    sha2::{
+        Digest,
+        Sha256,
+    },
     shared::interface::{
         config::{
             form::{
                 ClientForm,
                 FormField,
+                FormFieldType,
                 InputOrInline,
                 InputOrInlineText,
             },
-            menu::ClientMenuItemForm,
             ClientConfig,
         },
-        triple::Node,
+        triple::{
+            FileHash,
+            Node,
+        },
         wire::{
+            CommitFile,
             ReqCommit,
             ReqQuery,
+            ReqUploadFinish,
             TreeNode,
             Triple,
         },
@@ -55,6 +77,8 @@ use {
     },
     wasm::js::{
         el_async,
+        log,
+        log_js,
         style_export,
     },
     wasm_bindgen::JsCast,
@@ -68,6 +92,7 @@ struct FormState_ {
     draft_id: String,
     form: ClientForm,
     data: RefCell<HashMap<String, Node>>,
+    data_files: RefCell<HashMap<String, web_sys::File>>,
     draft_debounce: RefCell<Option<Timeout>>,
 }
 
@@ -111,7 +136,7 @@ fn build_field_enum(
         },
         options: choices.iter().map(|(k, v)| (k.clone(), serde_json::to_string(v).unwrap())).collect(),
     });
-    return Ok(el_from_raw(input_ret.root.into()).own(|_| el_from_raw(input_ret.input.into()).on("input", {
+    input_ret.input.ref_on("input", {
         let id = field_id.to_string();
         let fs = fs.clone();
         move |ev| {
@@ -122,43 +147,42 @@ fn build_field_enum(
                 Node::Value(serde_json::Value::String(value))
             });
         }
-    })));
+    });
+    return Ok(input_ret.root);
 }
 
 pub fn build_page_form(
     eg: EventGraph,
     config: ClientConfig,
     menu_item_title: String,
-    menu_item: ClientMenuItemForm,
+    form: ClientForm,
 ) -> Result<El, String> {
-    let draft_id = format!("form-draft-{}", menu_item.id);
-    let Some(form) = config.forms.get(&menu_item.form_id) else {
-        return Err(format!("No form in config with id [{}]", menu_item.form_id));
-    };
-    let error_slot =
-        el_from_raw(style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root.into());
+    let draft_id = format!("form-draft-{}", form.id);
+    let error_slot = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
     let mut out = vec![error_slot.clone()];
     let mut bar_out = vec![];
     let fs = FormState(Rc::new(FormState_ {
         form: form.clone(),
         data: RefCell::new(
-            LocalStorage::get(&draft_id).unwrap_or_else(|_| form.fields.iter().filter_map(|field| match field {
-                FormField::Id(field) => {
+            LocalStorage::get(
+                &draft_id,
+            ).unwrap_or_else(|_| form.fields.iter().filter_map(|field| match &field.r#type {
+                FormFieldType::Id => {
                     Some(
                         (field.id.clone(), Node::Value(serde_json::Value::String(uuid::Uuid::new_v4().to_string()))),
                     )
                 },
-                FormField::Comment(_field) => None,
-                FormField::Text(field) => Some(
+                FormFieldType::Comment(_field2) => None,
+                FormFieldType::Text(_field2) => Some(
                     (field.id.clone(), Node::Value(serde_json::Value::String("".to_string()))),
                 ),
-                FormField::Number(field) => Some(
+                FormFieldType::Number(_field2) => Some(
                     (field.id.clone(), Node::Value(serde_json::Value::Number(0.into()))),
                 ),
-                FormField::Bool(field) => Some(
-                    (field.id.clone(), Node::Value(serde_json::Value::Bool(field.initial_on))),
+                FormFieldType::Bool(field2) => Some(
+                    (field.id.clone(), Node::Value(serde_json::Value::Bool(field2.initial_on))),
                 ),
-                FormField::Date(field) => Some(
+                FormFieldType::Date => Some(
                     (
                         field.id.clone(),
                         Node::Value(
@@ -166,43 +190,45 @@ pub fn build_page_form(
                         ),
                     ),
                 ),
-                FormField::Time(field) => Some(
+                FormFieldType::Time => Some(
                     (
                         field.id.clone(),
                         Node::Value(serde_json::Value::String(Utc::now().time().format("HH:mm:ss").to_string())),
                     ),
                 ),
-                FormField::Datetime(field) => Some(
+                FormFieldType::Datetime => Some(
                     (field.id.clone(), Node::Value(serde_json::Value::String(Utc::now().to_rfc3339()))),
                 ),
-                FormField::RgbU8(field) => Some(
+                FormFieldType::RgbU8(field2) => Some(
                     (
                         field.id.clone(),
                         Node::Value(
-                            serde_json::Value::String(field.initial.clone().unwrap_or_else(|| format!("#000000"))),
+                            serde_json::Value::String(field2.initial.clone().unwrap_or_else(|| format!("#000000"))),
                         ),
                     ),
                 ),
-                FormField::ConstEnum(field) => Some(
+                FormFieldType::ConstEnum(_field2) => Some(
                     (field.id.clone(), Node::Value(serde_json::Value::String(format!("")))),
                 ),
-                FormField::QueryEnum(field) => Some(
+                FormFieldType::QueryEnum(_field2) => Some(
                     (field.id.clone(), Node::Value(serde_json::Value::String(format!("")))),
                 ),
+                FormFieldType::File(_) => None,
             }).collect::<HashMap<_, _>>()),
         ),
-        draft_debounce: RefCell::new(None),
+        data_files: Default::default(),
+        draft_debounce: Default::default(),
         draft_id: draft_id,
     }));
     for field in &form.fields {
-        match field {
-            FormField::Id(_field) => {
+        match &field.r#type {
+            FormFieldType::Id => {
                 // nop
             },
-            FormField::Comment(field) => {
-                out.push(el("p").text(&field.text));
+            FormFieldType::Comment(field2) => {
+                out.push(el("p").text(&field2.text));
             },
-            FormField::Text(field) => {
+            FormFieldType::Text(field2) => {
                 fn make_v(v: String) -> Node {
                     return Node::Value(serde_json::Value::String(v));
                 }
@@ -218,8 +244,8 @@ pub fn build_page_form(
                         v.clone()
                     },
                 });
-                let input = el_from_raw(input_ret.root.into());
-                input.ref_own(|_| el_from_raw(input_ret.input.into()).on("input", {
+                let input = input_ret.root;
+                input_ret.input.ref_on("input", {
                     let id = field.id.clone();
                     let fs = fs.clone();
                     move |ev| {
@@ -236,10 +262,10 @@ pub fn build_page_form(
                             ),
                         );
                     }
-                }));
+                });
                 out.push(input);
             },
-            FormField::Number(field) => {
+            FormFieldType::Number(field2) => {
                 fn make_v(value: String) -> Node {
                     return Node::Value(if let Ok(v) = serde_json::from_str::<serde_json::Number>(&value) {
                         serde_json::Value::Number(v)
@@ -259,7 +285,7 @@ pub fn build_page_form(
                         v.to_string()
                     },
                 });
-                out.push(el_from_raw(input_ret.root.into()).own(|_| el_from_raw(input_ret.input.into()).on("input", {
+                input_ret.input.ref_on("input", {
                     let id = field.id.clone();
                     let fs = fs.clone();
                     move |ev| {
@@ -268,9 +294,10 @@ pub fn build_page_form(
                             make_v(ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap().value()),
                         );
                     }
-                })));
+                });
+                out.push(input_ret.root);
             },
-            FormField::Bool(field) => {
+            FormFieldType::Bool(field2) => {
                 fn make_v(value: bool) -> Node {
                     return Node::Value(serde_json::Value::Bool(value));
                 }
@@ -286,7 +313,7 @@ pub fn build_page_form(
                         *v
                     },
                 });
-                out.push(el_from_raw(input_ret.root.into()).own(|_| el_from_raw(input_ret.input.into()).on("input", {
+                input_ret.input.ref_on("input", {
                     let id = field.id.clone();
                     let fs = fs.clone();
                     move |ev| {
@@ -295,9 +322,10 @@ pub fn build_page_form(
                             make_v(ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap().checked()),
                         );
                     }
-                })));
+                });
+                out.push(input_ret.root);
             },
-            FormField::Date(field) => {
+            FormFieldType::Date => {
                 let input_ret = style_export::leaf_input_pair_date(style_export::LeafInputPairDateArgs {
                     id: field.id.clone(),
                     title: field.label.clone(),
@@ -309,7 +337,7 @@ pub fn build_page_form(
                         v.clone()
                     },
                 });
-                out.push(el_from_raw(input_ret.root.into()).own(|_| el_from_raw(input_ret.input.into()).on("input", {
+                input_ret.input.ref_on("input", {
                     let id = field.id.clone();
                     let fs = fs.clone();
                     move |ev| {
@@ -318,9 +346,10 @@ pub fn build_page_form(
                             ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap().value(),
                         )));
                     }
-                })));
+                });
+                out.push(input_ret.root);
             },
-            FormField::Time(field) => {
+            FormFieldType::Time => {
                 let input_ret = style_export::leaf_input_pair_text(style_export::LeafInputPairTextArgs {
                     id: field.id.clone(),
                     title: field.label.clone(),
@@ -332,7 +361,7 @@ pub fn build_page_form(
                         v.clone()
                     },
                 });
-                out.push(el_from_raw(input_ret.root.into()).own(|_| el_from_raw(input_ret.input.into()).on("input", {
+                input_ret.input.ref_on("input", {
                     let id = field.id.clone();
                     let fs = fs.clone();
                     move |ev| {
@@ -341,9 +370,10 @@ pub fn build_page_form(
                             ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap().value(),
                         )));
                     }
-                })));
+                });
+                out.push(input_ret.root);
             },
-            FormField::Datetime(field) => {
+            FormFieldType::Datetime => {
                 const CHRONO_FORMAT: &str = "%Y-%m-%dT%H:%M";
                 let input_ret = style_export::leaf_input_pair_datetime(style_export::LeafInputPairDatetimeArgs {
                     id: field.id.clone(),
@@ -356,7 +386,7 @@ pub fn build_page_form(
                         v.clone()
                     },
                 });
-                out.push(el_from_raw(input_ret.root.into()).own(|_| el_from_raw(input_ret.input.into()).on("input", {
+                input_ret.input.on("input", {
                     let id = field.id.clone();
                     let fs = fs.clone();
                     move |ev| {
@@ -382,9 +412,10 @@ pub fn build_page_form(
                             ),
                         );
                     }
-                })));
+                });
+                out.push(input_ret.root);
             },
-            FormField::RgbU8(field) => {
+            FormFieldType::RgbU8(_field2) => {
                 fn make_v(v: String) -> Node {
                     return Node::Value(serde_json::Value::String(v));
                 }
@@ -400,32 +431,35 @@ pub fn build_page_form(
                         v.clone()
                     },
                 });
-                out.push(el_from_raw(input_ret.root.into()).own(|_| el_from_raw(input_ret.input.into()).on("input", {
+                input_ret.input.ref_on("input", {
                     let id = field.id.clone();
                     let fs = fs.clone();
                     move |ev| {
                         let value = ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap().value();
                         fs.update(&id, make_v(value));
                     }
-                })));
+                });
+                out.push(input_ret.root);
             },
-            FormField::ConstEnum(field) => {
+            FormFieldType::ConstEnum(field2) => {
                 out.push(
                     build_field_enum(
                         &fs,
                         field.id.clone(),
                         field.label.clone(),
-                        &field.choices.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>(),
+                        &field2.choices.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>(),
                     )?,
                 );
             },
-            FormField::QueryEnum(field) => {
+            FormFieldType::QueryEnum(field2) => {
                 let async_ = el_async({
                     let fs = fs.clone();
-                    let field = field.clone();
+                    let id = field.id.clone();
+                    let label = field.label.clone();
+                    let field2 = field2.clone();
                     async move {
                         let res = req_post_json(&state().env.base_url, ReqQuery {
-                            query: field.query.clone(),
+                            query: field2.query.clone(),
                             parameters: HashMap::new(),
                         }).await?;
                         let mut choices = vec![];
@@ -448,18 +482,74 @@ pub fn build_page_form(
                             }
                             choices.push((name, value));
                         }
-                        return Ok(build_field_enum(&fs, field.id, field.label, &choices)?);
+                        return Ok(build_field_enum(&fs, id.clone(), label.clone(), &choices)?);
                     }
                 });
-                out.push(el_from_raw(style_export::leaf_input_pair(style_export::LeafInputPairArgs {
+                out.push(style_export::leaf_input_pair(style_export::LeafInputPairArgs {
                     label: field.label.clone(),
                     input_id: field.id.clone(),
-                    input: async_.raw().dyn_into().unwrap(),
-                }).root.into()).own(|_| async_));
+                    input: async_,
+                }).root);
+            },
+            FormFieldType::File(field2) => {
+                let root;
+                let file_input;
+                match field2.r#type {
+                    shared::interface::config::form::FormFieldFileType::Any => {
+                        let style_res = style_export::leaf_input_pair_file(style_export::LeafInputPairFileArgs {
+                            id: field.id.clone(),
+                            title: field.label.clone(),
+                        });
+                        root = style_res.root;
+                        file_input = style_res.input;
+                    },
+                    shared::interface::config::form::FormFieldFileType::Image => {
+                        let style_res = style_export::leaf_input_pair_image(style_export::LeafInputPairImageArgs {
+                            id: field.id.clone(),
+                            title: field.label.clone(),
+                        });
+                        root = style_res.root;
+                        file_input = style_res.input;
+                    },
+                    shared::interface::config::form::FormFieldFileType::Video => {
+                        let style_res = style_export::leaf_input_pair_video(style_export::LeafInputPairVideoArgs {
+                            id: field.id.clone(),
+                            title: field.label.clone(),
+                        });
+                        root = style_res.root;
+                        file_input = style_res.input;
+                    },
+                    shared::interface::config::form::FormFieldFileType::Audio => {
+                        let style_res = style_export::leaf_input_pair_audio(style_export::LeafInputPairAudioArgs {
+                            id: field.id.clone(),
+                            title: field.label.clone(),
+                        });
+                        root = style_res.root;
+                        file_input = style_res.input;
+                    },
+                }
+                file_input.ref_on("input", {
+                    let id = field.id.clone();
+                    let fs = fs.clone();
+                    move |ev| {
+                        let file =
+                            ev
+                                .target()
+                                .unwrap()
+                                .dyn_into::<HtmlInputElement>()
+                                .unwrap()
+                                .files()
+                                .unwrap()
+                                .item(0)
+                                .unwrap();
+                        fs.0.data_files.borrow_mut().insert(id.clone(), file.clone());
+                    }
+                });
+                out.push(root);
             },
         }
     }
-    let button_save = el_from_raw(style_export::leaf_button_big_save().root.into());
+    let button_save = style_export::leaf_button_big_save().root;
     let save_thinking = Rc::new(RefCell::new(None));
     button_save.ref_own(|_| save_thinking.clone());
     button_save.ref_on("click", {
@@ -468,7 +558,7 @@ pub fn build_page_form(
         let fs = fs.clone();
         let menu_item_title = menu_item_title.clone();
         let config = config.clone();
-        let menu_item = menu_item.clone();
+        let menu_item = form.clone();
         move |ev| {
             {
                 let Some(error_slot) = error_slot.upgrade() else {
@@ -489,13 +579,49 @@ pub fn build_page_form(
                 let menu_item = menu_item.clone();
                 async move {
                     match async {
+                        // Hash files
+                        struct UploadFile {
+                            data: Vec<u8>,
+                            hash: FileHash,
+                            size: u64,
+                        }
+
+                        let mut commit_files = vec![];
+                        let mut upload_files = vec![];
+                        for (id, file) in fs.0.data_files.borrow().iter() {
+                            let b = match gloo::file::futures::read_as_bytes(&Blob::from(file.clone())).await {
+                                Ok(b) => b,
+                                Err(e) => {
+                                    log(format!("Error reading file for field [{}]: {}", id, e));
+                                    continue;
+                                },
+                            };
+                            let hash = FileHash::from_sha256(Sha256::digest(&b));
+                            fs.0.data.borrow_mut().insert(id.clone(), Node::File(hash.clone()));
+                            let size = file.size() as u64;
+                            upload_files.push(UploadFile {
+                                data: b,
+                                hash: hash.clone(),
+                                size: size,
+                            });
+                            commit_files.push(CommitFile {
+                                hash: hash,
+                                size: size,
+                                mimetype: file.type_(),
+                            })
+                        }
+
+                        // Send commit
                         let data = fs.0.data.borrow();
                         let mut add = vec![];
                         for triple in &fs.0.form.outputs {
                             let subject;
                             match &triple.subject {
                                 InputOrInline::Input(field) => {
-                                    subject = data.get(field).unwrap().clone();
+                                    let Some(s1) = data.get(field) else {
+                                        continue;
+                                    };
+                                    subject = s1.clone();
                                 },
                                 InputOrInline::Inline(v) => {
                                     subject = v.clone();
@@ -504,7 +630,10 @@ pub fn build_page_form(
                             let predicate;
                             match &triple.predicate {
                                 InputOrInlineText::Input(field) => {
-                                    let Some(Node::Value(serde_json::Value::String(v))) = data.get(field) else {
+                                    let Some(p1) = data.get(field) else {
+                                        continue;
+                                    };
+                                    let Node::Value(serde_json::Value::String(v)) = p1 else {
                                         return Err(
                                             format!(
                                                 "Field {} must be a string to be used as a predicate, but it is not",
@@ -521,7 +650,10 @@ pub fn build_page_form(
                             let object;
                             match &triple.object {
                                 InputOrInline::Input(field) => {
-                                    object = data.get(field).unwrap().clone();
+                                    let Some(o1) = data.get(field) else {
+                                        continue;
+                                    };
+                                    object = o1.clone();
                                 },
                                 InputOrInline::Inline(v) => {
                                     object = v.clone();
@@ -537,8 +669,32 @@ pub fn build_page_form(
                         req_post_json(&state().env.base_url, ReqCommit {
                             add: add,
                             remove: vec![],
-                            files: vec![],
+                            files: commit_files,
                         }).await?;
+
+                        // Upload files
+                        for file in upload_files {
+                            const CHUNK_SIZE: u64 = 1024 * 1024 * 8;
+                            let chunks = file.size.div_ceil(CHUNK_SIZE);
+                            for i in 0 .. chunks {
+                                let chunk_start = i * CHUNK_SIZE;
+                                let chunk_size = (file.size - chunk_start).min(CHUNK_SIZE);
+                                file_post_json(
+                                    &state().env.base_url,
+                                    &file.hash,
+                                    chunk_start,
+                                    &file.data[chunk_start as usize .. (chunk_start + chunk_size) as usize],
+                                ).await?;
+                            }
+                            loop {
+                                let resp =
+                                    req_post_json(&state().env.base_url, ReqUploadFinish(file.hash.clone())).await?;
+                                if resp.done {
+                                    break;
+                                }
+                                TimeoutFuture::new(1000).await;
+                            }
+                        }
                         return Ok(());
                     }.await {
                         Ok(_) => {
@@ -556,12 +712,10 @@ pub fn build_page_form(
                             let Some(error_slot) = error_slot.upgrade() else {
                                 return;
                             };
-                            error_slot.ref_push(
-                                el_from_raw(style_export::leaf_err_block(style_export::LeafErrBlockArgs {
-                                    in_root: false,
-                                    data: e,
-                                }).root.into()),
-                            );
+                            error_slot.ref_push(style_export::leaf_err_block(style_export::LeafErrBlockArgs {
+                                in_root: false,
+                                data: e,
+                            }).root);
                             button.class_list().remove_1(&style_export::class_state_thinking().value).unwrap();
                             return;
                         },
@@ -571,8 +725,8 @@ pub fn build_page_form(
         }
     });
     bar_out.push(button_save);
-    return Ok(el_from_raw(style_export::cont_page_form(style_export::ContPageFormArgs {
-        entries: out.iter().map(|x| x.raw()).collect(),
-        bar_children: bar_out.iter().map(|x| x.raw()).collect(),
-    }).root.into()).own(|_| (out, bar_out))) as Result<_, String>;
+    return Ok(style_export::cont_page_form(style_export::ContPageFormArgs {
+        entries: out,
+        bar_children: bar_out,
+    }).root) as Result<_, String>;
 }

@@ -166,6 +166,7 @@
   const textIconPause = "\ue034";
   const textIconDelete = "\ue15b";
   const textIconRevert = "\ue166";
+  const textIconApply = "\uf4f6";
   const textIconAdd = "\ue145";
   const textIconNext = "\ue5cc";
   const textIconPrev = "\ue5cb";
@@ -190,11 +191,13 @@
   const varSFontTitle = v(uniq(), "24pt");
   const varSFontAdmenu = v(uniq(), "20pt");
   const varSFontMenu = v(uniq(), "20pt");
+  const varSFontPageTitle = v(uniq(), "18pt");
   const varSNarrow = v(uniq(), "20cm");
   const varSModalHeight = v(uniq(), "20cm");
   const varSCol1Width = v(uniq(), "min(0.8cm, 5dvw)");
   const varSCol3Width = v(uniq(), "1.4cm");
   const varSMenuColWidth = v(uniq(), "min(100%, 12cm)");
+
   //const varCBackground = vs("rgb(205, 207, 212)", "rgb(0,0,0)");
   const varCBackground = vs(uniq(), "rgb(230, 232, 238)", "rgb(0,0,0)");
   const varCBg2 = vs(uniq(), "rgb(218, 220, 226)", "rgb(0,0,0)");
@@ -211,7 +214,6 @@
   const varCButtonClick = vs(uniq(), "rgba(255, 255, 255, 1)", "rgb(0,0,0)");
 
   const varCSeekbarEmpty = vs(uniq(), "rgb(212, 216, 223)", "rgb(0,0,0)");
-  const varCSeekbarFill = vs(uniq(), "rgb(197, 196, 209)", "rgb(0,0,0)");
 
   const varSButtonPadBig = v(uniq(), "0.3cm");
   const varSButtonPadSmall = v(uniq(), "0.1cm");
@@ -226,6 +228,7 @@
   const varCSpinner = v(uniq(), "rgb(155, 178, 229)");
   const varCHighlightBold = vs(uniq(), "rgb(62, 119, 251)", "rgb(0,0,0)");
   const varCNodeCenter = varCBg2;
+  const varCRemove = vs(uniq("remove"), "rgb(216, 0, 0)", "rgb(0,0,0)");
 
   // xx State classes
 
@@ -259,6 +262,11 @@
     /** @type { Presentation["classStateThinking"]} */ () => ({
       value: classStateThinking,
     });
+  const classStateDisabled = "disabled";
+  presentation.classStateDisabled =
+    /** @type { Presentation["classStateDisabled"]} */ () => ({
+      value: classStateDisabled,
+    });
   const classStateDeleted = "deleted";
   presentation.classStateDeleted =
     /** @type { Presentation["classStateDeleted"]} */ () => ({
@@ -289,6 +297,10 @@
 
   presentation.contStack = /** @type {Presentation["contStack"]} */ (args) => ({
     root: e("div", {}, { styles_: [contStackStyle], children_: args.children }),
+  });
+
+  presentation.contVbox = /** @type {Presentation["contVbox"]} */ (args) => ({
+    root: e("div", {}, { styles_: [contVboxStyle], children_: args.children }),
   });
 
   const contTitleStyle = s(uniq("cont_title"), {
@@ -335,6 +347,12 @@
         styles_: [leafTitleStyle],
       }
     ),
+  });
+
+  const leafLinkStyle = ss(uniq("leafLinkStyle"), {
+    ":hover": (s) => {
+      s.textDecoration = "underline";
+    },
   });
 
   const leafIconStyle = s(uniq("icon"), {
@@ -619,13 +637,16 @@
       s.flexDirection = "row";
       s.gap = "0.2cm";
     },
-    ":hover": (s) => {
+    [`.${classStateDisabled}`]: (s) => {
+      s.opacity = "0.5";
+    },
+    [`:not(.${classStateDisabled}):hover`]: (s) => {
       s.backgroundColor = varCButtonHover;
     },
-    ":hover:active": (s) => {
+    [`:not(.${classStateDisabled}):hover:active`]: (s) => {
       s.backgroundColor = varCButtonClick;
     },
-    ".thinking": (s) => {
+    [`:not(.${classStateDisabled}).${classStateThinking}`]: (s) => {
       // TODO horiz line with marching dashes instead
       s.opacity = "0.5";
     },
@@ -827,6 +848,8 @@
     },
     ">*:nth-child(2)": (s) => {
       s.gridColumn = "2";
+      // Otherwise some inexplicable space is created above the element
+      s.alignSelf = "start";
     },
   });
   presentation.leafInputPair = /** @type {Presentation["leafInputPair"]} */ (
@@ -1082,6 +1105,88 @@
     out.value = args.value;
     return { root: out };
   };
+  const leafInputFile =
+    /** @type {(title: string, id?:String, display?: Element) => {root: Element, input: HTMLInputElement}} */ (
+      title,
+      id,
+      display
+    ) => {
+      const input = e(
+        "input",
+        {
+          type: "file",
+          title: title,
+        },
+        {
+          styles_: [leafInputStyle],
+        }
+      );
+      if (id != null) {
+        input.id = id;
+        input.name = id;
+      }
+      input.addEventListener("input", () => {
+        if (display != null) {
+          const r = new FileReader();
+          r.addEventListener("load", (e) => {
+            display.setAttribute("src", /** @type {string} */ (r.result));
+          });
+          r.readAsDataURL(/** @type { File } */ (input.files?.item(0)));
+        }
+      });
+      const children = [];
+      if (display != null) {
+        children.push(display);
+      }
+      children.push(input);
+      return {
+        root: e(
+          "div",
+          {},
+          {
+            styles_: [contVboxStyle, leafInputBorderStyle],
+            children_: children,
+          }
+        ),
+        input: input,
+      };
+    };
+  presentation.leafInputFile = /** @type {Presentation["leafInputFile"]} */ (
+    args
+  ) => {
+    const out = leafInputFile(args.title, args.id);
+    return { root: out.root, input: out.input };
+  };
+  presentation.leafInputImage = /** @type {Presentation["leafInputImage"]} */ (
+    args
+  ) => {
+    const display = e("img", {}, {});
+    const out = leafInputFile(args.title, args.id, display);
+    return {
+      root: out.root,
+      input: out.input,
+    };
+  };
+  presentation.leafInputVideo = /** @type {Presentation["leafInputVideo"]} */ (
+    args
+  ) => {
+    const display = e("img", {}, {});
+    const out = leafInputFile(args.title, args.id, display);
+    return {
+      root: out.root,
+      input: out.input,
+    };
+  };
+  presentation.leafInputAudio = /** @type {Presentation["leafInputAudio"]} */ (
+    args
+  ) => {
+    const display = e("img", {}, {});
+    const out = leafInputFile(args.title, args.id, display);
+    return {
+      root: out.root,
+      input: out.input,
+    };
+  };
 
   presentation.leafInputPairText =
     /** @type {Presentation["leafInputPairText"]} */ (args) => {
@@ -1210,6 +1315,66 @@
           input: input.root,
         }).root,
         input: input.root,
+      };
+    };
+  presentation.leafInputPairFile =
+    /** @type {Presentation["leafInputPairFile"]} */ (args) => {
+      const input = presentation.leafInputFile({
+        id: args.id,
+        title: args.title,
+      });
+      return {
+        root: presentation.leafInputPair({
+          label: args.title,
+          inputId: args.id,
+          input: input.root,
+        }).root,
+        input: input.input,
+      };
+    };
+  presentation.leafInputPairImage =
+    /** @type {Presentation["leafInputPairImage"]} */ (args) => {
+      const input = presentation.leafInputImage({
+        id: args.id,
+        title: args.title,
+      });
+      return {
+        root: presentation.leafInputPair({
+          label: args.title,
+          inputId: args.id,
+          input: input.root,
+        }).root,
+        input: input.input,
+      };
+    };
+  presentation.leafInputPairVideo =
+    /** @type {Presentation["leafInputPairVideo"]} */ (args) => {
+      const input = presentation.leafInputVideo({
+        id: args.id,
+        title: args.title,
+      });
+      return {
+        root: presentation.leafInputPair({
+          label: args.title,
+          inputId: args.id,
+          input: input.root,
+        }).root,
+        input: input.input,
+      };
+    };
+  presentation.leafInputPairAudio =
+    /** @type {Presentation["leafInputPairAudio"]} */ (args) => {
+      const input = presentation.leafInputAudio({
+        id: args.id,
+        title: args.title,
+      });
+      return {
+        root: presentation.leafInputPair({
+          label: args.title,
+          inputId: args.id,
+          input: input.root,
+        }).root,
+        input: input.input,
       };
     };
 
@@ -2479,17 +2644,18 @@
       s.borderStyle = "dashed";
     },
   });
+  const varSRelIconSize = v(uniq(), "32pt");
+  const varSRelIconWeight = v(uniq(), "800");
   const leafNodeRelStyle = s(uniq("leaf_edit_rel"), {
     "": (s) => {
       s.color = varCNodeCenter;
-      s.fontSize = "32pt";
-      s.fontWeight = "800";
+      s.fontSize = varSRelIconSize;
+      s.fontWeight = varSRelIconWeight;
     },
   });
   const relIconSize = v(uniq(), "1.5cm");
   const leafNodeRelIncomingStyle = s(uniq("leaf_edit_rel_incoming"), {
     "": (s) => {
-      s.gridColumn = "2";
       s.alignSelf = "end";
       s.width = relIconSize;
       s.minWidth = relIconSize;
@@ -2498,7 +2664,6 @@
   });
   const leafNodeRelOutgoingStyle = s(uniq("leaf_edit_rel_outgoing"), {
     "": (s) => {
-      s.gridColumn = "1";
       s.alignSelf = "start";
       s.width = relIconSize;
       s.minWidth = relIconSize;
@@ -2639,53 +2804,57 @@
     },
   });
 
-  presentation.contPageNodeView =
-    /** @type {Presentation["contPageNodeView"]} */ (args) => ({
-      root: presentation.contGroup({
-        children: [
-          e(
-            "div",
-            {},
-            {
-              styles_: [contBodyStyle, contVboxStyle],
-              children_: [
-                e(
-                  "div",
-                  {},
-                  {
-                    styles_: [contHboxStyle, pageButtonsStyle],
-                    children_: args.pageButtonChildren,
-                  }
-                ),
-                e(
-                  "div",
-                  {},
-                  {
-                    styles_: [
-                      classMenuWantStateOpen,
-                      contBodyNarrowStyle,
-                      contVboxStyle,
-                      ss(uniq("page_view"), {
-                        "": (s) => {
-                          s.gap = varSNodeGap;
-                        },
-                      }),
-                    ],
-                    children_: args.children,
-                  }
-                ),
-              ],
-            }
-          ),
-        ],
-      }).root,
-    });
+  presentation.contPageNodeViewAndHistory =
+    /** @type {Presentation["contPageNodeViewAndHistory"]} */ (args) => {
+      const body = e(
+        "div",
+        {},
+        {
+          styles_: [
+            classMenuWantStateOpen,
+            contBodyNarrowStyle,
+            contVboxStyle,
+            ss(uniq("page_view"), {
+              "": (s) => {
+                s.gap = varSNodeGap;
+              },
+            }),
+          ],
+          children_: args.children,
+        }
+      );
+      return {
+        root: presentation.contGroup({
+          children: [
+            e(
+              "div",
+              {},
+              {
+                styles_: [contBodyStyle, contVboxStyle],
+                children_: [
+                  e(
+                    "div",
+                    {},
+                    {
+                      styles_: [contHboxStyle, pageButtonsStyle],
+                      children_: args.pageButtonChildren,
+                    }
+                  ),
+                  body,
+                ],
+              }
+            ),
+          ],
+        }).root,
+        body: body,
+      };
+    };
 
   presentation.leafNodeViewNodeText =
     /** @type {Presentation["leafNodeViewNodeText"]} */ (args) => {
       const out = e(
-        "p",
-        {},
+        "a",
+        { textContent: args.value },
         {
           styles_: [
             ss(uniq("leaf_node_view_node_text"), {
@@ -2693,30 +2862,13 @@
                 s.whiteSpace = "pre-wrap";
               },
             }),
+            leafLinkStyle,
           ],
         }
       );
       if (args.link != null) {
-        out.appendChild(
-          leafButtonLink({
-            title: "View",
-            icon: textIconGo,
-            url: args.link,
-            extraStyles: [
-              ss(uniq("leaf_node_view_node_text"), {
-                "": (s) => {
-                  s.float = "right";
-                },
-                ">div": (s) => {
-                  s.width = "0.8cm";
-                  s.height = "0.8cm";
-                },
-              }),
-            ],
-          }).root
-        );
+        out.href = args.link;
       }
-      out.appendChild(document.createTextNode(args.value));
       return {
         root: out,
       };
@@ -2908,6 +3060,237 @@
         title: "Predicate",
         value: args.value,
       });
+
+  // /////////////////////////////////////////////////////////////////////////////
+  // xx Components, styles: page, history
+  presentation.contHistoryCommit =
+    /** @type {Presentation["contHistoryCommit"]} */ (args) => ({
+      root: e(
+        "div",
+        {},
+        {
+          styles_: [
+            contVboxStyle,
+            ss(uniq("cont_history_commit"), {
+              "": (s) => {
+                s.marginBottom = "0.5cm";
+              },
+            }),
+          ],
+          children_: [
+            e(
+              "h2",
+              { textContent: new Date(args.stamp).toLocaleString() },
+              {
+                styles_: [
+                  ss(uniq("leaf_history_commit"), {
+                    "": (s) => {
+                      s.fontSize = varSFontPageTitle;
+                    },
+                  }),
+                ],
+              }
+            ),
+            e("p", { textContent: args.desc }, {}),
+            e(
+              "div",
+              {},
+              {
+                styles_: [
+                  contVboxStyle,
+                  ss(uniq("cont_history_commit_children"), {
+                    "": (s) => {
+                      s.marginTop = "0.8cm";
+                      s.gap = "0.5cm";
+                    },
+                  }),
+                ],
+                children_: args.children,
+              }
+            ),
+          ],
+        }
+      ),
+    });
+  presentation.contHistorySubject =
+    /** @type {Presentation["contHistorySubject"]} */ (args) => ({
+      root: e(
+        "div",
+        {},
+        {
+          styles_: [contVboxStyle],
+          children_: [
+            e(
+              "div",
+              {},
+              {
+                styles_: [
+                  contVboxStyle,
+                  s(uniq("leaf_history_subject"), {
+                    "": (s) => {
+                      s.padding = "0.2cm 0";
+                    },
+                  }),
+                ],
+                children_: args.center,
+              }
+            ),
+            e(
+              "div",
+              {},
+              {
+                styles_: [
+                  contVboxStyle,
+                  ss(uniq("cont_history_subject_rows"), {
+                    "": (s) => {
+                      s.gap = "0.5cm";
+                    },
+                  }),
+                ],
+                children_: args.rows,
+              }
+            ),
+          ],
+        }
+      ),
+    });
+  const contHistoryPredicateObject =
+    /** @type {(args: {icon: Element, button?: Element, children: Element[]})=>{root: Element}} */ (
+      args
+    ) => {
+      const children = /** @type {Element[]} */ ([
+        args.icon,
+        e(
+          "div",
+          {},
+          {
+            styles_: [
+              contVboxStyle,
+              s(uniq("cont_history_rel_center"), {
+                "": (s) => {
+                  s.flexGrow = "1";
+                  s.gap = "0.2cm";
+                },
+              }),
+            ],
+            children_: args.children,
+          }
+        ),
+      ]);
+      if (args.button != null) {
+        children.push(args.button);
+      }
+      return {
+        root: e(
+          "div",
+          {},
+          {
+            styles_: [
+              contHboxStyle,
+              s(uniq("cont_history_row_hbox"), {
+                "": (s) => {
+                  s.gap = "0.5cm";
+                },
+              }),
+            ],
+            children_: children,
+          }
+        ),
+      };
+    };
+  const vHistPredObjSize = v(uniq(), "1cm");
+  presentation.contHistoryPredicateObjectRemove =
+    /** @type {Presentation["contHistoryPredicateObjectRemove"]} */ (args) => {
+      const revertButton = e(
+        "button",
+        {},
+        {
+          styles_: [
+            leafButtonStyle,
+            s(uniq("leaf_history_revert"), {
+              "": (s) => {
+                s.alignSelf = "center";
+                s.width = vHistPredObjSize;
+                s.minWidth = vHistPredObjSize;
+                s.height = vHistPredObjSize;
+              },
+              ">svg": (s) => {
+                s.width = "100%";
+                s.height = "100%";
+              },
+              [`.${classStateDisabled}`]: (s) => {
+                s.opacity = "0.3";
+              },
+            }),
+          ],
+          children_: [
+            leafIcon({
+              text: textIconRevert,
+            }),
+          ],
+        }
+      );
+      return {
+        root: contHistoryPredicateObject({
+          icon: leafIcon({
+            text: textIconDelete,
+            extraStyles: [
+              s(uniq("cont_history_row_rel_icon"), {
+                "": (s) => {
+                  s.color = varCRemove;
+                  s.opacity = "0.3";
+                  s.fontSize = varSRelIconSize;
+                  s.fontWeight = varSRelIconWeight;
+                },
+              }),
+              leafNodeRelOutgoingStyle,
+            ],
+          }),
+          button: revertButton,
+          children: args.children,
+        }).root,
+        button: revertButton,
+      };
+    };
+  presentation.contHistoryPredicateObjectAdd =
+    /** @type {Presentation["contHistoryPredicateObjectAdd"]} */ (args) => {
+      return {
+        root: contHistoryPredicateObject({
+          icon: leafIcon({
+            text: textIconAdd,
+            extraStyles: [
+              s(uniq("cont_history_row_rel_icon"), {
+                "": (s) => {
+                  s.opacity = "0.3";
+                  s.fontSize = varSRelIconSize;
+                  s.fontWeight = varSRelIconWeight;
+                },
+              }),
+              leafNodeRelOutgoingStyle,
+            ],
+          }),
+          button: e(
+            "div",
+            {},
+            {
+              styles_: [
+                s(uniq("leaf_history_revert"), {
+                  "": (s) => {
+                    s.display = "block";
+                    s.alignSelf = "center";
+                    s.width = vHistPredObjSize;
+                    s.minWidth = vHistPredObjSize;
+                    s.height = vHistPredObjSize;
+                  },
+                }),
+              ],
+              children_: [],
+            }
+          ),
+          children: args.children,
+        }).root,
+      };
+    };
 
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: menu

@@ -1,5 +1,14 @@
 use {
-    loga::ResultContext,
+    loga::{
+        ea,
+        DebugDisplay,
+        ResultContext,
+    },
+    query_parser_actions::{
+        ROOT,
+        STEP,
+    },
+    sha2::digest::generic_array::arr::Inc,
     shared::interface::{
         query::{
             Chain,
@@ -16,6 +25,7 @@ use {
             JunctionType,
             MoveDirection,
             Query,
+            QuerySort,
             QuerySortDir,
             Step,
             StepJunction,
@@ -24,6 +34,14 @@ use {
             Value,
         },
         triple::Node,
+    },
+    std::{
+        collections::HashMap,
+        fs::read_to_string,
+        path::{
+            Path,
+            PathBuf,
+        },
     },
 };
 
@@ -104,7 +122,7 @@ fn compile_filter(filter: query_parser_actions::FILTER) -> Result<FilterExpr, lo
         query_parser_actions::FILTER::FILTER_EXISTS(f) => {
             return Ok(FilterExpr::Exists(FilterExprExists {
                 type_: FilterExprExistsType::Exists,
-                subchain: compile_chain_body(*f.chain_body)?,
+                subchain: compile_chain_body(f.chain_body.rootopt, f.chain_body.step0.unwrap_or_default())?,
                 suffix: if let Some(parsed_suffix) = f.filter_suffixopt {
                     Some(compile_filter_suffix(parsed_suffix)?)
                 } else {
@@ -115,7 +133,7 @@ fn compile_filter(filter: query_parser_actions::FILTER) -> Result<FilterExpr, lo
         query_parser_actions::FILTER::FILTER_NOT_EXISTS(f) => {
             return Ok(FilterExpr::Exists(FilterExprExists {
                 type_: FilterExprExistsType::DoesntExist,
-                subchain: compile_chain_body(*f.chain_body)?,
+                subchain: compile_chain_body(f.chain_body.rootopt, f.chain_body.step0.unwrap_or_default())?,
                 suffix: if let Some(parsed_suffix) = f.filter_suffixopt {
                     Some(compile_filter_suffix(parsed_suffix)?)
                 } else {
@@ -146,9 +164,9 @@ fn compile_filter(filter: query_parser_actions::FILTER) -> Result<FilterExpr, lo
     }
 }
 
-fn compile_chain_body(chain_body: query_parser_actions::CHAIN_BODY) -> Result<ChainBody, loga::Error> {
+fn compile_chain_body(body_root: Option<ROOT>, body_steps: Vec<STEP>) -> Result<ChainBody, loga::Error> {
     let root;
-    match chain_body.rootopt {
+    match body_root {
         Some(parsed_root) => match parsed_root {
             query_parser_actions::ROOT::VAL(v) => {
                 root = Some(ChainRoot::Value(compile_value(v)?));
@@ -162,7 +180,7 @@ fn compile_chain_body(chain_body: query_parser_actions::CHAIN_BODY) -> Result<Ch
         },
     }
     let mut steps = vec![];
-    for step in chain_body.step0.unwrap_or_default() {
+    for step in body_steps {
         match step {
             query_parser_actions::STEP::STEP_MOVE_UP(step) => {
                 let filter;
@@ -194,14 +212,16 @@ fn compile_chain_body(chain_body: query_parser_actions::CHAIN_BODY) -> Result<Ch
             },
             query_parser_actions::STEP::STEP_RECURSE(step) => {
                 steps.push(Step::Recurse(StepRecurse {
-                    subchain: compile_chain_body(*step.chain_body)?,
+                    subchain: compile_chain_body(step.chain_body.rootopt, step.chain_body.step0.unwrap_or_default())?,
                     first: step.firstopt.is_some(),
                 }));
             },
             query_parser_actions::STEP::STEP_JUNCT_AND(step) => {
                 let mut subchains = vec![];
                 for parsed_subchain in step {
-                    subchains.push(compile_chain_body(*parsed_subchain)?);
+                    subchains.push(
+                        compile_chain_body(parsed_subchain.rootopt, parsed_subchain.step0.unwrap_or_default())?,
+                    );
                 }
                 steps.push(Step::Junction(StepJunction {
                     type_: JunctionType::And,
@@ -211,7 +231,9 @@ fn compile_chain_body(chain_body: query_parser_actions::CHAIN_BODY) -> Result<Ch
             query_parser_actions::STEP::STEP_JUNCT_OR(step) => {
                 let mut subchains = vec![];
                 for parsed_subchain in step {
-                    subchains.push(compile_chain_body(*parsed_subchain)?);
+                    subchains.push(
+                        compile_chain_body(parsed_subchain.rootopt, parsed_subchain.step0.unwrap_or_default())?,
+                    );
                 }
                 steps.push(Step::Junction(StepJunction {
                     type_: JunctionType::Or,
@@ -226,10 +248,65 @@ fn compile_chain_body(chain_body: query_parser_actions::CHAIN_BODY) -> Result<Ch
     })
 }
 
-fn compile_chain(chain: query_parser_actions::CHAIN) -> Result<Chain, loga::Error> {
+fn compile_chain(include_context: &IncludeContext, chain: query_parser_actions::CHAIN) -> Result<Chain, loga::Error> {
     let mut select = None;
     let mut children = vec![];
-    for action in chain.chain_action0.unwrap_or_default() {
+    let body_root = chain.chain_body.rootopt;
+    let mut body_steps = chain.chain_body.step0.unwrap_or_default();
+    let tail_actions;
+    let mut at_tail = chain.chain_tail;
+    loop {
+        match at_tail {
+            query_parser_actions::CHAIN_TAIL::CHAIN_TAIL_SELECT(tail) => {
+                tail_actions = tail.unwrap_or_default();
+                break;
+            },
+            query_parser_actions::CHAIN_TAIL::CHAIN_TAIL_INCLUDE(tail) => {
+                let display_path;
+                let include_query;
+                match &include_context {
+                    IncludeContext::Preloaded(h) => {
+                        include_query =
+                            h
+                                .get(&tail)
+                                .context_with(
+                                    "Preloaded context has no loaded query with name, can't perform include",
+                                    ea!(include_path = tail),
+                                )?
+                                .clone();
+                        display_path = tail;
+                    },
+                    IncludeContext::Filesystem(include_context) => {
+                        let built_path = include_context.join(&tail);
+                        include_query =
+                            read_to_string(
+                                &built_path,
+                            ).context_with(
+                                "Error reading include query",
+                                ea!(
+                                    context_path = include_context.dbg_str(),
+                                    include_path = tail,
+                                    combined_path = built_path.dbg_str()
+                                ),
+                            )?;
+                        display_path = built_path.dbg_str();
+                    },
+                }
+                let parse =
+                    rustemo::Parser::parse(&query_parser::QueryParserParser::new(), &include_query)
+                        .map_err(loga::err)
+                        .context_with("Error parsing included query", ea!(path = display_path))?;
+                if parse.chain.chain_body.rootopt.is_some() {
+                    return Err(
+                        loga::err_with("Included query has root, cannot be used as suffix", ea!(path = display_path)),
+                    );
+                }
+                body_steps.extend(parse.chain.chain_body.step0.unwrap_or_default());
+                at_tail = parse.chain.chain_tail;
+            },
+        }
+    }
+    for action in tail_actions {
         match action {
             query_parser_actions::CHAIN_ACTION::CHAIN_ACTION_SELECT(action) => {
                 if select.is_some() {
@@ -238,27 +315,48 @@ fn compile_chain(chain: query_parser_actions::CHAIN) -> Result<Chain, loga::Erro
                 select = Some(action);
             },
             query_parser_actions::CHAIN_ACTION::CHAIN_ACTION_SUBCHAIN(action) => {
-                children.push(compile_chain(*action)?);
+                children.push(compile_chain(&include_context, *action)?);
             },
         }
     }
     return Ok(Chain {
         select: select,
-        body: compile_chain_body(chain.chain_body)?,
+        body: compile_chain_body(body_root, body_steps)?,
         subchains: children,
     });
 }
 
-pub fn compile_query(query: &str) -> Result<Query, loga::Error> {
+pub enum IncludeContext {
+    Preloaded(HashMap<String, String>),
+    Filesystem(PathBuf),
+}
+
+impl Default for IncludeContext {
+    fn default() -> Self {
+        return IncludeContext::Preloaded(Default::default());
+    }
+}
+
+pub fn compile_query(include_context: IncludeContext, query: &str) -> Result<Query, loga::Error> {
     let parse =
         rustemo::Parser::parse(&query_parser::QueryParserParser::new(), query)
             .map_err(loga::err)
             .context("Error parsing query")?;
     return Ok(Query {
-        chain: compile_chain(parse.chain)?,
-        sort: parse.sort_pair0.unwrap_or_default().into_iter().map(|x| match x {
-            query_parser_actions::SORT_PAIR::SORT_PAIR_ASC(x) => (QuerySortDir::Asc, x),
-            query_parser_actions::SORT_PAIR::SORT_PAIR_DESC(x) => (QuerySortDir::Desc, x),
-        }).collect(),
+        chain: compile_chain(&include_context, parse.chain)?,
+        sort: match parse.sortopt {
+            Some(sort) => match sort {
+                query_parser_actions::SORT::SORT_PAIRS(sort) => {
+                    Some(QuerySort::Fields(sort.unwrap_or_default().into_iter().map(|x| match x {
+                        query_parser_actions::SORT_PAIR::SORT_PAIR_ASC(x) => (QuerySortDir::Asc, x),
+                        query_parser_actions::SORT_PAIR::SORT_PAIR_DESC(x) => (QuerySortDir::Desc, x),
+                    }).collect()))
+                },
+                query_parser_actions::SORT::kw_sort_random => {
+                    Some(QuerySort::Random)
+                },
+            },
+            None => None,
+        },
     });
 }

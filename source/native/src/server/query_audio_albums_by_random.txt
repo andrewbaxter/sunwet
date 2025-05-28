@@ -1,0 +1,3 @@
+"sunwet/1/album" -< "sunwet/1/is"
+    include "defaultview_query_audio_albums_suffix.txt"
+    shuffle

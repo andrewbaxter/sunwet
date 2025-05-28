@@ -266,10 +266,13 @@ async fn generate_files(state: &Arc<State>, log: &Log, file: &FileHash) -> Resul
             }
         },
         "audio" => {
-            if mime.1 != "aac" {
-                generate_aac(&state, &file, &source)
-                    .await
-                    .log(&log, loga::WARN, "Error doing webm transcode file generation");
+            match mime.1 {
+                "aac" | "mp3" => { },
+                _ => {
+                    generate_aac(&state, &file, &source)
+                        .await
+                        .log(&log, loga::WARN, "Error doing webm transcode file generation");
+                },
             }
         },
         _ => { },
