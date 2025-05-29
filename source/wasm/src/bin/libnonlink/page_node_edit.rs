@@ -15,10 +15,16 @@ use {
         },
         state::state,
     },
+    by_address::ByAddress,
     flowcontrol::{
         exenum,
+        shed,
         superif,
         ta_return,
+    },
+    gloo::storage::{
+        LocalStorage,
+        Storage,
     },
     lunk::{
         link,
@@ -28,8 +34,10 @@ use {
     },
     rooting::{
         el,
+        scope_any,
         spawn_rooted,
         El,
+        ScopeValue,
     },
     serde::{
         Deserialize,
@@ -48,7 +56,10 @@ use {
     },
     std::{
         cell::RefCell,
-        collections::HashMap,
+        collections::{
+            HashMap,
+            HashSet,
+        },
         rc::Rc,
         str::FromStr,
     },
@@ -102,16 +113,38 @@ enum NodeEditValue {
 struct NodeState {
     type_: HistPrim<NodeEditType>,
     value: HistPrim<NodeEditValue>,
-    initial: HistPrim<(NodeEditType, NodeEditValue)>,
+    initial: HistPrim<Option<(NodeEditType, NodeEditValue)>>,
 }
 
-fn new_node_state(pc: &mut ProcessingContext, node: &Node) -> NodeState {
-    let (type_, value) = node_to_type_value(node);
-    return NodeState {
-        type_: HistPrim::new(pc, type_.clone()),
-        value: HistPrim::new(pc, value.clone()),
-        initial: HistPrim::new(pc, (type_, value)),
-    };
+fn new_node_state(pc: &mut ProcessingContext, node: Option<&Node>, restore_node: Option<&Node>) -> NodeState {
+    if let Some(restore_node) = restore_node {
+        let initial;
+        if let Some(node) = node {
+            let (type_, value) = node_to_type_value(node);
+            initial = HistPrim::new(pc, Some((type_, value)));
+        } else {
+            initial = HistPrim::new(pc, None);
+        }
+        let (restore_type, restore_value) = node_to_type_value(restore_node);
+        return NodeState {
+            type_: HistPrim::new(pc, restore_type),
+            value: HistPrim::new(pc, restore_value),
+            initial: initial,
+        };
+    } else if let Some(node) = node {
+        let (type_, value) = node_to_type_value(node);
+        return NodeState {
+            type_: HistPrim::new(pc, type_.clone()),
+            value: HistPrim::new(pc, value.clone()),
+            initial: HistPrim::new(pc, Some((type_, value))),
+        };
+    } else {
+        return NodeState {
+            type_: HistPrim::new(pc, NodeEditType::Str),
+            value: HistPrim::new(pc, NodeEditValue::String(format!(""))),
+            initial: HistPrim::new(pc, None),
+        };
+    }
 }
 
 fn type_value_to_node(unique: usize, type_: &NodeEditType, value: &NodeEditValue) -> CommitNode {
@@ -184,29 +217,158 @@ fn node_to_type_value(node: &Node) -> (NodeEditType, NodeEditValue) {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+struct DraftRel {
+    delete: bool,
+    predicate: String,
+    node: Node,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+struct DraftBody {
+    // All: None if no modifications
+    pivot: Option<(bool, Node)>,
+    incoming: HashMap<(Node, String), DraftRel>,
+    new_incoming: Vec<DraftRel>,
+    outgoing: HashMap<(String, Node), DraftRel>,
+    new_outgoing: Vec<DraftRel>,
+}
+
+#[derive(Clone, Hash, PartialEq, Eq, Default)]
+struct MutDraftRel(ByAddress<Rc<RefCell<Option<DraftRel>>>>);
+
+impl MutDraftRel {
+    fn new(v: DraftRel) -> Self {
+        return Self(ByAddress(Rc::new(RefCell::new(Some(v)))));
+    }
+}
+
+struct Draft_ {
+    key: RefCell<Node>,
+    pivot: RefCell<Option<(bool, Node)>>,
+    incoming: RefCell<HashMap<(Node, String), MutDraftRel>>,
+    new_incoming: RefCell<HashSet<MutDraftRel>>,
+    outgoing: RefCell<HashMap<(String, Node), MutDraftRel>>,
+    new_outgoing: RefCell<HashSet<MutDraftRel>>,
+}
+
+#[derive(Clone)]
+struct DraftData(Rc<Draft_>);
+
+fn format_localstorage_draft_key(key: &Node) -> String {
+    return format!("{}_{}", LOCALSTORAGE_NODE_EDIT_PREFIX, serde_json::to_string(key).unwrap());
+}
+
+pub const LOCALSTORAGE_NODE_EDIT_PREFIX: &str = "nodeedit";
+
+fn restore_draft(key: Node) -> DraftData {
+    let data;
+    if let Ok(v) = LocalStorage::get::<DraftBody>(format_localstorage_draft_key(&key)) {
+        data = v;
+    } else {
+        data = Default::default();
+    };
+    return DraftData(Rc::new(Draft_ {
+        key: RefCell::new(key),
+        pivot: RefCell::new(data.pivot),
+        incoming: RefCell::new(data.incoming.into_iter().map(|(k, v)| (k, MutDraftRel::new(v))).collect()),
+        new_incoming: RefCell::new(data.new_incoming.into_iter().map(|v| MutDraftRel::new(v)).collect()),
+        outgoing: RefCell::new(data.outgoing.into_iter().map(|(k, v)| (k, MutDraftRel::new(v))).collect()),
+        new_outgoing: RefCell::new(data.new_outgoing.into_iter().map(|v| MutDraftRel::new(v)).collect()),
+    }));
+}
+
+fn persist_draft(s: &DraftData) {
+    _ = LocalStorage::set(format_localstorage_draft_key(&*s.0.key.borrow()), &DraftBody {
+        pivot: s.0.pivot.borrow().clone(),
+        incoming: s.0.incoming.borrow().iter().filter_map(|(k, v)| match &*v.0.borrow() {
+            Some(v) => Some((k.clone(), v.clone())),
+            None => None,
+        }).collect(),
+        new_incoming: s.0.new_incoming.borrow().iter().filter_map(|x| x.0.0.borrow().clone()).collect(),
+        outgoing: s.0.outgoing.borrow().iter().filter_map(|(k, v)| match &*v.0.borrow() {
+            Some(v) => Some((k.clone(), v.clone())),
+            None => None,
+        }).collect(),
+        new_outgoing: s.0.new_outgoing.borrow().iter().filter_map(|x| x.0.0.borrow().clone()).collect(),
+    });
+}
+
+fn clear_draft(s: &DraftData, new_key: &Node) {
+    LocalStorage::delete(format_localstorage_draft_key(&*s.0.key.borrow()));
+    s.0.incoming.borrow_mut().clear();
+    s.0.new_incoming.borrow_mut().clear();
+    s.0.outgoing.borrow_mut().clear();
+    s.0.new_outgoing.borrow_mut().clear();
+    *s.0.pivot.borrow_mut() = None;
+    *s.0.key.borrow_mut() = new_key.clone();
+}
+
 struct PivotState_ {
-    delete: HistPrim<bool>,
+    delete_all: HistPrim<bool>,
     node: NodeState,
+    _own: ScopeValue,
 }
 
 #[derive(Clone)]
 struct PivotState(Rc<PivotState_>);
 
-fn new_pivot_state(pc: &mut ProcessingContext, n: &Node) -> PivotState {
+fn new_pivot_state(pc: &mut ProcessingContext, save_data: &DraftData, source_node: &Node) -> PivotState {
+    let delete_all;
+    let node;
+    shed!{
+        if let Some(restore) = &*save_data.0.pivot.borrow() {
+            let (restore_delete, restore_node) = restore;
+            delete_all = HistPrim::new(pc, *restore_delete);
+            node = new_node_state(pc, Some(source_node), Some(&restore_node));
+        } else {
+            delete_all = HistPrim::new(pc, false);
+            node = new_node_state(pc, Some(source_node), None);
+        }
+    }
     return PivotState(Rc::new(PivotState_ {
-        delete: HistPrim::new(pc, false),
-        node: new_node_state(pc, &n),
+        _own: scope_any(
+            // Persist data to draft after changes (remove if not changed or unstorable,
+            // otherwise Some)
+            link!(
+                (_pc = pc),
+                (delete_all = delete_all.clone(), node_type = node.type_.clone(), node_value = node.value.clone()),
+                (),
+                (save_data = save_data.clone(), node_initial = node.initial.clone()) {
+                    *save_data.0.pivot.borrow_mut() = shed!{
+                        let CommitNode::Node(node) =
+                            type_value_to_node(0, &*node_type.borrow(), &*node_value.borrow()) else {
+                                break None;
+                            };
+                        if let Some(node_initial) = &*node_initial.borrow() {
+                            let node_initial_node =
+                                exenum!(
+                                    type_value_to_node(0, &node_initial.0, &node_initial.1),
+                                    CommitNode:: Node(n) => n
+                                ).unwrap();
+                            if node == node_initial_node {
+                                break None;
+                            }
+                        }
+                        break Some((delete_all.get(), node));
+                    };
+                    persist_draft(&save_data);
+                }
+            ),
+        ),
+        delete_all: delete_all,
+        node: node,
     }));
 }
 
 struct TripleState_ {
     incoming: bool,
-    add: bool,
     delete: HistPrim<bool>,
     delete_all: HistPrim<bool>,
-    initial_predicate: HistPrim<String>,
+    initial_predicate: HistPrim<Option<String>>,
     predicate: Prim<String>,
     node: NodeState,
+    _own: ScopeValue,
 }
 
 #[derive(Clone)]
@@ -214,24 +376,109 @@ struct TripleState(Rc<TripleState_>);
 
 fn new_triple_state(
     pc: &mut ProcessingContext,
-    t: &Triple,
+    draft_data: &DraftData,
+    source_triple: Option<&Triple>,
     incoming: bool,
-    add: bool,
+    draft_entry: MutDraftRel,
     delete_all: HistPrim<bool>,
 ) -> TripleState {
-    let value = if incoming {
-        t.subject.clone()
+    let initial_predicate;
+    if let Some(source_triple) = source_triple {
+        initial_predicate = HistPrim::new(pc, Some(source_triple.predicate.clone()));
     } else {
-        t.object.clone()
+        initial_predicate = HistPrim::new(pc, None);
+    }
+    let predicate;
+    if let Some(d) = &*draft_entry.0.0.borrow() {
+        predicate = Prim::new(d.predicate.clone());
+    } else if let Some(source_triple) = source_triple {
+        predicate = Prim::new(source_triple.predicate.clone());
+    } else {
+        predicate = Prim::new(format!(""));
+    }
+    let delete;
+    if let Some(d) = &*draft_entry.0.0.borrow() {
+        delete = HistPrim::new(pc, d.delete);
+    } else {
+        delete = HistPrim::new(pc, false);
     };
+    let node = new_node_state(
+        //. .
+        pc,
+        if let Some(source_triple) = source_triple {
+            if incoming {
+                Some(&source_triple.subject)
+            } else {
+                Some(&source_triple.object)
+            }
+        } else {
+            None
+        },
+        if let Some(d) = &*draft_entry.0.0.borrow() {
+            Some(&d.node)
+        } else {
+            None
+        },
+    );
     return TripleState(Rc::new(TripleState_ {
+        _own: scope_any(
+            // Persist data to draft after changes (remove if not changed or unstorable,
+            // otherwise Some)
+            link!(
+                (_pc = pc),
+                (
+                    delete = delete.clone(),
+                    predicate = predicate.clone(),
+                    node_type = node.type_.clone(),
+                    node_value = node.value.clone(),
+                ),
+                (),
+                (
+                    save_data = draft_data.clone(),
+                    initial_node = node.initial.clone(),
+                    initial_predicate = initial_predicate.clone(),
+                    draft_entry = draft_entry,
+                ) {
+                    shed!{
+                        let CommitNode::Node(node) =
+                            type_value_to_node(0, &*node_type.borrow(), &*node_value.borrow()) else {
+                                *draft_entry.0.borrow_mut() = None;
+                                break;
+                            };
+                        if let Some((initial_predicate, initial_node)) =
+                            Option::zip(initial_predicate.borrow().as_ref(), initial_node.borrow().as_ref()) {
+                            let initial_node =
+                                exenum!(
+                                    type_value_to_node(0, &initial_node.0, &initial_node.1),
+                                    CommitNode:: Node(n) => n
+                                ).unwrap();
+                            if *initial_predicate == *predicate.borrow() && node == initial_node {
+                                *draft_entry.0.borrow_mut() = None;
+                                break;
+                            }
+                            *draft_entry.0.borrow_mut() = Some(DraftRel {
+                                delete: delete.get(),
+                                predicate: predicate.borrow().clone(),
+                                node: node,
+                            });
+                        } else {
+                            *draft_entry.0.borrow_mut() = Some(DraftRel {
+                                delete: delete.get(),
+                                predicate: predicate.borrow().clone(),
+                                node: node,
+                            });
+                        }
+                    }
+                    persist_draft(&save_data);
+                }
+            ),
+        ),
         incoming: incoming,
-        initial_predicate: HistPrim::new(pc, t.predicate.clone()),
-        add: add,
-        delete: HistPrim::new(pc, false),
+        initial_predicate: initial_predicate,
+        delete: delete,
         delete_all: delete_all,
-        predicate: Prim::new(t.predicate.clone()),
-        node: new_node_state(pc, &value),
+        predicate: predicate,
+        node: node,
     }));
 }
 
@@ -669,9 +916,6 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> El {
             (out = out.weak()),
             {
                 let input_el = out.upgrade()?;
-                let initial = initial.borrow();
-                let initial_type = &initial.0;
-                let initial_value = &initial.1;
                 let modified;
                 let invalid;
                 if !match input_type.get() {
@@ -705,7 +949,13 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> El {
                 } {
                     modified = false;
                     invalid = true;
-                } else if &*input_type.borrow() != initial_type || &*input_value.borrow() != initial_value {
+                } else if {
+                    if let Some((initial_type, initial_value)) = &*initial.borrow() {
+                        &*input_type.borrow() != initial_type || &*input_value.borrow() != initial_value
+                    } else {
+                        true
+                    }
+                } {
                     modified = true;
                     invalid = false;
                 } else {
@@ -732,10 +982,15 @@ fn build_edit_triple(pc: &mut ProcessingContext, triple: &TripleState, new: bool
             let triple = triple.clone();
             let eg = pc.eg();
             move |_| eg.event(|pc| {
-                triple.0.predicate.set(pc, triple.0.initial_predicate.borrow().clone());
-                let (node_type, node_value) = triple.0.node.initial.borrow().clone();
-                triple.0.node.type_.set(pc, node_type);
-                triple.0.node.value.set(pc, node_value);
+                if let Some((initial_predicate, initial_node)) =
+                    Option::zip(
+                        triple.0.initial_predicate.borrow().as_ref(),
+                        triple.0.node.initial.borrow().as_ref(),
+                    ) {
+                    triple.0.predicate.set(pc, initial_predicate.clone());
+                    triple.0.node.type_.set(pc, initial_node.0.clone());
+                    triple.0.node.value.set(pc, initial_node.1.clone());
+                }
             }).unwrap()
         });
         let button_delete = style_res.button_delete;
@@ -809,7 +1064,11 @@ fn build_edit_triple(pc: &mut ProcessingContext, triple: &TripleState, new: bool
                         &[
                             (
                                 &style_export::class_state_modified().value,
-                                &*predicate_value.borrow() != &*initial_value.borrow(),
+                                if let Some(initial_value) = &*initial_value.borrow() {
+                                    *predicate_value.borrow() != *initial_value
+                                } else {
+                                    true
+                                },
                             ),
                         ],
                     );
@@ -840,10 +1099,11 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
             ta_return!(Vec < El >, String);
             let triples = req_post_json(&state().env.base_url, ReqGetTriplesAround { node: node.clone() }).await?;
             return eg.event(|pc| {
+                let draft_data = restore_draft(node.clone());
                 let error_slot = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
                 let mut out = vec![error_slot.clone()];
                 let mut bar_out = vec![];
-                let pivot_state = new_pivot_state(pc, &node);
+                let pivot_state = new_pivot_state(pc, &draft_data, &node);
                 let triple_states = Rc::new(RefCell::new(vec![] as Vec<TripleState>));
 
                 // Top buttons
@@ -870,9 +1130,39 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                             style_export::ContPageNodeSectionRelArgs { children: vec![] },
                         ).root;
                     for t in triples.incoming {
-                        let triple = new_triple_state(pc, &t, true, false, pivot_state.0.delete.clone());
+                        let triple =
+                            new_triple_state(
+                                pc,
+                                &draft_data,
+                                Some(&t),
+                                true,
+                                draft_data
+                                    .0
+                                    .incoming
+                                    .borrow_mut()
+                                    .entry((t.subject.clone(), t.predicate.clone()))
+                                    .or_insert(Default::default())
+                                    .clone(),
+                                pivot_state.0.delete_all.clone(),
+                            );
                         triples_box.ref_push(build_edit_triple(pc, &triple, false));
                         triple_states.borrow_mut().push(triple);
+                    }
+                    {
+                        let draft_new = draft_data.0.new_incoming.borrow().clone();
+                        for draft_value in draft_new {
+                            let triple_state =
+                                new_triple_state(
+                                    pc,
+                                    &draft_data,
+                                    None,
+                                    true,
+                                    draft_value,
+                                    pivot_state.0.delete_all.clone(),
+                                );
+                            triples_box.ref_push(build_edit_triple(pc, &triple_state, true));
+                            triple_states.borrow_mut().push(triple_state);
+                        }
                     }
                     let button_add =
                         style_export::leaf_button_node_edit_add(
@@ -883,12 +1173,19 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                         let pivot_state = pivot_state.clone();
                         let triple_states = triple_states.clone();
                         let incoming_triples_box = triples_box.clone();
+                        let save_data = draft_data.clone();
                         move |_| eg.event(|pc| {
-                            let triple = new_triple_state(pc, &Triple {
-                                subject: Node::Value(serde_json::Value::String("".to_string())),
-                                predicate: "".to_string(),
-                                object: Node::Value(serde_json::Value::String("".to_string())),
-                            }, true, true, pivot_state.0.delete.clone());
+                            let draft_entry = MutDraftRel::default();
+                            save_data.0.new_incoming.borrow_mut().insert(draft_entry.clone());
+                            let triple =
+                                new_triple_state(
+                                    pc,
+                                    &save_data,
+                                    None,
+                                    true,
+                                    draft_entry,
+                                    pivot_state.0.delete_all.clone(),
+                                );
                             incoming_triples_box.ref_splice(0, 0, vec![build_edit_triple(pc, &triple, true)]);
                             triple_states.borrow_mut().push(triple);
                         }).unwrap()
@@ -920,7 +1217,7 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                             let pivot_state = pivot_state.clone();
                             let eg = pc.eg();
                             move |_| eg.event(|pc| {
-                                pivot_state.0.delete.set(pc, !pivot_state.0.delete.get());
+                                pivot_state.0.delete_all.set(pc, !pivot_state.0.delete_all.get());
                             }).unwrap()
                         });
                         style_res.root
@@ -936,7 +1233,7 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                                 |ele| (
                                     link!(
                                         (_pc = pc),
-                                        (deleted = pivot_state.0.delete.clone()),
+                                        (deleted = pivot_state.0.delete_all.clone()),
                                         (),
                                         (ele = ele.weak()),
                                         {
@@ -958,9 +1255,39 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                             style_export::ContPageNodeSectionRelArgs { children: vec![] },
                         ).root;
                     for t in triples.outgoing {
-                        let triple = new_triple_state(pc, &t, false, false, pivot_state.0.delete.clone());
-                        triples_box.ref_push(build_edit_triple(pc, &triple, false));
-                        triple_states.borrow_mut().push(triple);
+                        let triple_state =
+                            new_triple_state(
+                                pc,
+                                &draft_data,
+                                Some(&t),
+                                false,
+                                draft_data
+                                    .0
+                                    .outgoing
+                                    .borrow_mut()
+                                    .entry((t.predicate.clone(), t.object.clone()))
+                                    .or_insert(Default::default())
+                                    .clone(),
+                                pivot_state.0.delete_all.clone(),
+                            );
+                        triples_box.ref_push(build_edit_triple(pc, &triple_state, false));
+                        triple_states.borrow_mut().push(triple_state);
+                    }
+                    {
+                        let draft_new = draft_data.0.new_outgoing.borrow().clone();
+                        for draft_value in draft_new {
+                            let triple_state =
+                                new_triple_state(
+                                    pc,
+                                    &draft_data,
+                                    None,
+                                    false,
+                                    draft_value,
+                                    pivot_state.0.delete_all.clone(),
+                                );
+                            triples_box.ref_push(build_edit_triple(pc, &triple_state, true));
+                            triple_states.borrow_mut().push(triple_state);
+                        }
                     }
                     out.push(triples_box.clone());
                     let button_add =
@@ -971,13 +1298,20 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                         let eg = pc.eg();
                         let triple_states = triple_states.clone();
                         let triples_box = triples_box;
+                        let save_data = draft_data.clone();
                         let pivot_state = pivot_state.clone();
                         move |_| eg.event(|pc| {
-                            let triple = new_triple_state(pc, &Triple {
-                                subject: Node::Value(serde_json::Value::String("".to_string())),
-                                predicate: "".to_string(),
-                                object: Node::Value(serde_json::Value::String("".to_string())),
-                            }, false, true, pivot_state.0.delete.clone());
+                            let draft_entry = MutDraftRel::default();
+                            save_data.0.new_incoming.borrow_mut().insert(draft_entry.clone());
+                            let triple =
+                                new_triple_state(
+                                    pc,
+                                    &save_data,
+                                    None,
+                                    false,
+                                    draft_entry,
+                                    pivot_state.0.delete_all.clone(),
+                                );
                             triples_box.ref_push(build_edit_triple(pc, &triple, true));
                             triple_states.borrow_mut().push(triple);
                         }).unwrap()
@@ -995,6 +1329,7 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                     let pivot_state = pivot_state.clone();
                     let error_slot = error_slot.weak();
                     let save_thinking = Rc::new(RefCell::new(None));
+                    let draft_data = draft_data.clone();
                     let eg = pc.eg();
                     move |ev| {
                         if save_thinking.borrow().is_some() {
@@ -1012,6 +1347,7 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                             let triple_states = triple_states.clone();
                             let pivot_state = pivot_state.clone();
                             let error_slot = error_slot.clone();
+                            let draft_data = draft_data.clone();
                             let eg = eg.clone();
                             async move {
                                 let mut triple_nodes_predicates = vec![];
@@ -1024,9 +1360,10 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                                     ta_return!(HashMap < usize, FileHash >, String);
                                     let mut add = vec![];
                                     let mut remove = vec![];
-                                    let delete_all = *pivot_state.0.delete.borrow();
+                                    let delete_all = *pivot_state.0.delete_all.borrow();
                                     let pivot_node_initial = {
                                         let pivot_node_initial = pivot_state.0.node.initial.borrow();
+                                        let pivot_node_initial = pivot_node_initial.as_ref().unwrap();
                                         type_value_to_node({
                                             file_unique += 1;
                                             file_unique
@@ -1046,39 +1383,58 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
 
                                         // Get original values for comparison
                                         let triple_predicate_initial = triple.0.initial_predicate.borrow();
-                                        let triple_node_initial = {
-                                            let triple_node_initial = triple.0.node.initial.borrow();
-                                            type_value_to_node({
-                                                file_unique += 1;
-                                                file_unique
-                                            }, &triple_node_initial.0, &triple_node_initial.1)
-                                        };
+                                        let triple_node_initial = triple.0.node.initial.borrow();
+                                        let triple_initial =
+                                            match Option::zip(
+                                                triple_predicate_initial.as_ref(),
+                                                triple_node_initial.as_ref(),
+                                            ) {
+                                                Some((triple_predicate_initial, triple_node_initial)) => Some(
+                                                    (triple_predicate_initial, type_value_to_node({
+                                                        file_unique += 1;
+                                                        file_unique
+                                                    }, &triple_node_initial.0, &triple_node_initial.1)),
+                                                ),
+                                                None => None,
+                                            };
 
                                         // Classify if changed/deleted
-                                        let changed =
-                                            pivot_changed || triple_node != triple_node_initial ||
-                                                triple.0.predicate.borrow().as_str() != &*triple_predicate_initial;
+                                        let changed;
+                                        let new;
+                                        if let Some((triple_predicate_initial, triple_node_initial)) =
+                                            &triple_initial {
+                                            new = false;
+                                            changed =
+                                                pivot_changed || triple_node != *triple_node_initial ||
+                                                    triple.0.predicate.borrow().as_str() !=
+                                                        triple_predicate_initial.as_str();
+                                        } else {
+                                            new = true;
+                                            changed = true;
+                                        }
 
                                         // If not new but deleted or changed, delete first
-                                        if !triple.0.add && (delete_all || triple.0.delete.get()) || changed {
-                                            let old_subject;
-                                            let old_object;
-                                            if triple.0.incoming {
-                                                old_subject = triple_node_initial.clone();
-                                                old_object = pivot_node_initial.clone();
-                                            } else {
-                                                old_subject = pivot_node_initial.clone();
-                                                old_object = triple_node_initial.clone();
+                                        if let Some((triple_predicate_initial, triple_node_initial)) = triple_initial {
+                                            if (delete_all || triple.0.delete.get()) || changed {
+                                                let old_subject;
+                                                let old_object;
+                                                if triple.0.incoming {
+                                                    old_subject = triple_node_initial.clone();
+                                                    old_object = pivot_node_initial.clone();
+                                                } else {
+                                                    old_subject = pivot_node_initial.clone();
+                                                    old_object = triple_node_initial.clone();
+                                                }
+                                                remove.push(Triple {
+                                                    subject: exenum!(old_subject, CommitNode:: Node(v) => v).unwrap(),
+                                                    predicate: triple_predicate_initial.clone(),
+                                                    object: exenum!(old_object, CommitNode:: Node(v) => v).unwrap(),
+                                                });
                                             }
-                                            remove.push(Triple {
-                                                subject: exenum!(old_subject, CommitNode:: Node(v) => v).unwrap(),
-                                                predicate: triple_predicate_initial.clone(),
-                                                object: exenum!(old_object, CommitNode:: Node(v) => v).unwrap(),
-                                            });
                                         }
 
                                         // If new or changed, write the new triple
-                                        if triple.0.add || changed {
+                                        if new || changed {
                                             let subject;
                                             let object;
                                             if triple.0.incoming {
@@ -1103,12 +1459,20 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                                 match res {
                                     Ok(mut file_lookup) => {
                                         eg.event(|pc| {
-                                            pivot_state.0.node.initial.set(pc, node_to_type_value(&match pivot_node {
+                                            // Get committed nodes (files replaced with hashes) and update initial values,
+                                            // clear draft
+                                            let pivot_node = match pivot_node {
                                                 CommitNode::Node(n) => n,
                                                 CommitNode::File(unique, _) => Node::File(
                                                     file_lookup.remove(&unique).unwrap(),
                                                 ),
-                                            }));
+                                            };
+                                            clear_draft(&draft_data, &pivot_node);
+                                            pivot_state
+                                                .0
+                                                .node
+                                                .initial
+                                                .set(pc, Some(node_to_type_value(&pivot_node)));
                                             for (
                                                 triple,
                                                 (sent_pred, sent_node),
@@ -1116,13 +1480,17 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                                                 RefCell::borrow(&triple_states).iter(),
                                                 triple_nodes_predicates.into_iter(),
                                             ) {
-                                                triple.0.initial_predicate.set(pc, sent_pred);
-                                                triple.0.node.initial.set(pc, node_to_type_value(&match sent_node {
-                                                    CommitNode::Node(n) => n,
-                                                    CommitNode::File(unique, _) => Node::File(
-                                                        file_lookup.remove(&unique).unwrap(),
-                                                    ),
-                                                }));
+                                                triple.0.initial_predicate.set(pc, Some(sent_pred));
+                                                triple
+                                                    .0
+                                                    .node
+                                                    .initial
+                                                    .set(pc, Some(node_to_type_value(&match sent_node {
+                                                        CommitNode::Node(n) => n,
+                                                        CommitNode::File(unique, _) => Node::File(
+                                                            file_lookup.remove(&unique).unwrap(),
+                                                        ),
+                                                    })));
                                             }
                                         }).unwrap();
                                     },

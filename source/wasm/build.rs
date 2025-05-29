@@ -370,7 +370,7 @@ fn main() {
         // xx Components, styles: page, view
         Func {
             name: "contPageView",
-            args: vec![("transport", &optel_), ("rows", &el_)],
+            args: vec![("transport", &optel_), ("params", &arrel_), ("rows", &el_)],
             returns: vec![("root", &el_)],
         },
         Func {
@@ -436,11 +436,35 @@ fn main() {
             name: "leafViewImage",
             args: vec![
                 ("transAlign", &transalign),
-                ("src", &optstring_),
+                ("src", &string_),
                 ("link", &optstring_),
                 ("text", &optstring_),
                 ("width", &optstring_),
                 ("height", &optstring_)
+            ],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafViewVideo",
+            args: vec![
+                ("transAlign", &transalign),
+                ("src", &string_),
+                ("link", &optstring_),
+                ("text", &optstring_),
+                ("width", &optstring_),
+                ("height", &optstring_)
+            ],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafViewAudio",
+            args: vec![
+                ("transAlign", &transalign),
+                ("direction", &direction),
+                ("src", &string_),
+                ("link", &optstring_),
+                ("text", &optstring_),
+                ("length", &optstring_),
             ],
             returns: vec![("root", &el_)],
         },
@@ -459,6 +483,46 @@ fn main() {
         Func {
             name: "leafViewPlayButton",
             args: vec![("transAlign", &transalign), ("orientation", &orientation)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafViewColor",
+            args: vec![
+                ("transAlign", &transalign),
+                ("color", &string_),
+                ("width", &string_),
+                ("height", &string_)
+            ],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafViewDatetime",
+            args: vec![
+                ("transAlign", &transalign),
+                ("orientation", &orientation),
+                ("value", &string_),
+                ("fontSize", &optstring_),
+            ],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafViewDate",
+            args: vec![
+                ("transAlign", &transalign),
+                ("orientation", &orientation),
+                ("value", &string_),
+                ("fontSize", &optstring_),
+            ],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafViewTime",
+            args: vec![
+                ("transAlign", &transalign),
+                ("orientation", &orientation),
+                ("value", &string_),
+                ("fontSize", &optstring_),
+            ],
             returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////

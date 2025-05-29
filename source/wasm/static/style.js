@@ -186,18 +186,77 @@
   const textIconView = "\ue8f4";
 
   // xx Variables
+  const varFTitle = "24pt";
+  const varFAdmenu = "20pt";
+  const varFMenu = "20pt";
+  const varFMenuIcon = "14pt";
+  const varFPageTitle = "18pt";
+  const varFModalTitle = "24pt";
+  const varFFullscreenIconClose = "20pt";
+  const varFModalIconClose = "20pt";
+  const varFRelIcon = "32pt";
+  const varFNodeButton = "22pt";
+  const varFLinkBig = "14pt";
 
-  const varSPadTitle = v(uniq(), "0.4cm");
-  const varSFontTitle = v(uniq(), "24pt");
-  const varSFontAdmenu = v(uniq(), "20pt");
-  const varSFontMenu = v(uniq(), "20pt");
-  const varSFontPageTitle = v(uniq(), "18pt");
-  const varSNarrow = v(uniq(), "20cm");
-  const varSModalHeight = v(uniq(), "20cm");
-  const varSCol1Width = v(uniq(), "min(0.8cm, 5dvw)");
-  const varSCol3Width = v(uniq(), "1.4cm");
-  const varSMenuColWidth = v(uniq(), "min(100%, 12cm)");
+  const varSFullscreenIconClose = "1cm";
+  const varSModalIconClose = "1.4cm";
+  const varSNarrow = "20cm";
+  const varSModalHeight = "20cm";
+  const varSCol1Width = "min(0.8cm, 5dvw)";
+  const varSCol3Width = "1.4cm";
+  const varSTransportGutterRadius = "0.05cm";
+  const varSRelIcon = "1.5cm";
+  const varSNodeButton = "1.2cm";
+  const varSHistPredObj = "1cm";
+  const varSColWidth = `min(100%, 12cm)`;
+  const varSMenuIndent = "0.6cm";
+  const varSLinkIcon = "4cm";
 
+  const varPSmall = "0.2cm";
+  const varPBarBottom = "0.7cm";
+  const varPPageBottom = "2.5cm";
+  const varPViewRows = "0.8cm";
+  const varPViewCol = "0.5cm";
+  const varPViewList = "0.3cm";
+  const varPViewHoriz = `max(0.3cm, min(${varSCol1Width}, 100dvw / 20))`;
+  const varP05 = "0.5cm";
+  const varPFormCommentTop = "0.3cm";
+  const varPMenu = "0.5cm";
+  const varPAppTitle = "0.3cm";
+  const varPTitle = "0.4cm";
+  const varPModalTitleLeft = "0.5cm";
+  const varPNodeCenter = "0.4cm";
+  const varPHistoryMid = "0.5cm";
+  const varPHistoryBig = "0.8cm";
+  const varPLink = "0.5cm";
+  const varPLinkGap = "0.3cm";
+  const varPLinkText = "0.4cm";
+
+  const varLThin = "0.04cm";
+  const varLMid = "0.06cm";
+  const varLThick = "0.08cm";
+
+  const varRMedia = "0.2cm";
+  const varRModal = "0.2cm";
+  const varRNode = "0.2cm";
+  const varRNodeButton = "0.2cm";
+  const varRLink = "0.5cm";
+
+  const varWTransportBold = "300";
+  const varWLight = "100";
+  const varWRelIcon = "800";
+  const varWNodeButton = "300";
+  const varWLinkLogoText = "200";
+
+  const varONoninteractive = "0.5";
+  const varONoninteractiveLight = "0.3";
+  const varONodePredicate = "0.5";
+  const varOMenuBar = "0.5";
+
+  const varCLinkDisplayBg = v(uniq(), "rgb(35, 35, 36)");
+  const varCLinkLogoText = vs(uniq(), "#fefefe", "rgb(0,0,0)");
+  const varCAppTitle = vs(uniq(), "rgb(93,113,134)", "rgb(0,0,0)");
+  const varCModalVeil = vs(uniq(), "rgba(0,0,0,0.3)", "rgb(0,0,0,0.3)");
   //const varCBackground = vs("rgb(205, 207, 212)", "rgb(0,0,0)");
   const varCBackground = vs(uniq(), "rgb(230, 232, 238)", "rgb(0,0,0)");
   const varCBg2 = vs(uniq(), "rgb(218, 220, 226)", "rgb(0,0,0)");
@@ -229,6 +288,8 @@
   const varCHighlightBold = vs(uniq(), "rgb(62, 119, 251)", "rgb(0,0,0)");
   const varCNodeCenter = varCBg2;
   const varCRemove = vs(uniq("remove"), "rgb(216, 0, 0)", "rgb(0,0,0)");
+  const varCLogoWhite = vs(uniq(), "rgb(254, 254, 254)", "rgb(0,0,0)");
+  const varCLogoBlue = vs(uniq(), "rgb(124,167,219)", "rgb(0,0,0)");
 
   // xx State classes
 
@@ -307,7 +368,7 @@
     "": (s) => {
       s.gridColumn = "1/4";
       s.gridRow = "1";
-      s.margin = `${varSPadTitle} 0`;
+      s.margin = `${varPTitle} 0`;
       s.alignItems = "center";
       s.display = "grid";
       s.gridTemplateColumns = "subgrid";
@@ -332,7 +393,7 @@
 
   const leafTitleStyle = s(uniq("leaf_title"), {
     "": (s) => {
-      s.fontSize = varSFontTitle;
+      s.fontSize = varFTitle;
       s.gridColumn = "2";
       s.gridRow = "1";
     },
@@ -401,8 +462,8 @@
             ss(uniq("cont_bar_hbox"), {
               "": (s) => {
                 s.alignItems = "center";
-                s.gap = "0.2cm";
-                s.margin = `0 0.2cm`;
+                s.gap = varPSmall;
+                s.margin = `0 ${varPSmall}`;
               },
             }),
           ],
@@ -485,7 +546,7 @@
     "": (s) => {
       s.width = "100%";
       s.position = "fixed";
-      s.bottom = "0.7cm";
+      s.bottom = varPBarBottom;
 
       s.transition = "0.03s opacity";
       s.opacity = "1";
@@ -635,10 +696,10 @@
   const leafButtonStyle = ss(uniq("leaf_button"), {
     "": (s) => {
       s.flexDirection = "row";
-      s.gap = "0.2cm";
+      s.gap = varPSmall;
     },
     [`.${classStateDisabled}`]: (s) => {
-      s.opacity = "0.5";
+      s.opacity = varONoninteractive;
     },
     [`:not(.${classStateDisabled}):hover`]: (s) => {
       s.backgroundColor = varCButtonHover;
@@ -648,7 +709,7 @@
     },
     [`:not(.${classStateDisabled}).${classStateThinking}`]: (s) => {
       // TODO horiz line with marching dashes instead
-      s.opacity = "0.5";
+      s.opacity = varONoninteractive;
     },
   });
   const leafButton = /** @type {
@@ -775,6 +836,24 @@
         url: args.link,
       });
 
+  const contBodyStyle = s(uniq("cont_body"), {
+    "": (s) => {
+      s.gridRow = "2";
+      s.gridColumn = "1/4";
+      s.marginBottom = varPPageBottom;
+    },
+    [`.${classMenuStateOpen}`]: (s) => {
+      s.display = "none";
+    },
+  });
+  const contBodyNarrowStyle = s(uniq("cont_body_narrow"), {
+    "": (s) => {
+      s.width = `min(${varSNarrow}, 100% - ${varSCol1Width} * 2)`;
+      s.marginLeft = "auto";
+      s.marginRight = "auto";
+    },
+  });
+
   // /////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: home
   const leafLogoText =
@@ -782,9 +861,9 @@
       et(
         `
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 210.77">
-              <path fill="#fefefe" d="M187.6 100.09a69.05 69.05 0 0 0-68.8-63.7A69.05 69.05 0 0 0 57 74.7c4.35-.17 8.86-.06 13.54.37a56.99 56.99 0 0 1 105.12 26.33 72.7 72.7 0 0 0 11.94-1.31zm-9.93 41.27c-4.6.16-9.37.03-14.31-.45a56.91 56.91 0 0 1-44.56 21.47 57.06 57.06 0 0 1-56.25-47.73c-4.14-.1-8.12.2-12.01.83a69 69 0 0 0 127.14 25.88Z"/>
-              <path fill="none" stroke="#7ca7db" stroke-linecap="round" stroke-width="10" d="M5 110.87c20.49-9.6 40.98-19.2 68-15.39 27.02 3.81 60.58 21.04 88 25 27.42 3.97 48.71-5.32 70-14.6"/>
-              <path fill="none" stroke="#fefefe" stroke-linecap="square" stroke-width="10" d="m34.52 44.15 12.13 8.81M86.6 6.3l4.64 14.27M151 6.3l-4.64 14.27m56.72 23.58-12.13 8.81m12.13 113.66-12.13-8.82M151 204.46l-4.64-14.26M86.6 204.46l4.64-14.26m-56.72-23.58 12.13-8.82"/>
+              <path class="white" d="M187.6 100.09a69.05 69.05 0 0 0-68.8-63.7A69.05 69.05 0 0 0 57 74.7c4.35-.17 8.86-.06 13.54.37a56.99 56.99 0 0 1 105.12 26.33 72.7 72.7 0 0 0 11.94-1.31zm-9.93 41.27c-4.6.16-9.37.03-14.31-.45a56.91 56.91 0 0 1-44.56 21.47 57.06 57.06 0 0 1-56.25-47.73c-4.14-.1-8.12.2-12.01.83a69 69 0 0 0 127.14 25.88Z"/>
+              <path class="blue" fill="none" stroke-linecap="round" stroke-width="10" d="M5 110.87c20.49-9.6 40.98-19.2 68-15.39 27.02 3.81 60.58 21.04 88 25 27.42 3.97 48.71-5.32 70-14.6"/>
+              <path class="white2" fill="none" stroke-linecap="square" stroke-width="10" d="m34.52 44.15 12.13 8.81M86.6 6.3l4.64 14.27M151 6.3l-4.64 14.27m56.72 23.58-12.13 8.81m12.13 113.66-12.13-8.82M151 204.46l-4.64-14.26M86.6 204.46l4.64-14.26m-56.72-23.58 12.13-8.82"/>
               <text x="286" y="50%" style="font-size: 140pt;" dominant-baseline="middle">sunwet</text>
             </svg>
           `,
@@ -794,6 +873,15 @@
               "": (s) => {
                 s.width = "min(100%, 12cm)";
                 s.padding = "0.5cm";
+              },
+              ">*.white": (s) => {
+                s.fill = varCLogoWhite;
+              },
+              ">*.white2": (s) => {
+                s.stroke = varCLogoWhite;
+              },
+              ">*.blue": (s) => {
+                s.stroke = varCLogoBlue;
               },
             }),
             ...(args.extraStyles || []),
@@ -841,15 +929,17 @@
   // xx Components, styles: page, form + edit
   const leafInputPairStyle = s(uniq("leaf_form_input_pair"), {
     "": (s) => {
-      s.display = "contents";
+      s.display = "grid";
+      s.gridTemplateColumns = "subgrid";
+      s.gridColumn = "1 / 3";
+      s.alignItems = "first baseline";
     },
+    ">*": (s) => {},
     ">*:nth-child(1)": (s) => {
       s.gridColumn = "1";
     },
     ">*:nth-child(2)": (s) => {
       s.gridColumn = "2";
-      // Otherwise some inexplicable space is created above the element
-      s.alignSelf = "start";
     },
   });
   presentation.leafInputPair = /** @type {Presentation["leafInputPair"]} */ (
@@ -878,16 +968,16 @@
   const varSInputPad = v(uniq(), "0.1cm");
   const leafInputBorderStyle = s(uniq("leaf_input_border"), {
     "": (s) => {
-      s.borderBottom = `0.04cm solid ${varCInputBorder}`;
+      s.borderBottom = `${varLThin} solid ${varCInputBorder}`;
     },
     [`.${classInputStateModified}`]: (s) => {
       s.borderColor = varCBorderModified;
-      s.borderBottomWidth = "0.04cm";
+      s.borderBottomWidth = varLThin;
     },
     [`.${classInputStateInvalid}`]: (s) => {
       s.borderColor = varCBorderError;
       s.borderBottomStyle = "dashed";
-      s.borderBottomWidth = "0.06cm";
+      s.borderBottomWidth = varLMid;
     },
   });
   const leafInputStyle = s(uniq("leaf_input"), {
@@ -917,7 +1007,7 @@
             },
             ":empty::before": (s) => {
               s.whiteSpace = "pre-wrap";
-              s.opacity = "0.5";
+              s.opacity = varONoninteractive;
             },
           }),
           ss(uniq("leaf_input_text_", args.title || " "), {
@@ -1358,7 +1448,7 @@
           ss(uniq("cont_bar_view_transport_share_button"), {
             [`.${classStateSharing} text`]: (s) => {
               s.color = varCHighlightBold;
-              s.fontWeight = "300";
+              s.fontWeight = varWTransportBold;
             },
           }),
         ],
@@ -1376,7 +1466,7 @@
               "": (s) => {
                 s.height = "100%";
                 s.width = "30%";
-                s.borderRadius = "0.05cm";
+                s.borderRadius = varSTransportGutterRadius;
                 s.backgroundColor = varCHighlightBold;
               },
             }),
@@ -1392,9 +1482,9 @@
           styles_: [
             ss(uniq("transport_time"), {
               "": (s) => {
-                s.opacity = "50%";
+                s.opacity = varONoninteractive;
                 s.justifySelf = "end";
-                s.margin = "0 0.2cm";
+                s.margin = `0 ${varPSmall}`;
               },
             }),
           ],
@@ -1427,7 +1517,7 @@
                   ss(uniq("transport_gutter"), {
                     "": (s) => {
                       s.height = "0.15cm";
-                      s.borderRadius = "0.05cm";
+                      s.borderRadius = varSTransportGutterRadius;
                       s.backgroundColor = varCSeekbarEmpty;
                     },
                   }),
@@ -1493,6 +1583,29 @@
     if (args.transport != null) {
       children.push(args.transport);
     }
+    if (args.params.length > 0) {
+      children.push(
+        e(
+          "div",
+          {},
+          {
+            styles_: [
+              ss(uniq("view_list_params"), {
+                "": (s) => {
+                  s.display = "grid";
+                  s.gridTemplateColumns = "auto 1fr";
+                  s.alignItems = "first baseline";
+                  s.padding = `0 ${varPViewHoriz}`;
+                  s.paddingBottom = varP05;
+                  s.columnGap = varPSmall;
+                },
+              }),
+            ],
+            children_: args.params,
+          }
+        )
+      );
+    }
     children.push(
       e(
         "div",
@@ -1502,8 +1615,7 @@
             contVboxStyle,
             ss(uniq("view_list_body"), {
               "": (s) => {
-                s.padding = `0 max(0.3cm, min(${varSCol1Width}, 100dvw / 20))`;
-                s.paddingBottom = "2cm";
+                s.padding = `0 ${varPViewHoriz}`;
               },
             }),
           ],
@@ -1516,19 +1628,7 @@
         "div",
         {},
         {
-          styles_: [
-            classMenuWantStateOpen,
-            contVboxStyle,
-            ss(uniq("cont_view_body"), {
-              "": (s) => {
-                s.gridColumn = "1/4";
-                s.gridRow = "2";
-              },
-              [`.${classMenuStateOpen}`]: (s) => {
-                s.display = "none";
-              },
-            }),
-          ],
+          styles_: [classMenuWantStateOpen, contVboxStyle, contBodyStyle],
           children_: children,
         }
       ),
@@ -1546,7 +1646,7 @@
             ss(uniq("cont_view_root_rows"), {
               "": (s) => {
                 s.flexGrow = "1";
-                s.gap = "0.8cm";
+                s.gap = varPViewRows;
               },
             }),
           ],
@@ -1567,8 +1667,8 @@
           ss(uniq("cont_view_row"), {
             "": (s) => {
               s.flexWrap = "wrap";
-              s.columnGap = "0.5cm";
-              s.rowGap = "0.3cm";
+              s.columnGap = varPViewCol;
+              s.rowGap = varPViewList;
             },
           }),
         ],
@@ -1616,10 +1716,10 @@
             ss(uniq("cont_media_fullscreen_close"), {
               "": (s) => {
                 s.color = "white";
-                const size = "1cm";
+                const size = varSFullscreenIconClose;
                 s.width = size;
                 s.height = size;
-                s.fontSize = "20pt";
+                s.fontSize = varFFullscreenIconClose;
               },
             }),
           ],
@@ -1687,11 +1787,11 @@
           leafButtonStyle,
           ss(uniq("cont_modal_close"), {
             "": (s) => {
-              s.fontSize = "20pt";
-              const size = "1.4cm";
+              s.fontSize = varFModalIconClose;
+              const size = varSModalIconClose;
               s.width = size;
               s.height = size;
-              s.borderTopRightRadius = "0.2cm";
+              s.borderTopRightRadius = varRModal;
             },
           }),
         ],
@@ -1704,7 +1804,7 @@
         styles_: [
           ss(uniq("cont_modal_bg"), {
             "": (s) => {
-              s.backgroundColor = "rgba(0,0,0,0.3)";
+              s.backgroundColor = varCModalVeil;
               s.pointerEvents = "initial";
             },
           }),
@@ -1748,7 +1848,7 @@
                       s.width = threeState("6cm", "1cm", varSNarrow);
                       s.height = threeState("10cm", "1cm", varSModalHeight);
                       s.background = varCBackground;
-                      s.borderRadius = "0.2cm";
+                      s.borderRadius = varRModal;
                     },
                   }),
                 ],
@@ -1775,8 +1875,8 @@
                             styles_: [
                               ss(uniq("cont_modal_title"), {
                                 "": (s) => {
-                                  s.marginLeft = "0.5cm";
-                                  s.fontSize = "24pt";
+                                  s.marginLeft = varPModalTitleLeft;
+                                  s.fontSize = varFModalTitle;
                                 },
                               }),
                             ],
@@ -1857,7 +1957,7 @@
                 s.height = "100%";
               },
               ">* text": (s) => {
-                s.fontWeight = "100";
+                s.fontWeight = varWLight;
               },
             }),
             ss(uniq(...buildStyleId), buildStyle),
@@ -1988,10 +2088,10 @@
     "": (s) => {
       s.flexGrow = "1";
       s.display = "flex";
-      s.gap = "0.3cm";
+      s.gap = varPViewList;
     },
     ".root": (s) => {
-      s.gap = "0.8cm";
+      s.gap = varPViewRows;
     },
     [`>.${classViewTransverseStart}`]: (s) => {
       s.alignSelf = "first baseline";
@@ -2211,6 +2311,28 @@
         },
       });
 
+  const viewMediaLinkMediaStyle = ss(uniq("leaf_view_media_link_media"), {
+    "": (s) => {
+      s.objectFit = "contain";
+      s.aspectRatio = "auto";
+      s.borderRadius = varRMedia;
+      s.width = "100%";
+      s.height = "100%";
+    },
+  });
+  const viewMediaLinkStyle = ss(uniq("leaf_view_media_link"), {
+    "": (s) => {
+      s.flexShrink = "0";
+    },
+  });
+  const viewMediaNonlinkMediaStyle = ss(uniq("leaf_view_media_nonlink_media"), {
+    "": (s) => {
+      s.objectFit = "contain";
+      s.aspectRatio = "auto";
+      s.flexShrink = "0";
+      s.borderRadius = varRMedia;
+    },
+  });
   presentation.leafViewImage = /** @type { Presentation["leafViewImage"] } */ (
     args
   ) => {
@@ -2218,24 +2340,11 @@
       if (args.link != null) {
         const img = e(
           "img",
-          {},
+          { src: args.src },
           {
-            styles_: [
-              ss(uniq("leaf_view_image_url_img"), {
-                "": (s) => {
-                  s.objectFit = "contain";
-                  s.aspectRatio = "auto";
-                  s.borderRadius = "0.2cm";
-                  s.width = "100%";
-                  s.height = "100%";
-                },
-              }),
-            ],
+            styles_: [viewMediaLinkMediaStyle],
           }
         );
-        if (args.src != null) {
-          img.src = args.src;
-        }
         if (args.text != null) {
           img.alt = args.text;
         }
@@ -2243,36 +2352,18 @@
           "a",
           { href: args.link },
           {
-            styles_: [
-              ss(uniq("leaf_view_image_url"), {
-                "": (s) => {
-                  s.flexShrink = "0";
-                },
-              }),
-            ],
+            styles_: [viewMediaLinkStyle],
             children_: [img],
           }
         );
       } else {
         const img = e(
           "img",
-          {},
+          { src: args.src },
           {
-            styles_: [
-              ss(uniq("leaf_view_image_nourl"), {
-                "": (s) => {
-                  s.objectFit = "contain";
-                  s.aspectRatio = "auto";
-                  s.flexShrink = "0";
-                  s.borderRadius = "0.2cm";
-                },
-              }),
-            ],
+            styles_: [viewMediaNonlinkMediaStyle],
           }
         );
-        if (args.src != null) {
-          img.src = args.src;
-        }
         if (args.text != null) {
           img.alt = args.text;
         }
@@ -2288,20 +2379,142 @@
     }
     return { root: out };
   };
-
-  presentation.leafViewText = /** @type { Presentation["leafViewText"] } */ (
+  presentation.leafViewVideo = /** @type { Presentation["leafViewVideo"] } */ (
     args
   ) => {
-    const baseStyle = ss(uniq("leaf_view_text"), {
-      "": (s) => {
-        s.pointerEvents = "initial";
-        s.whiteSpace = "pre-wrap";
-      },
-    });
-    const dirStyle = ss(uniq("leaf_view_text_dir", args.orientation), {
+    const out = (() => {
+      if (args.link != null) {
+        const media = e(
+          "video",
+          { src: args.src, autoplay: true, muted: true, loop: true },
+          { styles_: [viewMediaLinkMediaStyle] }
+        );
+        const out = e(
+          "a",
+          { href: args.link },
+          {
+            styles_: [viewMediaLinkStyle],
+            children_: [media],
+          }
+        );
+        if (args.text != null) {
+          out.title = args.text;
+        }
+        return out;
+      } else {
+        const media = e(
+          "video",
+          { src: args.src, controls: true },
+          { styles_: [viewMediaNonlinkMediaStyle] }
+        );
+        if (args.src != null) {
+          media.src = args.src;
+        }
+        if (args.text != null) {
+          media.title = args.text;
+        }
+        return media;
+      }
+    })();
+    // todo add viewLeafTransStyle, need to add orientation
+    if (args.width) {
+      out.style.width = args.width;
+    }
+    if (args.height) {
+      out.style.height = args.height;
+    }
+    return { root: out };
+  };
+  presentation.leafViewAudio = /** @type { Presentation["leafViewAudio"] } */ (
+    args
+  ) => {
+    const directionStyle = ss(
+      uniq("leaf_view_audio_dir", args.direction),
+      (() => {
+        switch (args.direction) {
+          case "up":
+            return {
+              "": (s) => {
+                s.rotate = "270deg";
+              },
+            };
+          case "down":
+            return {
+              "": (s) => {
+                s.rotate = "90deg";
+              },
+            };
+          case "left":
+            return { "": (s) => {} };
+          case "right":
+            return { "": (s) => {} };
+        }
+      })()
+    );
+    const out = (() => {
+      if (args.link != null) {
+        const media = e(
+          "audio",
+          { src: args.src, autoplay: true, muted: true, loop: true },
+          { styles_: [viewMediaLinkMediaStyle, directionStyle] }
+        );
+        const out = e(
+          "a",
+          { href: args.link },
+          {
+            styles_: [viewMediaLinkStyle],
+            children_: [media],
+          }
+        );
+        if (args.text != null) {
+          out.title = args.text;
+        }
+        return out;
+      } else {
+        const media = e(
+          "video",
+          { src: args.src, controls: true },
+          { styles_: [viewMediaNonlinkMediaStyle, directionStyle] }
+        );
+        if (args.src != null) {
+          media.src = args.src;
+        }
+        if (args.text != null) {
+          media.title = args.text;
+        }
+        return media;
+      }
+    })();
+    // todo add viewLeafTransStyle, need to add orientation
+    if (args.length) {
+      out.style.width = args.length;
+    }
+    return { root: out };
+  };
+  presentation.leafViewColor = /** @type { Presentation["leafViewColor"] } */ (
+    args
+  ) => {
+    const out = e("div", {}, {});
+    out.style.backgroundColor = args.color;
+    out.style.width = args.width;
+    out.style.height = args.height;
+    out.style.borderRadius = varRMedia;
+    return { root: out };
+  };
+
+  const viewTextBaseStyle = ss(uniq("leaf_view_text_base"), {
+    "": (s) => {
+      s.pointerEvents = "initial";
+      s.whiteSpace = "pre-wrap";
+    },
+  });
+  const viewTextOrientationStyle = /** @type {(dir:Orientation)=>string} */ (
+    orient
+  ) =>
+    ss(uniq("leaf_view_text_dir", orient), {
       "": /** @type { () => ((s: CSSStyleDeclaration) => void) } */ (
         () => {
-          switch (args.orientation) {
+          switch (orient) {
             case "up_left":
             case "down_left":
               return (s) => {
@@ -2323,6 +2536,9 @@
         }
       )(),
     });
+  presentation.leafViewText = /** @type { Presentation["leafViewText"] } */ (
+    args
+  ) => {
     const alignStyle = viewLeafTransStyle({
       orientation: args.orientation,
       transAlign: args.transAlign,
@@ -2335,7 +2551,11 @@
             textContent: args.text,
           },
           {
-            styles_: [baseStyle, dirStyle, alignStyle],
+            styles_: [
+              viewTextBaseStyle,
+              viewTextOrientationStyle(args.orientation),
+              alignStyle,
+            ],
           }
         );
       } else {
@@ -2346,7 +2566,11 @@
             href: args.link,
           },
           {
-            styles_: [baseStyle, dirStyle, alignStyle],
+            styles_: [
+              viewTextBaseStyle,
+              viewTextOrientationStyle(args.orientation),
+              alignStyle,
+            ],
           }
         );
       }
@@ -2365,6 +2589,104 @@
           out.style.maxWidth = args.maxSize;
           break;
       }
+    }
+    return { root: out };
+  };
+  presentation.leafViewDatetime =
+    /** @type { Presentation["leafViewDatetime"] } */ (args) => {
+      const alignStyle = viewLeafTransStyle({
+        orientation: args.orientation,
+        transAlign: args.transAlign,
+      });
+      const out = (() => {
+        return e(
+          "span",
+          {
+            textContent: (() => {
+              try {
+                return new Date(args.value).toLocaleString();
+              } catch (e) {}
+              return " ";
+            })(),
+          },
+          {
+            styles_: [
+              viewTextBaseStyle,
+              viewTextOrientationStyle(args.orientation),
+              alignStyle,
+            ],
+          }
+        );
+      })();
+      if (args.fontSize != null) {
+        out.style.fontSize = args.fontSize;
+      }
+      return { root: out };
+    };
+  presentation.leafViewDate = /** @type { Presentation["leafViewDate"] } */ (
+    args
+  ) => {
+    const alignStyle = viewLeafTransStyle({
+      orientation: args.orientation,
+      transAlign: args.transAlign,
+    });
+    const out = (() => {
+      return e(
+        "span",
+        {
+          textContent: (() => {
+            try {
+              return new Date(args.value).toLocaleDateString();
+            } catch (e) {}
+            return " ";
+          })(),
+        },
+        {
+          styles_: [
+            viewTextBaseStyle,
+            viewTextOrientationStyle(args.orientation),
+            alignStyle,
+          ],
+        }
+      );
+    })();
+    if (args.fontSize != null) {
+      out.style.fontSize = args.fontSize;
+    }
+    return { root: out };
+  };
+  presentation.leafViewTime = /** @type { Presentation["leafViewTime"] } */ (
+    args
+  ) => {
+    const alignStyle = viewLeafTransStyle({
+      orientation: args.orientation,
+      transAlign: args.transAlign,
+    });
+    const out = (() => {
+      return e(
+        "span",
+        {
+          textContent: (() => {
+            try {
+              return new Date(args.value).toLocaleTimeString();
+            } catch (e) {}
+            try {
+              return new Date(`2000-01-01 ${args.value}`).toLocaleTimeString();
+            } catch (e) {}
+            return " ";
+          })(),
+        },
+        {
+          styles_: [
+            viewTextBaseStyle,
+            viewTextOrientationStyle(args.orientation),
+            alignStyle,
+          ],
+        }
+      );
+    })();
+    if (args.fontSize != null) {
+      out.style.fontSize = args.fontSize;
     }
     return { root: out };
   };
@@ -2499,23 +2821,6 @@
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: page, form
 
-  const contBodyStyle = s(uniq("cont_body"), {
-    "": (s) => {
-      s.gridRow = "2";
-      s.gridColumn = "1/4";
-      s.marginBottom = "2.5cm";
-    },
-    [`.${classMenuStateOpen}`]: (s) => {
-      s.display = "none";
-    },
-  });
-  const contBodyNarrowStyle = s(uniq("cont_body_narrow"), {
-    "": (s) => {
-      s.width = `min(${varSNarrow}, 100% - ${varSCol1Width} * 2)`;
-      s.marginLeft = "auto";
-      s.marginRight = "auto";
-    },
-  });
   presentation.contPageForm = /** @type {Presentation["contPageForm"]} */ (
     args
   ) => ({
@@ -2549,8 +2854,8 @@
                         s.display = "grid";
                         s.gridTemplateColumns = "auto 1fr";
                         s.alignItems = "first baseline";
-                        s.columnGap = "0.2cm";
-                        s.rowGap = "0.2cm";
+                        s.columnGap = varPSmall;
+                        s.rowGap = varPSmall;
                       },
                       ">label": (s) => {
                         s.gridColumn = "1";
@@ -2580,7 +2885,7 @@
             ss(uniq("leaf_form_comment"), {
               "": (s) => {
                 s.gridColumn = "1/3";
-                s.marginTop = "0.3cm";
+                s.marginTop = varPFormCommentTop;
               },
             }),
           ],
@@ -2600,10 +2905,10 @@
   const leafNodeVboxStyle = s(uniq("leaf_edit_vbox"), {
     "": (s) => {
       s.flexGrow = "1";
-      s.gap = "0.2cm";
-      s.border = `0.08cm solid ${varCNodeCenter}`;
-      s.borderRadius = "0.2cm";
-      s.padding = "0.2cm";
+      s.gap = varPSmall;
+      s.border = `${varLThick} solid ${varCNodeCenter}`;
+      s.borderRadius = varRNode;
+      s.padding = varPSmall;
     },
   });
   const leafNodeVBoxNewStyle = s(uniq("leaf_edit_vbox_new"), {
@@ -2612,29 +2917,26 @@
       s.borderStyle = "dashed";
     },
   });
-  const varSRelIconSize = v(uniq(), "32pt");
-  const varSRelIconWeight = v(uniq(), "800");
   const leafNodeRelStyle = s(uniq("leaf_edit_rel"), {
     "": (s) => {
       s.color = varCNodeCenter;
-      s.fontSize = varSRelIconSize;
-      s.fontWeight = varSRelIconWeight;
+      s.fontSize = varFRelIcon;
+      s.fontWeight = varWRelIcon;
     },
   });
-  const relIconSize = v(uniq(), "1.5cm");
   const leafNodeRelIncomingStyle = s(uniq("leaf_edit_rel_incoming"), {
     "": (s) => {
       s.alignSelf = "end";
-      s.width = relIconSize;
-      s.minWidth = relIconSize;
+      s.width = varSRelIcon;
+      s.minWidth = varSRelIcon;
       s.rotate = "90deg";
     },
   });
   const leafNodeRelOutgoingStyle = s(uniq("leaf_edit_rel_outgoing"), {
     "": (s) => {
       s.alignSelf = "start";
-      s.width = relIconSize;
-      s.minWidth = relIconSize;
+      s.width = varSRelIcon;
+      s.minWidth = varSRelIcon;
       s.rotate = "180deg";
     },
   });
@@ -2748,10 +3050,10 @@
             leafNodeVboxStyle,
             s(uniq("cont_page_edit_center"), {
               "": (s) => {
-                s.padding = "0.2cm";
+                s.padding = varPSmall;
                 s.backgroundColor = varCNodeCenter;
-                s.borderRadius = "0.2cm";
-                s.margin = "0.4cm 0";
+                s.borderRadius = varRNode;
+                s.margin = `${varPNodeCenter} 0`;
               },
             }),
           ],
@@ -2766,9 +3068,9 @@
   const pageButtonsStyle = s(uniq("page_buttons_style"), {
     "": (s) => {
       s.justifyContent = "end";
-      s.paddingLeft = "0.2cm";
-      s.paddingRight = "0.2cm";
-      s.paddingBottom = "0.2cm";
+      s.paddingLeft = varPSmall;
+      s.paddingRight = varPSmall;
+      s.paddingBottom = varPSmall;
     },
   });
 
@@ -2851,7 +3153,7 @@
           styles_: [
             ss(uniq("leaf_node_view_predicate"), {
               "": (s) => {
-                s.opacity = "0.5";
+                s.opacity = varONodePredicate;
                 s.whiteSpace = "pre-wrap";
               },
             }),
@@ -2923,7 +3225,7 @@
           leafIconStyle,
           ss(uniq("leaf_button_free"), {
             "": (s) => {
-              s.borderRadius = "0.2cm";
+              s.borderRadius = varRNodeButton;
               s.color = `color-mix(in srgb, ${varCForeground}, transparent 30%)`;
             },
             ":hover": (s) => {
@@ -2933,11 +3235,10 @@
               s.color = varCForeground;
             },
             ">div": (s) => {
-              s.fontSize = "22pt";
-              s.fontWeight = "300";
-              const size = "1.2cm";
-              s.width = size;
-              s.height = size;
+              s.fontSize = varFNodeButton;
+              s.fontWeight = varWNodeButton;
+              s.width = varSNodeButton;
+              s.height = varSNodeButton;
             },
           }),
         ],
@@ -3003,7 +3304,7 @@
                   s.cursor = "text";
                 },
                 ">select": (s) => {
-                  s.marginRight = "0.2cm";
+                  s.marginRight = varPSmall;
                 },
                 " span": (s) => {
                   s.borderBottom = "none";
@@ -3041,7 +3342,7 @@
             contVboxStyle,
             ss(uniq("cont_history_commit"), {
               "": (s) => {
-                s.marginBottom = "0.5cm";
+                s.marginBottom = varPHistoryMid;
               },
             }),
           ],
@@ -3053,7 +3354,7 @@
                 styles_: [
                   ss(uniq("leaf_history_commit"), {
                     "": (s) => {
-                      s.fontSize = varSFontPageTitle;
+                      s.fontSize = varFPageTitle;
                     },
                   }),
                 ],
@@ -3068,8 +3369,8 @@
                   contVboxStyle,
                   ss(uniq("cont_history_commit_children"), {
                     "": (s) => {
-                      s.marginTop = "0.8cm";
-                      s.gap = "0.5cm";
+                      s.marginTop = varPHistoryBig;
+                      s.gap = varPHistoryMid;
                     },
                   }),
                 ],
@@ -3096,7 +3397,7 @@
                   contVboxStyle,
                   s(uniq("leaf_history_subject"), {
                     "": (s) => {
-                      s.padding = "0.2cm 0";
+                      s.padding = `${varPSmall} 0`;
                     },
                   }),
                 ],
@@ -3111,7 +3412,7 @@
                   contVboxStyle,
                   ss(uniq("cont_history_subject_rows"), {
                     "": (s) => {
-                      s.gap = "0.5cm";
+                      s.gap = varPHistoryMid;
                     },
                   }),
                 ],
@@ -3137,7 +3438,7 @@
               s(uniq("cont_history_rel_center"), {
                 "": (s) => {
                   s.flexGrow = "1";
-                  s.gap = "0.2cm";
+                  s.gap = varPSmall;
                 },
               }),
             ],
@@ -3157,7 +3458,7 @@
               contHboxStyle,
               s(uniq("cont_history_row_hbox"), {
                 "": (s) => {
-                  s.gap = "0.5cm";
+                  s.gap = varPHistoryMid;
                 },
               }),
             ],
@@ -3166,7 +3467,6 @@
         ),
       };
     };
-  const vHistPredObjSize = v(uniq(), "1cm");
   presentation.contHistoryPredicateObjectRemove =
     /** @type {Presentation["contHistoryPredicateObjectRemove"]} */ (args) => {
       const revertButton = e(
@@ -3178,16 +3478,16 @@
             s(uniq("leaf_history_revert"), {
               "": (s) => {
                 s.alignSelf = "center";
-                s.width = vHistPredObjSize;
-                s.minWidth = vHistPredObjSize;
-                s.height = vHistPredObjSize;
+                s.width = varSHistPredObj;
+                s.minWidth = varSHistPredObj;
+                s.height = varSHistPredObj;
               },
               ">svg": (s) => {
                 s.width = "100%";
                 s.height = "100%";
               },
               [`.${classStateDisabled}`]: (s) => {
-                s.opacity = "0.3";
+                s.opacity = varONoninteractiveLight;
               },
             }),
           ],
@@ -3206,9 +3506,9 @@
               s(uniq("cont_history_row_rel_icon"), {
                 "": (s) => {
                   s.color = varCRemove;
-                  s.opacity = "0.3";
-                  s.fontSize = varSRelIconSize;
-                  s.fontWeight = varSRelIconWeight;
+                  s.opacity = varONoninteractiveLight;
+                  s.fontSize = varFRelIcon;
+                  s.fontWeight = varWRelIcon;
                 },
               }),
               leafNodeRelOutgoingStyle,
@@ -3229,9 +3529,9 @@
             extraStyles: [
               s(uniq("cont_history_row_rel_icon"), {
                 "": (s) => {
-                  s.opacity = "0.3";
-                  s.fontSize = varSRelIconSize;
-                  s.fontWeight = varSRelIconWeight;
+                  s.opacity = varONoninteractiveLight;
+                  s.fontSize = varFRelIcon;
+                  s.fontWeight = varWRelIcon;
                 },
               }),
               leafNodeRelOutgoingStyle,
@@ -3246,9 +3546,9 @@
                   "": (s) => {
                     s.display = "block";
                     s.alignSelf = "center";
-                    s.width = vHistPredObjSize;
-                    s.minWidth = vHistPredObjSize;
-                    s.height = vHistPredObjSize;
+                    s.width = varSHistPredObj;
+                    s.minWidth = varSHistPredObj;
+                    s.height = varSHistPredObj;
                   },
                 }),
               ],
@@ -3283,8 +3583,8 @@
               "": (s) => {
                 s.gridColumn = "2";
                 s.gridRow = "2";
-                s.columns = "min(100dvw, 12cm)";
-                s.columnGap = "0.5cm";
+                s.columns = varSColWidth;
+                s.columnGap = varPMenu;
                 s.justifyContent = "start";
               },
             }),
@@ -3303,7 +3603,7 @@
             s.gridColumn = "1/3";
 
             s.backgroundColor = varCBackgroundMenuButtons;
-            s.margin = "0.5cm 0";
+            s.margin = `${varPMenu} 0`;
           },
         }),
       ],
@@ -3338,7 +3638,7 @@
         styles_: [
           ss(uniq("cont_menu_group"), {
             [`>.${contMenuGroupVBoxStyle}`]: (s) => {
-              s.padding = "0.5cm 0";
+              s.padding = `${varPMenu} 0`;
             },
             ">summary": (s) => {
               s.listStyle = "none";
@@ -3347,24 +3647,23 @@
               s.flexDirection = "row";
               s.alignContent = "center";
               s.justifyContent = "flex-start";
-              s.fontSize = varSFontMenu;
+              s.fontSize = varFMenu;
             },
-            ">summary>div": (s) => {
-              s.marginLeft = "-0.6cm";
-              s.fontSize = "14pt";
-              s.width = "0.6cm";
-              s.opacity = "0.5";
+            ">summary>.icon": (s) => {
+              s.fontSize = varFMenuIcon;
+              s.width = varSMenuIndent;
+              s.opacity = varONoninteractive;
             },
-            ">summary:hover>div": (s) => {
+            ">summary:hover>.icon": (s) => {
               s.opacity = "1";
             },
-            ">summary>div.open": (s) => {
+            ">summary>.icon.open": (s) => {
               s.display = "none";
             },
-            "[open]>summary>div.closed": (s) => {
+            "[open]>summary>.icon.closed": (s) => {
               s.display = "none";
             },
-            "[open]>summary>div.open": (s) => {
+            "[open]>summary>.icon.open": (s) => {
               s.display = "grid";
             },
           }),
@@ -3375,24 +3674,14 @@
             {},
             {
               children_: [
-                e(
-                  "div",
-                  {
-                    textContent: textIconFoldClosed,
-                  },
-                  {
-                    styles_: ["closed", leafIconStyle],
-                  }
-                ),
-                e(
-                  "div",
-                  {
-                    textContent: textIconFoldOpened,
-                  },
-                  {
-                    styles_: ["open", leafIconStyle],
-                  }
-                ),
+                leafIcon({
+                  text: textIconFoldClosed,
+                  extraStyles: ["icon", "closed"],
+                }),
+                leafIcon({
+                  text: textIconFoldOpened,
+                  extraStyles: ["icon", "open"],
+                }),
                 e("span", { textContent: args.title }, {}),
               ],
             }
@@ -3426,39 +3715,19 @@
               },
               {
                 styles_: [
+                  leafLinkStyle,
                   ss(uniq("leaf_menu_link"), {
                     "": (s) => {
-                      s.fontSize = varSFontMenu;
+                      s.marginLeft = varSMenuIndent;
+                      s.fontSize = varFMenu;
                       s.display = "flex";
                       s.flexDirection = "row";
                       s.alignItems = "center";
                       s.justifyContent = "flex-start";
                     },
-                    ">div": (s) => {
-                      s.opacity = "0";
-                      s.paddingLeft = "0.5cm";
-                      s.fontSize = "14pt";
-                    },
-                    ":hover>div": (s) => {
-                      s.opacity = "1";
-                    },
-                    ":hover:active>div": (s) => {
-                      s.opacity = "1";
-                    },
                   }),
                 ],
-                children_: [
-                  e("span", { textContent: args.title }, {}),
-                  e(
-                    "div",
-                    {
-                      textContent: textIconGo,
-                    },
-                    {
-                      styles_: [leafIconStyle],
-                    }
-                  ),
-                ],
+                children_: [e("span", { textContent: args.title }, {})],
               }
             ),
           ],
@@ -3499,13 +3768,13 @@
                 ss(uniq("cont_menu_body"), {
                   "": (s) => {
                     s.gridColumn = "2";
-                    s.columns = "min(100%, 12cm)";
-                    s.columnGap = "0.5cm";
+                    s.columns = varSColWidth;
+                    s.columnGap = varPMenu;
                     s.justifyContent = "start";
                     s.minHeight = `calc(100dvh - 5cm)`;
                   },
                   ">*": (s) => {
-                    s.maxWidth = varSMenuColWidth;
+                    s.maxWidth = varSColWidth;
                   },
                 }),
               ],
@@ -3523,7 +3792,7 @@
                   styles_: [
                     ss(uniq("cont_bar_menu_user"), {
                       "": (s) => {
-                        s.opacity = "0.5";
+                        s.opacity = varOMenuBar;
                       },
                     }),
                   ],
@@ -3550,7 +3819,7 @@
             s.gridRow = "1";
           },
           ">div": (s) => {
-            s.fontSize = varSFontAdmenu;
+            s.fontSize = varFAdmenu;
             s.width = varSCol3Width;
             s.height = varSCol3Width;
           },
@@ -3624,10 +3893,7 @@
                               s.gridColumn = "2";
                               s.gridRow = "1";
                               s.alignItems = "center";
-                              s.gap = "0.3cm";
-                            },
-                            ">svg": (s) => {
-                              s.height = "0.9cm";
+                              s.gap = varPAppTitle;
                             },
                           }),
                         ],
@@ -3639,9 +3905,9 @@
                               styles_: [
                                 ss(uniq("menu_title_text"), {
                                   "": (s) => {
-                                    s.fontSize = varSFontTitle;
+                                    s.fontSize = varFTitle;
                                     s.marginTop = "-0.15cm";
-                                    s.color = "#5d7186";
+                                    s.color = varCAppTitle;
                                   },
                                 }),
                               ],
@@ -3679,10 +3945,9 @@
               s.gridTemplateColumns = "1fr";
               s.gridTemplateRows = "1fr auto 1fr";
               s.justifyItems = "center";
-              s.alignItems = "center";
-              s.margin = "0.5cm";
-              s.borderRadius = "0.5cm";
-              s.border = `0.06cm solid ${varCForegroundFade}`;
+              s.margin = varPLink;
+              s.borderRadius = varRLink;
+              s.border = `${varLMid} solid ${varCForegroundFade}`;
             },
             ":hover": (s) => {
               s.borderColor = varCButtonHover;
@@ -3703,23 +3968,24 @@
             extraStyles: [
               ss(uniq("app_link_perms_logo"), {
                 " text": (s) => {
-                  s.fill = "#fefefe";
-                  s.fontWeight = "200";
+                  s.fill = varCLinkLogoText;
+                  s.fontWeight = varWLinkLogoText;
                 },
               }),
             ],
           }),
           leafIcon({
-            text: textIconClick,
+            text: textIconPlay,
             extraStyles: [
               ss(uniq("app_link_perms_play"), {
                 "": (s) => {
-                  s.width = "3cm";
-                  s.height = "3cm";
+                  s.width = varSLinkIcon;
+                  s.height = varSLinkIcon;
+                  s.alignSelf = "end";
                 },
                 " text": (s) => {
                   s.fill = varCForegroundDark;
-                  s.fontWeight = "100";
+                  s.fontWeight = varWLight;
                 },
               }),
             ],
@@ -3747,7 +4013,6 @@
     };
   };
 
-  const varCLinkDisplayBg = v(uniq(), "rgb(35, 35, 36)");
   presentation.appLink = /** @type {Presentation["appLink"]} */ (args) => {
     const display = e(
       "div",
@@ -3799,7 +4064,7 @@
           classStateHide,
           ss(uniq("leaf_app_display_under"), {
             "": (s) => {
-              s.padding = "0.2cm";
+              s.padding = varPSmall;
               s.color = varCBackgroundDark;
               s.objectFit = "contain";
               s.aspectRatio = "auto";
@@ -3831,8 +4096,8 @@
             "": (s) => {
               s.flexShrink = "1";
               s.backgroundColor = varCLinkDisplayBg;
-              s.paddingTop = "0.2cm";
-              s.paddingBottom = "0.2cm";
+              s.paddingTop = varPSmall;
+              s.paddingBottom = varPSmall;
             },
           }),
         ],
@@ -3855,35 +4120,16 @@
             textStyle,
             ss(uniq("leaf_app_link_bigtext"), {
               "": (s) => {
-                s.fontSize = "14pt";
+                s.fontSize = varFLinkBig;
               },
             }),
           ],
         }
       );
-    /** @type { (children:Element[])=>HTMLElement} */
-    const vert = (children) =>
-      e(
-        "div",
-        {},
-        {
-          styles_: [
-            contVboxStyle,
-            ss(uniq("cont_app_link_vert"), {
-              "": (s) => {
-                s.paddingLeft = "0.4cm";
-                s.paddingRight = "0.4cm";
-                s.gap = "0.2cm";
-              },
-            }),
-          ],
-          children_: children,
-        }
-      );
-    const title = bigText("waiting...");
+    const title = bigText("Waiting...");
     const albumArtist = e(
       "span",
-      { textContent: "Waiting..." },
+      { textContent: "" },
       { styles_: [textStyle] }
     );
     return {
@@ -3896,7 +4142,7 @@
             ss(uniq("app_link"), {
               "": (s) => {
                 s.backgroundColor = varCBackgroundDark;
-                s.gap = "0.3cm";
+                s.gap = varPLinkGap;
                 s.height = "100dvh";
                 s.width = "100dvw";
               },
@@ -3908,7 +4154,23 @@
           children_: [
             leafSpace({}).root,
             displayStack,
-            vert([title, albumArtist]),
+            e(
+              "div",
+              {},
+              {
+                styles_: [
+                  contVboxStyle,
+                  ss(uniq("cont_app_link_vert"), {
+                    "": (s) => {
+                      s.paddingLeft = varPLinkText;
+                      s.paddingRight = varPLinkText;
+                      s.gap = varPSmall;
+                    },
+                  }),
+                ],
+                children_: [title, albumArtist],
+              }
+            ),
             leafSpace({}).root,
           ],
         }

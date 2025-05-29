@@ -42,6 +42,13 @@
       mainTitle: presentation.leafTitle({ text: "Music" }).root,
       mainBody: presentation.contPageView({
         transport: presentation.contBarViewTransport({}).root,
+        params: [
+          presentation.leafInputPairText({
+            id: "",
+            title: "Artist",
+            value: "",
+          }).root,
+        ],
         rows: presentation.contViewRootRows({
           rows: [
             presentation.contViewRow({
@@ -67,6 +74,12 @@
                           orientation: "right_down",
                           text: "Harmônicos",
                           fontSize: "20pt",
+                        }).root,
+                        presentation.leafViewDatetime({
+                          transAlign: "start",
+                          orientation: "right_down",
+                          value: new Date().toISOString(),
+                          fontSize: "14pt",
                         }).root,
                         presentation.contViewTable({
                           orientation: "right_down",
@@ -252,6 +265,16 @@
       case "#view":
         {
           document.body.appendChild(stagingPageView);
+        }
+        break;
+      case "#menu":
+        {
+          document.body.appendChild(stagingPageView);
+          for (const e of document.getElementsByClassName(
+            presentation.classMenuWantStateOpen({}).value
+          )) {
+            e.classList.add(presentation.classMenuStateOpen({}).value);
+          }
         }
         break;
       case "#view_modal_share":

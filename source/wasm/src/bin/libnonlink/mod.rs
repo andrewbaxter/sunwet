@@ -8,3 +8,4 @@ pub mod page_node_view;
 pub mod page_history;
 pub mod api;
 pub mod commit;
+pub mod infinite;

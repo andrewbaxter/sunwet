@@ -7,6 +7,7 @@ use {
         Serialize,
     },
     shared::interface::triple::Node,
+    std::collections::HashMap,
     wasm::js::{
         get_dom_octothorpe,
         log,
@@ -21,6 +22,7 @@ pub const SESSIONSTORAGE_POST_REDIRECT: &str = "post_redirect";
 pub struct PlaylistRestorePos {
     pub index: PlaylistIndex,
     pub time: f64,
+    pub params: HashMap<String, Node>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]

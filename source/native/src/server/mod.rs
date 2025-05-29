@@ -88,9 +88,9 @@ use {
         },
         wire::{
             C2SReq,
+            NodeMeta,
             RespGetTriplesAround,
             RespHistoryCommit,
-            RespNodeMeta,
             RespQuery,
             RespWhoAmI,
             TreeNode,
@@ -113,6 +113,7 @@ use {
     std::{
         collections::{
             BTreeMap,
+            HashMap,
             HashSet,
         },
         hash::{
@@ -153,6 +154,26 @@ use {
     },
     tokio_stream::wrappers::TcpListenerStream,
 };
+
+fn gather_files(files: &mut Vec<FileHash>, r: &TreeNode) {
+    match r {
+        TreeNode::Scalar(s) => {
+            if let Node::File(s) = s {
+                files.push(s.clone());
+            }
+        },
+        TreeNode::Array(a) => {
+            for v in a {
+                gather_files(files, v);
+            }
+        },
+        TreeNode::Record(r) => {
+            for v in r.values() {
+                gather_files(files, v);
+            }
+        },
+    }
+}
 
 async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<BoxBody<Bytes, std::io::Error>> {
     let url = req.uri().clone();
@@ -307,14 +328,31 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 if !is_admin(&state, &identity).await.err_internal()? {
                                     return Ok(response_401());
                                 }
-                                resp =
-                                    req.respond()(
-                                        RespQuery {
-                                            records: query::execute_query(&state.db, req.query, req.parameters)
-                                                .await
-                                                .err_internal()?,
-                                        },
-                                    );
+                                let responder = req.respond();
+                                let records =
+                                    query::execute_query(&state.db, req.query, req.parameters).await.err_internal()?;
+                                let mut files = vec![];
+                                for record in &records {
+                                    for v in record.values() {
+                                        gather_files(&mut files, v);
+                                    }
+                                }
+                                let meta = tx(&state.db, {
+                                    move |txn| {
+                                        let mut meta = HashMap::new();
+                                        for file in files {
+                                            let node = Node::File(file);
+                                            if let Some(node_meta) = db::meta_get(txn, &DbNode(node.clone()))? {
+                                                meta.insert(node, NodeMeta { mime: node_meta.mimetype });
+                                            }
+                                        }
+                                        return Ok(meta);
+                                    }
+                                }).await.err_internal()?;
+                                resp = responder(RespQuery {
+                                    records,
+                                    meta: meta,
+                                });
                             },
                             C2SReq::ViewQuery(req) => {
                                 let responder = req.respond();
@@ -365,36 +403,16 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     query::execute_query(&state.db, query.clone(), req.parameters)
                                         .await
                                         .err_internal()?;
-
-                                fn gather_files(files: &mut Vec<FileHash>, r: &TreeNode) {
-                                    match r {
-                                        TreeNode::Scalar(s) => {
-                                            if let Node::File(s) = s {
-                                                files.push(s.clone());
-                                            }
-                                        },
-                                        TreeNode::Array(a) => {
-                                            for v in a {
-                                                gather_files(files, v);
-                                            }
-                                        },
-                                        TreeNode::Record(r) => {
-                                            for v in r.values() {
-                                                gather_files(files, v);
-                                            }
-                                        },
-                                    }
-                                }
-
                                 let mut files = vec![];
                                 for record in &records {
                                     for v in record.values() {
                                         gather_files(&mut files, v);
                                     }
                                 }
-                                tx(&state.db, {
+                                let meta = tx(&state.db, {
                                     move |txn| {
                                         db::file_access_clear_nonversion(txn, &req.menu_item_id, view_hash as i64)?;
+                                        let mut meta = HashMap::new();
                                         for file in files {
                                             db::file_access_insert(
                                                 txn,
@@ -402,11 +420,18 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                 &req.menu_item_id,
                                                 view_hash as i64,
                                             )?;
+                                            let node = Node::File(file);
+                                            if let Some(node_meta) = db::meta_get(txn, &DbNode(node.clone()))? {
+                                                meta.insert(node, NodeMeta { mime: node_meta.mimetype });
+                                            }
                                         }
-                                        return Ok(());
+                                        return Ok(meta);
                                     }
                                 }).await.err_internal()?;
-                                resp = responder(RespQuery { records: records });
+                                resp = responder(RespQuery {
+                                    records: records,
+                                    meta: meta,
+                                });
                             },
                             C2SReq::GetNodeMeta(req) => {
                                 let responder = req.respond();
@@ -414,7 +439,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     return Ok(db::meta_get(txn, &DbNode(req.node))?);
                                 }).await.err_internal()?;
                                 resp = responder(match meta {
-                                    Some(m) => Some(RespNodeMeta { mime: m.mimetype }),
+                                    Some(m) => Some(NodeMeta { mime: m.mimetype }),
                                     None => None,
                                 });
                             },

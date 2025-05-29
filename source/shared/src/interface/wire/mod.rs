@@ -137,6 +137,7 @@ pub enum TreeNode {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct RespQuery {
     pub records: Vec<BTreeMap<String, TreeNode>>,
+    pub meta: HashMap<Node, NodeMeta>,
 }
 
 impl Into<C2SReq> for ReqQuery {
@@ -207,12 +208,12 @@ impl Into<C2SReq> for ReqGetNodeMeta {
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct RespNodeMeta {
+pub struct NodeMeta {
     pub mime: String,
 }
 
 impl C2SReqTrait for ReqGetNodeMeta {
-    type Resp = Option<RespNodeMeta>;
+    type Resp = Option<NodeMeta>;
 }
 
 // # History

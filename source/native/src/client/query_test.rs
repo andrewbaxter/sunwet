@@ -85,5 +85,12 @@ fn test_default_albums_tracks() {
 
 #[test]
 fn test_default_notes() {
-    compile_query(Default::default(), include_str!("../server/query_notes.txt")).unwrap();
+    compile_query(
+        IncludeContext::Preloaded(
+            [(format!("query_notes_suffix.txt"), include_str!("../server/query_notes_suffix.txt").to_string())]
+                .into_iter()
+                .collect(),
+        ),
+        include_str!("../server/query_notes_by_add_date.txt"),
+    ).unwrap();
 }

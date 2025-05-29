@@ -129,14 +129,77 @@ pub struct WidgetText {
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct WidgetImage {
+pub struct WidgetDate {
+    pub data: FieldOrLiteralString,
+    #[serde(default)]
+    pub prefix: String,
+    #[serde(default)]
+    pub suffix: String,
+    #[serde(default)]
+    pub font_size: Option<String>,
+    pub orientation: Orientation,
+    #[serde(default)]
+    pub trans_align: TransAlign,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct WidgetTime {
+    pub data: FieldOrLiteralString,
+    #[serde(default)]
+    pub prefix: String,
+    #[serde(default)]
+    pub suffix: String,
+    #[serde(default)]
+    pub font_size: Option<String>,
+    pub orientation: Orientation,
+    #[serde(default)]
+    pub trans_align: TransAlign,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct WidgetDatetime {
+    pub data: FieldOrLiteralString,
+    #[serde(default)]
+    pub prefix: String,
+    #[serde(default)]
+    pub suffix: String,
+    #[serde(default)]
+    pub font_size: Option<String>,
+    pub orientation: Orientation,
+    #[serde(default)]
+    pub trans_align: TransAlign,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct WidgetColor {
+    pub data: FieldOrLiteralString,
+    #[serde(default)]
+    pub width: String,
+    #[serde(default)]
+    pub height: String,
+    pub orientation: Orientation,
+    #[serde(default)]
+    pub trans_align: TransAlign,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct WidgetMedia {
     pub data: FieldOrLiteral,
     #[serde(default)]
     pub alt: Option<FieldOrLiteral>,
+    /// For image/video, the width.  For audio, the length of the controls regardless
+    /// of direction.
     #[serde(default)]
     pub width: Option<String>,
     #[serde(default)]
     pub height: Option<String>,
+    // For audio, the controls orientation direction.
+    #[serde(default)]
+    pub direction: Option<Direction>,
     #[serde(default)]
     pub trans_align: TransAlign,
     #[serde(default)]
@@ -147,8 +210,6 @@ pub struct WidgetImage {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct WidgetPlayButton {
     pub media_file_field: String,
-    /// The media type (ex `sunwet/1/video`, `sunwet/1/audio`)
-    pub media_type_field: FieldOrLiteral,
     #[serde(default)]
     pub name_field: Option<String>,
     #[serde(default)]
@@ -243,17 +304,19 @@ pub enum Widget {
     Layout(WidgetLayout),
     DataRows(WidgetDataRows),
     Text(WidgetText),
-    Image(WidgetImage),
+    Date(WidgetDate),
+    Time(WidgetTime),
+    Datetime(WidgetDatetime),
+    Color(WidgetColor),
+    Media(WidgetMedia),
     PlayButton(WidgetPlayButton),
+    Space,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum ClientViewParam {
     Text,
-    Bool,
-    Number,
-    Json,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
