@@ -164,10 +164,7 @@
     "ClientViewParam": {
       "type": "string",
       "enum": [
-        "text",
-        "bool",
-        "number",
-        "json"
+        "text"
       ]
     },
     "DataRowsLayout": {
@@ -582,27 +579,6 @@
       },
       "additionalProperties": false
     },
-    "FormFieldFile": {
-      "type": "object",
-      "required": [
-        "type"
-      ],
-      "properties": {
-        "type": {
-          "$ref": "#/definitions/FormFieldFileType"
-        }
-      },
-      "additionalProperties": false
-    },
-    "FormFieldFileType": {
-      "type": "string",
-      "enum": [
-        "any",
-        "image",
-        "video",
-        "audio"
-      ]
-    },
     "FormFieldNumber": {
       "type": "object",
       "properties": {
@@ -661,7 +637,8 @@
           "enum": [
             "date",
             "time",
-            "datetime"
+            "datetime",
+            "file"
           ]
         },
         {
@@ -754,18 +731,6 @@
           "properties": {
             "query_enum": {
               "$ref": "#/definitions/FormFieldQueryEnum"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "file"
-          ],
-          "properties": {
-            "file": {
-              "$ref": "#/definitions/FormFieldFile"
             }
           },
           "additionalProperties": false
@@ -1461,6 +1426,12 @@
     "Widget": {
       "oneOf": [
         {
+          "type": "string",
+          "enum": [
+            "space"
+          ]
+        },
+        {
           "type": "object",
           "required": [
             "layout"
@@ -1499,11 +1470,59 @@
         {
           "type": "object",
           "required": [
-            "image"
+            "date"
           ],
           "properties": {
-            "image": {
-              "$ref": "#/definitions/WidgetImage"
+            "date": {
+              "$ref": "#/definitions/WidgetDate"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "time"
+          ],
+          "properties": {
+            "time": {
+              "$ref": "#/definitions/WidgetTime"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "datetime"
+          ],
+          "properties": {
+            "datetime": {
+              "$ref": "#/definitions/WidgetDatetime"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "color"
+          ],
+          "properties": {
+            "color": {
+              "$ref": "#/definitions/WidgetColor"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "media"
+          ],
+          "properties": {
+            "media": {
+              "$ref": "#/definitions/WidgetMedia"
             }
           },
           "additionalProperties": false
@@ -1521,6 +1540,38 @@
           "additionalProperties": false
         }
       ]
+    },
+    "WidgetColor": {
+      "type": "object",
+      "required": [
+        "data",
+        "orientation"
+      ],
+      "properties": {
+        "data": {
+          "$ref": "#/definitions/FieldOrLiteralString"
+        },
+        "height": {
+          "default": "",
+          "type": "string"
+        },
+        "orientation": {
+          "$ref": "#/definitions/Orientation"
+        },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
+          ]
+        },
+        "width": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
     },
     "WidgetDataRows": {
       "type": "object",
@@ -1560,43 +1611,33 @@
       },
       "additionalProperties": false
     },
-    "WidgetImage": {
+    "WidgetDate": {
       "type": "object",
       "required": [
-        "data"
+        "data",
+        "orientation"
       ],
       "properties": {
-        "alt": {
-          "default": null,
-          "anyOf": [
-            {
-              "$ref": "#/definitions/FieldOrLiteral"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "data": {
-          "$ref": "#/definitions/FieldOrLiteral"
+          "$ref": "#/definitions/FieldOrLiteralString"
         },
-        "height": {
+        "font_size": {
           "default": null,
           "type": [
             "string",
             "null"
           ]
         },
-        "link": {
-          "default": null,
-          "anyOf": [
-            {
-              "$ref": "#/definitions/Link"
-            },
-            {
-              "type": "null"
-            }
-          ]
+        "orientation": {
+          "$ref": "#/definitions/Orientation"
+        },
+        "prefix": {
+          "default": "",
+          "type": "string"
+        },
+        "suffix": {
+          "default": "",
+          "type": "string"
         },
         "trans_align": {
           "default": "start",
@@ -1605,12 +1646,44 @@
               "$ref": "#/definitions/TransAlign"
             }
           ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "WidgetDatetime": {
+      "type": "object",
+      "required": [
+        "data",
+        "orientation"
+      ],
+      "properties": {
+        "data": {
+          "$ref": "#/definitions/FieldOrLiteralString"
         },
-        "width": {
+        "font_size": {
           "default": null,
           "type": [
             "string",
             "null"
+          ]
+        },
+        "orientation": {
+          "$ref": "#/definitions/Orientation"
+        },
+        "prefix": {
+          "default": "",
+          "type": "string"
+        },
+        "suffix": {
+          "default": "",
+          "type": "string"
+        },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
           ]
         }
       },
@@ -1654,11 +1727,78 @@
       },
       "additionalProperties": false
     },
+    "WidgetMedia": {
+      "type": "object",
+      "required": [
+        "data"
+      ],
+      "properties": {
+        "alt": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/FieldOrLiteral"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "data": {
+          "$ref": "#/definitions/FieldOrLiteral"
+        },
+        "direction": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Direction"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "height": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "link": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Link"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
+          ]
+        },
+        "width": {
+          "description": "For image/video, the width.  For audio, the length of the controls regardless of direction.",
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "WidgetPlayButton": {
       "type": "object",
       "required": [
-        "media_file_field",
-        "media_type_field"
+        "media_file_field"
       ],
       "properties": {
         "album_field": {
@@ -1684,14 +1824,6 @@
         },
         "media_file_field": {
           "type": "string"
-        },
-        "media_type_field": {
-          "description": "The media type (ex `sunwet/1/video`, `sunwet/1/audio`)",
-          "allOf": [
-            {
-              "$ref": "#/definitions/FieldOrLiteral"
-            }
-          ]
         },
         "name_field": {
           "default": null,
@@ -1788,6 +1920,45 @@
             {
               "type": "null"
             }
+          ]
+        },
+        "orientation": {
+          "$ref": "#/definitions/Orientation"
+        },
+        "prefix": {
+          "default": "",
+          "type": "string"
+        },
+        "suffix": {
+          "default": "",
+          "type": "string"
+        },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "WidgetTime": {
+      "type": "object",
+      "required": [
+        "data",
+        "orientation"
+      ],
+      "properties": {
+        "data": {
+          "$ref": "#/definitions/FieldOrLiteralString"
+        },
+        "font_size": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
           ]
         },
         "orientation": {
