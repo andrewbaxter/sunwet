@@ -1,7 +1,9 @@
 use {
     super::dbutil::tx,
     deadpool_sqlite::Pool,
-    flowcontrol::exenum,
+    flowcontrol::{
+        exenum,
+    },
     loga::{
         ea,
         ResultContext,
@@ -38,6 +40,7 @@ use {
             QuerySort,
             QuerySortDir,
             Step,
+            StrValue,
             Value,
         },
         triple::Node,
@@ -71,7 +74,7 @@ struct QueryBuildState {
     ident_col_subject: sea_query::DynIden,
     ident_col_predicate: sea_query::DynIden,
     ident_col_object: sea_query::DynIden,
-    ident_col_timestamp: sea_query::DynIden,
+    ident_col_commit: sea_query::DynIden,
     ident_col_exists: sea_query::DynIden,
     triple_table: sea_query::TableRef,
     func_json_extract: sea_query::FunctionCall,
@@ -189,7 +192,9 @@ fn build_filter(
                         });
                     },
                     FilterSuffix::Like(filter_suffix) => {
-                        sql_sel.and_where(primary_value.like(&filter_suffix.value));
+                        sql_sel.and_where(
+                            primary_value.like(&build_value_str(query_state, &filter_suffix.value)?),
+                        );
                     },
                 }
             }
@@ -275,7 +280,7 @@ fn build_step(
                             local_ident_table_primary.clone(),
                             query_state.ident_col_predicate.clone(),
                         ),
-                    ).eq(step.predicate.clone()),
+                    ).eq(build_value_str(query_state, &step.predicate)?),
                 );
 
                 // Output start col - subset of previous results
@@ -337,7 +342,7 @@ fn build_step(
                         sea_query::Expr::col(
                             sea_query::ColumnRef::TableColumn(
                                 local_ident_table_primary.clone(),
-                                query_state.ident_col_timestamp.clone(),
+                                query_state.ident_col_commit.clone(),
                             ),
                         ),
                     ),
@@ -599,6 +604,28 @@ fn build_step(
     return Ok(out);
 }
 
+fn build_value_str(query_state: &mut QueryBuildState, param: &StrValue) -> Result<String, loga::Error> {
+    match param {
+        StrValue::Literal(r) => {
+            return Ok(r.clone());
+        },
+        StrValue::Parameter(p) => {
+            let Some(v) = query_state.parameters.get(p) else {
+                return Err(loga::err_with("Missing value for parameter", ea!(parameter = p)));
+            };
+            let Node::Value(serde_json::Value::String(v)) = v else {
+                return Err(
+                    loga::err_with(
+                        "Parameter used in context requiring string but supplied value was not a string",
+                        ea!(parameter = p, value = serde_json::to_string(&v).unwrap()),
+                    ),
+                );
+            };
+            return Ok(v.clone());
+        },
+    }
+}
+
 fn build_value_json(query_state: &mut QueryBuildState, param: &Value) -> Result<serde_json::Value, loga::Error> {
     let param = match param {
         Value::Literal(r) => r,
@@ -701,7 +728,7 @@ fn build_subchain(
                             sql_sel.and_where(
                                 Expr::col(
                                     ColumnRef::TableColumn(ident_meta_fts.clone(), ident_fulltext.clone()),
-                                ).matches(root),
+                                ).matches(build_value_str(query_state, &root).unwrap()),
                             );
                             sql_sel
                         }),
@@ -751,7 +778,7 @@ fn build_chain(
 
     // Add dest as selection
     let mut selects = vec![];
-    if let Some(name) = chain.select {
+    if let Some(name) = chain.bind {
         sql_sel.expr_as(global_col_primary_end.clone(), SeaRc::new(Alias::new(format!("_{}", name))));
         selects.push((name, false));
     }
@@ -827,7 +854,7 @@ pub fn build_root_chain(
         ident_col_subject: SeaRc::new(Alias::new("subject")),
         ident_col_predicate: SeaRc::new(Alias::new("predicate")),
         ident_col_object: SeaRc::new(Alias::new("object")),
-        ident_col_timestamp: SeaRc::new(Alias::new("timestamp")),
+        ident_col_commit: SeaRc::new(Alias::new("commit_")),
         ident_col_exists: SeaRc::new(Alias::new("exists")),
         triple_table: sea_query::TableRef::Table(SeaRc::new(Alias::new("triple"))),
         func_json_extract: sea_query::Func::cust(SeaRc::new(Alias::new("json_extract"))),

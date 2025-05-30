@@ -90,14 +90,14 @@
         "body"
       ],
       "properties": {
-        "body": {
-          "$ref": "#/definitions/ChainBody"
-        },
-        "select": {
+        "bind": {
           "type": [
             "string",
             "null"
           ]
+        },
+        "body": {
+          "$ref": "#/definitions/ChainBody"
         },
         "subchains": {
           "type": "array",
@@ -154,7 +154,7 @@
           ],
           "properties": {
             "search": {
-              "type": "string"
+              "$ref": "#/definitions/StrValue"
             }
           },
           "additionalProperties": false
@@ -454,7 +454,7 @@
       ],
       "properties": {
         "value": {
-          "type": "string"
+          "$ref": "#/definitions/StrValue"
         }
       },
       "additionalProperties": false
@@ -1303,7 +1303,7 @@
           "type": "boolean"
         },
         "predicate": {
-          "type": "string"
+          "$ref": "#/definitions/StrValue"
         }
       },
       "additionalProperties": false
@@ -1322,6 +1322,34 @@
         }
       },
       "additionalProperties": false
+    },
+    "StrValue": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "literal"
+          ],
+          "properties": {
+            "literal": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "parameter"
+          ],
+          "properties": {
+            "parameter": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "TextSizeMode": {
       "type": "string",

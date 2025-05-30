@@ -15,19 +15,15 @@ use {
     },
     flowcontrol::ta_return,
     lunk::ProcessingContext,
-    rooting::{
-        El,
-    },
+    rooting::El,
     shared::interface::{
+        ont::PREDICATE_NAME,
         triple::Node,
         wire::ReqGetTriplesAround,
     },
-    wasm::{
-        js::{
-            el_async_,
-            style_export,
-        },
-        ont,
+    wasm::js::{
+        el_async_,
+        style_export,
     },
 };
 
@@ -119,7 +115,7 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                 {
                     let mut triples_els = vec![];
                     for t in triples.outgoing {
-                        if t.predicate == ont::PREDICATE_NAME {
+                        if t.predicate == PREDICATE_NAME {
                             let name = node_to_text(&t.object);
                             state().main_title.ref_text(&name);
                             record_replace_ministate(&Ministate::NodeView(MinistateNodeView {

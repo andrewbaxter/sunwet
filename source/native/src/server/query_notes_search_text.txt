@@ -1,0 +1,2 @@
+search $text -< "sunwet/1/text" ?( -> "sunwet/1/is" == "sunwet/1/note" )
+    include "query_notes_suffix.txt"

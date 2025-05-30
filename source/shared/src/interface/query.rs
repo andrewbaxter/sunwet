@@ -9,6 +9,13 @@ use {
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum StrValue {
+    Literal(String),
+    Parameter(String),
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Value {
     Literal(Node),
     Parameter(String),
@@ -49,7 +56,7 @@ pub struct FilterSuffixSimple {
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FilterSuffixLike {
-    pub value: String,
+    pub value: StrValue,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash, Clone, Debug, JsonSchema)]
@@ -101,7 +108,7 @@ pub enum FilterExpr {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct StepMove {
     pub dir: MoveDirection,
-    pub predicate: String,
+    pub predicate: StrValue,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
     pub filter: Option<FilterExpr>,
@@ -138,7 +145,7 @@ pub enum Step {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum ChainRoot {
     Value(Value),
-    Search(String),
+    Search(StrValue),
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash, Clone, Debug, JsonSchema)]
@@ -156,7 +163,7 @@ pub struct Chain {
     pub body: ChainBody,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
-    pub select: Option<String>,
+    pub bind: Option<String>,
     #[serde(skip_serializing_if = "std::vec::Vec::is_empty")]
     #[serde(default)]
     pub subchains: Vec<Chain>,

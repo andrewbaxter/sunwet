@@ -1,5 +1,7 @@
 use {
     aargvark::Aargvark,
+    by_address::ByAddress,
+    chrono::Utc,
     flowcontrol::shed,
     loga::{
         ea,
@@ -9,14 +11,42 @@ use {
         Log,
         ResultContext,
     },
-    shared::interface::cli::{
-        CliCommit,
-        CliNode,
-        CliTriple,
+    sha2::{
+        Digest,
+        Sha256,
+    },
+    shared::interface::{
+        cli::{
+            CliCommit,
+            CliNode,
+            CliTriple,
+        },
+        ont::{
+            OBJ_IS_ALBUM,
+            OBJ_IS_ARTIST,
+            OBJ_IS_DOC,
+            OBJ_IS_TRACK,
+            OBJ_MEDIA_AUDIO,
+            OBJ_MEDIA_IMAGE,
+            OBJ_MEDIA_VIDEO,
+            PREDICATE_ADD_TIMESTAMP,
+            PREDICATE_ARTIST,
+            PREDICATE_COVER,
+            PREDICATE_DOC,
+            PREDICATE_FILE,
+            PREDICATE_INDEX,
+            PREDICATE_IS,
+            PREDICATE_MEDIA,
+            PREDICATE_NAME,
+            PREDICATE_SUPERINDEX,
+            PREDICATE_TRACK,
+        },
     },
     std::{
         cell::RefCell,
         collections::{
+            BTreeMap,
+            BTreeSet,
             HashMap,
             HashSet,
         },
@@ -61,78 +91,32 @@ pub fn triple(sub: &CliNode, pred: &str, obj: &CliNode) -> CliTriple {
     };
 }
 
-const PREFIX_SUNWET1: &str = "sunwet/1";
-
-// Link to file node from metadata node representing file
-pub fn pred_file() -> String {
-    return format!("{PREFIX_SUNWET1}/file");
+pub fn obj_is_album() -> CliNode {
+    return CliNode::Value(serde_json::Value::String(OBJ_IS_ALBUM.to_string()));
 }
 
-// Human-known name for something
-pub fn pred_name() -> String {
-    return format!("{PREFIX_SUNWET1}/name");
+pub fn obj_is_artist() -> CliNode {
+    return CliNode::Value(serde_json::Value::String(OBJ_IS_ARTIST.to_string()));
 }
 
-// A mangling of the human-known name that can be unambiguously sorted by a
-// computer (ex: hiragana/katagana instead of kanji)
-pub fn pred_name_sort() -> String {
-    return format!("{PREFIX_SUNWET1}/name_sort");
+pub fn obj_media_audio() -> CliNode {
+    return CliNode::Value(serde_json::Value::String(OBJ_MEDIA_AUDIO.to_string()));
 }
 
-// Link to artist
-pub fn pred_artist() -> String {
-    return format!("{PREFIX_SUNWET1}/artist");
+pub fn obj_media_video() -> CliNode {
+    return CliNode::Value(serde_json::Value::String(OBJ_MEDIA_VIDEO.to_string()));
 }
 
-// Link to cover (file node)
-pub fn pred_image() -> String {
-    return format!("{PREFIX_SUNWET1}/cover");
+pub fn obj_media_image() -> CliNode {
+    return CliNode::Value(serde_json::Value::String(OBJ_MEDIA_IMAGE.to_string()));
 }
 
-// Link to booklet (file node)
-pub fn pred_document() -> String {
-    return format!("{PREFIX_SUNWET1}/booklet");
+pub fn obj_is_track() -> CliNode {
+    return CliNode::Value(serde_json::Value::String(OBJ_IS_TRACK.to_string()));
 }
 
-pub fn pred_media() -> String {
-    return format!("{PREFIX_SUNWET1}/media");
-}
-
-pub fn pred_index() -> String {
-    return format!("{PREFIX_SUNWET1}/index");
-}
-
-pub fn pred_element() -> String {
-    return format!("{PREFIX_SUNWET1}/element");
-}
-
-/// Typing, can be chained to form hierarchy
-pub fn pred_is() -> String {
-    return format!("{PREFIX_SUNWET1}/is");
-}
-
-pub fn root_albumset_value() -> CliNode {
-    return CliNode::Value(serde_json::Value::String(format!("{PREFIX_SUNWET1}/albumset")));
-}
-
-pub fn root_album_value() -> CliNode {
-    return CliNode::Value(serde_json::Value::String(format!("{PREFIX_SUNWET1}/album")));
-}
-
-pub fn root_track_value() -> CliNode {
-    return CliNode::Value(serde_json::Value::String(format!("{PREFIX_SUNWET1}/track")));
-}
-
-pub fn root_artist_value() -> CliNode {
-    return CliNode::Value(serde_json::Value::String(format!("{PREFIX_SUNWET1}/artist")));
-}
-
-pub fn root_audio_value() -> CliNode {
-    return CliNode::Value(serde_json::Value::String(format!("{PREFIX_SUNWET1}/audio")));
-}
-
-pub fn root_video_value() -> CliNode {
-    return CliNode::Value(serde_json::Value::String(format!("{PREFIX_SUNWET1}/video")));
+pub fn obj_is_document() -> CliNode {
+    return CliNode::Value(serde_json::Value::String(OBJ_IS_DOC.to_string()));
 }
 
 fn is_image(p: &[u8]) -> bool {
@@ -164,64 +148,58 @@ fn is_doc(p: &[u8]) -> bool {
 }
 
 fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
-    fn parents(root_dir: &Path, start: &Path) -> Vec<PathBuf> {
-        let mut out = vec![];
-        let mut at = start;
-        loop {
-            out.push(at.to_path_buf());
-            if at == root_dir {
-                break;
-            }
-            at = at.parent().unwrap();
-        }
-        return out;
-    }
+    let sunwet_dir = root_dir.join("sunwet");
+    create_dir_all(&sunwet_dir).context("Error making sunwet dir")?;
+    let timestamp = node_value_str(&Utc::now().to_rfc3339());
 
-    // Gather metadata
+    // Gather metadata from tracks, prepare dir-associated data
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     enum GatherTrackType {
         Audio,
         Video,
     }
 
+    struct GatherArtist {
+        id: String,
+        name: String,
+    }
+
     struct GatherTrack {
-        type_: GatherTrackType,
         id: String,
         file: PathBuf,
+        type_: GatherTrackType,
         index: Option<usize>,
-        artist: Vec<String>,
-        artist_sort: Vec<String>,
-        name: Vec<String>,
-        name_sort: Vec<String>,
+        superindex: Option<usize>,
+        artist: Vec<Rc<RefCell<GatherArtist>>>,
+        name: String,
     }
 
     struct GatherAlbum {
         id: String,
-        index: Option<usize>,
-        name: Vec<String>,
-        name_sort: Vec<String>,
-        artist: Vec<String>,
-        artist_sort: Vec<String>,
+        name: String,
+        artist: BTreeSet<ByAddress<Rc<RefCell<GatherArtist>>>>,
         tracks: Vec<Rc<RefCell<GatherTrack>>>,
-    }
-
-    #[derive(Default)]
-    struct GatherAlbumset {
-        name: Vec<String>,
-        name_sort: Vec<String>,
-        artist: Vec<String>,
-        artist_sort: Vec<String>,
-        albums: Vec<Rc<RefCell<GatherAlbum>>>,
+        // Precedence -> hash -> prevalence in tracks
+        covers: BTreeMap<usize, HashMap<PathBuf, usize>>,
+        documents: Vec<PathBuf>,
     }
 
     #[derive(Default)]
     struct DirAssociations {
-        album: HashSet<String>,
+        album: HashSet<ByAddress<Rc<RefCell<GatherAlbum>>>>,
     }
 
-    let mut albumset = GatherAlbumset::default();
     let mut dir_associations = HashMap::<PathBuf, DirAssociations>::new();
-    let mut images = vec![];
-    let mut documents = vec![];
+
+    #[derive(Hash, PartialEq, Eq, Clone)]
+    struct AlbumKey {
+        album_artist: BTreeSet<ByAddress<Rc<RefCell<GatherArtist>>>>,
+        name: String,
+    }
+
+    let mut albums = HashMap::<AlbumKey, Rc<RefCell<GatherAlbum>>>::new();
+    let mut artists = HashMap::<String, Rc<RefCell<GatherArtist>>>::new();
+    let mut leftover_files = vec![];
     for file in WalkDir::new(&root_dir) {
         let file = match file {
             Ok(f) => f,
@@ -238,12 +216,17 @@ fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
         if file.path().file_name().is_none() || file.path().file_name().unwrap().as_bytes().starts_with(b".") {
             continue;
         }
-        let Some(e) = file.path().extension() else {
-            continue;
-        };
-        if is_image(e.as_bytes()) {
-            images.push(file.path().to_path_buf());
-        } else if is_audio(e.as_bytes()) {
+        let e = file.path().extension().unwrap_or_default();
+        let mut album_name = None;
+        let mut album_artist = BTreeSet::new();
+        let mut track_artist = vec![];
+        let mut track_name = None;
+        let mut track_index = None;
+        let track_type;
+        let mut track_superindex = None;
+        let mut album_cover = HashMap::new();
+        if is_audio(e.as_bytes()) {
+            track_type = GatherTrackType::Audio;
             let mut info =
                 match symphonia
                 ::default
@@ -262,57 +245,78 @@ fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
                         continue;
                     },
                 };
-            let mut found_metadata = false;
-            let mut album_artist = vec![];
-            let mut album_artist_sort = vec![];
-            let mut track_artist = vec![];
-            let mut track_artist_sort = vec![];
-            let mut track_name = vec![];
-            let mut track_name_sort = vec![];
-            let mut track_number = None;
-            let mut disk_number = None;
             let mut parse_metadata = |metadata: &symphonia::core::meta::MetadataRevision| {
-                found_metadata = true;
                 for tag in metadata.tags() {
                     match tag.std_key {
                         Some(k) => match k {
                             symphonia::core::meta::StandardTagKey::Album => {
-                                albumset.name.push(tag.value.to_string());
+                                album_name = Some(tag.value.to_string());
                             },
                             symphonia::core::meta::StandardTagKey::AlbumArtist => {
-                                album_artist.push(tag.value.to_string());
+                                album_artist.insert(tag.value.to_string());
                             },
                             symphonia::core::meta::StandardTagKey::Artist => {
                                 track_artist.push(tag.value.to_string());
                             },
                             symphonia::core::meta::StandardTagKey::DiscNumber => {
-                                disk_number = Some(usize::from_str_radix(&tag.value.to_string(), 10)?);
-                            },
-                            symphonia::core::meta::StandardTagKey::SortAlbum => {
-                                albumset.name_sort.push(tag.value.to_string());
-                            },
-                            symphonia::core::meta::StandardTagKey::SortAlbumArtist => {
-                                album_artist_sort.push(tag.value.to_string());
-                            },
-                            symphonia::core::meta::StandardTagKey::SortArtist => {
-                                track_artist_sort.push(tag.value.to_string());
-                            },
-                            symphonia::core::meta::StandardTagKey::SortTrackTitle => {
-                                track_name_sort.push(tag.value.to_string());
+                                track_superindex = Some(usize::from_str_radix(&tag.value.to_string(), 10)?);
                             },
                             symphonia::core::meta::StandardTagKey::TrackNumber => {
-                                track_number =
+                                track_index =
                                     Some(
                                         usize::from_str_radix(&tag.value.to_string().split("/").next().unwrap(), 10)?,
                                     );
                             },
                             symphonia::core::meta::StandardTagKey::TrackTitle => {
-                                track_name.push(tag.value.to_string());
+                                track_name = Some(tag.value.to_string());
                             },
                             _ => { },
                         },
                         None => { },
                     }
+                }
+                for v in metadata.visuals() {
+                    let priority = match v.usage {
+                        Some(u) => match u {
+                            symphonia::core::meta::StandardVisualKey::FrontCover => 0,
+                            symphonia::core::meta::StandardVisualKey::Media => 10,
+                            symphonia::core::meta::StandardVisualKey::Illustration => 20,
+                            symphonia::core::meta::StandardVisualKey::BandArtistLogo => 30,
+                            symphonia::core::meta::StandardVisualKey::Leaflet => 40,
+                            symphonia::core::meta::StandardVisualKey::FileIcon => 500,
+                            symphonia::core::meta::StandardVisualKey::OtherIcon => 500,
+                            symphonia::core::meta::StandardVisualKey::BackCover => 500,
+                            symphonia::core::meta::StandardVisualKey::LeadArtistPerformerSoloist => 500,
+                            symphonia::core::meta::StandardVisualKey::ArtistPerformer => 500,
+                            symphonia::core::meta::StandardVisualKey::Conductor => 500,
+                            symphonia::core::meta::StandardVisualKey::BandOrchestra => 500,
+                            symphonia::core::meta::StandardVisualKey::Composer => 500,
+                            symphonia::core::meta::StandardVisualKey::Lyricist => 500,
+                            symphonia::core::meta::StandardVisualKey::RecordingLocation => 500,
+                            symphonia::core::meta::StandardVisualKey::RecordingSession => 500,
+                            symphonia::core::meta::StandardVisualKey::Performance => 500,
+                            symphonia::core::meta::StandardVisualKey::ScreenCapture => 500,
+                            symphonia::core::meta::StandardVisualKey::PublisherStudioLogo => 500,
+                        },
+                        None => 1000,
+                    };
+                    let suffix = match v.media_type.as_str() {
+                        "image/jpeg" => "jpg",
+                        "image/png" => "png",
+                        "image/webp" => "webp",
+                        "image/avif" => "avif",
+                        "image/gif" => "gif",
+                        "image/tiff" => "tif",
+                        _ => {
+                            continue;
+                        },
+                    };
+                    let digest = hex::encode(Sha256::digest(&v.data));
+                    let path = sunwet_dir.join(format!("{}.{}", digest, suffix));
+                    if !path.exists() {
+                        std::fs::write(&path, &v.data).context("Error writing cover from file")?;
+                    }
+                    album_cover.insert(priority, path);
                 }
                 return Ok(()) as Result<(), loga::Error>;
             };
@@ -328,47 +332,8 @@ fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
             if let Some(metadata) = info.format.metadata().current() {
                 parse_metadata(metadata)?;
             }
-            if !found_metadata {
-                log.log(loga::WARN, "File has no metadata, skipping");
-                continue;
-            }
-            let album = match albumset.albums.iter().find(|a| a.borrow().index == disk_number) {
-                Some(a) => a.clone(),
-                None => {
-                    let a = Rc::new(RefCell::new(GatherAlbum {
-                        id: node_id(),
-                        index: disk_number,
-                        name: vec![],
-                        name_sort: vec![],
-                        artist: vec![],
-                        artist_sort: vec![],
-                        tracks: vec![],
-                    }));
-                    albumset.albums.push(a.clone());
-                    a
-                },
-            };
-            let mut album = album.borrow_mut();
-            for parent in parents(&root_dir, file.path().parent().unwrap()) {
-                dir_associations
-                    .entry(parent)
-                    .or_insert(DirAssociations::default())
-                    .album
-                    .insert(album.id.clone());
-            }
-            album.artist.extend(album_artist.clone());
-            album.artist_sort.extend(album_artist_sort.clone());
-            album.tracks.push(Rc::new(RefCell::new(GatherTrack {
-                type_: GatherTrackType::Audio,
-                id: node_id(),
-                index: track_number,
-                file: file.path().to_path_buf(),
-                artist: track_artist,
-                artist_sort: track_artist_sort,
-                name: track_name,
-                name_sort: track_name_sort,
-            })));
         } else if is_video(e.as_bytes()) {
+            track_type = GatherTrackType::Video;
             let elements = match mkvdump::parse_elements_from_file(file.path(), false) {
                 Ok(e) => e,
                 Err(e) => {
@@ -470,16 +435,6 @@ fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
             let Some(tags_children) = get_children(tags) else {
                 continue;
             };
-            let mut album_name = vec![];
-            let mut album_name_sort = vec![];
-            let mut album_artist = vec![];
-            let mut album_artist_sort = vec![];
-            let mut track_name = vec![];
-            let mut track_name_sort = vec![];
-            let mut track_artist = vec![];
-            let mut track_artist_sort = vec![];
-            let mut disk_number = None;
-            let mut track_number = None;
             for tag in tags_children {
                 let Some((_, Some(tag_children), _)) = parse_value(tag) else {
                     continue;
@@ -547,42 +502,14 @@ fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
                 }
                 for level in &levels {
                     match level.as_str() {
-                        "COLLECTION" => {
-                            for (k, v) in &tags {
-                                match k.as_str() {
-                                    "TITLE" => {
-                                        albumset.name.push(v.to_string());
-                                    },
-                                    "TITLE__SORT_WITH" => {
-                                        albumset.name_sort.push(v.to_string());
-                                    },
-                                    "ARTIST" => {
-                                        albumset.artist.push(v.to_string());
-                                    },
-                                    "ARTIST__SORT_WITH" => {
-                                        albumset.artist_sort.push(v.to_string());
-                                    },
-                                    _ => { },
-                                }
-                            }
-                        },
                         "EDITION / ISSUE / VOLUME / OPUS / SEASON / SEQUEL" | "fake_ALBUM" => {
                             for (k, v) in &tags {
                                 match k.as_str() {
                                     "TITLE" => {
-                                        album_name.push(v.clone());
-                                    },
-                                    "TITLE__SORT_WITH" => {
-                                        album_name_sort.push(v.clone());
+                                        album_name = Some(v.clone());
                                     },
                                     "ARTIST" => {
-                                        album_artist.push(v.clone());
-                                    },
-                                    "ARTIST__SORT_WITH" => {
-                                        album_artist_sort.push(v.clone());
-                                    },
-                                    "PART_NUMBER" => {
-                                        disk_number = Some(usize::from_str_radix(&v, 10)?);
+                                        album_artist.insert(v.clone());
                                     },
                                     _ => { },
                                 }
@@ -592,19 +519,13 @@ fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
                             for (k, v) in &tags {
                                 match k.as_str() {
                                     "TITLE" => {
-                                        track_name.push(v.clone());
-                                    },
-                                    "TITLE__SORT_WITH" => {
-                                        track_name_sort.push(v.clone());
+                                        track_name = Some(v.clone());
                                     },
                                     "ARTIST" => {
                                         track_artist.push(v.clone());
                                     },
-                                    "ARTIST__SORT_WITH" => {
-                                        track_artist_sort.push(v.clone());
-                                    },
                                     "PART_NUMBER" => {
-                                        track_number = Some(usize::from_str_radix(&v, 10)?);
+                                        track_index = Some(usize::from_str_radix(&v, 10)?);
                                     },
                                     _ => { },
                                 }
@@ -614,190 +535,180 @@ fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
                     }
                 }
             }
-            let album = match albumset.albums.iter().find(|a| a.borrow().index == disk_number) {
-                Some(a) => a.clone(),
-                None => {
-                    let a = Rc::new(RefCell::new(GatherAlbum {
-                        id: node_id(),
-                        index: disk_number,
-                        name: vec![],
-                        name_sort: vec![],
-                        artist: vec![],
-                        artist_sort: vec![],
-                        tracks: vec![],
-                    }));
-                    albumset.albums.push(a.clone());
-                    a
-                },
-            };
-            let mut album = album.borrow_mut();
-            for parent in parents(&root_dir, file.path().parent().unwrap()) {
-                dir_associations
-                    .entry(parent)
-                    .or_insert(DirAssociations::default())
-                    .album
-                    .insert(album.id.clone());
-            }
-            album.name.extend(album_name.clone());
-            album.name_sort.extend(album_name_sort.clone());
-            album.artist.extend(album_artist.clone());
-            album.artist_sort.extend(album_artist_sort.clone());
-            album.tracks.push(Rc::new(RefCell::new(GatherTrack {
-                type_: GatherTrackType::Video,
-                id: node_id(),
-                index: track_number,
-                file: file.path().to_path_buf(),
-                artist: track_artist,
-                artist_sort: track_artist_sort,
-                name: track_name,
-                name_sort: track_name_sort,
-            })));
-        } else if is_doc(e.as_bytes()) {
-            documents.push(file.path().to_path_buf());
         } else {
+            leftover_files.push(file);
             continue;
+        }
+
+        // Sanity check minimum meta
+        let Some(track_name) = track_name else {
+            return Err(loga::err_with("File missing track name", ea!(path = file.path().dbg_str())));
+        };
+        if track_artist.is_empty() {
+            return Err(loga::err_with("File missing track artist", ea!(path = file.path().dbg_str())));
+        }
+
+        // Build album artist
+        let mut album_artist2 = BTreeSet::new();
+        for artist in &album_artist {
+            album_artist2.insert(
+                ByAddress(artists.entry(artist.clone()).or_insert_with(|| Rc::new(RefCell::new(GatherArtist {
+                    id: node_id(),
+                    name: artist.clone(),
+                }))).clone()),
+            );
+        }
+        let album_name = album_name.unwrap_or_else(|| track_name.clone());
+        let album = albums.entry(AlbumKey {
+            album_artist: album_artist2.clone(),
+            name: album_name.clone(),
+        }).or_insert_with(|| Rc::new(RefCell::new(GatherAlbum {
+            id: node_id(),
+            name: album_name,
+            artist: album_artist2,
+            tracks: Default::default(),
+            covers: Default::default(),
+            documents: Default::default(),
+        })));
+        for (priority, cover) in album_cover {
+            *album.borrow_mut().covers.entry(priority).or_default().entry(cover).or_default() += 1;
+        }
+        dir_associations
+            .entry(file.path().parent().unwrap().to_path_buf())
+            .or_insert(DirAssociations::default())
+            .album
+            .insert(ByAddress(album.clone()));
+
+        // Assemble track
+        let mut track_artist2 = vec![];
+        for artist in &track_artist {
+            track_artist2.push(artists.entry(artist.clone()).or_insert_with(|| Rc::new(RefCell::new(GatherArtist {
+                id: node_id(),
+                name: artist.clone(),
+            }))).clone());
+        }
+        album.borrow_mut().tracks.push(Rc::new(RefCell::new(GatherTrack {
+            id: node_id(),
+            type_: track_type,
+            index: track_index,
+            superindex: track_superindex,
+            file: file.path().to_path_buf(),
+            artist: track_artist2,
+            name: track_name,
+        })));
+    }
+
+    // Gather non-track data (docs, covers) and associate with common dir albums
+    for file in leftover_files {
+        let Some(assoc) = dir_associations.get(file.path().parent().unwrap()) else {
+            log.log_with(
+                loga::WARN,
+                "Skipping document in dir with no album association",
+                ea!(path = file.path().dbg_str()),
+            );
+            continue;
+        };
+        if assoc.album.len() != 1 {
+            log.log_with(
+                loga::WARN,
+                "Skipping document in dir with ambiguous album association",
+                ea!(path = file.path().dbg_str()),
+            );
+            continue;
+        }
+        let album = assoc.album.iter().next().unwrap();
+        let e = file.path().extension().unwrap_or_default();
+        if is_image(e.as_bytes()) {
+            let norm_filename =
+                String::from_utf8_lossy(
+                    file.path().with_extension("").file_name().unwrap_or_default().as_bytes(),
+                ).to_ascii_lowercase();
+            *album.borrow_mut().covers.entry(if norm_filename.as_str() == "cover" {
+                5
+            } else if norm_filename.contains("cover") {
+                6
+            } else {
+                50
+            }).or_default().entry(file.path().to_path_buf()).or_default() += 1;
+        } else {
+            album.borrow_mut().documents.push(file.path().to_path_buf());
         }
     }
 
     // Turn gathered data into triples
-    let mut artists = HashMap::<String, CliNode>::new();
     let mut triples = vec![];
-    let mut build_artist = |triples: &mut Vec<CliTriple>, name: &str, name_sort: &str| -> CliNode {
-        let artist_id =
-            artists.entry(name.to_string()).or_insert_with(|| CliNode::Value(node_id().into())).clone();
-        triples.push(triple(&artist_id, &pred_is(), &root_artist_value()));
-        triples.push(triple(&artist_id, &pred_name(), &node_value_str(name)));
-        triples.push(triple(&artist_id, &pred_name_sort(), &node_value_str(name_sort)));
-        return artist_id;
-    };
-    let albumset_id = CliNode::Value(node_id().into());
-    triples.push(triple(&albumset_id, &pred_is(), &root_albumset_value()));
-    triples.push(triple(&albumset_id, &pred_is(), &root_albumset_value()));
-    triples.push(triple(&albumset_id, &pred_media(), &root_audio_value()));
-    for v in albumset.name.iter().collect::<HashSet<_>>() {
-        triples.push(triple(&albumset_id, &pred_name(), &node_value_str(&v)));
+    for artist in artists.values() {
+        let artist = artist.borrow();
+        triples.push(triple(&node_value_str(&artist.id), PREDICATE_IS, &obj_is_artist()));
+        triples.push(triple(&node_value_str(&artist.id), PREDICATE_NAME, &node_value_str(&artist.name)));
+        triples.push(triple(&node_value_str(&artist.id), PREDICATE_ADD_TIMESTAMP, &timestamp));
     }
-    for v in albumset.name_sort.iter().collect::<HashSet<_>>() {
-        triples.push(triple(&albumset_id, &pred_name_sort(), &node_value_str(v)));
-    }
-
-    fn pair_artists<'a>(artists: &'a [String], artists_sort: &'a [String]) -> HashSet<(&'a str, &'a str)> {
-        let artists_sort_iter;
-        if artists_sort.len() == 0 {
-            artists_sort_iter = artists.iter();
-        } else {
-            artists_sort_iter = artists_sort.iter();
-        }
-        let out =
-            artists
-                .iter()
-                .map(|x| x.as_str())
-                .zip(artists_sort_iter.map(|x| x.as_str()))
-                .collect::<HashSet<_>>();
-        return out;
-    }
-
-    for (v, v_sort) in pair_artists(&albumset.artist, &albumset.artist_sort) {
-        let artist = build_artist(&mut triples, v, v_sort);
-        triples.push(triple(&albumset_id, &pred_artist(), &artist));
-    }
-
-    // Albums
-    albumset.albums.sort_by_cached_key(|a| a.borrow().index.unwrap_or(usize::MAX));
-    for album in &albumset.albums {
+    for album in albums.values() {
         let album = album.borrow();
-        let album_id = CliNode::Value(album.id.clone().into());
-        triples.push(triple(&albumset_id, &pred_element(), &album_id));
-        if let Some(index) = album.index {
-            triples.push(triple(&album_id, &pred_index(), &node_value_usize(index)));
-        }
-        triples.push(triple(&album_id, &pred_is(), &root_album_value()));
-        triples.push(triple(&album_id, &pred_media(), &root_audio_value()));
-        if album.name.len() >= 1 {
-            for name in &album.name {
-                triples.push(triple(&album_id, &pred_name(), &node_value_str(&name)));
-            }
-        } else if albumset.albums.len() > 1 && album.index.is_some() {
-            let index = album.index.unwrap();
-            for name in &albumset.name {
-                triples.push(
-                    triple(&album_id, &pred_name(), &node_value_str(&format!("{} (Disk {})", name, index))),
-                );
-            }
-        }
-        if album.name_sort.len() >= 1 {
-            for name in &album.name_sort {
-                triples.push(triple(&album_id, &pred_name_sort(), &node_value_str(&name)));
-            }
-        } else if albumset.albums.len() > 1 && album.index.is_some() {
-            let index = album.index.unwrap();
-            for album_name_sort in &albumset.name_sort {
-                triples.push(
-                    triple(
-                        &album_id,
-                        &pred_name_sort(),
-                        &node_value_str(&format!("{} (Disk {})", album_name_sort, index)),
-                    ),
-                );
-            }
-        }
-        for (v, v_sort) in pair_artists(&album.artist, &album.artist_sort) {
-            let artist = build_artist(&mut triples, v, v_sort);
-            triples.push(triple(&album_id, &pred_artist(), &artist));
-        }
-
-        // Tracks
-        for track in &album.tracks {
-            let track = track.borrow();
-            let track_id = CliNode::Value(track.id.clone().into());
-            triples.push(triple(&album_id, &pred_element(), &track_id));
-            if let Some(index) = track.index {
-                triples.push(triple(&track_id, &pred_index(), &node_value_usize(index)));
-            }
-            triples.push(triple(&track_id, &pred_is(), &root_track_value()));
-            match track.type_ {
-                GatherTrackType::Audio => {
-                    triples.push(triple(&track_id, &pred_media(), &root_audio_value()));
+        triples.push(triple(&node_value_str(&album.id), PREDICATE_IS, &obj_is_album()));
+        triples.push(
+            triple(
+                &node_value_str(&album.id),
+                PREDICATE_MEDIA,
+                &match album.tracks.iter().next().unwrap().borrow().type_ {
+                    GatherTrackType::Audio => obj_media_audio(),
+                    GatherTrackType::Video => obj_media_video(),
                 },
-                GatherTrackType::Video => {
-                    triples.push(triple(&track_id, &pred_media(), &root_video_value()));
-                },
-            }
-            triples.push(triple(&track_id, &pred_file(), &node_upload(&root_dir, &track.file)));
-            for v in track.name.iter().collect::<HashSet<_>>() {
-                triples.push(triple(&track_id, &pred_name(), &node_value_str(v)));
-            }
-            for v in track.name_sort.iter().collect::<HashSet<_>>() {
-                triples.push(triple(&track_id, &pred_name_sort(), &node_value_str(v)));
-            }
-            for (v, v_sort) in pair_artists(&track.artist, &track.artist_sort) {
-                let artist = build_artist(&mut triples, v, v_sort);
-                triples.push(triple(&track_id, &pred_artist(), &artist));
-            }
+            ),
+        );
+        triples.push(triple(&node_value_str(&album.id), PREDICATE_NAME, &node_value_str(&album.name)));
+        for artist in &album.artist {
+            triples.push(
+                triple(&node_value_str(&album.id), PREDICATE_ARTIST, &node_value_str(&artist.borrow().id)),
+            );
         }
-    }
-    let mut assoc_nontrack = |files: Vec<PathBuf>, predicate: &str| {
-        for v in files {
-            let mut subj = None;
-            for parent in parents(&root_dir, v.parent().unwrap()) {
-                match dir_associations.get(&parent) {
-                    Some(assoc) => {
-                        if assoc.album.len() == 1 {
-                            subj = Some(CliNode::Value(assoc.album.iter().next().unwrap().clone().into()));
-                        } else {
-                            subj = Some(albumset_id.clone());
-                        }
-                        break;
-                    },
-                    None => { },
+        triples.push(triple(&node_value_str(&album.id), PREDICATE_ADD_TIMESTAMP, &timestamp));
+        shed!{
+            'found _;
+            for covers in album.covers.values() {
+                let mut covers = covers.iter().collect::<Vec<_>>();
+                covers.sort_by_cached_key(|c| *c.1);
+                if let Some((cover, _)) = covers.into_iter().next() {
+                    triples.push(
+                        triple(&node_value_str(&album.id), PREDICATE_COVER, &node_upload(root_dir, cover)),
+                    );
+                    break 'found;
                 }
             }
-            let subj = subj.unwrap_or_else(|| albumset_id.clone());
-            triples.push(triple(&subj, &predicate, &node_upload(&root_dir, &v)));
+        };
+        for track in &album.tracks {
+            let track = track.borrow();
+            triples.push(triple(&node_value_str(&track.id), PREDICATE_IS, &obj_is_track()));
+            if let Some(index) = track.index {
+                triples.push(triple(&node_value_str(&track.id), PREDICATE_INDEX, &node_value_usize(index)));
+            }
+            if let Some(index) = track.superindex {
+                triples.push(triple(&node_value_str(&track.id), PREDICATE_SUPERINDEX, &node_value_usize(index)));
+            }
+            triples.push(triple(&node_value_str(&track.id), PREDICATE_NAME, &node_value_str(&track.name)));
+            for artist in &track.artist {
+                triples.push(
+                    triple(&node_value_str(&track.id), PREDICATE_ARTIST, &node_value_str(&artist.borrow().id)),
+                );
+            }
+            triples.push(triple(&node_value_str(&track.id), PREDICATE_ADD_TIMESTAMP, &timestamp));
+            triples.push(triple(&node_value_str(&track.id), PREDICATE_FILE, &node_upload(&root_dir, &track.file)));
+            triples.push(triple(&node_value_str(&album.id), PREDICATE_TRACK, &node_value_str(&track.id)));
         }
-    };
-    assoc_nontrack(images, &pred_image());
-    assoc_nontrack(documents, &pred_document());
+        for doc in &album.documents {
+            let doc_id = node_id();
+            triples.push(triple(&node_value_str(&doc_id), PREDICATE_IS, &obj_is_document()));
+            triples.push(
+                triple(
+                    &node_value_str(&doc_id),
+                    PREDICATE_NAME,
+                    &node_value_str(&String::from_utf8_lossy(doc.file_name().unwrap_or_default().as_bytes())),
+                ),
+            );
+            triples.push(triple(&node_value_str(&doc_id), PREDICATE_ADD_TIMESTAMP, &timestamp));
+            triples.push(triple(&node_value_str(&album.id), PREDICATE_DOC, &node_value_str(&doc_id)));
+        }
+    }
     write(root_dir.join("sunwet.json"), serde_json::to_string_pretty(&CliCommit {
         add: triples,
         remove: vec![],

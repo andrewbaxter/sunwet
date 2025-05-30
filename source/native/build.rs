@@ -70,7 +70,7 @@ fn main() {
         let subject = t.field(&mut latest_version, "zLQI9HQUQ", "subject", FieldType::with(&node_type));
         let predicate = t.field(&mut latest_version, "zSZVNBP0E", "predicate", field_str().build());
         let object = t.field(&mut latest_version, "zII52SWQB", "object", FieldType::with(&node_type));
-        let commit = t.field(&mut latest_version, "zK21ECBE5", "commit", field_utctime_ms().build());
+        let commit = t.field(&mut latest_version, "zK21ECBE5", "commit_", field_utctime_ms().build());
         let exist = t.field(&mut latest_version, "z0ZOJM2UT", "exists", field_bool().build());
         t.constraint(
             &mut latest_version,
@@ -94,7 +94,7 @@ fn main() {
                     set_field("subject", &subject),
                     set_field("predicate", &predicate),
                     set_field("object", &object),
-                    set_field("commit", &commit),
+                    set_field("commit_", &commit),
                     set_field("exist", &exist)
                 ],
             )
@@ -171,13 +171,13 @@ fn main() {
                         .return_field(&subject)
                         .return_field(&predicate)
                         .return_field(&object)
-                        .return_named("commit", fn_max(Expr::field(&commit)))
+                        .return_named("commit_", fn_max(Expr::field(&commit)))
                         .build(),
                 );
             let current_subject = current.field("subject", subject.type_.type_.clone());
             let current_predicate = current.field("predicate", predicate.type_.type_.clone());
             let current_object = current.field("object", object.type_.type_.clone());
-            let current_commit = current.field("commit", commit.type_.type_.clone());
+            let current_commit = current.field("commit_", commit.type_.type_.clone());
             let (current_table, current_cte) = current.build();
             new_delete(&t).with(With {
                 recursive: false,
@@ -233,7 +233,7 @@ fn main() {
     // Commits
     {
         let t = latest_version.table("z1YCS4PD2", "commit");
-        let event_stamp = t.field(&mut latest_version, "zNKHCTSZK", "timestamp", field_utctime_ms().build());
+        let event_stamp = t.field(&mut latest_version, "zNKHCTSZK", "idtimestamp", field_utctime_ms().build());
         t.constraint(
             &mut latest_version,
             "zN5R3XY01",

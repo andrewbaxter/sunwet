@@ -1,2 +1,0 @@
-search $text -< "sunwet/1/text"
-    include "query_notes_suffix.txt"

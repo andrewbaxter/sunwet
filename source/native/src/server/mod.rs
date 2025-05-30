@@ -459,22 +459,22 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 }).await.err_internal()?;
                                 let mut out = BTreeMap::new();
                                 for c in commits {
-                                    out.insert(c.timestamp, RespHistoryCommit {
-                                        timestamp: c.timestamp.to_rfc3339().parse().unwrap(),
+                                    out.insert(c.idtimestamp, RespHistoryCommit {
+                                        timestamp: c.idtimestamp.to_rfc3339().parse().unwrap(),
                                         desc: c.description,
                                         add: vec![],
                                         remove: vec![],
                                     });
                                 }
                                 for t in triples {
-                                    let Some(commit) = out.get_mut(&t.commit) else {
+                                    let Some(commit) = out.get_mut(&t.commit_) else {
                                         state
                                             .log
                                             .log_with(
                                                 loga::WARN,
                                                 "Triple detached from commit - this is probably a bug",
                                                 ea!(
-                                                    stamp = t.commit,
+                                                    stamp = t.commit_,
                                                     subject = t.subject.0.dbg_str(),
                                                     predicate = t.predicate,
                                                     object = t.object.0.dbg_str()
@@ -502,29 +502,29 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 let (commits, triples) = tx(&state.db, move |txn| {
                                     let end = DateTime::from_str(&req.end_excl.to_string()).unwrap();
                                     let commits = db::commit_list_count(txn, end)?;
-                                    let Some(start) = commits.iter().map(|c| c.timestamp).min() else {
+                                    let Some(start) = commits.iter().map(|c| c.idtimestamp).min() else {
                                         return Ok((commits, vec![]));
                                     };
                                     return Ok((commits, db::triple_list_between(txn, start, end)?));
                                 }).await.err_internal()?;
                                 let mut out = BTreeMap::new();
                                 for c in commits {
-                                    out.insert(c.timestamp, RespHistoryCommit {
-                                        timestamp: c.timestamp.to_rfc3339().parse().unwrap(),
+                                    out.insert(c.idtimestamp, RespHistoryCommit {
+                                        timestamp: c.idtimestamp.to_rfc3339().parse().unwrap(),
                                         desc: c.description,
                                         add: vec![],
                                         remove: vec![],
                                     });
                                 }
                                 for t in triples {
-                                    let Some(commit) = out.get_mut(&t.commit) else {
+                                    let Some(commit) = out.get_mut(&t.commit_) else {
                                         state
                                             .log
                                             .log_with(
                                                 loga::WARN,
                                                 "Triple detached from commit - this is probably a bug",
                                                 ea!(
-                                                    stamp = t.commit,
+                                                    stamp = t.commit_,
                                                     subject = t.subject.0.dbg_str(),
                                                     predicate = t.predicate,
                                                     object = t.object.0.dbg_str()

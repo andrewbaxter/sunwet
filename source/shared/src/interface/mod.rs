@@ -4,3 +4,4 @@ pub mod triple;
 pub mod wire;
 pub mod query;
 pub mod cli;
+pub mod ont;

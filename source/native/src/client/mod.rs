@@ -24,7 +24,6 @@ use {
     },
     query::{
         compile_query,
-        IncludeContext,
     },
     shared::interface::{
         query::Query,
@@ -119,7 +118,7 @@ pub struct CompileQueryCommand {
 
 pub fn handle_compile_query(c: CompileQueryCommand) -> Result<(), loga::Error> {
     let query;
-    let include_context;
+    let query_dir;
     if let Some(q) = c.query {
         query = q;
         if c.file.is_some() {
@@ -127,21 +126,27 @@ pub fn handle_compile_query(c: CompileQueryCommand) -> Result<(), loga::Error> {
                 loga::err("A query was both specified on the command line and via file, you can only do one"),
             );
         }
-        include_context = IncludeContext::Filesystem(current_dir()?);
+        query_dir = current_dir()?;
     } else if let Some(q_file) = c.file {
         query = String::from_utf8(q_file.value).context("Query was not valid utf-8")?;
         match q_file.source {
             Source::Stdin => {
-                include_context = IncludeContext::Filesystem(current_dir()?);
+                query_dir = current_dir()?;
             },
             Source::File(source) => {
-                include_context = IncludeContext::Filesystem(source);
+                query_dir =
+                    source
+                        .canonicalize()
+                        .context("Unable to resolve query file path")?
+                        .parent()
+                        .context("Query file path has no parent, required for includes")?
+                        .to_path_buf();
             },
         }
     } else {
         return Err(loga::err("Must specify a query, either on the command line or as a file"));
     }
-    let out = compile_query(include_context, &query)?;
+    let out = compile_query(Some(&query_dir), &query)?;
     println!("{}", serde_json::to_string_pretty(&out).unwrap());
     return Ok(());
 }

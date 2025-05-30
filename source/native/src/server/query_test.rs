@@ -1,13 +1,7 @@
 #![cfg(test)]
 
 use {
-    super::defaultviews::{
-        node_is_album,
-        PREDICATE_ARTIST,
-        PREDICATE_ELEMENT,
-        PREDICATE_IS,
-        PREDICATE_NAME,
-    },
+    super::defaultviews::node_is_album,
     crate::{
         client::query::compile_query,
         interface::triple::DbNode,
@@ -26,6 +20,13 @@ use {
         Utc,
     },
     shared::interface::{
+        ont::{
+            PREDICATE_ADD_TIMESTAMP,
+            PREDICATE_ARTIST,
+            PREDICATE_IS,
+            PREDICATE_NAME,
+            PREDICATE_TRACK,
+        },
         query::{
             Chain,
             ChainBody,
@@ -42,6 +43,7 @@ use {
             StepJunction,
             StepMove,
             StepRecurse,
+            StrValue,
             Value,
         },
         triple::Node,
@@ -52,6 +54,8 @@ use {
             BTreeMap,
             HashMap,
         },
+        fs::read_to_string,
+        path::PathBuf,
     },
 };
 
@@ -116,11 +120,17 @@ fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, TreeNode)]], query
     assert_eq!(want, got);
 }
 
+fn src_query_dir() -> PathBuf {
+    return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/server");
+}
+
 #[test]
 fn test_base() {
+    let query_dir = src_query_dir();
     execute(
         &[
             (&s("a"), PREDICATE_IS, &node_is_album()),
+            (&s("a"), PREDICATE_ADD_TIMESTAMP, &s(DateTime::UNIX_EPOCH.to_rfc3339())),
             (&s("a"), PREDICATE_NAME, &s("a_name")),
             (&s("a"), PREDICATE_ARTIST, &s("a_a")),
             (&s("a_a"), PREDICATE_NAME, &s("a_a_name")),
@@ -128,20 +138,23 @@ fn test_base() {
         &[
             &[
                 ("album_id", TreeNode::Scalar(s("a"))),
-                ("ablum_add_stamp", TreeNode::Scalar(s(DateTime::UNIX_EPOCH.to_rfc3339()))),
+                ("album_add_timestamp", TreeNode::Scalar(s(DateTime::UNIX_EPOCH.to_rfc3339()))),
                 ("album_name", TreeNode::Scalar(s("a_name"))),
                 ("artist_id", TreeNode::Scalar(s("a_a"))),
                 ("artist_name", TreeNode::Scalar(s("a_a_name"))),
                 ("cover", TreeNode::Scalar(n())),
             ],
         ],
-        compile_query(Default::default(), include_str!("query_audio_albums_by_add_date.txt")).unwrap(),
+        compile_query(
+            Some(&query_dir),
+            &read_to_string(&query_dir.join("query_audio_albums_by_add_date.txt")).unwrap(),
+        ).unwrap(),
     );
 }
 
 #[test]
 fn test_versions() {
-    let query = compile_query(Default::default(), "\"x\" -> \"y\" { => y }").unwrap();
+    let query = compile_query(None, "\"x\" -> \"y\" { => y }").unwrap();
     let (query, query_values) = build_root_chain(query.chain, HashMap::new()).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
     db::migrate(&mut db).unwrap();
@@ -181,7 +194,7 @@ fn test_versions() {
 
 #[test]
 fn test_delete() {
-    let query = compile_query(Default::default(), "\"x\" -> \"y\" { => y }").unwrap();
+    let query = compile_query(None, "\"x\" -> \"y\" { => y }").unwrap();
     let (query, query_values) = build_root_chain(query.chain, HashMap::new()).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
     db::migrate(&mut db).unwrap();
@@ -218,7 +231,7 @@ fn test_delete() {
 
 #[test]
 fn test_undelete() {
-    let query = compile_query(Default::default(), "\"x\" -> \"y\" { => y }").unwrap();
+    let query = compile_query(None, "\"x\" -> \"y\" { => y }").unwrap();
     let (query, query_values) = build_root_chain(query.chain, HashMap::new()).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
     db::migrate(&mut db).unwrap();
@@ -271,7 +284,7 @@ fn test_recurse() {
             (&s("a"), PREDICATE_IS, &node_is_album()),
             (&s("a"), PREDICATE_NAME, &s("a_name")),
             (&s("b"), PREDICATE_IS, &node_is_album()),
-            (&s("b_p"), PREDICATE_ELEMENT, &s("b")),
+            (&s("b_p"), PREDICATE_TRACK, &s("b")),
             (&s("b_p"), PREDICATE_NAME, &s("b_name")),
         ],
         &[&[("name", TreeNode::Scalar(s("a_name")))], &[("name", TreeNode::Scalar(s("b_name")))]],
@@ -283,7 +296,7 @@ fn test_recurse() {
                         //. .
                         Step::Move(StepMove {
                             dir: MoveDirection::Up,
-                            predicate: PREDICATE_IS.to_string(),
+                            predicate: StrValue::Literal(PREDICATE_IS.to_string()),
                             filter: None,
                             first: false,
                         }),
@@ -292,7 +305,7 @@ fn test_recurse() {
                                 root: None,
                                 steps: vec![Step::Move(StepMove {
                                     dir: MoveDirection::Up,
-                                    predicate: PREDICATE_ELEMENT.to_string(),
+                                    predicate: StrValue::Literal(PREDICATE_TRACK.to_string()),
                                     filter: None,
                                     first: false,
                                 })],
@@ -301,13 +314,13 @@ fn test_recurse() {
                         }),
                         Step::Move(StepMove {
                             dir: MoveDirection::Down,
-                            predicate: PREDICATE_NAME.to_string(),
+                            predicate: StrValue::Literal(PREDICATE_NAME.to_string()),
                             filter: None,
                             first: false,
                         })
                     ],
                 },
-                select: Some("name".to_string()),
+                bind: Some("name".to_string()),
                 subchains: vec![],
             },
             sort: None,
@@ -333,14 +346,14 @@ fn test_filter_eq() {
                         //. .
                         Step::Move(StepMove {
                             dir: MoveDirection::Up,
-                            predicate: PREDICATE_IS.to_string(),
+                            predicate: StrValue::Literal(PREDICATE_IS.to_string()),
                             filter: Some(FilterExpr::Exists(FilterExprExists {
                                 type_: FilterExprExistsType::Exists,
                                 subchain: ChainBody {
                                     root: None,
                                     steps: vec![Step::Move(StepMove {
                                         dir: MoveDirection::Down,
-                                        predicate: PREDICATE_NAME.to_string(),
+                                        predicate: StrValue::Literal(PREDICATE_NAME.to_string()),
                                         filter: None,
                                         first: false,
                                     })],
@@ -354,7 +367,7 @@ fn test_filter_eq() {
                         })
                     ],
                 },
-                select: Some("id".to_string()),
+                bind: Some("id".to_string()),
                 subchains: vec![],
             },
             sort: None,
@@ -380,14 +393,14 @@ fn test_filter_lt() {
                         //. .
                         Step::Move(StepMove {
                             dir: MoveDirection::Up,
-                            predicate: PREDICATE_IS.to_string(),
+                            predicate: StrValue::Literal(PREDICATE_IS.to_string()),
                             filter: Some(FilterExpr::Exists(FilterExprExists {
                                 type_: FilterExprExistsType::Exists,
                                 subchain: ChainBody {
                                     root: None,
                                     steps: vec![Step::Move(StepMove {
                                         dir: MoveDirection::Down,
-                                        predicate: "sunwet/1/q".to_string(),
+                                        predicate: StrValue::Literal("sunwet/1/q".to_string()),
                                         filter: None,
                                         first: false,
                                     })],
@@ -401,7 +414,7 @@ fn test_filter_lt() {
                         })
                     ],
                 },
-                select: Some("id".to_string()),
+                bind: Some("id".to_string()),
                 subchains: vec![],
             },
             sort: None,
@@ -436,7 +449,7 @@ fn test_chain_union() {
                                     root: Some(ChainRoot::Value(Value::Literal(s("sunwet/1/dog")))),
                                     steps: vec![Step::Move(StepMove {
                                         dir: MoveDirection::Up,
-                                        predicate: PREDICATE_IS.to_string(),
+                                        predicate: StrValue::Literal(PREDICATE_IS.to_string()),
                                         filter: None,
                                         first: false,
                                     })],
@@ -445,7 +458,7 @@ fn test_chain_union() {
                                     root: Some(ChainRoot::Value(Value::Literal(s("sunwet/1/what")))),
                                     steps: vec![Step::Move(StepMove {
                                         dir: MoveDirection::Up,
-                                        predicate: PREDICATE_IS.to_string(),
+                                        predicate: StrValue::Literal(PREDICATE_IS.to_string()),
                                         filter: None,
                                         first: false,
                                     })],
@@ -454,7 +467,7 @@ fn test_chain_union() {
                         })
                     ],
                 },
-                select: Some("id".to_string()),
+                bind: Some("id".to_string()),
                 subchains: vec![],
             },
             sort: None,
@@ -494,7 +507,7 @@ fn test_gc() {
         db::triple_list_all(&db)
             .unwrap()
             .into_iter()
-            .map(|r| format!("{:?}", (r.subject.0, r.predicate, r.object.0, r.commit, r.exists)))
+            .map(|r| format!("{:?}", (r.subject.0, r.predicate, r.object.0, r.commit_, r.exists)))
             .collect::<Vec<_>>();
     have.sort();
     pretty_assertions::assert_eq!(want, have);
@@ -503,7 +516,7 @@ fn test_gc() {
         db::triple_list_all(&db)
             .unwrap()
             .into_iter()
-            .map(|r| format!("{:?}", (r.subject.0, r.predicate, r.object.0, r.commit, r.exists)))
+            .map(|r| format!("{:?}", (r.subject.0, r.predicate, r.object.0, r.commit_, r.exists)))
             .collect::<Vec<_>>();
     have.sort();
     pretty_assertions::assert_eq!(want, have);

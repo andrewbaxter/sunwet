@@ -2,13 +2,13 @@
     => track_id
     ( -< "sunwet/1/element" ?(-> "sunwet/1/is" == "sunwet/1/album") first {
         => album_id
-        ( -* (-< "sunwet/1/element") -> "sunwet/1/cover" first { => cover } )
+        ( -* (-< "sunwet/1/track") -> "sunwet/1/cover" first { => cover } )
     })
     ( -> "sunwet/1/name" first { => track_name })
     (
-        -* (-< "sunwet/1/element") -> "sunwet/1/artist" first {
+        -* (-< "sunwet/1/track") -> "sunwet/1/artist" first {
             => artist_id
-            ( -* (-< "sunwet/1/element") -> "sunwet/1/name" first { => artist_name } )
+            ( -> "sunwet/1/name" first { => artist_name } )
         }
     )
     ( -> "sunwet/1/index" first { => index } )

@@ -161,12 +161,10 @@
   ///////////////////////////////////////////////////////////////////////////////
   // xx Constants
 
-  const textIconClick = "\uf718";
   const textIconPlay = "\ue037";
   const textIconPause = "\ue034";
   const textIconDelete = "\ue15b";
   const textIconRevert = "\ue166";
-  const textIconApply = "\uf4f6";
   const textIconAdd = "\ue145";
   const textIconNext = "\ue5cc";
   const textIconPrev = "\ue5cb";
@@ -176,7 +174,6 @@
   const textIconLogin = "\uea77";
   const textIconLogout = "\ue9ba";
   const textIconMenu = "\ue5d2";
-  const textIconGo = "\ue5c8";
   const textIconFoldClosed = "\ue316";
   const textIconFoldOpened = "\ue313";
   const textIconClose = "\ue5cd";
@@ -210,7 +207,7 @@
   const varSHistPredObj = "1cm";
   const varSColWidth = `min(100%, 12cm)`;
   const varSMenuIndent = "0.6cm";
-  const varSLinkIcon = "4cm";
+  const varSLinkIcon = "3cm";
 
   const varPSmall = "0.2cm";
   const varPBarBottom = "0.7cm";
@@ -231,6 +228,8 @@
   const varPLink = "0.5cm";
   const varPLinkGap = "0.3cm";
   const varPLinkText = "0.4cm";
+  const varPButtonBig = "0.3cm";
+  const varPButtonSmall = "0.1cm";
 
   const varLThin = "0.04cm";
   const varLMid = "0.06cm";
@@ -253,43 +252,107 @@
   const varONodePredicate = "0.5";
   const varOMenuBar = "0.5";
 
-  const varCLinkDisplayBg = v(uniq(), "rgb(35, 35, 36)");
-  const varCLinkLogoText = vs(uniq(), "#fefefe", "rgb(0,0,0)");
-  const varCAppTitle = vs(uniq(), "rgb(93,113,134)", "rgb(0,0,0)");
-  const varCModalVeil = vs(uniq(), "rgba(0,0,0,0.3)", "rgb(0,0,0,0.3)");
-  //const varCBackground = vs("rgb(205, 207, 212)", "rgb(0,0,0)");
-  const varCBackground = vs(uniq(), "rgb(230, 232, 238)", "rgb(0,0,0)");
-  const varCBg2 = vs(uniq(), "rgb(218, 220, 226)", "rgb(0,0,0)");
-  const varCBackgroundDark = v(uniq(), "rgb(45, 45, 46)");
-  //const varCBackgroundMenu = vs(uniq(), "rgb(173, 177, 188)", "rgb(0,0,0)");
-  const varCBackgroundMenu = vs(uniq(), "rgb(205, 208, 217)", "rgb(0,0,0)");
-  const varCBackgroundMenuButtons = vs(
-    uniq(),
-    "rgb(219, 223, 232)",
-    "rgb(0,0,0)"
+  const varCLinkDisplayBg = v(uniq("link_display_bg"), "rgb(35, 35, 36)");
+  const varCLinkLogoText = vs(uniq("link_logo_text"), "#fefefe", "rgb(0,0,0)");
+  const varCLinkBackground = v(uniq("link_background"), "rgb(45, 45, 46)");
+  const varCLinkForegroundDark = v(
+    uniq("foreground_dark"),
+    "rgb(249, 248, 240)"
   );
 
-  const varCButtonHover = vs(uniq(), "rgba(255, 255, 255, 0.7)", "rgb(0,0,0)");
-  const varCButtonClick = vs(uniq(), "rgba(255, 255, 255, 1)", "rgb(0,0,0)");
+  const varCSpinner = v(uniq("spinner"), "rgb(155, 178, 229)");
 
-  const varCSeekbarEmpty = vs(uniq(), "rgb(212, 216, 223)", "rgb(0,0,0)");
-
-  const varSButtonPadBig = v(uniq(), "0.3cm");
-  const varSButtonPadSmall = v(uniq(), "0.1cm");
-
-  const varCForeground = vs(uniq(), "rgb(0, 0, 0)", "rgb(0,0,0)");
-  const varCForegroundFade = vs(uniq(), "rgb(123, 123, 123)", "rgb(0,0,0)");
-  const varCForegroundDark = v(uniq(), "rgb(249, 248, 240)");
-  const varCForegroundError = vs(uniq(), "rgb(154, 60, 74)", "rgb(0,0,0)");
-  const varCBorderModified = vs(uniq(), "rgb(120, 149, 235)", "rgb(0,0,0)");
-  const varCBorderError = vs(uniq(), "rgb(192, 61, 80)", "rgb(0,0,0)");
-  const varCInputBorder = vs(uniq(), "rgb(154, 157, 168)", "rgb(0,0,0)");
-  const varCSpinner = v(uniq(), "rgb(155, 178, 229)");
-  const varCHighlightBold = vs(uniq(), "rgb(62, 119, 251)", "rgb(0,0,0)");
-  const varCNodeCenter = varCBg2;
-  const varCRemove = vs(uniq("remove"), "rgb(216, 0, 0)", "rgb(0,0,0)");
-  const varCLogoWhite = vs(uniq(), "rgb(254, 254, 254)", "rgb(0,0,0)");
-  const varCLogoBlue = vs(uniq(), "rgb(124,167,219)", "rgb(0,0,0)");
+  const varCAppTitle = vs(
+    uniq("app_title"),
+    "rgb(93,113,134)",
+    "rgb(164, 180, 200)"
+  );
+  const varCModalVeil = vs(
+    uniq("modal_veil"),
+    "rgba(0,0,0,0.3)",
+    "rgb(0,0,0,0.3)"
+  );
+  const varCBackground = vs(
+    uniq("background"),
+    "rgb(230, 232, 238)",
+    "rgb(70, 73, 77)"
+  );
+  const varCNodeCenter = vs(
+    uniq("node_center"),
+    "rgb(218, 220, 226)",
+    "rgb(82, 87, 94)"
+  );
+  const varCBackgroundMenu = vs(
+    uniq("background_menu"),
+    "rgb(205, 208, 217)",
+    "rgb(85, 87, 90)"
+  );
+  const varCBackgroundMenuBar = vs(
+    uniq("background_menu_bar"),
+    "rgb(219, 223, 232)",
+    "rgb(99, 102, 104)"
+  );
+  const varCButtonHover = vs(
+    uniq("button_hover"),
+    "rgba(255, 255, 255, 0.7)",
+    "rgb(56, 61, 64)"
+  );
+  const varCButtonClick = vs(
+    uniq("button_click"),
+    "rgba(255, 255, 255, 1)",
+    "rgb(49, 50, 53)"
+  );
+  const varCSeekbarEmpty = vs(
+    uniq("seekbar_empty"),
+    "rgb(212, 216, 223)",
+    "rgb(58, 57, 57)"
+  );
+  const varCForeground = vs(
+    uniq("foreground"),
+    "rgb(0, 0, 0)",
+    "rgb(244, 255, 255)"
+  );
+  const varCForegroundFade = vs(
+    uniq("foreground_fade"),
+    "rgb(123, 123, 123)",
+    "rgb(167, 177, 177)"
+  );
+  const varCForegroundError = vs(
+    uniq("foreground_error"),
+    "rgb(154, 60, 74)",
+    "rgb(243, 69, 95)"
+  );
+  const varCBorderModified = vs(
+    uniq("border_modified"),
+    "rgb(120, 149, 235)",
+    "rgb(0,0,0)"
+  );
+  const varCBorderError = vs(
+    uniq("border_error"),
+    "rgb(192, 61, 80)",
+    "rgb(0,0,0)"
+  );
+  const varCInputUnderline = vs(
+    uniq("input_underline"),
+    "rgb(154, 157, 168)",
+    "rgb(98, 103, 113)"
+  );
+  const varCHighlightBold = vs(
+    uniq("highlight"),
+    "rgb(62, 119, 251)",
+    "rgb(78, 129, 183)"
+  );
+  const varCRemove = vs(uniq("remove"), "rgb(136, 136, 136)", "rgb(0,0,0)");
+  const varCLogoWhite = vs(
+    uniq("logo_white"),
+    "rgb(254, 254, 254)",
+    "rgb(96, 96, 96)"
+  );
+  const varCLogoBlue = vs(
+    uniq("logo_blue"),
+    "rgb(124,167,219)",
+    "rgb(105, 140, 185)"
+  );
 
   // xx State classes
 
@@ -787,7 +850,7 @@
         extraStyles: [
           ss(uniq("leaf_text_button_big"), {
             "": (s) => {
-              s.padding = varSButtonPadBig;
+              s.padding = varPButtonBig;
             },
           }),
         ],
@@ -812,7 +875,7 @@
         extraStyles: [
           ss(uniq("leaf_text_button_small"), {
             "": (s) => {
-              s.padding = `${varSButtonPadSmall} ${varSButtonPadBig}`;
+              s.padding = `${varPButtonSmall} ${varPButtonBig}`;
               s.color = varCForegroundFade;
             },
           }),
@@ -916,7 +979,7 @@
             extraStyles: [
               ss(uniq("cont_page_home_logo"), {
                 ">text": (s) => {
-                  s.fill = "#fefefe";
+                  s.fill = varCLogoWhite;
                 },
               }),
             ],
@@ -968,7 +1031,7 @@
   const varSInputPad = v(uniq(), "0.1cm");
   const leafInputBorderStyle = s(uniq("leaf_input_border"), {
     "": (s) => {
-      s.borderBottom = `${varLThin} solid ${varCInputBorder}`;
+      s.borderBottom = `${varLThin} solid ${varCInputUnderline}`;
     },
     [`.${classInputStateModified}`]: (s) => {
       s.borderColor = varCBorderModified;
@@ -3602,7 +3665,7 @@
           "": (s) => {
             s.gridColumn = "1/3";
 
-            s.backgroundColor = varCBackgroundMenuButtons;
+            s.backgroundColor = varCBackgroundMenuBar;
             s.margin = `${varPMenu} 0`;
           },
         }),
@@ -3984,7 +4047,7 @@
                   s.alignSelf = "end";
                 },
                 " text": (s) => {
-                  s.fill = varCForegroundDark;
+                  s.fill = varCLinkForegroundDark;
                   s.fontWeight = varWLight;
                 },
               }),
@@ -4002,7 +4065,7 @@
             contStackStyle,
             ss(uniq("app_link_perms_bg"), {
               "": (s) => {
-                s.backgroundColor = varCBackgroundDark;
+                s.backgroundColor = varCLinkBackground;
               },
             }),
           ],
@@ -4065,7 +4128,7 @@
           ss(uniq("leaf_app_display_under"), {
             "": (s) => {
               s.padding = varPSmall;
-              s.color = varCBackgroundDark;
+              s.color = varCLinkBackground;
               s.objectFit = "contain";
               s.aspectRatio = "auto";
               s.width = "100%";
@@ -4106,7 +4169,7 @@
     );
     const textStyle = ss(uniq("leaf_app_link_text"), {
       "": (s) => {
-        s.color = varCForegroundDark;
+        s.color = varCLinkForegroundDark;
         s.pointerEvents = "initial";
       },
     });
@@ -4141,7 +4204,7 @@
             contVboxStyle,
             ss(uniq("app_link"), {
               "": (s) => {
-                s.backgroundColor = varCBackgroundDark;
+                s.backgroundColor = varCLinkBackground;
                 s.gap = varPLinkGap;
                 s.height = "100dvh";
                 s.width = "100dvw";
