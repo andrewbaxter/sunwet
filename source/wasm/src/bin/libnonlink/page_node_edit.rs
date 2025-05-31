@@ -5,7 +5,7 @@ use {
     },
     crate::libnonlink::{
         commit::{
-            commit,
+            self,
             CommitNode,
             CommitTriple,
         },
@@ -49,6 +49,7 @@ use {
             Node,
         },
         wire::{
+            ReqCommit,
             ReqGetNodeMeta,
             ReqGetTriplesAround,
             Triple,
@@ -797,7 +798,14 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> El {
                                             ).await?;
                                         match meta {
                                             Some(meta) => {
-                                                match meta.mime.split("/").next().unwrap() {
+                                                match meta
+                                                    .mime
+                                                    .as_ref()
+                                                    .map(|x| x.as_str())
+                                                    .unwrap_or("")
+                                                    .split("/")
+                                                    .next()
+                                                    .unwrap() {
                                                     "image" => {
                                                         return Ok(vec![el("img").attr("src", &src_url)]);
                                                     },
@@ -1348,6 +1356,7 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                             let pivot_state = pivot_state.clone();
                             let error_slot = error_slot.clone();
                             let draft_data = draft_data.clone();
+                            let title = title.clone();
                             let eg = eg.clone();
                             async move {
                                 let mut triple_nodes_predicates = vec![];
@@ -1452,8 +1461,48 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                                         }
                                     }
 
-                                    // Send compiled changes
-                                    return Ok(commit(add, remove).await?);
+                                    // Send compiled changes Preprocess
+                                    let mut add1 = vec![];
+                                    let mut files_to_return = HashMap::new();
+                                    let mut files_to_commit = vec![];
+                                    let mut files_to_upload = vec![];
+                                    for triple in add {
+                                        let Some(subject) =
+                                            commit::prep_node(
+                                                &mut files_to_return,
+                                                &mut files_to_commit,
+                                                &mut files_to_upload,
+                                                triple.subject,
+                                            ).await else {
+                                                continue;
+                                            };
+                                        let Some(object) =
+                                            commit::prep_node(
+                                                &mut files_to_return,
+                                                &mut files_to_commit,
+                                                &mut files_to_upload,
+                                                triple.object,
+                                            ).await else {
+                                                continue;
+                                            };
+                                        add1.push(Triple {
+                                            subject: subject,
+                                            predicate: triple.predicate,
+                                            object: object,
+                                        });
+                                    }
+
+                                    // Write commit
+                                    req_post_json(&state().env.base_url, ReqCommit {
+                                        comment: format!("Edit node [{}]", title),
+                                        add: add1,
+                                        remove: remove,
+                                        files: files_to_commit,
+                                    }).await?;
+
+                                    // Upload files
+                                    commit::upload_files(files_to_upload).await?;
+                                    return Ok(files_to_return);
                                 }.await;
                                 button.class_list().remove_1(&style_export::class_state_thinking().value).unwrap();
                                 match res {

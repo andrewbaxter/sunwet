@@ -1,5 +1,3 @@
-search $artist -< "sunwet/1/name" -< "sunwet/1/artist" -| (
-    ?( -> "sunwet/1/is" == "sunwet/1/track" )
-    ?( -> "sunwet/1/media" == "sunwet/1/audio" )
-) 
+search $artist -< "sunwet/1/name" -< "sunwet/1/artist"
+    ?( -< "sunwet/1/track" -> "sunwet/1/media" == "sunwet/1/audio" )
     include "query_audio_tracks_suffix.txt"

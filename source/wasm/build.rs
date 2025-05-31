@@ -118,6 +118,16 @@ fn main() {
     let mut rust = vec![];
     for method in [
         Func {
+            name: "attrState",
+            args: vec![],
+            returns: vec![("value", &string_)],
+        },
+        Func {
+            name: "attrStatePlaying",
+            args: vec![],
+            returns: vec![("value", &string_)],
+        },
+        Func {
             name: "classMenuWantStateOpen",
             args: vec![],
             returns: vec![("value", &string_)],
@@ -154,11 +164,6 @@ fn main() {
         },
         Func {
             name: "classStateDeleted",
-            args: vec![],
-            returns: vec![("value", &string_)],
-        },
-        Func {
-            name: "classStatePlaying",
             args: vec![],
             returns: vec![("value", &string_)],
         },
@@ -416,6 +421,7 @@ fn main() {
             name: "contViewList",
             args: vec![
                 ("direction", &direction),
+                ("transAlign", &transalign),
                 ("xScroll", &bool_),
                 ("children", &arrel_),
                 ("gap", &optstring_)
@@ -745,7 +751,7 @@ fn main() {
             let mut build = vec![];
             for (ts_name, type_) in &method.args {
                 let rust_name = format_ident!("{}", ts_name.to_case(Case::Snake));
-                if **type_ == el_ || **type_ == arrel_ || **type_ == arrarrel_ {
+                if **type_ == el_ || **type_ == optel_ || **type_ == arrel_ || **type_ == arrarrel_ {
                     postbuild_root_own1.push(quote!(args.#rust_name));
                 }
                 let rust_type;

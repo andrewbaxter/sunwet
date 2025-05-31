@@ -952,9 +952,9 @@ dependencies = [
 
 [[package]]
 name = "rooting"
-version = "0.1.13"
+version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1726d42ee82ecd46f4d4a064a932215be1d5801219ab4df743652c38abc760ce"
+checksum = "de0e3a25b4e6f109a5b520e2a34b821808343aefc1a8e0a1227368eae6096a1a"
 dependencies = [
  "futures",
  "gloo-events",

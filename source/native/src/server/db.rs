@@ -72,7 +72,7 @@ pub fn migrate(db: &mut rusqlite::Connection) -> Result<(), GoodError> {
                 };
                 {
                     let query =
-                        "create table \"meta\" ( \"mimetype\" text not null , \"fulltext\" text not null , \"node\" text not null , constraint \"meta_node\" primary key ( \"node\" ) )";
+                        "create table \"meta\" ( \"mimetype\" text , \"fulltext\" text not null , \"node\" text not null , constraint \"meta_node\" primary key ( \"node\" ) )";
                     txn.execute(query, ()).to_good_error_query(query)?
                 };
                 {
@@ -573,14 +573,13 @@ pub fn commit_gc(db: &rusqlite::Connection) -> Result<(), GoodError> {
     Ok(())
 }
 
-pub fn meta_insert(
+pub fn meta_upsert_file(
     db: &rusqlite::Connection,
     node: &crate::interface::triple::DbNode,
-    mimetype: &str,
-    fulltext: &str,
+    mimetype: Option<&str>,
 ) -> Result<(), GoodError> {
     let query =
-        "insert into \"meta\" ( \"node\" , \"mimetype\" , \"fulltext\" ) values ( $1 , $2 , $3 ) on conflict do nothing";
+        "insert into \"meta\" ( \"node\" , \"mimetype\" , \"fulltext\" ) values ( $1 , $2 , '' ) on conflict do update set \"mimetype\" = $2";
     db
         .execute(
             query,
@@ -590,7 +589,29 @@ pub fn meta_insert(
                 ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
                     &node,
                 ),
-                mimetype,
+                mimetype.map(|mimetype| mimetype)
+            ],
+        )
+        .to_good_error_query(query)?;
+    Ok(())
+}
+
+pub fn meta_upsert_fulltext(
+    db: &rusqlite::Connection,
+    node: &crate::interface::triple::DbNode,
+    fulltext: &str,
+) -> Result<(), GoodError> {
+    let query =
+        "insert into \"meta\" ( \"node\" , \"fulltext\" ) values ( $1 , $2 ) on conflict do update set \"fulltext\" = $2";
+    db
+        .execute(
+            query,
+            rusqlite::params![
+                <crate::interface::triple::DbNode as good_ormning_runtime
+                ::sqlite
+                ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
+                    &node,
+                ),
                 fulltext
             ],
         )
@@ -616,7 +637,7 @@ pub fn meta_delete(db: &rusqlite::Connection, node: &crate::interface::triple::D
 }
 
 pub struct Metadata {
-    pub mimetype: String,
+    pub mimetype: Option<String>,
     pub fulltext: String,
 }
 
@@ -643,7 +664,7 @@ pub fn meta_get(
     if let Some(r) = r {
         return Ok(Some(Metadata {
             mimetype: {
-                let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
+                let x: Option<String> = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
                 x
             },
             fulltext: {

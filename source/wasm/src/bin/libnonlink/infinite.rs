@@ -18,7 +18,9 @@ use {
         rc::Rc,
     },
     tokio::sync::mpsc,
-    wasm::js::el_async,
+    wasm::js::{
+        el_async,
+    },
 };
 
 fn build_infinite_<
@@ -37,15 +39,19 @@ fn build_infinite_<
                     async move {
                         let (tx, mut rx) = mpsc::unbounded_channel();
                         _ = tx.send(());
-                        let _listener = EventListener::new(&window(), "scroll", move |_| {
+                        let listener = EventListener::new(&window(), "scroll", move |_| {
                             _ = tx.send(());
                         });
                         while let Some(_) = rx.recv().await {
                             let html = document().body().unwrap().parent_element().unwrap();
-                            if html.scroll_top() + html.client_height() * 3 / 2 > html.scroll_height() {
+                            let scroll = html.scroll_top();
+                            let view_height = html.client_height();
+                            let full_height = html.scroll_height();
+                            if scroll + view_height * 3 / 2 > full_height {
                                 break;
                             }
                         }
+                        drop(listener);
                         if let Some(out) = out.upgrade() {
                             build_infinite_(out, bg, next_key, cb);
                         }

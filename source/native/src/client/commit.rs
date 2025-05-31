@@ -64,6 +64,8 @@ use {
 pub struct CommitCommand {
     debug: Option<()>,
     commit: AargvarkJson<CliCommit>,
+    /// Message to attach to the commit; if missing, uses generic message
+    comment: Option<String>,
 }
 
 pub async fn handle_commit(c: CommitCommand) -> Result<(), loga::Error> {
@@ -75,6 +77,7 @@ pub async fn handle_commit(c: CommitCommand) -> Result<(), loga::Error> {
 
     // # Build commit info
     let mut commit = ReqCommit {
+        comment: c.comment.unwrap_or_else(|| format!("Commit via CLI")),
         add: vec![],
         remove: vec![],
         files: vec![],

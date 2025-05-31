@@ -202,6 +202,7 @@ pub fn build_page_history(pc: &mut ProcessingContext) {
                 let eg = eg.clone();
                 async move {
                     let res = req_post_json(&state().env.base_url, ReqCommit {
+                        comment: format!("History restore"),
                         add: hist_state.revert.borrow().iter().cloned().collect(),
                         remove: vec![],
                         files: vec![],

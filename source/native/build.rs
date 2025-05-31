@@ -299,7 +299,7 @@ fn main() {
     {
         meta_table = latest_version.table("z7B1CHM4F", "meta");
         meta_node = meta_table.field(&mut latest_version, "zLQI9HQUQ", "node", FieldType::with(&node_type));
-        meta_mimetype = meta_table.field(&mut latest_version, "zSZVNBP0E", "mimetype", field_str().build());
+        meta_mimetype = meta_table.field(&mut latest_version, "zSZVNBP0E", "mimetype", field_str().opt().build());
         let fulltext = meta_table.field(&mut latest_version, "zPI3TKEA8", "fulltext", field_str().build());
         meta_table.constraint(
             &mut latest_version,
@@ -313,11 +313,16 @@ fn main() {
                 vec![
                     set_field("node", &meta_node),
                     set_field("mimetype", &meta_mimetype),
-                    set_field("fulltext", &fulltext)
+                    (fulltext.clone(), Expr::LitString(format!("")))
                 ],
             )
-                .on_conflict(InsertConflict::DoNothing)
-                .build_query("meta_insert", QueryResCount::None),
+                .on_conflict(InsertConflict::DoUpdate(vec![set_field("mimetype", &meta_mimetype)]))
+                .build_query("meta_upsert_file", QueryResCount::None),
+        );
+        queries.push(
+            new_insert(&meta_table, vec![set_field("node", &meta_node), set_field("fulltext", &fulltext)])
+                .on_conflict(InsertConflict::DoUpdate(vec![set_field("fulltext", &fulltext)]))
+                .build_query("meta_upsert_fulltext", QueryResCount::None),
         );
         queries.push(
             new_delete(&meta_table)

@@ -89,7 +89,10 @@ use {
             Cell,
             RefCell,
         },
-        collections::HashMap,
+        collections::{
+            BTreeMap,
+            HashMap,
+        },
         rc::Rc,
     },
     uuid::Uuid,
@@ -113,7 +116,6 @@ use {
         DomParser,
         Element,
         Event,
-        HtmlInputElement,
         MouseEvent,
     },
 };
@@ -151,20 +153,6 @@ fn maybe_get_field(config_at: &String, data_stack: &Vec<DataStackLevel>) -> Opti
     return None;
 }
 
-fn get_field(config_at: &String, data_stack: &Vec<DataStackLevel>) -> Result<TreeNode, String> {
-    let Some(data_at) = maybe_get_field(config_at, data_stack) else {
-        return Err(format!("No data in scope is a record or field `{}` didn't exist at any level", config_at));
-    };
-    return Ok(data_at);
-}
-
-fn get_field_or_literal(config_at: &FieldOrLiteral, data_stack: &Vec<DataStackLevel>) -> Result<TreeNode, String> {
-    match config_at {
-        FieldOrLiteral::Field(config_at) => return Ok(get_field(config_at, data_stack)?),
-        FieldOrLiteral::Literal(config_at) => return Ok(TreeNode::Scalar(config_at.clone())),
-    }
-}
-
 fn maybe_get_field_or_literal(
     config_at: &FieldOrLiteral,
     data_stack: &Vec<DataStackLevel>,
@@ -175,14 +163,14 @@ fn maybe_get_field_or_literal(
     }
 }
 
-fn get_field_or_literal_string(
+fn maybe_get_field_or_literal_string(
     config_at: &FieldOrLiteralString,
     data_stack: &Vec<DataStackLevel>,
-) -> Result<TreeNode, String> {
+) -> Result<Option<TreeNode>, String> {
     match config_at {
-        FieldOrLiteralString::Field(config_at) => return Ok(get_field(config_at, data_stack)?),
+        FieldOrLiteralString::Field(config_at) => return Ok(maybe_get_field(config_at, data_stack)),
         FieldOrLiteralString::Literal(config_at) => return Ok(
-            TreeNode::Scalar(Node::Value(serde_json::Value::String(config_at.clone()))),
+            Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(config_at.clone())))),
         ),
     }
 }
@@ -212,7 +200,7 @@ fn unwrap_value_media_url(data_at: &Node) -> Result<SourceUrl, String> {
 }
 
 fn unwrap_value_move_url(
-    title: &FieldOrLiteral,
+    dest_title_field: &FieldOrLiteral,
     data_at: &TreeNode,
     data_stack: &Vec<DataStackLevel>,
     to_node: bool,
@@ -222,8 +210,12 @@ fn unwrap_value_move_url(
         TreeNode::Record(v) => return Ok(serde_json::to_string(v).unwrap()),
         TreeNode::Scalar(v) => {
             if to_node {
+                let title = match maybe_get_field_or_literal(dest_title_field, data_stack)? {
+                    Some(x) => unwrap_value_string(&x),
+                    None => serde_json::to_string(&v).unwrap(),
+                };
                 return Ok(ministate_octothorpe(&Ministate::NodeView(MinistateNodeView {
-                    title: unwrap_value_string(&get_field_or_literal(title, data_stack)?),
+                    title: title,
                     node: v.clone(),
                 })));
             }
@@ -254,15 +246,17 @@ impl Build {
         &mut self,
         pc: &mut ProcessingContext,
         config_at: &WidgetLayout,
+        config_query_params: &BTreeMap<String, Vec<String>>,
         data_id: &Vec<usize>,
         data_at: &Vec<DataStackLevel>,
     ) -> El {
         let mut children = vec![];
         for config_at in &config_at.elements {
-            children.push(self.build_widget(pc, config_at, data_id, data_at));
+            children.push(self.build_widget(pc, config_at, config_query_params, data_id, data_at));
         }
         return style_export::cont_view_list(style_export::ContViewListArgs {
             direction: config_at.direction,
+            trans_align: config_at.trans_align,
             x_scroll: config_at.x_scroll,
             children: children,
             gap: config_at.gap.clone(),
@@ -273,6 +267,7 @@ impl Build {
         &mut self,
         pc: &mut ProcessingContext,
         config_at: &WidgetDataRows,
+        config_query_params: &BTreeMap<String, Vec<String>>,
         data_id: &Vec<usize>,
         data_at: &Vec<DataStackLevel>,
     ) -> El {
@@ -285,6 +280,7 @@ impl Build {
             let transport_slot = self.transport_slot.clone();
             let have_media = self.have_media.clone();
             let config_at = config_at.clone();
+            let config_query_params = config_query_params.clone();
             let data_id = data_id.clone();
             let data_at = data_at.clone();
             async move {
@@ -292,28 +288,35 @@ impl Build {
                 let new_data_at_tops;
                 match config_at.data {
                     QueryOrField::Field(config_at) => {
-                        let TreeNode::Array(res) = get_field(&config_at, &data_at)? else {
-                            return Err(format!("Data rows field [{}] must be an array, but it is not", config_at));
+                        let Some(TreeNode::Array(res)) = maybe_get_field(&config_at, &data_at) else {
+                            return Err(
+                                format!(
+                                    "Data rows field [{}] must be an array, but it is missing or some other type",
+                                    config_at
+                                ),
+                            );
                         };
                         new_data_at_tops = res;
                         node_meta = Default::default();
                     },
-                    QueryOrField::Query(config_at) => {
+                    QueryOrField::Query(query_id) => {
                         let mut params = HashMap::new();
-                        for (k, config_at) in &config_at.params {
-                            let TreeNode::Scalar(v) = get_field_or_literal(config_at, &data_at)? else {
-                                return Err(
-                                    format!(
-                                        "Parameters must be scalars, but query paramter [{}] is not a scalar",
-                                        serde_json::to_string(&config_at).unwrap()
-                                    ),
-                                );
-                            };
-                            params.insert(k.clone(), v);
+                        if let Some(query_params) = config_query_params.get(&query_id) {
+                            for k in query_params {
+                                let Some(TreeNode::Scalar(v)) = maybe_get_field(k, &data_at) else {
+                                    return Err(
+                                        format!(
+                                            "Parameters must be scalars, but query paramter [{}] is missing or not a scalar",
+                                            k
+                                        ),
+                                    );
+                                };
+                                params.insert(k.clone(), v);
+                            }
                         }
                         let res = req_post_json(&state().env.base_url, ReqViewQuery {
                             menu_item_id: menu_item_id.clone(),
-                            query: config_at.query.clone(),
+                            query: query_id.clone(),
                             parameters: params,
                         }).await?;
                         let mut out = vec![];
@@ -321,7 +324,7 @@ impl Build {
                             out.push(TreeNode::Record(v));
                         }
                         new_data_at_tops = out;
-                        node_meta = Rc::new(res.meta);
+                        node_meta = Rc::new(res.meta.into_iter().collect::<HashMap<_, _>>());
                     },
                 };
                 return eg.event(move |pc| {
@@ -347,10 +350,19 @@ impl Build {
                                 });
                                 let mut data_id = data_id.clone();
                                 data_id.push(i);
-                                children.push(build.build_widget(pc, &row_widget.widget, &data_id, &data_at));
+                                children.push(
+                                    build.build_widget(
+                                        pc,
+                                        &row_widget.widget,
+                                        &config_query_params,
+                                        &data_id,
+                                        &data_at,
+                                    ),
+                                );
                             }
                             out = style_export::cont_view_list(style_export::ContViewListArgs {
                                 direction: row_widget.direction.unwrap_or(Direction::Down),
+                                trans_align: row_widget.trans_align,
                                 x_scroll: row_widget.x_scroll,
                                 children: children,
                                 gap: row_widget.gap.clone(),
@@ -369,7 +381,8 @@ impl Build {
                                 let mut columns = vec![];
                                 let mut columns_raw = vec![];
                                 for config_at in &row_widget.elements {
-                                    let column = build.build_widget(pc, config_at, &data_id, &data_at);
+                                    let column =
+                                        build.build_widget(pc, config_at, &config_query_params, &data_id, &data_at);
                                     columns_raw.push(column.raw());
                                     columns.push(column);
                                 }
@@ -406,6 +419,7 @@ impl Build {
         &mut self,
         pc: &mut ProcessingContext,
         config_at: &WidgetRootDataRows,
+        config_query_params: &BTreeMap<String, Vec<String>>,
         data_id: &Vec<usize>,
         data_at: &Vec<DataStackLevel>,
     ) -> El {
@@ -418,6 +432,7 @@ impl Build {
             let transport_slot = self.transport_slot.clone();
             let have_media = self.have_media.clone();
             let config_at = config_at.clone();
+            let config_query_params = config_query_params.clone();
             let data_id = data_id.clone();
             let data_at = data_at.clone();
             async move {
@@ -425,28 +440,35 @@ impl Build {
                 let new_data_at_tops;
                 match config_at.data {
                     QueryOrField::Field(config_at) => {
-                        let TreeNode::Array(res) = get_field(&config_at, &data_at)? else {
-                            return Err(format!("Data rows field [{}] must be an array, but it is not", config_at));
+                        let Some(TreeNode::Array(res)) = maybe_get_field(&config_at, &data_at) else {
+                            return Err(
+                                format!(
+                                    "Data rows field [{}] must be an array, but it is missing or not an array",
+                                    config_at
+                                ),
+                            );
                         };
                         new_data_at_tops = res;
                         node_meta = Default::default();
                     },
-                    QueryOrField::Query(config_at) => {
+                    QueryOrField::Query(query_id) => {
                         let mut params = HashMap::new();
-                        for (k, config_at) in &config_at.params {
-                            let TreeNode::Scalar(v) = get_field_or_literal(config_at, &data_at)? else {
-                                return Err(
-                                    format!(
-                                        "Parameters must be scalars, but query paramter [{}] is not a scalar",
-                                        serde_json::to_string(&config_at).unwrap()
-                                    ),
-                                );
-                            };
-                            params.insert(k.clone(), v);
+                        if let Some(query_params) = config_query_params.get(&query_id) {
+                            for k in query_params {
+                                let Some(TreeNode::Scalar(v)) = maybe_get_field(k, &data_at) else {
+                                    return Err(
+                                        format!(
+                                            "Parameters must be scalars, but query paramter [{}] is missing or not a scalar",
+                                            k
+                                        ),
+                                    );
+                                };
+                                params.insert(k.clone(), v);
+                            }
                         }
                         let res = req_post_json(&state().env.base_url, ReqViewQuery {
                             menu_item_id: menu_item_id.clone(),
-                            query: config_at.query.clone(),
+                            query: query_id.clone(),
                             parameters: params,
                         }).await?;
                         let mut out = vec![];
@@ -454,7 +476,7 @@ impl Build {
                             out.push(TreeNode::Record(v));
                         }
                         new_data_at_tops = out;
-                        node_meta = Rc::new(res.meta);
+                        node_meta = Rc::new(res.meta.into_iter().collect::<HashMap<_, _>>());
                     },
                 }
                 let mut chunked_data = vec![];
@@ -467,6 +489,9 @@ impl Build {
                 }
                 if !chunk_top.is_empty() {
                     chunked_data.push(chunk_top);
+                }
+                if chunked_data.is_empty() {
+                    chunked_data.push(Default::default());
                 }
                 let mut chunked_data = chunked_data.into_iter();
                 let body = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
@@ -495,7 +520,13 @@ impl Build {
                                 let mut blocks = vec![];
                                 for config_at in &config_at.row_blocks {
                                     let block_contents =
-                                        build.build_widget(pc, &config_at.widget, &data_id, &data_at);
+                                        build.build_widget(
+                                            pc,
+                                            &config_at.widget,
+                                            &config_query_params,
+                                            &data_id,
+                                            &data_at,
+                                        );
                                     blocks.push(style_export::cont_view_block(style_export::ContViewBlockArgs {
                                         children: vec![block_contents],
                                         width: config_at.width.clone(),
@@ -542,26 +573,23 @@ impl Build {
                 text: format!(
                     "{}{}{}",
                     config_at.prefix,
-                    unwrap_value_string(&get_field_or_literal_string(&config_at.data, data_at)?),
+                    unwrap_value_string(&match maybe_get_field_or_literal_string(&config_at.data, data_at)? {
+                        Some(x) => x,
+                        None => return Ok(el("div")),
+                    }),
                     config_at.suffix
                 ),
                 font_size: config_at.font_size.clone(),
                 max_size: config_at.cons_size_max.clone(),
-                link: config_at
-                    .link
-                    .as_ref()
-                    .map(
-                        |l| Ok(
-                            unwrap_value_move_url(
-                                &l.title,
-                                &get_field_or_literal(&l.value, data_at)?,
-                                data_at,
-                                l.to_node,
-                            )?,
-                        ) as
-                            Result<_, String>,
-                    )
-                    .transpose()?,
+                link: shed!{
+                    let Some(link) = config_at.link.as_ref() else {
+                        break None;
+                    };
+                    let Some(field) = maybe_get_field_or_literal(&link.value, data_at)? else {
+                        break None;
+                    };
+                    break Some(unwrap_value_move_url(&link.title, &field, data_at, link.to_node)?);
+                },
             }).root);
         })() {
             Ok(e) => return e,
@@ -584,7 +612,7 @@ impl Build {
             let Some(meta) = maybe_get_meta(data_stack, &src) else {
                 return Ok(el("div"));
             };
-            match meta.mime.split("/").next().unwrap() {
+            match meta.mime.as_ref().map(|x| x.as_str()).unwrap_or("").split("/").next().unwrap() {
                 "image" => {
                     return Ok(style_export::leaf_view_image(style_export::LeafViewImageArgs {
                         trans_align: config_at.trans_align,
@@ -688,8 +716,8 @@ impl Build {
     fn build_widget_color(&mut self, config_at: &WidgetColor, data_stack: &Vec<DataStackLevel>) -> El {
         match (|| {
             ta_return!(El, String);
-            let TreeNode::Scalar(Node::Value(serde_json::Value::String(src))) =
-                get_field_or_literal_string(&config_at.data, &data_stack)? else {
+            let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(src)))) =
+                maybe_get_field_or_literal_string(&config_at.data, &data_stack)? else {
                     return Ok(el("div"));
                 };
             return Ok(style_export::leaf_view_color(style_export::LeafViewColorArgs {
@@ -710,8 +738,8 @@ impl Build {
     fn build_widget_datetime(&mut self, config_at: &WidgetDatetime, data_stack: &Vec<DataStackLevel>) -> El {
         match (|| {
             ta_return!(El, String);
-            let TreeNode::Scalar(Node::Value(serde_json::Value::String(src))) =
-                get_field_or_literal_string(&config_at.data, &data_stack)? else {
+            let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(src)))) =
+                maybe_get_field_or_literal_string(&config_at.data, &data_stack)? else {
                     return Ok(el("div"));
                 };
             return Ok(style_export::leaf_view_datetime(style_export::LeafViewDatetimeArgs {
@@ -732,8 +760,8 @@ impl Build {
     fn build_widget_date(&mut self, config_at: &WidgetDate, data_stack: &Vec<DataStackLevel>) -> El {
         match (|| {
             ta_return!(El, String);
-            let TreeNode::Scalar(Node::Value(serde_json::Value::String(src))) =
-                get_field_or_literal_string(&config_at.data, &data_stack)? else {
+            let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(src)))) =
+                maybe_get_field_or_literal_string(&config_at.data, &data_stack)? else {
                     return Ok(el("div"));
                 };
             return Ok(style_export::leaf_view_date(style_export::LeafViewDateArgs {
@@ -754,8 +782,8 @@ impl Build {
     fn build_widget_time(&mut self, config_at: &WidgetTime, data_stack: &Vec<DataStackLevel>) -> El {
         match (|| {
             ta_return!(El, String);
-            let TreeNode::Scalar(Node::Value(serde_json::Value::String(src))) =
-                get_field_or_literal_string(&config_at.data, &data_stack)? else {
+            let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(src)))) =
+                maybe_get_field_or_literal_string(&config_at.data, &data_stack)? else {
                     return Ok(el("div"));
                 };
             return Ok(style_export::leaf_view_time(style_export::LeafViewTimeArgs {
@@ -782,7 +810,9 @@ impl Build {
     ) -> El {
         match (|| {
             ta_return!(El, String);
-            let src = get_field(&config_at.media_file_field, data_stack)?;
+            let Some(src) = maybe_get_field(&config_at.media_file_field, data_stack) else {
+                return Ok(el("div"));
+            };
             let media_type;
             let TreeNode::Scalar(src) = &src else {
                 return Ok(el("div"));
@@ -790,7 +820,7 @@ impl Build {
             let Some(meta) = maybe_get_meta(data_stack, src) else {
                 return Ok(el("div"));
             };
-            match meta.mime.split("/").next().unwrap() {
+            match meta.mime.as_ref().map(|x| x.as_str()).unwrap_or("").split("/").next().unwrap() {
                 "image" => {
                     media_type = PlaylistEntryMediaType::Image;
                 },
@@ -870,14 +900,14 @@ impl Build {
                     (),
                     (index = data_id.clone(), out = out.weak()) {
                         let out = out.upgrade()?;
-                        out.ref_modify_classes(
-                            &[
-                                (
-                                    style_export::class_state_playing().value.as_ref(),
-                                    playing.get() && playing_i.get().as_ref() == Some(index),
-                                ),
-                            ],
-                        );
+                        if playing.get() && playing_i.get().as_ref() == Some(index) {
+                            out.ref_attr(
+                                &style_export::attr_state().value,
+                                &style_export::attr_state_playing().value,
+                            );
+                        } else {
+                            out.ref_attr(&style_export::attr_state().value, "");
+                        }
                     }
                 ),
             );
@@ -895,12 +925,25 @@ impl Build {
         &mut self,
         pc: &mut ProcessingContext,
         config_at: &Widget,
+        config_query_params: &BTreeMap<String, Vec<String>>,
         data_id: &Vec<usize>,
         data_stack: &Vec<DataStackLevel>,
     ) -> El {
         match config_at {
-            Widget::Layout(config_at) => return self.build_widget_layout(pc, config_at, data_id, data_stack),
-            Widget::DataRows(config_at) => return self.build_widget_data_rows(pc, config_at, data_id, data_stack),
+            Widget::Layout(config_at) => return self.build_widget_layout(
+                pc,
+                config_at,
+                config_query_params,
+                data_id,
+                data_stack,
+            ),
+            Widget::DataRows(config_at) => return self.build_widget_data_rows(
+                pc,
+                config_at,
+                config_query_params,
+                data_id,
+                data_stack,
+            ),
             Widget::Text(config_at) => return self.build_widget_text(config_at, data_stack),
             Widget::Media(config_at) => return self.build_widget_media(config_at, data_stack),
             Widget::PlayButton(config_at) => return self.build_widget_play_button(
@@ -939,8 +982,7 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
     }
 
     let transport_res = style_export::cont_bar_view_transport();
-    let button_share = transport_res.button_share;
-    button_share.ref_on("click", {
+    transport_res.button_share.ref_on("click", {
         let eg = pc.eg();
         move |_| eg.event(|pc| {
             let sess_id = state().playlist.0.share.borrow().as_ref().map(|x| x.0.clone());
@@ -986,12 +1028,8 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
                 ),
                 link: link,
             });
-            let bg_el = modal_res.bg;
-            let button_close_el = modal_res.button_close;
-            let button_unshare_el = modal_res.button_unshare;
-            let modal_el = modal_res.root;
-            button_close_el.ref_on("click", {
-                let modal_el = modal_el.weak();
+            modal_res.button_close.ref_on("click", {
+                let modal_el = modal_res.root.weak();
                 let eg = pc.eg();
                 move |_| eg.event(|_pc| {
                     let Some(modal_el) = modal_el.upgrade() else {
@@ -1000,8 +1038,8 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
                     modal_el.ref_replace(vec![]);
                 }).unwrap()
             });
-            bg_el.ref_on("click", {
-                let modal_el = modal_el.weak();
+            modal_res.bg.ref_on("click", {
+                let modal_el = modal_res.root.weak();
                 let eg = pc.eg();
                 move |_| eg.event(|_pc| {
                     let Some(modal_el) = modal_el.upgrade() else {
@@ -1010,8 +1048,8 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
                     modal_el.ref_replace(vec![]);
                 }).unwrap()
             });
-            button_unshare_el.ref_on("click", {
-                let modal_el = modal_el.weak();
+            modal_res.button_unshare.ref_on("click", {
+                let modal_el = modal_res.root.weak();
                 let eg = pc.eg();
                 move |_| eg.event(|pc| {
                     let Some(modal_el) = modal_el.upgrade() else {
@@ -1022,13 +1060,15 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
                     LocalStorage::delete(LOCALSTORAGE_SHARE_SESSION_ID);
                 }).unwrap()
             });
-            state().modal_stack.ref_push(modal_el.clone());
+            state().modal_stack.ref_push(modal_res.root.clone());
         }).unwrap()
     });
-    button_share.ref_own(|b| link!((_pc = pc), (sharing = state().playlist.0.share.clone()), (), (ele = b.weak()), {
-        let ele = ele.upgrade()?;
-        ele.ref_modify_classes(&[(&style_export::class_state_sharing().value, sharing.borrow().is_some())]);
-    }));
+    transport_res
+        .button_share
+        .ref_own(|b| link!((_pc = pc), (sharing = state().playlist.0.share.clone()), (), (ele = b.weak()), {
+            let ele = ele.upgrade()?;
+            ele.ref_modify_classes(&[(&style_export::class_state_sharing().value, sharing.borrow().is_some())]);
+        }));
 
     // Prev
     let button_prev = transport_res.button_prev;
@@ -1059,7 +1099,11 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
     button_play.ref_own(
         |out| link!((_pc = pc), (playing = state().playlist.0.playing.clone()), (), (out = out.weak()) {
             let out = out.upgrade()?;
-            out.ref_modify_classes(&[(style_export::class_state_playing().value.as_ref(), playing.get())]);
+            if playing.get() {
+                out.ref_attr(&style_export::attr_state().value, &style_export::attr_state_playing().value);
+            } else {
+                out.ref_attr(&style_export::attr_state().value, "");
+            }
         }),
     );
 
@@ -1143,8 +1187,10 @@ struct BuildViewBodyCommon {
     id: String,
     title: String,
     config_at: WidgetRootDataRows,
+    config_query_params: BTreeMap<String, Vec<String>>,
     body: WeakEl,
     transport_slot: WeakEl,
+    have_media: Rc<Cell<bool>>,
 }
 
 fn build_page_view_body(
@@ -1168,15 +1214,23 @@ fn build_page_view_body(
         restore_playlist_pos: restore_playlist_pos.clone(),
         playlist_add: Default::default(),
         want_media: false,
-        have_media: Rc::new(Cell::new(false)),
+        have_media: common.have_media.clone(),
         transport_slot: transport_slot,
     };
-    body.ref_push(build.build_widget_root_data_rows(pc, &common.config_at, &vec![], &vec![DataStackLevel {
-        data: TreeNode::Record(
-            param_data.iter().map(|(k, v)| (k.clone(), TreeNode::Scalar(v.clone()))).collect(),
+    body.ref_push(
+        build.build_widget_root_data_rows(
+            pc,
+            &common.config_at,
+            &common.config_query_params,
+            &vec![],
+            &vec![DataStackLevel {
+                data: TreeNode::Record(
+                    param_data.iter().map(|(k, v)| (k.clone(), TreeNode::Scalar(v.clone()))).collect(),
+                ),
+                node_meta: Default::default(),
+            }],
         ),
-        node_meta: Default::default(),
-    }]));
+    );
     playlist_extend(
         pc,
         &state().playlist,
@@ -1195,29 +1249,36 @@ pub fn build_page_view(
     restore_playlist_pos: Option<PlaylistRestorePos>,
 ) -> Result<El, String> {
     return eg.event(|pc| {
+        let transport_slot = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
+        let body = style_export::cont_view_root_rows(style_export::ContViewRootRowsArgs { rows: vec![] }).root;
         let common = Rc::new(BuildViewBodyCommon {
             id: view.id.clone(),
             title: menu_item_title.clone(),
-            transport_slot: style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root.weak(),
+            transport_slot: transport_slot.weak(),
             config_at: view.root,
-            body: style_export::cont_view_root_rows(style_export::ContViewRootRowsArgs { rows: vec![] })
-                .root
-                .weak(),
+            config_query_params: view.query_parameters,
+            body: body.weak(),
+            have_media: Rc::new(Cell::new(false)),
         });
         let params_debounce = Rc::new(RefCell::new(None));
         let param_data;
         match &restore_playlist_pos {
             Some(p) => {
-                param_data = Rc::new(RefCell::new(p.params.clone()));
+                param_data = p.params.clone();
             },
             None => {
-                param_data = Rc::new(RefCell::new(HashMap::new()));
+                param_data = HashMap::new();
             },
         }
-        let mut params = vec![];
+        let param_data = Rc::new(RefCell::new(param_data));
+        let mut param_els = vec![];
         for (k, v) in view.parameters {
             match v {
                 shared::interface::config::view::ClientViewParam::Text => {
+                    param_data
+                        .borrow_mut()
+                        .entry(k.clone())
+                        .or_insert_with(|| Node::Value(serde_json::Value::String(format!(""))));
                     let pair = style_export::leaf_input_pair_text(style_export::LeafInputPairTextArgs {
                         id: k.clone(),
                         title: k.clone(),
@@ -1228,6 +1289,7 @@ pub fn build_page_view(
                     });
                     pair.input.ref_on("input", {
                         let eg = pc.eg();
+                        let k = k.clone();
                         let input = pair.input.weak();
                         let common = common.clone();
                         let params_debounce = params_debounce.clone();
@@ -1247,9 +1309,7 @@ pub fn build_page_view(
                                     .insert(
                                         k,
                                         Node::Value(
-                                            serde_json::Value::String(
-                                                input.raw().dyn_into::<HtmlInputElement>().unwrap().value(),
-                                            ),
+                                            serde_json::Value::String(input.raw().text_content().unwrap_or_default()),
                                         ),
                                     );
                                 eg.event(|pc| {
@@ -1258,15 +1318,15 @@ pub fn build_page_view(
                             }
                         }))
                     });
-                    params.push(pair.root);
+                    param_els.push(pair.root);
                 },
             }
         }
         build_page_view_body(pc, &common, &*param_data.borrow(), restore_playlist_pos);
         return Ok(style_export::cont_page_view(style_export::ContPageViewArgs {
-            transport: Some(common.transport_slot.upgrade().unwrap()),
-            params: params,
-            rows: common.body.upgrade().unwrap(),
+            transport: Some(transport_slot),
+            params: param_els,
+            rows: body,
         }).root);
     }).unwrap();
 }

@@ -350,8 +350,8 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     }
                                 }).await.err_internal()?;
                                 resp = responder(RespQuery {
-                                    records,
-                                    meta: meta,
+                                    records: records,
+                                    meta: meta.into_iter().collect(),
                                 });
                             },
                             C2SReq::ViewQuery(req) => {
@@ -430,7 +430,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 }).await.err_internal()?;
                                 resp = responder(RespQuery {
                                     records: records,
-                                    meta: meta,
+                                    meta: meta.into_iter().collect(),
                                 });
                             },
                             C2SReq::GetNodeMeta(req) => {
@@ -695,7 +695,7 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
                 .context("Error creating sqlite pool")?;
         db.get().await?.interact(|db| {
             db::migrate(db)?;
-            db.execute(include_str!("setup_fts.sql"), ())?;
+            db.execute_batch(include_str!("setup_fts.sql"))?;
             return Ok(()) as Result<_, loga::Error>;
         }).await?.context_with("Migration failed", ea!(action = "db_init", path = db_path.to_string_lossy()))?;
 

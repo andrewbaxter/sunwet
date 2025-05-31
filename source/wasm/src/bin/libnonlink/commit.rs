@@ -19,9 +19,7 @@ use {
         },
         wire::{
             CommitFile,
-            ReqCommit,
             ReqUploadFinish,
-            Triple,
         },
     },
     std::collections::HashMap,
@@ -50,13 +48,13 @@ pub struct CommitTriple {
     pub object: CommitNode,
 }
 
-struct UploadFile {
+pub struct UploadFile {
     data: Vec<u8>,
     hash: FileHash,
     size: u64,
 }
 
-async fn prep_node(
+pub async fn prep_node(
     return_files: &mut HashMap<usize, FileHash>,
     commit_files: &mut Vec<CommitFile>,
     upload_files: &mut Vec<UploadFile>,
@@ -90,37 +88,8 @@ async fn prep_node(
     }
 }
 
-pub async fn commit(add: Vec<CommitTriple>, remove: Vec<Triple>) -> Result<HashMap<usize, FileHash>, String> {
-    // Preprocess
-    let mut add1 = vec![];
-    let mut return_files = HashMap::new();
-    let mut commit_files = vec![];
-    let mut upload_files = vec![];
-    for triple in add {
-        let Some(subject) =
-            prep_node(&mut return_files, &mut commit_files, &mut upload_files, triple.subject).await else {
-                continue;
-            };
-        let Some(object) =
-            prep_node(&mut return_files, &mut commit_files, &mut upload_files, triple.object).await else {
-                continue;
-            };
-        add1.push(Triple {
-            subject: subject,
-            predicate: triple.predicate,
-            object: object,
-        });
-    }
-
-    // Write commit
-    req_post_json(&state().env.base_url, ReqCommit {
-        add: add1,
-        remove: remove,
-        files: commit_files,
-    }).await?;
-
-    // Upload files
-    for file in upload_files {
+pub async fn upload_files(files: Vec<UploadFile>) -> Result<(), String> {
+    for file in files {
         const CHUNK_SIZE: u64 = 1024 * 1024 * 8;
         let chunks = file.size.div_ceil(CHUNK_SIZE);
         for i in 0 .. chunks {
@@ -141,5 +110,5 @@ pub async fn commit(add: Vec<CommitTriple>, remove: Vec<Triple>) -> Result<HashM
             TimeoutFuture::new(1000).await;
         }
     }
-    return Ok(return_files);
+    return Ok(());
 }

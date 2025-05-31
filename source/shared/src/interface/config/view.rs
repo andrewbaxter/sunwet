@@ -85,17 +85,9 @@ pub enum FieldOrLiteralString {
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct QueryOrFieldQuery {
-    pub query: String,
-    #[serde(default)]
-    pub params: BTreeMap<String, FieldOrLiteral>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum QueryOrField {
     Field(String),
-    Query(QueryOrFieldQuery),
+    Query(String),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
@@ -232,6 +224,8 @@ pub struct DataRowsLayoutUnaligned {
     #[serde(default)]
     pub x_scroll: bool,
     pub direction: Option<Direction>,
+    #[serde(default)]
+    pub trans_align: TransAlign,
     pub widget: Box<Widget>,
 }
 
@@ -316,6 +310,11 @@ pub enum Widget {
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum ClientViewParam {
+    /// A simple text box.
+    ///
+    /// Note that if this is used as part of a `search` root in a query, it must follow
+    /// sqlite's `fts5` syntax. Basically, you need at least one string with quotes
+    /// around it.
     Text,
 }
 
@@ -325,6 +324,6 @@ pub struct ClientView {
     pub id: String,
     pub name: String,
     pub root: WidgetRootDataRows,
-    #[serde(default)]
     pub parameters: BTreeMap<String, ClientViewParam>,
+    pub query_parameters: BTreeMap<String, Vec<String>>,
 }

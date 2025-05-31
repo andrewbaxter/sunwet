@@ -1,5 +1,8 @@
 use {
-    flowcontrol::superif,
+    flowcontrol::{
+        superif,
+        ta_return,
+    },
     gloo::{
         events::EventListener,
         storage::{
@@ -71,6 +74,7 @@ use {
         async_::bg_val,
         js::{
             el_async_,
+            log,
             scan_env,
             style_export::{
                 self,
@@ -78,9 +82,7 @@ use {
         },
     },
     wasm_bindgen::JsCast,
-    web_sys::{
-        HtmlElement,
-    },
+    web_sys::HtmlElement,
 };
 
 pub mod libnonlink;
@@ -90,8 +92,7 @@ pub fn main() {
     let eg = EventGraph::new();
     eg.event(|pc| {
         let env = scan_env();
-        let stack = style_export::cont_stack(style_export::ContStackArgs { children: vec![] }).root;
-        let modal_stack = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
+        let modal_stack = style_export::cont_stack(style_export::ContStackArgs { children: vec![] }).root;
         let main_body = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
         let client_config = bg_val({
             let env = env.clone();
@@ -132,6 +133,7 @@ pub fn main() {
             let client_config = client_config.clone();
             let env = env.clone();
             async move {
+                ta_return!(Vec < El >, String);
                 let whoami = req_post_json(&env.base_url, ReqWhoAmI).await?;
                 if want_logged_in() && whoami == RespWhoAmI::Public {
                     redirect_login(&env.base_url);
@@ -209,6 +211,7 @@ pub fn main() {
                     },
                     RespWhoAmI::Token => { },
                 }
+                log("end of menu");
                 return Ok(vec![style_export::cont_menu_body(style_export::ContMenuBodyArgs {
                     children: root,
                     user: match whoami {
@@ -217,7 +220,7 @@ pub fn main() {
                         RespWhoAmI::Token => "Token".to_string(),
                     },
                     bar_children: bar_children,
-                }).root]) as Result<_, String>;
+                }).root]);
             }
         });
         let main_title = style_export::leaf_title(style_export::LeafTitleArgs { text: "Sunwet".to_string() }).root;
@@ -233,7 +236,6 @@ pub fn main() {
                 state().menu_open.set(pc, !current_open);
             }).unwrap()
         });
-        let root = root_res.root;
         let (playlist_state, playlist_root) = playlist::state_new(pc, env.clone());
 
         // Build app state
@@ -280,7 +282,7 @@ pub fn main() {
         }).forget();
 
         // Root and display
-        set_root(vec![stack.own(|stack| (
+        set_root(vec![style_export::cont_stack(style_export::ContStackArgs { children: vec![] }).root.own(|stack| (
             //. .
             playlist_root,
             link!(
@@ -338,6 +340,6 @@ pub fn main() {
                     ele.class_list().toggle_with_force(&state_open, new_open).unwrap();
                 }
             }),
-        )).push(root).push(modal_stack)]);
+        )).push(root_res.root).push(modal_stack)]);
     });
 }

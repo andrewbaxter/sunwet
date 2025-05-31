@@ -255,7 +255,8 @@ async fn generate_files(state: &Arc<State>, log: &Log, file: &FileHash) -> Resul
         return Ok(());
     };
     let source = file_path(&state, &file)?;
-    let mime = meta.mimetype.as_str().split_once("/").unwrap_or((meta.mimetype.as_str(), ""));
+    let mime = meta.mimetype.as_ref().map(|x| x.as_str()).unwrap_or("");
+    let mime = mime.split_once("/").unwrap_or((mime, ""));
     match mime.0 {
         "video" => {
             generate_subs(&state, &file, &source).await.log(&log, loga::WARN, "Error doing sub file generation");

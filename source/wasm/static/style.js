@@ -356,6 +356,16 @@
 
   // xx State classes
 
+  const attrState = "data-state";
+  presentation.attrState = /** @type { Presentation["attrState"]} */ () => ({
+    value: attrState,
+  });
+  const attrStatePlaying = "playing";
+  presentation.attrStatePlaying =
+    /** @type { Presentation["attrStatePlaying"]} */ () => ({
+      value: attrStatePlaying,
+    });
+
   const classMenuWantStateOpen = "want_state_open";
   presentation.classMenuWantStateOpen =
     /** @type { Presentation["classMenuWantStateOpen"]} */ () => ({
@@ -395,11 +405,6 @@
   presentation.classStateDeleted =
     /** @type { Presentation["classStateDeleted"]} */ () => ({
       value: classStateDeleted,
-    });
-  const classStatePlaying = "playing";
-  presentation.classStatePlaying =
-    /** @type { Presentation["classStatePlaying"]} */ () => ({
-      value: classStatePlaying,
     });
   const classStateSharing = "sharing";
   presentation.classStateSharing =
@@ -702,14 +707,7 @@
       inner.style.gridRow = "2";
     }
     return {
-      root: e(
-        "div",
-        {},
-        {
-          styles_: [contGroupStyle],
-          children_: [inner],
-        }
-      ),
+      root: inner,
     };
   };
 
@@ -1598,7 +1596,7 @@
       });
       const buttonPlay = leafTransportButton({
         title: "Play",
-        icons: { "": textIconPlay, [classStatePlaying]: textIconPause },
+        icons: { "": textIconPlay, [attrStatePlaying]: textIconPause },
       });
       return {
         root: presentation.contBar({
@@ -1966,6 +1964,12 @@
     /** @type {(args: { title: string, icons: {[s: string]: string}, extraStyles?: string[] }) => { root: HTMLElement }} */
     (args) => {
       const size = "1cm";
+      const baseIconStyle = ss(uniq("leaf_transport_button_base_child_state"), {
+        "": (s) => {
+          s.display = "none";
+        },
+      });
+
       const statePairs = Object.entries(args.icons);
       statePairs.sort();
       const children = [];
@@ -1977,31 +1981,21 @@
         buildStyleId.push(
           JSON.stringify(icon).replaceAll(/[^a-zA-Z0-9]*/g, "_")
         );
-        const parentState = (() => {
+        const childMark = (() => {
           if (state == "") {
-            return "";
+            return "default";
           } else {
-            return `.${state}`;
+            return state;
           }
         })();
-        for (const [otherState, _] of statePairs) {
-          const childMark = (() => {
-            if (state == "") {
-              return "default";
-            } else {
-              return state;
-            }
-          })();
-          if (otherState == state) {
-            children.push(leafIcon({ text: icon, extraStyles: [childMark] }));
-            continue;
-          } else {
-            buildStyle[`${parentState}>.${childMark}`] = (s) => {
-              s.display = "none";
-            };
-          }
-        }
+        buildStyle[`[data-state="${state}"]>.${childMark}`] = (s) => {
+          s.display = "initial";
+        };
+        children.push(
+          leafIcon({ text: icon, extraStyles: [childMark, baseIconStyle] })
+        );
       }
+
       const out = e(
         "button",
         {
@@ -2029,6 +2023,7 @@
           children_: children,
         }
       );
+      out.setAttribute("data-state", "");
       return { root: out };
     };
 
@@ -2149,7 +2144,6 @@
 
   const contViewListStyle = ss(uniq("cont_view_list"), {
     "": (s) => {
-      s.flexGrow = "1";
       s.display = "flex";
       s.gap = varPViewList;
     },
@@ -2317,58 +2311,55 @@
     ) =>
       ss(uniq("view_leaf_trans_style", args.orientation, args.transAlign), {
         "": (s) => {
-          switch (trans(args.orientation)) {
-            case "up":
-              switch (args.transAlign) {
-                case "start":
-                  s.alignSelf = "end";
-                  break;
-                case "middle":
-                  s.alignSelf = "middle";
-                  break;
-                case "end":
-                  s.alignSelf = "start";
-                  break;
+          const [key, val] =
+            /** @type {()=>["align"|"justify", "end"|"middle"|"start"]} */ (
+              () => {
+                switch (trans(args.orientation)) {
+                  case "up":
+                    switch (args.transAlign) {
+                      case "start":
+                        return ["align", "end"];
+                      case "middle":
+                        return ["align", "center"];
+                      case "end":
+                        return ["align", "start"];
+                    }
+                  case "down":
+                    switch (args.transAlign) {
+                      case "start":
+                        return ["align", "start"];
+                      case "middle":
+                        return ["align", "center"];
+                      case "end":
+                        return ["align", "end"];
+                    }
+                  case "left":
+                    switch (args.transAlign) {
+                      case "start":
+                        return ["justify", "end"];
+                      case "middle":
+                        return ["justify", "center"];
+                      case "end":
+                        return ["justify", "start"];
+                    }
+                  case "right":
+                    switch (args.transAlign) {
+                      case "start":
+                        return ["justify", "start"];
+                      case "middle":
+                        return ["justify", "center"];
+                      case "end":
+                        return ["justify", "end"];
+                    }
+                }
               }
+            )();
+          switch (key) {
+            case "align":
+              s.alignSelf = val;
               break;
-            case "down":
-              switch (args.transAlign) {
-                case "start":
-                  s.alignSelf = "start";
-                  break;
-                case "middle":
-                  s.alignSelf = "middle";
-                  break;
-                case "end":
-                  s.alignSelf = "end";
-                  break;
-              }
-              break;
-            case "left":
-              switch (args.transAlign) {
-                case "start":
-                  s.justifySelf = "end";
-                  break;
-                case "middle":
-                  s.justifySelf = "middle";
-                  break;
-                case "end":
-                  s.justifySelf = "start";
-                  break;
-              }
-              break;
-            case "right":
-              switch (args.transAlign) {
-                case "start":
-                  s.justifySelf = "start";
-                  break;
-                case "middle":
-                  s.justifySelf = "middle";
-                  break;
-                case "end":
-                  s.justifySelf = "end";
-                  break;
-              }
+            case "justify":
+              s.justifySelf = val;
               break;
           }
         },
@@ -2756,10 +2747,8 @@
 
   presentation.leafViewPlayButton =
     /** @type { Presentation["leafViewPlayButton"] } */ (args) => {
-      const transAlign = args.transAlign || "start";
       const orientation = args.orientation || "right_down";
       const conv1 = conv(orientation);
-      const trans1 = trans(orientation);
       const iconStyle = ss(uniq("leaf_view_play_inner"), {
         "": (s) => {
           s.width = "100%";
@@ -2803,81 +2792,49 @@
           }
         )()
       );
-      const lineShift = "-0.7em";
+      const out = e(
+        "button",
+        {},
+        {
+          styles_: [
+            leafButtonStyle,
+            ss(uniq("leaf_view_play"), {
+              "": (s) => {
+                const size = "1cm";
+                s.width = size;
+                s.height = size;
+                s.position = "relative";
+              },
+              ">*": (s) => {
+                s.display = "none";
+              },
+              [`[data-state=""]>*:nth-child(1)`]: (s) => {
+                s.display = "initial";
+              },
+              [`[data-state="${attrStatePlaying}"]>*:nth-child(2)`]: (s) => {
+                s.display = "initial";
+              },
+            }),
+            viewLeafTransStyle({
+              orientation: args.orientation,
+              transAlign: args.transAlign,
+            }),
+          ],
+          children_: [
+            leafIcon({
+              text: textIconPlay,
+              extraStyles: [iconStyle, iconStyleConv],
+            }),
+            leafIcon({
+              text: textIconPause,
+              extraStyles: [iconStyle, iconStyleConv],
+            }),
+          ],
+        }
+      );
+      out.setAttribute("data-state", "");
       return {
-        root: e(
-          "button",
-          {},
-          {
-            styles_: [
-              leafButtonStyle,
-              ss(uniq("leaf_view_play"), {
-                "": (s) => {
-                  const size = "1cm";
-                  s.width = size;
-                  s.height = size;
-                  s.position = "relative";
-                },
-                [`>*:nth-child(2)`]: (s) => {
-                  s.display = "none";
-                },
-                [`.${classStatePlaying}>*:nth-child(1)`]: (s) => {
-                  s.display = "none";
-                },
-                [`.${classStatePlaying}>*:nth-child(2)`]: (s) => {
-                  s.display = "initial";
-                },
-              }),
-              ss(
-                uniq("leaf_view_play_inner_trans", trans1),
-                /** @type { () => ({[suffix: string]: (s: CSSStyleDeclaration) => void}) } */ (
-                  () => {
-                    switch (trans1) {
-                      case "up":
-                        return {
-                          "": (s) => {
-                            s.bottom = lineShift;
-                          },
-                        };
-                      case "down":
-                        return {
-                          "": (s) => {
-                            s.top = lineShift;
-                          },
-                        };
-                      case "left":
-                        return {
-                          "": (s) => {
-                            s.right = lineShift;
-                          },
-                        };
-                      case "right":
-                        return {
-                          "": (s) => {
-                            s.left = lineShift;
-                          },
-                        };
-                    }
-                  }
-                )()
-              ),
-              viewLeafTransStyle({
-                orientation: args.orientation,
-                transAlign: args.transAlign,
-              }),
-            ],
-            children_: [
-              leafIcon({
-                text: textIconPlay,
-                extraStyles: [iconStyle, iconStyleConv],
-              }),
-              leafIcon({
-                text: textIconPause,
-                extraStyles: [iconStyle, iconStyleConv],
-              }),
-            ],
-          }
-        ),
+        root: out,
       };
     };
 
@@ -4043,7 +4000,9 @@
               ss(uniq("app_link_perms_play"), {
                 "": (s) => {
                   s.width = varSLinkIcon;
+                  s.minWidth = varSLinkIcon;
                   s.height = varSLinkIcon;
+                  s.minHeight = varSLinkIcon;
                   s.alignSelf = "end";
                 },
                 " text": (s) => {

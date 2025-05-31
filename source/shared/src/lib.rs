@@ -1,5 +1,4 @@
 pub mod interface;
-pub mod form;
 
 // (Hopefully, mostly) canonical serialization by going to value before
 // serialization; value uses BTreeMap which sorts keys.

@@ -2,9 +2,9 @@ use {
     super::{
         api::req_post_json,
         commit::{
-            commit,
+            prep_node,
+            upload_files,
             CommitNode,
-            CommitTriple,
         },
         state::{
             set_page,
@@ -30,20 +30,21 @@ use {
         spawn_rooted,
         El,
     },
-    shared::interface::{
-        config::{
-            form::{
-                ClientForm,
-                FormFieldType,
-                InputOrInline,
-                InputOrInlineText,
+    shared::{
+        interface::{
+            config::{
+                form::{
+                    ClientForm,
+                    FormFieldType,
+                },
+                ClientConfig,
             },
-            ClientConfig,
-        },
-        triple::Node,
-        wire::{
-            ReqQuery,
-            TreeNode,
+            triple::Node,
+            wire::{
+                ReqFormCommit,
+                ReqQuery,
+                TreeNode,
+            },
         },
     },
     std::{
@@ -64,7 +65,6 @@ use {
 
 struct FormState_ {
     draft_id: String,
-    form: ClientForm,
     data: RefCell<HashMap<String, CommitNode>>,
     draft_debounce: RefCell<Option<Timeout>>,
 }
@@ -149,7 +149,6 @@ pub fn build_page_form(
     let mut out = vec![error_slot.clone()];
     let mut bar_out = vec![];
     let fs = FormState(Rc::new(FormState_ {
-        form: form.clone(),
         data: RefCell::new(
             LocalStorage::get::<HashMap<String, Node>>(&draft_id)
                 .map(|m| m.into_iter().map(|(k, v)| (k, CommitNode::Node(v))).collect::<HashMap<_, _>>())
@@ -464,62 +463,28 @@ pub fn build_page_form(
                 let menu_item = menu_item.clone();
                 async move {
                     match async {
-                        // Send commit
-                        let data = fs.0.data.borrow();
-                        let mut add = vec![];
-                        for triple in &fs.0.form.outputs {
-                            let subject;
-                            match &triple.subject {
-                                InputOrInline::Input(field) => {
-                                    let Some(s1) = data.get(field) else {
-                                        continue;
-                                    };
-                                    subject = s1.clone();
-                                },
-                                InputOrInline::Inline(v) => {
-                                    subject = CommitNode::Node(v.clone());
-                                },
-                            }
-                            let predicate;
-                            match &triple.predicate {
-                                InputOrInlineText::Input(field) => {
-                                    let Some(p1) = data.get(field) else {
-                                        continue;
-                                    };
-                                    let CommitNode::Node(Node::Value(serde_json::Value::String(v))) = p1 else {
-                                        return Err(
-                                            format!(
-                                                "Field {} must be a string to be used as a predicate, but it is not",
-                                                field
-                                            ),
-                                        );
-                                    };
-                                    predicate = v.clone();
-                                },
-                                InputOrInlineText::Inline(t) => {
-                                    predicate = t.clone();
-                                },
-                            }
-                            let object;
-                            match &triple.object {
-                                InputOrInline::Input(field) => {
-                                    let Some(o1) = data.get(field) else {
-                                        continue;
-                                    };
-                                    object = o1.clone();
-                                },
-                                InputOrInline::Inline(v) => {
-                                    object = CommitNode::Node(v.clone());
-                                },
-                            }
-                            add.push(CommitTriple {
-                                subject: subject,
-                                predicate: predicate,
-                                object: object,
-                            });
+                        let data = fs.0.data.borrow().clone();
+                        let mut params_to_post = HashMap::new();
+                        let mut files_to_return = HashMap::new();
+                        let mut files_to_commit = vec![];
+                        let mut files_to_upload = vec![];
+                        for (k, v) in data {
+                            let Some(n) =
+                                prep_node(
+                                    &mut files_to_return,
+                                    &mut files_to_commit,
+                                    &mut files_to_upload,
+                                    v,
+                                ).await else {
+                                    continue;
+                                };
+                            params_to_post.insert(k.clone(), TreeNode::Scalar(n));
                         }
-                        drop(data);
-                        commit(add, vec![]).await?;
+                        req_post_json(&state().env.base_url, ReqFormCommit {
+                            menu_item_id: menu_item.id.clone(),
+                            parameters: params_to_post,
+                        }).await?;
+                        upload_files(files_to_upload).await?;
                         return Ok(());
                     }.await {
                         Ok(_) => {

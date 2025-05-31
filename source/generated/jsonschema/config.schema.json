@@ -1132,31 +1132,12 @@
           ],
           "properties": {
             "query": {
-              "$ref": "#/definitions/QueryOrFieldQuery"
+              "type": "string"
             }
           },
           "additionalProperties": false
         }
       ]
-    },
-    "QueryOrFieldQuery": {
-      "type": "object",
-      "required": [
-        "query"
-      ],
-      "properties": {
-        "params": {
-          "default": {},
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/definitions/FieldOrLiteral"
-          }
-        },
-        "query": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
     },
     "QuerySort": {
       "oneOf": [

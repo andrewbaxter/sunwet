@@ -59,21 +59,24 @@ use {
         ea,
         ResultContext,
     },
-    shared::{
-        form::build_form_commit,
-        interface::{
-            triple::{
-                FileHash,
-                Node,
-            },
-            wire::{
-                FileUrlQuery,
-                ReqCommit,
-                ReqFormCommit,
-                RespCommit,
-                RespUploadFinish,
-                HEADER_OFFSET,
-            },
+    shared::interface::{
+        config::form::{
+            InputOrInline,
+            InputOrInlineText,
+        },
+        triple::{
+            FileHash,
+            Node,
+        },
+        wire::{
+            FileUrlQuery,
+            ReqCommit,
+            ReqFormCommit,
+            RespCommit,
+            RespUploadFinish,
+            TreeNode,
+            Triple,
+            HEADER_OFFSET,
         },
     },
     std::{
@@ -106,10 +109,13 @@ async fn commit(
     c: ReqCommit,
     update_access_reqs: Option<(MenuItemId, u64)>,
 ) -> Result<RespCommit, loga::Error> {
+    // Preallocate files for upload, confirm already present files
+    let mut incomplete = vec![];
     for info in &c.files {
         if file_path(&state, &info.hash)?.exists() {
             continue;
         }
+        incomplete.push(info.hash.clone());
         let path = staged_file_path(&state, &info.hash)?;
         if let Some(parent) = path.parent() {
             create_dir_all(&parent).await.stack_context(&state.log, "Failed to create upload staging dirs")?;
@@ -117,7 +123,10 @@ async fn commit(
         let f = File::create(&path).await.stack_context(&state.log, "Failed to create upload staged file")?;
         f.set_len(info.size).await.stack_context(&state.log, "Error preallocating disk space for upload")?;
     }
-    let incomplete = tx(&state.db, move |txn| {
+
+    // Write new triples, commit (no-op if all triples already committed)
+    tx(&state.db, move |txn| {
+        // Update access if writing as non-admin
         if let Some((page_access, form_version_hash)) = update_access_reqs {
             db::file_access_clear_nonversion(txn, &page_access, form_version_hash as i64)?;
             for file in &c.files {
@@ -129,11 +138,14 @@ async fn commit(
                 )?;
             }
         }
-        let mut incomplete = vec![];
+
+        // Update file meta
         for info in c.files {
-            incomplete.push(info.hash.clone());
-            db::meta_insert(txn, &DbNode(Node::File(info.hash)), &info.mimetype, "")?;
+            db::meta_upsert_file(txn, &DbNode(Node::File(info.hash)), Some(&info.mimetype))?;
         }
+
+        // Insert triples
+        let mut modified = false;
         let stamp = Utc::now();
         for t in c.remove {
             if let Some(t) =
@@ -145,6 +157,7 @@ async fn commit(
                 continue;
             }
             db::triple_insert(txn, &DbNode(t.subject), &t.predicate, &DbNode(t.object), stamp, false)?;
+            modified = true;
         }
         for t in c.add {
             if let Some(t) =
@@ -193,15 +206,21 @@ async fn commit(
                     },
                     Node::Value(v) => gather_value_text(&mut fulltext, v),
                 }
-                db::meta_insert(txn, &DbNode(node.clone()), "", &fulltext)?;
+                db::meta_upsert_fulltext(txn, &DbNode(node.clone()), &fulltext)?;
                 return Ok(());
             }
 
             update_fulltext(txn, &t.subject)?;
             update_fulltext(txn, &t.object)?;
             db::triple_insert(txn, &DbNode(t.subject), &t.predicate, &DbNode(t.object), stamp, true)?;
+            modified = true;
         }
-        return Ok(incomplete);
+
+        // Write commit if changed
+        if modified {
+            db::commit_insert(txn, stamp, &c.comment)?;
+        }
+        return Ok(());
     }).await?;
     return Ok(RespCommit { incomplete: incomplete });
 }
@@ -217,15 +236,82 @@ pub async fn handle_form_commit(state: Arc<State>, c: ReqFormCommit) -> Result<R
     };
     let mut form_hash = DefaultHasher::new();
     menu_item_form.item.hash(&mut form_hash);
-    return Ok(
-        commit(
-            state,
-            build_form_commit(&menu_item_form.item.outputs, &c.parameters).map_err(loga::err).err_external()?,
-            Some((c.menu_item_id, form_hash.finish())),
-        )
-            .await
-            .err_internal()?,
-    );
+
+    // Build form data
+    let mut add = vec![];
+    let get_data = |field| {
+        let v = c.parameters.get(field).unwrap();
+        match v {
+            TreeNode::Scalar(v) => {
+                return Ok(vec![v.clone()]);
+            },
+            TreeNode::Array(ns) => {
+                let mut s1 = vec![];
+                for v in ns {
+                    let TreeNode::Scalar(v) = v else {
+                        return Err(loga::err("Nested QueryResValue field in form data (likely bug)"));
+                    };
+                    s1.push(v.clone());
+                }
+                return Ok(s1);
+            },
+            TreeNode::Record(_) => {
+                return Err(loga::err("Record QueryResValue field in form data (likely bug)"));
+            },
+        }
+    };
+    for triple in &menu_item_form.item.outputs {
+        let subjects;
+        match &triple.subject {
+            InputOrInline::Input(field) => {
+                subjects = get_data(field).err_external()?;
+            },
+            InputOrInline::Inline(v) => {
+                subjects = vec![v.clone()];
+            },
+        }
+        let predicate;
+        match &triple.predicate {
+            InputOrInlineText::Input(field) => {
+                let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(v)))) =
+                    c.parameters.get(field) else {
+                        return Err(
+                            loga::err(
+                                format!("Field {} must be a string to be used as a predicate, but it is not", field),
+                            ),
+                        ).err_external();
+                    };
+                predicate = v.clone();
+            },
+            InputOrInlineText::Inline(t) => {
+                predicate = t.clone();
+            },
+        }
+        let objects;
+        match &triple.object {
+            InputOrInline::Input(field) => {
+                objects = get_data(field).err_external()?;
+            },
+            InputOrInline::Inline(v) => {
+                objects = vec![v.clone()];
+            },
+        }
+        for subj in subjects {
+            for obj in &objects {
+                add.push(Triple {
+                    subject: subj.clone(),
+                    predicate: predicate.clone(),
+                    object: obj.clone(),
+                });
+            }
+        }
+    }
+    return Ok(commit(state, ReqCommit {
+        comment: format!("Form [{}]", c.menu_item_id),
+        add: add,
+        remove: vec![],
+        files: vec![],
+    }, Some((c.menu_item_id, form_hash.finish()))).await.err_internal()?);
 }
 
 pub async fn handle_finish_upload(
@@ -335,7 +421,10 @@ pub async fn handle_file_head(
     return Ok(
         Response::builder()
             .status(200)
-            .header("Content-Type", meta.mimetype.as_str())
+            .header(
+                "Content-Type",
+                meta.mimetype.as_ref().map(|x| x.as_str()).unwrap_or("application/octet-stream"),
+            )
             .header("Accept-Ranges", "bytes")
             .body(body_empty())
             .unwrap(),
@@ -384,7 +473,7 @@ pub async fn handle_file_get(
         mimetype = gen_mimetype;
         local_path = genfile_path(&state, &file, &gentype).err_internal()?;
     } 'nogen {
-        mimetype = meta.mimetype;
+        mimetype = meta.mimetype.unwrap_or_else(|| format!("application/octet-stream"));
         local_path = file_path(&state, &file).err_internal()?;
     });
     return Ok(htserve::responses::response_file(&head.headers, &mimetype, &local_path).await.err_internal()?);

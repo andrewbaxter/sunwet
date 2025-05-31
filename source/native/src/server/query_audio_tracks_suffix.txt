@@ -1,8 +1,9 @@
 {
     => track_id
-    ( -< "sunwet/1/element" ?(-> "sunwet/1/is" == "sunwet/1/album") first {
+    ( -< "sunwet/1/track" ?(-> "sunwet/1/is" == "sunwet/1/album") first {
         => album_id
-        ( -* (-< "sunwet/1/track") -> "sunwet/1/cover" first { => cover } )
+        ( -> "sunwet/1/name" first { => album_name } )
+        ( -> "sunwet/1/cover" first { => cover } )
     })
     ( -> "sunwet/1/name" first { => track_name })
     (
@@ -11,6 +12,7 @@
             ( -> "sunwet/1/name" first { => artist_name } )
         }
     )
+    ( -> "sunwet/1/superindex" first { => superindex } )
     ( -> "sunwet/1/index" first { => index } )
     ( -> "sunwet/1/file" first { => file } )
     ( -> "sunwet/1/media" first { => media } )

@@ -52,6 +52,7 @@ pub struct CommitFile {
 #[derive(Serialize, Deserialize, Default, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqCommit {
+    pub comment: String,
     pub add: Vec<Triple>,
     pub remove: Vec<Triple>,
     pub files: Vec<CommitFile>,
@@ -137,7 +138,7 @@ pub enum TreeNode {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct RespQuery {
     pub records: Vec<BTreeMap<String, TreeNode>>,
-    pub meta: HashMap<Node, NodeMeta>,
+    pub meta: Vec<(Node, NodeMeta)>,
 }
 
 impl Into<C2SReq> for ReqQuery {
@@ -209,7 +210,7 @@ impl Into<C2SReq> for ReqGetNodeMeta {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct NodeMeta {
-    pub mime: String,
+    pub mime: Option<String>,
 }
 
 impl C2SReqTrait for ReqGetNodeMeta {
