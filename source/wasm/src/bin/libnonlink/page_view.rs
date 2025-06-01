@@ -9,7 +9,11 @@ use {
             playlist_clear,
             PlaylistIndex,
         },
-        state::state,
+        state::{
+            state,
+            ViewMinistateState,
+            ViewMinistateState_,
+        },
     },
     crate::libnonlink::{
         api::req_post_json,
@@ -232,13 +236,13 @@ fn unwrap_value_move_url(
 
 struct Build {
     menu_item_id: String,
-    menu_item_title: String,
     param_data: HashMap<String, Node>,
     restore_playlist_pos: Option<PlaylistRestorePos>,
     playlist_add: Vec<(PlaylistIndex, PlaylistPushArg)>,
     have_media: Rc<Cell<bool>>,
     want_media: bool,
     transport_slot: El,
+    vs: ViewMinistateState,
 }
 
 impl Build {
@@ -260,6 +264,7 @@ impl Build {
             x_scroll: config_at.x_scroll,
             children: children,
             gap: config_at.gap.clone(),
+            wrap: config_at.wrap,
         }).root;
     }
 
@@ -273,7 +278,6 @@ impl Build {
     ) -> El {
         return el_async({
             let menu_item_id = self.menu_item_id.clone();
-            let menu_item_title = self.menu_item_title.clone();
             let param_data = self.param_data.clone();
             let restore_playlist_pos = self.restore_playlist_pos.clone();
             let eg = pc.eg();
@@ -281,6 +285,7 @@ impl Build {
             let have_media = self.have_media.clone();
             let config_at = config_at.clone();
             let config_query_params = config_query_params.clone();
+            let vs = self.vs.clone();
             let data_id = data_id.clone();
             let data_at = data_at.clone();
             async move {
@@ -330,7 +335,7 @@ impl Build {
                 return eg.event(move |pc| {
                     let mut build = Build {
                         menu_item_id: menu_item_id.clone(),
-                        menu_item_title: menu_item_title.clone(),
+                        vs: vs.clone(),
                         param_data: param_data.clone(),
                         restore_playlist_pos: restore_playlist_pos.clone(),
                         playlist_add: Default::default(),
@@ -364,6 +369,7 @@ impl Build {
                                 direction: row_widget.direction.unwrap_or(Direction::Down),
                                 trans_align: row_widget.trans_align,
                                 x_scroll: row_widget.x_scroll,
+                                wrap: row_widget.wrap,
                                 children: children,
                                 gap: row_widget.gap.clone(),
                             }).root;
@@ -396,15 +402,7 @@ impl Build {
                             }).root;
                         },
                     }
-                    playlist_extend(
-                        pc,
-                        &state().playlist,
-                        &menu_item_id,
-                        &menu_item_title,
-                        &param_data,
-                        build.playlist_add,
-                        &restore_playlist_pos,
-                    );
+                    playlist_extend(pc, &state().playlist, vs.clone(), build.playlist_add, &restore_playlist_pos);
                     if !build.have_media.get() && build.want_media {
                         build.transport_slot.ref_push(build_transport(pc));
                         build.have_media.set(true);
@@ -425,7 +423,7 @@ impl Build {
     ) -> El {
         return el_async({
             let menu_item_id = self.menu_item_id.clone();
-            let menu_item_title = self.menu_item_title.clone();
+            let vs = self.vs.clone();
             let param_data = self.param_data.clone();
             let restore_playlist_pos = self.restore_playlist_pos.clone();
             let eg = pc.eg();
@@ -496,17 +494,18 @@ impl Build {
                 let mut chunked_data = chunked_data.into_iter();
                 let body = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
                 build_infinite(body.clone(), chunked_data.next().unwrap(), {
+                    let vs = vs.clone();
                     move |chunk| {
                         let children = eg.event(|pc| {
                             let mut build = Build {
                                 menu_item_id: menu_item_id.clone(),
-                                menu_item_title: menu_item_title.clone(),
                                 param_data: param_data.clone(),
                                 restore_playlist_pos: restore_playlist_pos.clone(),
                                 playlist_add: Default::default(),
                                 want_media: false,
                                 have_media: have_media.clone(),
                                 transport_slot: transport_slot.clone(),
+                                vs: vs.clone(),
                             };
                             let mut children = vec![];
                             for (i, new_data_at_top) in chunk {
@@ -541,9 +540,7 @@ impl Build {
                             playlist_extend(
                                 pc,
                                 &state().playlist,
-                                &menu_item_id,
-                                &menu_item_title,
-                                &param_data,
+                                vs.clone(),
                                 build.playlist_add,
                                 &restore_playlist_pos,
                             );
@@ -836,6 +833,20 @@ impl Build {
             }
             self.want_media = true;
             let src_url = unwrap_value_media_url(&src)?;
+            let cover_source_url = shed!{
+                let Some(config_at) = &config_at.cover_field else {
+                    break None;
+                };
+                log_1(&JsValue::from(format!("got cover field config: {}", config_at)));
+                let Some(d) = maybe_get_field(config_at, data_stack) else {
+                    break None;
+                };
+                let TreeNode::Scalar(d) = d else {
+                    break None;
+                };
+                log_1(&JsValue::from(format!("got cover field data: {:?}", d)));
+                break Some(unwrap_value_media_url(&d).map_err(|e| format!("Building cover url: {}", e))?);
+            };
             self.playlist_add.push((data_id.clone(), PlaylistPushArg {
                 name: shed!{
                     let Some(config_at) = &config_at.name_field else {
@@ -864,24 +875,21 @@ impl Build {
                     };
                     break Some(unwrap_value_string(&d));
                 },
-                cover_source_url: shed!{
-                    let Some(config_at) = &config_at.cover_field else {
-                        break None;
-                    };
-                    log_1(&JsValue::from(format!("got cover field config: {}", config_at)));
-                    let Some(d) = maybe_get_field(config_at, data_stack) else {
-                        break None;
-                    };
-                    let TreeNode::Scalar(d) = d else {
-                        break None;
-                    };
-                    log_1(&JsValue::from(format!("got cover field data: {:?}", d)));
-                    break Some(unwrap_value_media_url(&d).map_err(|e| format!("Building cover url: {}", e))?);
-                },
+                cover_source_url: cover_source_url.clone(),
                 source_url: src_url,
                 media_type: media_type,
             }));
             let out = style_export::leaf_view_play_button(style_export::LeafViewPlayButtonArgs {
+                image: if config_at.show_image {
+                    cover_source_url.map(|x| match x {
+                        SourceUrl::Url(u) => u.clone(),
+                        SourceUrl::File(f) => file_url(&state().env, &f),
+                    })
+                } else {
+                    None
+                },
+                width: config_at.width.clone(),
+                height: config_at.height.clone(),
                 trans_align: config_at.trans_align,
                 orientation: config_at.orientation.unwrap_or(Orientation::RightDown),
             }).root;
@@ -1185,12 +1193,12 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
 #[derive(Clone)]
 struct BuildViewBodyCommon {
     id: String,
-    title: String,
     config_at: WidgetRootDataRows,
     config_query_params: BTreeMap<String, Vec<String>>,
     body: WeakEl,
     transport_slot: WeakEl,
     have_media: Rc<Cell<bool>>,
+    view_ministate_state: ViewMinistateState,
 }
 
 fn build_page_view_body(
@@ -1209,7 +1217,7 @@ fn build_page_view_body(
     playlist_clear(pc, &state().playlist);
     let mut build = Build {
         menu_item_id: common.id.clone(),
-        menu_item_title: common.title.clone(),
+        vs: common.view_ministate_state.clone(),
         param_data: param_data.clone(),
         restore_playlist_pos: restore_playlist_pos.clone(),
         playlist_add: Default::default(),
@@ -1234,9 +1242,7 @@ fn build_page_view_body(
     playlist_extend(
         pc,
         &state().playlist,
-        &common.id,
-        &common.title,
-        param_data,
+        common.view_ministate_state.clone(),
         build.playlist_add,
         &restore_playlist_pos,
     );
@@ -1246,14 +1252,21 @@ pub fn build_page_view(
     eg: EventGraph,
     menu_item_title: String,
     view: ClientView,
+    params: HashMap<String, Node>,
     restore_playlist_pos: Option<PlaylistRestorePos>,
 ) -> Result<El, String> {
     return eg.event(|pc| {
+        let vs = ViewMinistateState(Rc::new(RefCell::new(ViewMinistateState_ {
+            menu_item_id: view.id.clone(),
+            title: menu_item_title.clone(),
+            pos: restore_playlist_pos.clone(),
+            params: params.clone(),
+        })));
         let transport_slot = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
         let body = style_export::cont_view_root_rows(style_export::ContViewRootRowsArgs { rows: vec![] }).root;
         let common = Rc::new(BuildViewBodyCommon {
             id: view.id.clone(),
-            title: menu_item_title.clone(),
+            view_ministate_state: vs.clone(),
             transport_slot: transport_slot.weak(),
             config_at: view.root,
             config_query_params: view.query_parameters,
@@ -1261,16 +1274,7 @@ pub fn build_page_view(
             have_media: Rc::new(Cell::new(false)),
         });
         let params_debounce = Rc::new(RefCell::new(None));
-        let param_data;
-        match &restore_playlist_pos {
-            Some(p) => {
-                param_data = p.params.clone();
-            },
-            None => {
-                param_data = HashMap::new();
-            },
-        }
-        let param_data = Rc::new(RefCell::new(param_data));
+        let param_data = Rc::new(RefCell::new(params));
         let mut param_els = vec![];
         for (k, v) in view.parameters {
             match v {
@@ -1304,14 +1308,12 @@ pub fn build_page_view(
                                 let Some(input) = input.upgrade() else {
                                     return;
                                 };
-                                param_data
-                                    .borrow_mut()
-                                    .insert(
-                                        k,
-                                        Node::Value(
-                                            serde_json::Value::String(input.raw().text_content().unwrap_or_default()),
-                                        ),
+                                let v =
+                                    Node::Value(
+                                        serde_json::Value::String(input.raw().text_content().unwrap_or_default()),
                                     );
+                                common.view_ministate_state.set_param(k.clone(), v.clone());
+                                param_data.borrow_mut().insert(k, v);
                                 eg.event(|pc| {
                                     build_page_view_body(pc, &common, &*param_data.borrow(), None);
                                 }).unwrap();

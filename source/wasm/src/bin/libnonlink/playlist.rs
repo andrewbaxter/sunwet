@@ -1,13 +1,13 @@
 use {
     super::{
         ministate::{
-            Ministate,
-            MinistateMenuItem,
             PlaylistRestorePos,
         },
-        state::state,
+        state::{
+            state,
+            ViewMinistateState,
+        },
     },
-    crate::libnonlink::ministate::record_replace_ministate,
     chrono::{
         DateTime,
         Duration,
@@ -35,7 +35,6 @@ use {
     },
     serde::Deserialize,
     shared::interface::{
-        triple::Node,
         wire::link::{
             Prepare,
             PrepareAudio,
@@ -52,7 +51,6 @@ use {
         },
         collections::{
             BTreeMap,
-            HashMap,
         },
         ops::Bound,
         rc::{
@@ -113,7 +111,7 @@ pub struct PlaylistEntry {
 }
 
 pub struct PlaylistState_ {
-    pub ministate_menu_info: RefCell<Option<(String, String, HashMap<String, Node>)>>,
+    pub view_ministate_state: RefCell<Option<ViewMinistateState>>,
     pub env: Env,
     pub debounce: Cell<DateTime<Utc>>,
     pub playlist: RefCell<BTreeMap<PlaylistIndex, Rc<PlaylistEntry>>>,
@@ -161,7 +159,7 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
         playing_time: Prim::new(0.),
         media_time: Prim::new(0.),
         media_max_time: Prim::new(None),
-        ministate_menu_info: RefCell::new(None),
+        view_ministate_state: Default::default(),
         share: Prim::new(None),
     }));
     let media_session = window().navigator().media_session();
@@ -367,15 +365,10 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
                     state.0.media_time.set(pc, time);
                     state.0.media_max_time.set(pc, max_time);
                 });
-                if let Some((menu_item_id, title, params)) = state.0.ministate_menu_info.borrow().as_ref() {
-                    record_replace_ministate(&Ministate::MenuItem(MinistateMenuItem {
-                        menu_item_id: menu_item_id.clone(),
-                        title: title.clone(),
-                        pos: Some(PlaylistRestorePos {
-                            index: playing_i.clone(),
-                            time: time,
-                            params: params.clone(),
-                        }),
+                if let Some(vs) = state.0.view_ministate_state.borrow().as_ref() {
+                    vs.set_pos(Some(PlaylistRestorePos {
+                        index: playing_i.clone(),
+                        time: time,
                     }));
                 }
             }
@@ -492,14 +485,11 @@ pub struct PlaylistPushArg {
 pub fn playlist_extend(
     pc: &mut ProcessingContext,
     playlist_state: &PlaylistState,
-    menu_item_id: &String,
-    menu_title: &String,
-    params: &HashMap<String, Node>,
+    vs: ViewMinistateState,
     entries: Vec<(PlaylistIndex, PlaylistPushArg)>,
     restore_pos: &Option<PlaylistRestorePos>,
 ) {
-    *playlist_state.0.ministate_menu_info.borrow_mut() =
-        Some((menu_item_id.clone(), menu_title.clone(), params.clone()));
+    *playlist_state.0.view_ministate_state.borrow_mut() = Some(vs);
     for (entry_index, entry) in entries {
         let setup_media_element = |pc: &mut ProcessingContext, media: &El| {
             media.ref_on("ended", {
@@ -604,6 +594,7 @@ pub fn playlist_clear(pc: &mut ProcessingContext, state: &PlaylistState) {
     state.0.playing_i.set(pc, None);
     state.0.media_max_time.set(pc, None);
     state.0.playlist.borrow_mut().clear();
+    *state.0.view_ministate_state.borrow_mut() = None;
 }
 
 pub fn playlist_toggle_play(pc: &mut ProcessingContext, state: &PlaylistState, i: Option<PlaylistIndex>) {
@@ -651,12 +642,8 @@ pub fn playlist_next(pc: &mut ProcessingContext, state: &PlaylistState, basis: O
         state.0.media_max_time.set(pc, None);
         state.0.playing.set(pc, false);
         state.0.playing_time.set(pc, 0.);
-        if let Some((menu_item_id, title, _)) = state.0.ministate_menu_info.borrow().as_ref() {
-            record_replace_ministate(&Ministate::MenuItem(MinistateMenuItem {
-                menu_item_id: menu_item_id.clone(),
-                title: title.clone(),
-                pos: None,
-            }));
+        if let Some(vs) = state.0.view_ministate_state.borrow().as_ref() {
+            vs.set_pos(None);
         }
     }
 }

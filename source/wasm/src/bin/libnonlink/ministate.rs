@@ -22,7 +22,6 @@ pub const SESSIONSTORAGE_POST_REDIRECT: &str = "post_redirect";
 pub struct PlaylistRestorePos {
     pub index: PlaylistIndex,
     pub time: f64,
-    pub params: HashMap<String, Node>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -30,7 +29,10 @@ pub struct PlaylistRestorePos {
 pub struct MinistateMenuItem {
     pub menu_item_id: String,
     pub title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pos: Option<PlaylistRestorePos>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub params: HashMap<String, Node>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]

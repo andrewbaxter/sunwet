@@ -141,12 +141,11 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                         ).root,
                     );
                 }
-                return Ok(
-                    vec![style_export::cont_page_node_view_and_history(style_export::ContPageNodeViewAndHistoryArgs {
-                        page_button_children: buttons_out,
-                        children: out,
-                    }).root],
-                );
+                return Ok(vec![style_export::cont_page_node(style_export::ContPageNodeArgs {
+                    page_button_children: buttons_out,
+                    bar_children: vec![],
+                    children: out,
+                }).root]);
             }).unwrap();
         }
     }));

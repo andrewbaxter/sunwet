@@ -67,6 +67,8 @@
                   children: [
                     presentation.contViewList({
                       direction: "down",
+                      wrap: false,
+                      transAlign: "start",
                       xScroll: false,
                       children: [
                         presentation.leafViewText({
@@ -117,6 +119,9 @@
                             ],
                             [
                               presentation.leafViewPlayButton({
+                                image: "testcover.jpg",
+                                width: "1.5cm",
+                                height: "1.5cm",
                                 transAlign: "start",
                                 orientation: "down_left",
                               }).root,
@@ -168,6 +173,8 @@
                   children: [
                     presentation.contViewList({
                       direction: "down",
+                      transAlign: "start",
+                      wrap: false,
                       xScroll: false,
                       children: [
                         presentation.leafViewText({
@@ -335,6 +342,10 @@
               mainTitle: presentation.leafTitle({ text: "Music" }).root,
               mainBody: presentation.contPageForm({
                 entries: [
+                  presentation.leafErrBlock({
+                    data: "This is an error of greatest magnitude",
+                    inRoot: false,
+                  }).root,
                   presentation.leafInputPairText({
                     id: "item1",
                     title: "Title",
@@ -368,7 +379,7 @@
                   presentation.leafInputPairDatetime({
                     id: "item2",
                     title: "Text",
-                    value: "2024-08-23 22:10:10",
+                    value: "2024-08-23T22:10:10",
                   }).root,
                   presentation.leafInputPairColor({
                     id: "item2",
@@ -393,10 +404,11 @@
           document.body.appendChild(
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "Music" }).root,
-              mainBody: presentation.contPageNodeViewAndHistory({
+              mainBody: presentation.contPageNode({
                 pageButtonChildren: [
                   presentation.leafButtonSmallEdit({ link: "abcd" }).root,
                 ],
+                barChildren: [],
                 children: [
                   presentation.contPageNodeSectionRel({
                     children: [
@@ -487,18 +499,13 @@
           document.body.appendChild(
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "Music" }).root,
-              mainBody: presentation.contPageNodeEdit({
+              mainBody: presentation.contPageNode({
                 pageButtonChildren: [
                   presentation.leafButtonSmallView({ link: "abcd" }).root,
                 ],
                 children: [
-                  presentation.contNodeRowIncoming({
-                    children: [
-                      presentation.leafButtonNodeEditAdd({
-                        hint: "Add incoming triple",
-                      }).root,
-                    ],
-                    new: true,
+                  presentation.contNodeRowIncomingAdd({
+                    hint: "Add incoming triple",
                   }).root,
                   presentation.contPageNodeSectionRel({
                     children: [
@@ -599,13 +606,8 @@
                       }).root,
                     ],
                   }).root,
-                  presentation.contNodeRowOutgoing({
-                    children: [
-                      presentation.leafButtonNodeEditAdd({
-                        hint: "Add outgoing triple",
-                      }).root,
-                    ],
-                    new: true,
+                  presentation.contNodeRowOutgoingAdd({
+                    hint: "Add outgoing triple",
                   }).root,
                 ],
                 barChildren: [presentation.leafButtonBigSave({}).root],
@@ -620,8 +622,9 @@
           document.body.appendChild(
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "History" }).root,
-              mainBody: presentation.contPageNodeViewAndHistory({
+              mainBody: presentation.contPageNode({
                 pageButtonChildren: [],
+                barChildren: [presentation.leafButtonBigSave({}).root],
                 children: [
                   presentation.contHistoryCommit({
                     stamp: new Date().toISOString(),
@@ -652,7 +655,8 @@
                                 value: "sunwet/1/has",
                               }).root,
                               presentation.leafNodeViewNodeText({
-                                value: "ABCD-1234",
+                                value:
+                                  "ABCD-1234 this is a ton of data PLUS-A_VERY_LONG_IDENTIFIERleafNodeViewNodeText and some unbreakable",
                                 link: "abcd",
                               }).root,
                             ],

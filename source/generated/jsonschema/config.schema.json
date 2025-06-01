@@ -162,9 +162,14 @@
       ]
     },
     "ClientViewParam": {
-      "type": "string",
-      "enum": [
-        "text"
+      "oneOf": [
+        {
+          "description": "A simple text box.\n\nNote that if this is used as part of a `search` root in a query, it must follow sqlite's `fts5` syntax. Basically, you need at least one string with quotes around it.",
+          "type": "string",
+          "enum": [
+            "text"
+          ]
+        }
       ]
     },
     "DataRowsLayout": {
@@ -248,8 +253,20 @@
             "null"
           ]
         },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
+          ]
+        },
         "widget": {
           "$ref": "#/definitions/Widget"
+        },
+        "wrap": {
+          "default": false,
+          "type": "boolean"
         },
         "x_scroll": {
           "default": false,
@@ -1729,6 +1746,10 @@
             }
           ]
         },
+        "wrap": {
+          "default": false,
+          "type": "boolean"
+        },
         "x_scroll": {
           "default": false,
           "type": "boolean"
@@ -1831,6 +1852,13 @@
             "null"
           ]
         },
+        "height": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "media_file_field": {
           "type": "string"
         },
@@ -1852,12 +1880,23 @@
             }
           ]
         },
+        "show_image": {
+          "default": false,
+          "type": "boolean"
+        },
         "trans_align": {
           "default": "start",
           "allOf": [
             {
               "$ref": "#/definitions/TransAlign"
             }
+          ]
+        },
+        "width": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
           ]
         }
       },

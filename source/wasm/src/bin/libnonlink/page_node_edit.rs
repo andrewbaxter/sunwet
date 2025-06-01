@@ -33,7 +33,6 @@ use {
         ProcessingContext,
     },
     rooting::{
-        el,
         scope_any,
         spawn_rooted,
         El,
@@ -68,6 +67,7 @@ use {
         js::{
             el_async,
             el_async_,
+            log,
             style_export,
         },
         world::file_url,
@@ -77,6 +77,7 @@ use {
         File,
         HtmlElement,
         HtmlInputElement,
+        HtmlSelectElement,
     },
 };
 
@@ -218,7 +219,7 @@ fn node_to_type_value(node: &Node) -> (NodeEditType, NodeEditValue) {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 struct DraftRel {
     delete: bool,
     predicate: String,
@@ -229,9 +230,9 @@ struct DraftRel {
 struct DraftBody {
     // All: None if no modifications
     pivot: Option<(bool, Node)>,
-    incoming: HashMap<(Node, String), DraftRel>,
+    incoming: Vec<((Node, String), DraftRel)>,
     new_incoming: Vec<DraftRel>,
-    outgoing: HashMap<(String, Node), DraftRel>,
+    outgoing: Vec<((String, Node), DraftRel)>,
     new_outgoing: Vec<DraftRel>,
 }
 
@@ -280,19 +281,23 @@ fn restore_draft(key: Node) -> DraftData {
 }
 
 fn persist_draft(s: &DraftData) {
-    _ = LocalStorage::set(format_localstorage_draft_key(&*s.0.key.borrow()), &DraftBody {
+    if let Err(e) = LocalStorage::set(format_localstorage_draft_key(&*s.0.key.borrow()), &DraftBody {
         pivot: s.0.pivot.borrow().clone(),
         incoming: s.0.incoming.borrow().iter().filter_map(|(k, v)| match &*v.0.borrow() {
             Some(v) => Some((k.clone(), v.clone())),
             None => None,
         }).collect(),
         new_incoming: s.0.new_incoming.borrow().iter().filter_map(|x| x.0.0.borrow().clone()).collect(),
-        outgoing: s.0.outgoing.borrow().iter().filter_map(|(k, v)| match &*v.0.borrow() {
-            Some(v) => Some((k.clone(), v.clone())),
-            None => None,
+        outgoing: s.0.outgoing.borrow().iter().filter_map(|(k, v)| {
+            match &*v.0.borrow() {
+                Some(v) => Some((k.clone(), v.clone())),
+                None => None,
+            }
         }).collect(),
         new_outgoing: s.0.new_outgoing.borrow().iter().filter_map(|x| x.0.0.borrow().clone()).collect(),
-    });
+    }) {
+        log(format!("Error saving draft: {}", e));
+    }
 }
 
 fn clear_draft(s: &DraftData, new_key: &Node) {
@@ -347,7 +352,7 @@ fn new_pivot_state(pc: &mut ProcessingContext, save_data: &DraftData, source_nod
                                     type_value_to_node(0, &node_initial.0, &node_initial.1),
                                     CommitNode:: Node(n) => n
                                 ).unwrap();
-                            if node == node_initial_node {
+                            if node == node_initial_node && !delete_all.get() {
                                 break None;
                             }
                         }
@@ -453,15 +458,16 @@ fn new_triple_state(
                                     type_value_to_node(0, &initial_node.0, &initial_node.1),
                                     CommitNode:: Node(n) => n
                                 ).unwrap();
-                            if *initial_predicate == *predicate.borrow() && node == initial_node {
+                            if *initial_predicate == *predicate.borrow() && node == initial_node && !delete.get() {
                                 *draft_entry.0.borrow_mut() = None;
                                 break;
                             }
-                            *draft_entry.0.borrow_mut() = Some(DraftRel {
+                            let new_draft_rel = DraftRel {
                                 delete: delete.get(),
                                 predicate: predicate.borrow().clone(),
                                 node: node,
-                            });
+                            };
+                            *draft_entry.0.borrow_mut() = Some(new_draft_rel);
                         } else {
                             *draft_entry.0.borrow_mut() = Some(DraftRel {
                                 delete: delete.get(),
@@ -506,7 +512,7 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> El {
     inp_type_el.ref_on("input", {
         let node = node.clone();
         let eg = pc.eg();
-        let inp_ele = inp_type_el.raw().dyn_into::<HtmlInputElement>().unwrap();
+        let inp_ele = inp_type_el.raw().dyn_into::<HtmlSelectElement>().unwrap();
         move |_| eg.event(|pc| {
             node.type_.set(pc, serde_json::from_str::<NodeEditType>(&inp_ele.value()).unwrap());
         }).unwrap()
@@ -535,7 +541,7 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> El {
                             return v.old.clone();
                         },
                     };
-                    match &*node_type.borrow() {
+                    match node_type.get_old() {
                         NodeEditType::Str => {
                             return s.clone();
                         },
@@ -543,7 +549,7 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> El {
                             return s.clone();
                         },
                         NodeEditType::Bool => {
-                            unreachable!();
+                            return s.clone();
                         },
                         NodeEditType::Json => {
                             let Ok(serde_json::Value::String(v)) =
@@ -556,7 +562,7 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> El {
                             return s.clone();
                         },
                         NodeEditType::FileUpload => {
-                            unreachable!();
+                            return s.clone();
                         },
                     }
                 };
@@ -807,23 +813,29 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> El {
                                                     .next()
                                                     .unwrap() {
                                                     "image" => {
-                                                        return Ok(vec![el("img").attr("src", &src_url)]);
+                                                        return Ok(
+                                                            vec![
+                                                                style_export::leaf_media_img(
+                                                                    style_export::LeafMediaImgArgs { src: src_url },
+                                                                ).root
+                                                            ],
+                                                        );
                                                     },
                                                     "video" => {
                                                         return Ok(
                                                             vec![
-                                                                el("video")
-                                                                    .attr("controls", "true")
-                                                                    .attr("src", &src_url)
+                                                                style_export::leaf_media_video(
+                                                                    style_export::LeafMediaVideoArgs { src: src_url },
+                                                                ).root
                                                             ],
                                                         );
                                                     },
                                                     "audio" => {
                                                         return Ok(
                                                             vec![
-                                                                el("audio")
-                                                                    .attr("controls", "true")
-                                                                    .attr("src", &src_url)
+                                                                style_export::leaf_media_audio(
+                                                                    style_export::LeafMediaAudioArgs { src: src_url },
+                                                                ).root
                                                             ],
                                                         );
                                                     },
@@ -877,30 +889,18 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> El {
                                 }).unwrap();
                             }
                         });
-                        input_.ref_own(|input_| (
+                        input_.ref_own(|_| (
                             //. .
-                            link!((_pc = pc), (_node_value = node_value.clone()), (_input_value = input_value.clone()), (_input_ = input_.weak()), {
-                                // Should only be called on restore, but initial values should never be files
-                                if true {
-                                    unreachable!("restoring file input");
-                                }
+                            link!((pc = pc), (input_value = input_value.clone()), (node_value = node_value.clone()), (), {
+                                let new_v = NodeEditValue::Upload(NodeEditValueUpload {
+                                    old: exenum!(&*node_value.borrow(), NodeEditValue:: Upload(v) => v)
+                                        .unwrap()
+                                        .old
+                                        .clone(),
+                                    new: input_value.borrow().clone(),
+                                });
+                                node_value.set(pc, new_v);
                             }),
-                            link!(
-                                (pc = pc),
-                                (input_value = input_value.clone()),
-                                (node_value = node_value.clone()),
-                                (),
-                                {
-                                    let new_v = NodeEditValue::Upload(NodeEditValueUpload {
-                                        old: exenum!(&*node_value.borrow(), NodeEditValue:: Upload(v) => v)
-                                            .unwrap()
-                                            .old
-                                            .clone(),
-                                        new: input_value.borrow().clone(),
-                                    });
-                                    node_value.set(pc, new_v);
-                                }
-                            ),
                         ));
                         new_input = style_res.root;
                     },
@@ -1018,7 +1018,7 @@ fn build_edit_triple(pc: &mut ProcessingContext, triple: &TripleState, new: bool
                 {
                     let out = out.upgrade()?;
                     out.ref_modify_classes(
-                        &[(&style_export::class_state_deleted().value, deleted.get() | deleted_all.get())],
+                        &[(&style_export::class_state_pressed().value, deleted.get() | deleted_all.get())],
                     );
                 }
             ),
@@ -1039,7 +1039,8 @@ fn build_edit_triple(pc: &mut ProcessingContext, triple: &TripleState, new: bool
             let input_value = input_value.clone();
             move |ev| eg.event(|pc| {
                 let ele = ev.target().unwrap().dyn_into::<HtmlElement>().unwrap();
-                input_value.set(pc, ele.text_content().unwrap_or_default());
+                let new_value = ele.text_content().unwrap_or_default();
+                input_value.set(pc, new_value);
                 if ele.text_content().unwrap_or_default() == "" {
                     // Remove `<br/>` :vomit:
                     ele.set_inner_html("");
@@ -1172,11 +1173,11 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                             triple_states.borrow_mut().push(triple_state);
                         }
                     }
-                    let button_add =
-                        style_export::leaf_button_node_edit_add(
-                            style_export::LeafButtonNodeEditAddArgs { hint: "Add incoming".to_string() },
-                        ).root;
-                    button_add.ref_on("click", {
+                    let add_row_res =
+                        style_export::cont_node_row_incoming_add(
+                            style_export::ContNodeRowIncomingAddArgs { hint: format!("Add incoming") },
+                        );
+                    add_row_res.button.ref_on("click", {
                         let eg = pc.eg();
                         let pivot_state = pivot_state.clone();
                         let triple_states = triple_states.clone();
@@ -1198,10 +1199,7 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                             triple_states.borrow_mut().push(triple);
                         }).unwrap()
                     });
-                    out.push(style_export::cont_node_row_incoming(style_export::ContNodeRowIncomingArgs {
-                        children: vec![button_add],
-                        new: true,
-                    }).root);
+                    out.push(add_row_res.root);
                     out.push(triples_box);
                 }
 
@@ -1228,6 +1226,22 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                                 pivot_state.0.delete_all.set(pc, !pivot_state.0.delete_all.get());
                             }).unwrap()
                         });
+                        button_delete.ref_own(
+                            |ele| (
+                                link!(
+                                    (_pc = pc),
+                                    (deleted = pivot_state.0.delete_all.clone()),
+                                    (),
+                                    (ele = ele.weak()),
+                                    {
+                                        let pivot_root = ele.upgrade()?;
+                                        pivot_root.ref_modify_classes(
+                                            &[(&style_export::class_state_pressed().value, deleted.get())],
+                                        );
+                                    }
+                                ),
+                            ),
+                        );
                         style_res.root
                     };
                     let style_res = build_edit_node(pc, &pivot_state.0.node);
@@ -1235,24 +1249,7 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                     out.push(
                         style_export::cont_node_section_center(
                             style_export::ContNodeSectionCenterArgs { children: children },
-                        )
-                            .root
-                            .own(
-                                |ele| (
-                                    link!(
-                                        (_pc = pc),
-                                        (deleted = pivot_state.0.delete_all.clone()),
-                                        (),
-                                        (ele = ele.weak()),
-                                        {
-                                            let pivot_root = ele.upgrade()?;
-                                            pivot_root.ref_modify_classes(
-                                                &[(&style_export::class_state_deleted().value, deleted.get())],
-                                            );
-                                        }
-                                    ),
-                                ),
-                            ),
+                        ).root,
                     );
                 }
 
@@ -1298,11 +1295,11 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                         }
                     }
                     out.push(triples_box.clone());
-                    let button_add =
-                        style_export::leaf_button_node_edit_add(
-                            style_export::LeafButtonNodeEditAddArgs { hint: "Add outgoing".to_string() },
-                        ).root;
-                    button_add.ref_on("click", {
+                    let add_row_res =
+                        style_export::cont_node_row_outgoing_add(
+                            style_export::ContNodeRowOutgoingAddArgs { hint: "Add outgoing".to_string() },
+                        );
+                    add_row_res.button.ref_on("click", {
                         let eg = pc.eg();
                         let triple_states = triple_states.clone();
                         let triples_box = triples_box;
@@ -1310,7 +1307,7 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                         let pivot_state = pivot_state.clone();
                         move |_| eg.event(|pc| {
                             let draft_entry = MutDraftRel::default();
-                            save_data.0.new_incoming.borrow_mut().insert(draft_entry.clone());
+                            save_data.0.new_outgoing.borrow_mut().insert(draft_entry.clone());
                             let triple =
                                 new_triple_state(
                                     pc,
@@ -1324,10 +1321,7 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                             triple_states.borrow_mut().push(triple);
                         }).unwrap()
                     });
-                    out.push(style_export::cont_node_row_outgoing(style_export::ContNodeRowOutgoingArgs {
-                        children: vec![button_add],
-                        new: true,
-                    }).root);
+                    out.push(add_row_res.root);
                 }
 
                 // Edit form controls
@@ -1560,7 +1554,7 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                     }
                 });
                 bar_out.push(button_save);
-                return Ok(vec![style_export::cont_page_node_edit(style_export::ContPageNodeEditArgs {
+                return Ok(vec![style_export::cont_page_node(style_export::ContPageNodeArgs {
                     page_button_children: buttons_out,
                     children: out,
                     bar_children: bar_out,

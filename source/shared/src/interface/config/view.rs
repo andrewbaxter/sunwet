@@ -203,6 +203,12 @@ pub struct WidgetMedia {
 pub struct WidgetPlayButton {
     pub media_file_field: String,
     #[serde(default)]
+    pub show_image: bool,
+    #[serde(default)]
+    pub width: Option<String>,
+    #[serde(default)]
+    pub height: Option<String>,
+    #[serde(default)]
     pub name_field: Option<String>,
     #[serde(default)]
     pub album_field: Option<String>,
@@ -221,12 +227,16 @@ pub struct WidgetPlayButton {
 pub struct DataRowsLayoutUnaligned {
     #[serde(default)]
     pub gap: Option<String>,
-    #[serde(default)]
-    pub x_scroll: bool,
     pub direction: Option<Direction>,
     #[serde(default)]
     pub trans_align: TransAlign,
     pub widget: Box<Widget>,
+    #[serde(default)]
+    pub x_scroll: bool,
+    // Wrap layout instead of shrinking elements individually first when out of space.
+    // Can't be set at the same time as x_scroll or undefined things will happen.
+    #[serde(default)]
+    pub wrap: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
@@ -285,11 +295,17 @@ pub struct WidgetLayout {
     pub direction: Direction,
     #[serde(default)]
     pub trans_align: TransAlign,
-    #[serde(default)]
-    pub x_scroll: bool,
     pub elements: Vec<Widget>,
     #[serde(default)]
     pub gap: Option<String>,
+    // Add a scrollbar to the layout that appears when it exceeds bounds (typically
+    // horizontal direction only).
+    #[serde(default)]
+    pub x_scroll: bool,
+    // Wrap layout instead of shrinking elements individually first when out of space.
+    // Can't be set at the same time as x_scroll or undefined things will happen.
+    #[serde(default)]
+    pub wrap: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]

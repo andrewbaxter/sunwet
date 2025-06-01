@@ -2,7 +2,10 @@ use {
     super::{
         ministate::{
             record_new_ministate,
+            record_replace_ministate,
             Ministate,
+            MinistateMenuItem,
+            PlaylistRestorePos,
         },
         page_form::build_page_form,
         page_history::build_page_history,
@@ -20,12 +23,13 @@ use {
         Prim,
         ProcessingContext,
     },
-    rooting::{
-        El,
-    },
-    shared::interface::config::{
-        ClientConfig,
-        ClientMenuItem,
+    rooting::El,
+    shared::interface::{
+        config::{
+            ClientConfig,
+            ClientMenuItem,
+        },
+        triple::Node,
     },
     std::{
         cell::RefCell,
@@ -96,6 +100,7 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
                 let title = ms.title.clone();
                 let menu_item_id = ms.menu_item_id.clone();
                 let pos = ms.pos.clone();
+                let params = ms.params.clone();
                 let eg = pc.eg();
                 async move {
                     let client_config = state().client_config.get().await?;
@@ -107,7 +112,7 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
                             return Err(format!("Menu item [{}] is a section, nothing to display.", menu_item_id));
                         },
                         ClientMenuItem::View(menu_item) => {
-                            return build_page_view(eg, title, menu_item.clone(), pos).map(|x| vec![x]);
+                            return build_page_view(eg, title, menu_item.clone(), params, pos).map(|x| vec![x]);
                         },
                         ClientMenuItem::Form(menu_item) => {
                             return build_page_form(
@@ -139,4 +144,38 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
 pub fn change_ministate(pc: &mut ProcessingContext, s: &Ministate) {
     record_new_ministate(s);
     build_ministate(pc, s);
+}
+
+pub struct ViewMinistateState_ {
+    pub menu_item_id: String,
+    pub title: String,
+    pub pos: Option<PlaylistRestorePos>,
+    pub params: HashMap<String, Node>,
+}
+
+#[derive(Clone)]
+pub struct ViewMinistateState(pub Rc<RefCell<ViewMinistateState_>>);
+
+impl ViewMinistateState {
+    pub fn set_pos(&self, pos: Option<PlaylistRestorePos>) {
+        let mut s = self.0.borrow_mut();
+        s.pos = pos;
+        record_replace_ministate(&Ministate::MenuItem(MinistateMenuItem {
+            menu_item_id: s.menu_item_id.clone(),
+            title: s.title.clone(),
+            pos: s.pos.clone(),
+            params: s.params.clone(),
+        }));
+    }
+
+    pub fn set_param(&self, k: String, v: Node) {
+        let mut s = self.0.borrow_mut();
+        s.params.insert(k, v);
+        record_replace_ministate(&Ministate::MenuItem(MinistateMenuItem {
+            menu_item_id: s.menu_item_id.clone(),
+            title: s.title.clone(),
+            pos: s.pos.clone(),
+            params: s.params.clone(),
+        }));
+    }
 }

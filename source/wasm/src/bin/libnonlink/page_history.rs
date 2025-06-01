@@ -8,12 +8,11 @@ use {
         api::req_post_json,
         state::state,
     },
-    chrono::{
-        Utc,
-    },
+    chrono::Utc,
     lunk::ProcessingContext,
     rooting::{
         spawn_rooted,
+        El,
         WeakEl,
     },
     shared::interface::{
@@ -36,25 +35,63 @@ use {
         },
         rc::Rc,
     },
-    wasm::js::{
-        style_export,
-    },
+    wasm::js::style_export,
 };
 
 struct HistState {
-    revert: RefCell<HashSet<Triple>>,
+    revert_was_deleted: RefCell<HashSet<Triple>>,
+    revert_was_added: RefCell<HashSet<Triple>>,
     save: WeakEl,
+}
+
+fn setup_revert_button<'a>(button: &El, hist_state: Rc<HistState>, was_deleted: bool, row: Triple) {
+    button.ref_on("click", {
+        let button = button.weak();
+        let reverted = Cell::new(false);
+        move |_| {
+            let Some(button) = button.upgrade() else {
+                return;
+            };
+            let on = !reverted.get();
+            reverted.set(on);
+            button.ref_modify_classes(&[(&style_export::class_state_pressed().value, on)]);
+            let mut revert_was_deleted = hist_state.revert_was_deleted.borrow_mut();
+            let mut revert_was_added = hist_state.revert_was_added.borrow_mut();
+            let revert_set = if was_deleted {
+                &mut *revert_was_deleted
+            } else {
+                &mut *revert_was_added
+            };
+            if on {
+                revert_set.insert(row.clone());
+            } else {
+                revert_set.remove(&row);
+            }
+            if let Some(save) = hist_state.save.upgrade() {
+                save.ref_modify_classes(
+                    &[
+                        (
+                            &style_export::class_state_disabled().value,
+                            revert_was_deleted.is_empty() && revert_was_added.is_empty(),
+                        ),
+                    ],
+                );
+            }
+        }
+    });
 }
 
 pub fn build_page_history(pc: &mut ProcessingContext) {
     let error_slot = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
     let button_save = style_export::leaf_button_big_save().root;
-    let page_res = style_export::cont_page_node_view_and_history(style_export::ContPageNodeViewAndHistoryArgs {
-        page_button_children: vec![button_save.clone()],
+    let page_res = style_export::cont_page_node(style_export::ContPageNodeArgs {
+        page_button_children: vec![],
+        bar_children: vec![button_save.clone()],
         children: vec![error_slot.clone()],
     });
     let hist_state = Rc::new(HistState {
-        revert: Default::default(),
+        revert_was_deleted: Default::default(),
+        revert_was_added: Default::default(),
         save: button_save.weak(),
     });
     build_infinite(page_res.body.clone(), Utc::now(), {
@@ -111,40 +148,11 @@ pub fn build_page_history(pc: &mut ProcessingContext) {
                                             ],
                                         },
                                     );
-                                row_res.button.ref_on("click", {
-                                    let button = row_res.button.weak();
-                                    let reverted = Cell::new(false);
-                                    let hist_state = hist_state.clone();
-                                    move |_| {
-                                        let Some(button) = button.upgrade() else {
-                                            return;
-                                        };
-                                        let new_reverted = !reverted.get();
-                                        reverted.set(new_reverted);
-                                        button.ref_modify_classes(
-                                            &[(&style_export::class_state_disabled().value, new_reverted)],
-                                        );
-                                        if new_reverted {
-                                            hist_state.revert.borrow_mut().insert(row.clone());
-                                        } else {
-                                            hist_state.revert.borrow_mut().remove(&row);
-                                        }
-                                        if let Some(save) = hist_state.save.upgrade() {
-                                            save.ref_modify_classes(
-                                                &[
-                                                    (
-                                                        &style_export::class_state_disabled().value,
-                                                        hist_state.revert.borrow().is_empty(),
-                                                    ),
-                                                ],
-                                            );
-                                        }
-                                    }
-                                });
+                                setup_revert_button(&row_res.button, hist_state.clone(), true, row);
                                 subject_rows.push(row_res.root);
                             }
                             for row in pred.add {
-                                subject_rows.push(
+                                let row_res =
                                     style_export::cont_history_predicate_object_add(
                                         style_export::ContHistoryPredicateObjectAddArgs {
                                             children: vec![
@@ -156,8 +164,9 @@ pub fn build_page_history(pc: &mut ProcessingContext) {
                                                 build_node_el(&row.object, true),
                                             ],
                                         },
-                                    ).root,
-                                );
+                                    );
+                                setup_revert_button(&row_res.button, hist_state.clone(), false, row);
+                                subject_rows.push(row_res.root);
                             }
                         }
                         commit_children.push(style_export::cont_history_subject(style_export::ContHistorySubjectArgs {
@@ -203,8 +212,8 @@ pub fn build_page_history(pc: &mut ProcessingContext) {
                 async move {
                     let res = req_post_json(&state().env.base_url, ReqCommit {
                         comment: format!("History restore"),
-                        add: hist_state.revert.borrow().iter().cloned().collect(),
-                        remove: vec![],
+                        add: hist_state.revert_was_deleted.borrow().iter().cloned().collect(),
+                        remove: hist_state.revert_was_added.borrow().iter().cloned().collect(),
                         files: vec![],
                     }).await;
                     let Some(button) = button.upgrade() else {

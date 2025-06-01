@@ -148,6 +148,11 @@ fn main() {
             returns: vec![("value", &string_)],
         },
         Func {
+            name: "classStatePressed",
+            args: vec![],
+            returns: vec![("value", &string_)],
+        },
+        Func {
             name: "classStateThinking",
             args: vec![],
             returns: vec![("value", &string_)],
@@ -260,6 +265,21 @@ fn main() {
         Func {
             name: "leafButtonSmallView",
             args: vec![("link", &string_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafMediaImg",
+            args: vec![("src", &string_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafMediaAudio",
+            args: vec![("src", &string_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafMediaVideo",
+            args: vec![("src", &string_)],
             returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
@@ -424,7 +444,8 @@ fn main() {
                 ("transAlign", &transalign),
                 ("xScroll", &bool_),
                 ("children", &arrel_),
-                ("gap", &optstring_)
+                ("gap", &optstring_),
+                ("wrap", &bool_)
             ],
             returns: vec![("root", &el_)],
         },
@@ -488,7 +509,13 @@ fn main() {
         },
         Func {
             name: "leafViewPlayButton",
-            args: vec![("transAlign", &transalign), ("orientation", &orientation)],
+            args: vec![
+                ("transAlign", &transalign),
+                ("orientation", &orientation),
+                ("image", &optstring_),
+                ("width", &optstring_),
+                ("height", &optstring_)
+            ],
             returns: vec![("root", &el_)],
         },
         Func {
@@ -546,6 +573,11 @@ fn main() {
         // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: page, view/edit/history node
         Func {
+            name: "contPageNode",
+            args: vec![("pageButtonChildren", &arrel_), ("barChildren", &arrel_), ("children", &arrel_)],
+            returns: vec![("root", &el_), ("body", &el_)],
+        },
+        Func {
             name: "contPageNodeSectionRel",
             args: vec![("children", &arrel_)],
             returns: vec![("root", &el_)],
@@ -568,11 +600,6 @@ fn main() {
         // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: page, node view, history
         Func {
-            name: "contPageNodeViewAndHistory",
-            args: vec![("pageButtonChildren", &arrel_), ("children", &arrel_)],
-            returns: vec![("root", &el_), ("body", &el_)],
-        },
-        Func {
             name: "leafNodeViewPredicate",
             args: vec![("value", &string_)],
             returns: vec![("root", &el_)],
@@ -585,14 +612,14 @@ fn main() {
         // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: page, node edit
         Func {
-            name: "contPageNodeEdit",
-            args: vec![("pageButtonChildren", &arrel_), ("barChildren", &arrel_), ("children", &arrel_)],
-            returns: vec![("root", &el_)],
+            name: "contNodeRowIncomingAdd",
+            args: vec![("hint", &string_)],
+            returns: vec![("root", &el_), ("button", &el_)],
         },
         Func {
-            name: "leafButtonNodeEditAdd",
+            name: "contNodeRowOutgoingAdd",
             args: vec![("hint", &string_)],
-            returns: vec![("root", &el_)],
+            returns: vec![("root", &el_), ("button", &el_)],
         },
         Func {
             name: "leafNodeEditButtons",
@@ -629,7 +656,7 @@ fn main() {
         Func {
             name: "contHistoryPredicateObjectAdd",
             args: vec![("children", &arrel_)],
-            returns: vec![("root", &el_)],
+            returns: vec![("root", &el_), ("button", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: menu

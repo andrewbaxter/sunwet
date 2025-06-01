@@ -159,6 +159,7 @@ pub fn main() {
                                     menu_item_id: item.id.clone(),
                                     title: item.name.clone(),
                                     pos: None,
+                                    params: Default::default(),
                                 })),
                             }).root;
                         },
@@ -169,6 +170,7 @@ pub fn main() {
                                     menu_item_id: item.id.clone(),
                                     title: item.name.clone(),
                                     pos: None,
+                                    params: Default::default(),
                                 })),
                             }).root;
                         },

@@ -12,9 +12,11 @@ use {
         },
     },
     chrono::{
+        DateTime,
         Local,
         LocalResult,
         NaiveDateTime,
+        Utc,
     },
     flowcontrol::exenum,
     gloo::{
@@ -30,26 +32,27 @@ use {
         spawn_rooted,
         El,
     },
-    shared::{
-        interface::{
-            config::{
-                form::{
-                    ClientForm,
-                    FormFieldType,
-                },
-                ClientConfig,
+    shared::interface::{
+        config::{
+            form::{
+                ClientForm,
+                FormFieldType,
             },
-            triple::Node,
-            wire::{
-                ReqFormCommit,
-                ReqQuery,
-                TreeNode,
-            },
+            ClientConfig,
+        },
+        triple::Node,
+        wire::{
+            ReqFormCommit,
+            ReqQuery,
+            TreeNode,
         },
     },
     std::{
         cell::RefCell,
-        collections::HashMap,
+        collections::{
+            hash_map::Entry,
+            HashMap,
+        },
         rc::Rc,
     },
     wasm::js::{
@@ -160,22 +163,35 @@ pub fn build_page_form(
     for (index, field) in form.fields.iter().enumerate() {
         match &field.r#type {
             FormFieldType::Id => {
-                // nop
+                fs
+                    .0
+                    .data
+                    .borrow_mut()
+                    .entry(field.id.clone())
+                    .or_insert_with(
+                        || CommitNode::Node(
+                            Node::Value(serde_json::Value::String(uuid::Uuid::new_v4().to_string())),
+                        ),
+                    );
             },
             FormFieldType::Comment(field2) => {
                 out.push(el("p").text(&field2.text));
             },
             FormFieldType::Text(_field2) => {
+                let v =
+                    fs
+                        .0
+                        .data
+                        .borrow_mut()
+                        .entry(field.id.clone())
+                        .or_insert_with(|| CommitNode::Node(Node::Value(serde_json::Value::String(format!("")))))
+                        .clone();
                 let input_ret = style_export::leaf_input_pair_text(style_export::LeafInputPairTextArgs {
                     id: field.id.clone(),
                     title: field.label.clone(),
-                    value: {
-                        let data = fs.0.data.borrow_mut();
-                        let Some(CommitNode::Node(Node::Value(serde_json::Value::String(v)))) =
-                            data.get(&field.id) else {
-                                panic!();
-                            };
-                        v.clone()
+                    value: match v {
+                        CommitNode::Node(Node::Value(serde_json::Value::String(v))) => v,
+                        _ => format!(""),
                     },
                 });
                 let input = input_ret.root;
@@ -192,17 +208,25 @@ pub fn build_page_form(
                 out.push(input);
             },
             FormFieldType::Number(_field2) => {
+                let v =
+                    fs
+                        .0
+                        .data
+                        .borrow_mut()
+                        .entry(field.id.clone())
+                        .or_insert_with(
+                            || CommitNode::Node(
+                                Node::Value(serde_json::Value::Number(serde_json::Number::from_f64(0.).unwrap())),
+                            ),
+                        )
+                        .clone();
                 let input_ret = style_export::leaf_input_pair_number(style_export::LeafInputPairNumberArgs {
                     id: field.id.clone(),
                     title: field.label.clone(),
-                    value: {
-                        let data = fs.0.data.borrow_mut();
-                        let Some(CommitNode::Node(Node::Value(serde_json::Value::Number(v)))) =
-                            data.get(&field.id) else {
-                                panic!();
-                            };
-                        v.to_string()
-                    },
+                    value: match v {
+                        CommitNode::Node(Node::Value(serde_json::Value::Number(v))) => v,
+                        _ => serde_json::Number::from_f64(0.).unwrap(),
+                    }.to_string(),
                 });
                 input_ret.input.ref_on("input", {
                     let id = field.id.clone();
@@ -224,16 +248,20 @@ pub fn build_page_form(
                 out.push(input_ret.root);
             },
             FormFieldType::Bool(_field2) => {
+                let v =
+                    fs
+                        .0
+                        .data
+                        .borrow_mut()
+                        .entry(field.id.clone())
+                        .or_insert_with(|| CommitNode::Node(Node::Value(serde_json::Value::Bool(false))))
+                        .clone();
                 let input_ret = style_export::leaf_input_pair_bool(style_export::LeafInputPairBoolArgs {
                     id: field.id.clone(),
                     title: field.label.clone(),
-                    value: {
-                        let data = fs.0.data.borrow_mut();
-                        let Some(CommitNode::Node(Node::Value(serde_json::Value::Bool(v)))) =
-                            data.get(&field.id) else {
-                                panic!();
-                            };
-                        *v
+                    value: match v {
+                        CommitNode::Node(Node::Value(serde_json::Value::Bool(v))) => v,
+                        _ => false,
                     },
                 });
                 input_ret.input.ref_on("input", {
@@ -247,16 +275,24 @@ pub fn build_page_form(
                 out.push(input_ret.root);
             },
             FormFieldType::Date => {
+                fn default_() -> String {
+                    return Utc::now().naive_local().date().to_string();
+                }
+
+                let v =
+                    fs
+                        .0
+                        .data
+                        .borrow_mut()
+                        .entry(field.id.clone())
+                        .or_insert_with(|| CommitNode::Node(Node::Value(serde_json::Value::String(default_()))))
+                        .clone();
                 let input_ret = style_export::leaf_input_pair_date(style_export::LeafInputPairDateArgs {
                     id: field.id.clone(),
                     title: field.label.clone(),
-                    value: {
-                        let data = fs.0.data.borrow_mut();
-                        let Some(CommitNode::Node(Node::Value(serde_json::Value::String(v)))) =
-                            data.get(&field.id) else {
-                                panic!();
-                            };
-                        v.clone()
+                    value: match v {
+                        CommitNode::Node(Node::Value(serde_json::Value::String(v))) => v,
+                        _ => default_(),
                     },
                 });
                 input_ret.input.ref_on("input", {
@@ -272,16 +308,24 @@ pub fn build_page_form(
                 out.push(input_ret.root);
             },
             FormFieldType::Time => {
+                fn default_() -> String {
+                    return Utc::now().naive_local().time().to_string();
+                }
+
+                let v =
+                    fs
+                        .0
+                        .data
+                        .borrow_mut()
+                        .entry(field.id.clone())
+                        .or_insert_with(|| CommitNode::Node(Node::Value(serde_json::Value::String(default_()))))
+                        .clone();
                 let input_ret = style_export::leaf_input_pair_text(style_export::LeafInputPairTextArgs {
                     id: field.id.clone(),
                     title: field.label.clone(),
-                    value: {
-                        let data = fs.0.data.borrow_mut();
-                        let Some(CommitNode::Node(Node::Value(serde_json::Value::String(v)))) =
-                            data.get(&field.id) else {
-                                panic!();
-                            };
-                        v.clone()
+                    value: match v {
+                        CommitNode::Node(Node::Value(serde_json::Value::String(v))) => v,
+                        _ => default_(),
                     },
                 });
                 input_ret.input.ref_on("input", {
@@ -297,18 +341,32 @@ pub fn build_page_form(
                 out.push(input_ret.root);
             },
             FormFieldType::Datetime => {
-                const CHRONO_FORMAT: &str = "%Y-%m-%dT%H:%M";
+                fn default_() -> DateTime<Utc> {
+                    return Utc::now();
+                }
+
+                let v =
+                    fs
+                        .0
+                        .data
+                        .borrow_mut()
+                        .entry(field.id.clone())
+                        .or_insert_with(
+                            || CommitNode::Node(Node::Value(serde_json::Value::String(default_().to_rfc3339()))),
+                        )
+                        .clone();
+                const INPUT_DT_FORMAT: &str = "%Y-%m-%dT%H:%M";
                 let input_ret = style_export::leaf_input_pair_datetime(style_export::LeafInputPairDatetimeArgs {
                     id: field.id.clone(),
                     title: field.label.clone(),
-                    value: {
-                        let data = fs.0.data.borrow_mut();
-                        let Some(CommitNode::Node(Node::Value(serde_json::Value::String(v)))) =
-                            data.get(&field.id) else {
-                                panic!();
-                            };
-                        v.clone()
-                    },
+                    value: match v {
+                        CommitNode::Node(Node::Value(serde_json::Value::String(v))) => DateTime::parse_from_rfc3339(
+                            &v,
+                        )
+                            .map(|d| d.to_utc())
+                            .unwrap_or_else(|_| Utc::now()),
+                        _ => default_(),
+                    }.naive_local().format(INPUT_DT_FORMAT).to_string(),
                 });
                 input_ret.input.on("input", {
                     let id = field.id.clone();
@@ -318,7 +376,7 @@ pub fn build_page_form(
                         fs.update(&id, CommitNode::Node(Node::Value(serde_json::Value::String(
                             //. .
                             if let Some(v) =
-                                NaiveDateTime::parse_from_str(&value, CHRONO_FORMAT)
+                                NaiveDateTime::parse_from_str(&value, INPUT_DT_FORMAT)
                                     .ok()
                                     .and_then(
                                         |v| exenum!(
@@ -336,16 +394,24 @@ pub fn build_page_form(
                 out.push(input_ret.root);
             },
             FormFieldType::RgbU8(_field2) => {
+                fn default_() -> String {
+                    return format!("#56789A");
+                }
+
+                let v =
+                    fs
+                        .0
+                        .data
+                        .borrow_mut()
+                        .entry(field.id.clone())
+                        .or_insert_with(|| CommitNode::Node(Node::Value(serde_json::Value::String(default_()))))
+                        .clone();
                 let input_ret = style_export::leaf_input_pair_color(style_export::LeafInputPairColorArgs {
                     id: field.id.clone(),
                     title: field.label.clone(),
-                    value: {
-                        let data = fs.0.data.borrow_mut();
-                        let Some(CommitNode::Node(Node::Value(serde_json::Value::String(v)))) =
-                            data.get(&field.id) else {
-                                panic!();
-                            };
-                        v.clone()
+                    value: match v {
+                        CommitNode::Node(Node::Value(serde_json::Value::String(v))) => v,
+                        _ => default_(),
                     },
                 });
                 input_ret.input.ref_on("input", {
@@ -359,6 +425,21 @@ pub fn build_page_form(
                 out.push(input_ret.root);
             },
             FormFieldType::ConstEnum(field2) => {
+                // TODO should be used by build_field_enum too
+                fs
+                    .0
+                    .data
+                    .borrow_mut()
+                    .entry(field.id.clone())
+                    .or_insert_with(
+                        || CommitNode::Node(
+                            Node::Value(
+                                serde_json::Value::String(
+                                    field2.choices.iter().next().map(|x| x.0.as_str()).unwrap_or("").to_string(),
+                                ),
+                            ),
+                        ),
+                    );
                 out.push(
                     build_field_enum(
                         &fs,
@@ -369,11 +450,20 @@ pub fn build_page_form(
                 );
             },
             FormFieldType::QueryEnum(field2) => {
+                let v =
+                    fs
+                        .0
+                        .data
+                        .borrow_mut()
+                        .entry(field.id.clone())
+                        .or_insert_with(|| CommitNode::Node(Node::Value(serde_json::Value::String(format!("")))))
+                        .clone();
                 let async_ = el_async({
                     let fs = fs.clone();
                     let id = field.id.clone();
                     let label = field.label.clone();
                     let field2 = field2.clone();
+                    let fs = fs.clone();
                     async move {
                         let res = req_post_json(&state().env.base_url, ReqQuery {
                             query: field2.query.clone(),
@@ -398,6 +488,18 @@ pub fn build_page_form(
                                 name = serde_json::to_string(&value).unwrap();
                             }
                             choices.push((name, value));
+                        }
+                        match fs.0.data.borrow_mut().entry(id.clone()) {
+                            Entry::Occupied(mut e) => {
+                                if let CommitNode::Node(Node::Value(serde_json::Value::String(v1))) = e.get() {
+                                    if v1 == "" {
+                                        e.insert(v);
+                                    }
+                                }
+                            },
+                            Entry::Vacant(e) => {
+                                e.insert(v);
+                            },
                         }
                         return Ok(vec![build_field_enum(&fs, id.clone(), label.clone(), &choices)?]);
                     }
@@ -464,6 +566,24 @@ pub fn build_page_form(
                 async move {
                     match async {
                         let data = fs.0.data.borrow().clone();
+                        for field in &menu_item.fields {
+                            if match &field.r#type {
+                                FormFieldType::Id => false,
+                                FormFieldType::Comment(_) => false,
+                                FormFieldType::Text(_) => true,
+                                FormFieldType::Number(_) => true,
+                                FormFieldType::Bool(_) => true,
+                                FormFieldType::Date => true,
+                                FormFieldType::Time => true,
+                                FormFieldType::Datetime => true,
+                                FormFieldType::RgbU8(_) => true,
+                                FormFieldType::ConstEnum(_) => true,
+                                FormFieldType::QueryEnum(_) => true,
+                                FormFieldType::File => true,
+                            } && !data.contains_key(&field.id) {
+                                return Err(format!("Missing field {}", field.label));
+                            }
+                        }
                         let mut params_to_post = HashMap::new();
                         let mut files_to_return = HashMap::new();
                         let mut files_to_commit = vec![];
