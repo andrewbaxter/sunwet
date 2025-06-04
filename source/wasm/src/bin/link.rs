@@ -10,6 +10,7 @@ use {
         EventGraph,
         Prim,
     },
+    reqwasm::http::Request,
     rooting::{
         el,
         el_from_raw,
@@ -19,12 +20,18 @@ use {
         El,
         ScopeValue,
     },
-    shared::interface::wire::link::{
-        PrepareMedia,
-        SourceUrl,
-        WsL2S,
-        WsS2L,
-        COOKIE_LINK_SESSION,
+    shared::interface::{
+        derived::ComicManifest,
+        wire::{
+            link::{
+                PrepareMedia,
+                SourceUrl,
+                WsL2S,
+                WsS2L,
+                COOKIE_LINK_SESSION,
+            },
+            GENTYPE_DIR,
+        },
     },
     std::{
         cell::Cell,
@@ -34,9 +41,9 @@ use {
     wasm::{
         constants::LINK_HASH_PREFIX,
         js::{
-            env_preferred_audio,
-            env_preferred_video,
-            file_derivation_subtitles,
+            env_preferred_audio_url,
+            env_preferred_video_url,
+            file_derivation_subtitles_url,
             get_dom_octothorpe,
             log_js,
             scan_env,
@@ -46,6 +53,8 @@ use {
             pm_ready_prep,
             PlaylistMedia,
             PlaylistMediaAudioVideo,
+            PlaylistMediaBook,
+            PlaylistMediaComic,
             PlaylistMediaImage,
         },
         websocket::Ws,
@@ -152,11 +161,7 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
                                         let media_el = state.0.media_audio_el.clone();
                                         media_el.ref_attr("src", &match audio.source_url {
                                             SourceUrl::Url(v) => v,
-                                            SourceUrl::File(v) => generated_file_url(
-                                                &env,
-                                                &v,
-                                                env_preferred_audio(&env),
-                                            ),
+                                            SourceUrl::File(v) => env_preferred_audio_url(&env, &v),
                                         });
                                         media = Rc::new(PlaylistMediaAudioVideo::new_audio(media_el));
                                     },
@@ -170,18 +175,14 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
                                                 src = v;
                                             },
                                             SourceUrl::File(v) => {
-                                                src = generated_file_url(&env, &v, env_preferred_video());
+                                                src = env_preferred_video_url(&env, &v);
                                                 for (i, lang) in env.languages.iter().enumerate() {
                                                     let track =
                                                         el("track")
                                                             .attr("kind", "subtitles")
                                                             .attr(
                                                                 "src",
-                                                                &generated_file_url(
-                                                                    &env,
-                                                                    &v,
-                                                                    file_derivation_subtitles(lang),
-                                                                ),
+                                                                &file_derivation_subtitles_url(&env, lang, &v),
                                                             )
                                                             .attr("srclang", &lang);
                                                     if i == 0 {
@@ -213,6 +214,41 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
                                         state.0.display.ref_push(media_el.clone());
                                         media = Rc::new(PlaylistMediaImage { element: media_el });
                                     },
+                                    PrepareMedia::Comic(source_url) => {
+                                        state.0.display_under.ref_modify_classes(&[(&class_state_hide, true)]);
+                                        media = eg.event(|pc| Rc::new(PlaylistMediaComic::new(pc, &match source_url {
+                                            SourceUrl::Url(u) => u,
+                                            SourceUrl::File(h) => generated_file_url(&env, &h, GENTYPE_DIR, ""),
+                                        }, |url| async move {
+                                            return Ok(
+                                                serde_json::from_slice::<ComicManifest>(
+                                                    &Request::get(&url)
+                                                        .send()
+                                                        .await
+                                                        .map_err(
+                                                            |e| format!("Error requesting comic manifest: {}", e),
+                                                        )?
+                                                        .binary()
+                                                        .await
+                                                        .map_err(
+                                                            |e| format!(
+                                                                "Error reading comic manifest response: {}",
+                                                                e
+                                                            ),
+                                                        )?,
+                                                ).map_err(|e| format!("Error reading comic manifest: {}", e))?,
+                                            );
+                                        }, 0))).unwrap();
+                                        state.0.display.ref_push(media.pm_el().clone());
+                                    },
+                                    PrepareMedia::Book(source_url) => {
+                                        state.0.display_under.ref_modify_classes(&[(&class_state_hide, true)]);
+                                        media = eg.event(|pc| Rc::new(PlaylistMediaBook::new(pc, &match source_url {
+                                            SourceUrl::Url(u) => u,
+                                            SourceUrl::File(h) => generated_file_url(&env, &h, GENTYPE_DIR, ""),
+                                        }, 0))).unwrap();
+                                        state.0.display.ref_push(media.pm_el().clone());
+                                    },
                                 }
                                 eg.event(|pc| {
                                     if let Some(old) = &*state.0.media.borrow() {
@@ -221,7 +257,7 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
                                     state.0.media.set(pc, Some(media.clone()));
                                 });
                                 state.0.display_over.ref_modify_classes(&[(&class_state_hide, false)]);
-                                pm_ready_prep(media.as_ref(), prepare.media_time).await;
+                                pm_ready_prep(eg, media.as_ref(), prepare.media_time).await;
                                 ws.send(WsL2S::Ready(Utc::now())).await;
                                 state.0.display_over.ref_modify_classes(&[(&class_state_hide, true)]);
                             },

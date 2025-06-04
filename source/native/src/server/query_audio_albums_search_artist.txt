@@ -1,2 +1,0 @@
-search $artist -< "sunwet/1/name" -< "sunwet/1/artist" ?( -> "sunwet/1/is" == "sunwet/1/album" )
-    include "query_audio_albums_suffix.txt"

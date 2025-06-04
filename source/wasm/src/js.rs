@@ -1,4 +1,8 @@
 use {
+    crate::world::{
+        file_url,
+        generated_file_url,
+    },
     flowcontrol::shed,
     futures::channel::oneshot::channel,
     gloo::{
@@ -12,16 +16,20 @@ use {
         spawn_rooted,
         El,
     },
-    shared::interface::wire::{
-        gentype_transcode,
-        gentype_vtt,
-        FileUrlQuery,
+    shared::interface::{
+        triple::FileHash,
+        wire::{
+            gentype_transcode,
+            gentype_vtt_subpath,
+            GENTYPE_VTT,
+        },
     },
     std::{
         fmt::Display,
         future::Future,
     },
     wasm_bindgen::{
+        JsCast,
         JsValue,
         UnwrapThrowExt,
     },
@@ -32,6 +40,7 @@ use {
         },
         Event,
         EventTarget,
+        HtmlElement,
     },
 };
 
@@ -99,34 +108,30 @@ pub fn scan_env() -> Env {
     }
 }
 
-pub fn file_derivation_mime(mime: String) -> FileUrlQuery {
-    return FileUrlQuery { derivation: Some((gentype_transcode(&mime), false)) };
-}
-
-pub fn file_derivation_subtitles(nav_lang: &str) -> FileUrlQuery {
+pub fn file_derivation_subtitles_url(env: &Env, nav_lang: &str, hash: &FileHash) -> String {
     let short_lang = if let Some((l, _)) = nav_lang.split_once("-") {
         l
     } else {
-        &nav_lang
+        nav_lang
     };
     let vtt_lang = match short_lang {
         "en" => "eng",
         "jp" => "jpn",
         x => x,
     };
-    return FileUrlQuery { derivation: Some((gentype_vtt(vtt_lang), true)) };
+    return generated_file_url(env, hash, GENTYPE_VTT, &gentype_vtt_subpath(vtt_lang));
 }
 
-pub fn env_preferred_audio(env: &Env) -> FileUrlQuery {
+pub fn env_preferred_audio_url(env: &Env, hash: &FileHash) -> String {
     if env.engine == Some(Engine::IosSafari) {
-        return file_derivation_mime("audio/aac".to_string());
+        return generated_file_url(env, hash, &gentype_transcode("audio/aac"), "");
     } else {
-        return FileUrlQuery::default();
+        return file_url(env, hash);
     }
 }
 
-pub fn env_preferred_video() -> FileUrlQuery {
-    return file_derivation_mime("video/webm".to_string());
+pub fn env_preferred_video_url(env: &Env, hash: &FileHash) -> String {
+    return generated_file_url(env, hash, &gentype_transcode("video/webm"), "");
 }
 
 pub fn log(x: impl Display) {
@@ -471,5 +476,15 @@ impl<T> LogJsErr for Result<T, StorageError> {
                 log_1(&JsValue::from(format!("Warning: {}: {}", msg, e)));
             },
         }
+    }
+}
+
+pub trait ElExt {
+    fn html(&self) -> HtmlElement;
+}
+
+impl ElExt for El {
+    fn html(&self) -> HtmlElement {
+        return self.raw().dyn_into::<HtmlElement>().unwrap();
     }
 }

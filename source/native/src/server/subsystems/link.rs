@@ -134,6 +134,16 @@ pub async fn handle_ws_main(state: Arc<State>, session: String, websocket: Hyper
                                                                 link_public.insert(file.clone());
                                                             }
                                                         },
+                                                        shared::interface::wire::link::PrepareMedia::Comic(m) => {
+                                                            if let SourceUrl::File(file) = m {
+                                                                link_public.insert(file.clone());
+                                                            }
+                                                        },
+                                                        shared::interface::wire::link::PrepareMedia::Book(m) => {
+                                                            if let SourceUrl::File(file) = m {
+                                                                link_public.insert(file.clone());
+                                                            }
+                                                        },
                                                     }
                                                 }
 

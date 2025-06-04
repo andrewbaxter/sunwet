@@ -5,3 +5,4 @@ pub mod wire;
 pub mod query;
 pub mod cli;
 pub mod ont;
+pub mod derived;

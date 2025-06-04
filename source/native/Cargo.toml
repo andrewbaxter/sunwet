@@ -24,7 +24,8 @@ sea-query-rusqlite = { version = "0.7", features = ["with-json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["process"] }
-tokio-stream = "0.1"
+tokio-stream = { version = "0.1" }
+async-stream = "0.3"
 taskmanager = "0.6"
 deadpool-sqlite = "0.9"
 futures = "0.3"
@@ -54,6 +55,9 @@ schemars = "0.8"
 # A dep just to disable rustemo logs
 log = { version = "*", features = ["release_max_level_off"] }
 by_address = "1"
+enclose = "=1.2.0"
+image = "0.25"
+regex = "1"
 
 
 [build-dependencies]

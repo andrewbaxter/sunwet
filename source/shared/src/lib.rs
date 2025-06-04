@@ -1,3 +1,5 @@
+use std::mem::swap;
+
 pub mod interface;
 
 // (Hopefully, mostly) canonical serialization by going to value before
@@ -26,4 +28,10 @@ macro_rules! derive_canonical_serde{
             }
         }
     };
+}
+
+pub fn steal<T: Default>(x: &mut T) -> T {
+    let mut x1 = T::default();
+    swap(x, &mut x1);
+    return x1;
 }

@@ -113,10 +113,8 @@ use {
     },
     wasm_bindgen::{
         JsCast,
-        JsValue,
     },
     web_sys::{
-        console::log_1,
         DomParser,
         Element,
         Event,
@@ -817,15 +815,23 @@ impl Build {
             let Some(meta) = maybe_get_meta(data_stack, src) else {
                 return Ok(el("div"));
             };
-            match meta.mime.as_ref().map(|x| x.as_str()).unwrap_or("").split("/").next().unwrap() {
-                "image" => {
+            let mime = meta.mime.as_ref().map(|x| x.as_str()).unwrap_or("");
+            let mime = mime.split_once("/").unwrap_or((mime, ""));
+            match mime {
+                ("image", _) => {
                     media_type = PlaylistEntryMediaType::Image;
                 },
-                "video" => {
+                ("video", _) => {
                     media_type = PlaylistEntryMediaType::Video;
                 },
-                "audio" => {
+                ("audio", _) => {
                     media_type = PlaylistEntryMediaType::Audio;
+                },
+                ("application", "epub+zip") => {
+                    media_type = PlaylistEntryMediaType::Book;
+                },
+                ("application", "x-cbr") | ("application", "x-cbz") | ("application", "x-cb7") => {
+                    media_type = PlaylistEntryMediaType::Comic;
                 },
                 _ => {
                     return Ok(el("div"));
@@ -837,14 +843,12 @@ impl Build {
                 let Some(config_at) = &config_at.cover_field else {
                     break None;
                 };
-                log_1(&JsValue::from(format!("got cover field config: {}", config_at)));
                 let Some(d) = maybe_get_field(config_at, data_stack) else {
                     break None;
                 };
                 let TreeNode::Scalar(d) = d else {
                     break None;
                 };
-                log_1(&JsValue::from(format!("got cover field data: {:?}", d)));
                 break Some(unwrap_value_media_url(&d).map_err(|e| format!("Building cover url: {}", e))?);
             };
             self.playlist_add.push((data_id.clone(), PlaylistPushArg {
@@ -897,7 +901,6 @@ impl Build {
                 let data_id = data_id.clone();
                 let eg = pc.eg();
                 move |_| eg.event(|pc| {
-                    log_1(&JsValue::from("Press play button"));
                     playlist_toggle_play(pc, &state().playlist, Some(data_id.clone()));
                 }).unwrap()
             });
@@ -1169,20 +1172,7 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
             } else {
                 time = *playing_time.borrow();
             }
-            let time = time as u64;
-            let seconds = time % 60;
-            let time = time / 60;
-            let minutes = time % 60;
-            let time = time / 60;
-            let hours = time % 24;
-            let days = time / 24;
-            if days > 0 {
-                label.text(&format!("{:02}:{:02}:{:02}:{:02}", days, hours, minutes, seconds));
-            } else if hours > 0 {
-                label.text(&format!("{:02}:{:02}:{:02}", hours, minutes, seconds));
-            } else {
-                label.text(&format!("{:02}:{:02}", minutes, seconds));
-            }
+            label.text(&state().playlist.format_time(time));
         }
     ));
 

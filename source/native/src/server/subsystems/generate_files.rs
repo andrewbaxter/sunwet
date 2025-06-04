@@ -1,3 +1,16 @@
+//! There are two types of generated files:
+//!
+//! * Replacements: like aac replacement for mp3, or transcoded media (lower res)
+//!
+//! * Auxiliary files: like extracted files (cover, vtt, book contents)
+//!
+//! Requests for replacement generated files will fall back to the original file if
+//! the generated file doesn't exist, but missing aux files will respond with a 404.
+//!
+//! The difference is indicated with convention. Replacements are directly in the
+//! generated files dir, whereas all auxiliary files must be placed in a directory
+//! in the generated files dir. If the subpath is empty then the file server will
+//! do the fallback.
 use {
     crate::{
         interface::triple::DbNode,
@@ -10,11 +23,16 @@ use {
                 get_hash_from_file_path,
                 get_meta,
             },
+            fsutil::{
+                create_dirs,
+                delete_tree,
+            },
             state::State,
         },
     },
     async_walkdir::WalkDir,
     flowcontrol::ta_return,
+    image::ImageReader,
     loga::{
         ea,
         DebugDisplay,
@@ -22,19 +40,29 @@ use {
         Log,
         ResultContext,
     },
+    regex::Regex,
     serde::Deserialize,
     shared::interface::{
+        derived::{
+            ComicManifest,
+            ComicManifestPage,
+        },
         triple::{
             FileHash,
             Node,
         },
         wire::{
             gentype_transcode,
-            gentype_vtt,
+            gentype_vtt_subpath,
+            GENTYPE_DIR,
+            GENTYPE_VTT,
         },
     },
     std::{
-        collections::HashMap,
+        collections::{
+            BTreeMap,
+            HashMap,
+        },
         path::Path,
         process::Stdio,
         sync::Arc,
@@ -42,7 +70,10 @@ use {
     taskmanager::TaskManager,
     tempfile::tempdir_in,
     tokio::{
-        fs::create_dir_all,
+        fs::{
+            read_to_string,
+            write,
+        },
         process::Command,
         sync::mpsc::UnboundedReceiver,
     },
@@ -62,7 +93,7 @@ async fn generated_exists(state: &Arc<State>, file: &FileHash, gentype: &str) ->
     }).await?;
     match found {
         Some(_) => {
-            return Ok(genfile_path(state, file, gentype)?.exists());
+            return Ok(genfile_path(state, file, gentype, "")?.exists());
         },
         None => {
             return Ok(false);
@@ -125,18 +156,13 @@ async fn generate_subs(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
         let Some(lang) = stream.tags.get("language") else {
             continue;
         };
-        let gentype = gentype_vtt(&lang);
-        if generated_exists(state, file, &gentype).await? {
+        let gentype = GENTYPE_VTT;
+        if generated_exists(state, file, gentype).await? {
             continue;
         }
-        let dest = genfile_path(&state, file, &gentype)?;
+        let dest = genfile_path(&state, file, &gentype, &gentype_vtt_subpath(&lang))?;
         if let Some(p) = dest.parent() {
-            create_dir_all(&p)
-                .await
-                .context_with(
-                    "Failed to create parent directories for generated subtitle file",
-                    ea!(path = dest.display()),
-                )?;
+            create_dirs(&p).await.context("Failed to create parent directories for generated subtitle file")?;
         }
         let extract_res =
             Command::new("ffmpeg")
@@ -157,7 +183,7 @@ async fn generate_subs(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
                 ),
             );
         }
-        commit_generated(state, file.clone(), gentype, "text/vtt".to_string()).await?;
+        commit_generated(state, file.clone(), gentype.to_string(), "text/vtt".to_string()).await?;
     }
     return Ok(());
 }
@@ -168,11 +194,10 @@ async fn generate_webm(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
     if generated_exists(state, file, &gentype).await? {
         return Ok(());
     }
-    let dest = genfile_path(&state, file, &gentype)?;
+    let dest = genfile_path(&state, file, &gentype, "")?;
+    delete_tree(&dest).await?;
     if let Some(p) = dest.parent() {
-        create_dir_all(&p)
-            .await
-            .context_with("Failed to create parent directories for generated webm file", ea!(path = dest.display()))?;
+        create_dirs(&p).await.context("Failed to create parent directories for generated webm file")?;
     }
     let tmp = tempdir_in(&state.temp_dir)?;
     let passlog_path = tmp.path().join("passlog");
@@ -223,14 +248,10 @@ async fn generate_aac(state: &Arc<State>, file: &FileHash, source: &Path) -> Res
     if generated_exists(state, file, &gentype).await? {
         return Ok(());
     }
-    let dest = genfile_path(&state, file, &gentype)?;
+    let dest = genfile_path(&state, file, &gentype, "")?;
+    delete_tree(&dest).await?;
     if let Some(p) = dest.parent() {
-        create_dir_all(&p)
-            .await
-            .context_with(
-                "Failed to create parent directories for generated audio file",
-                ea!(path = dest.display()),
-            )?;
+        create_dirs(&p).await.context("Failed to create parent directories for generated audio file")?;
     }
     let mut cmd = Command::new("ffmpeg");
     cmd.arg("-i");
@@ -250,24 +271,130 @@ async fn generate_aac(state: &Arc<State>, file: &FileHash, source: &Path) -> Res
     return Ok(());
 }
 
+async fn generate_book_html_dir(
+    state: &Arc<State>,
+    file: &FileHash,
+    source: &Path,
+    mime: &str,
+) -> Result<(), loga::Error> {
+    let gentype = GENTYPE_DIR;
+    if generated_exists(state, file, gentype).await? {
+        return Ok(());
+    }
+    let dest = genfile_path(&state, file, gentype, "")?;
+    delete_tree(&dest).await?;
+    create_dirs(&dest).await?;
+    let mut cmd = Command::new("pandoc");
+    cmd.arg("--from");
+    cmd.arg(match mime {
+        "application/epub+zip" => "epub",
+        _ => return Ok(()),
+    });
+    cmd.arg(source);
+    cmd.arg("--standalone");
+    cmd.arg("--output");
+    cmd.arg("index.html");
+    cmd.arg("--extract-media");
+    cmd.arg(".");
+    let res =
+        cmd
+            .current_dir(dest)
+            .output()
+            .await
+            .context_with("Error converting ebook to html", ea!(command = cmd.dbg_str()))?;
+    if !res.status.success() {
+        return Err(
+            loga::err_with("Error converting ebook to html", ea!(res = res.dbg_str(), command = cmd.dbg_str())),
+        );
+    }
+    commit_generated(state, file.clone(), gentype.to_string(), "".to_string()).await?;
+    return Ok(());
+}
+
+async fn generate_comic_dir(state: &Arc<State>, file: &FileHash, source: &Path) -> Result<(), loga::Error> {
+    let gentype = GENTYPE_DIR;
+    if generated_exists(state, file, gentype).await? {
+        return Ok(());
+    }
+    let dest = genfile_path(&state, file, gentype, "")?;
+    delete_tree(&dest).await?;
+    create_dirs(&dest).await?;
+    let mut cmd = Command::new("7zz");
+    cmd.arg("x");
+    cmd.arg(source);
+    let res =
+        cmd.current_dir(&dest).output().await.context_with("Error extracting comic", ea!(command = cmd.dbg_str()))?;
+    if !res.status.success() {
+        return Err(loga::err_with("Error extracting comic", ea!(res = res.dbg_str(), command = cmd.dbg_str())));
+    }
+    let index_matcher = Regex::new("(\\d+)").unwrap();
+    let manga_matcher = Regex::new("<\\s*[Mm][Aa][Nn][Gg][Aa]\\s*>\\s*[Yy][Ee][Ss]\\s*<").unwrap();
+    let mut manifest = BTreeMap::new();
+    let mut rtl = false;
+    let mut dest_walk = WalkDir::new(&dest);
+    while let Some(entry) = dest_walk.next().await {
+        let entry = entry.context_with("Error reading entry in generated dir", ea!(dir = dest.dbg_str()))?;
+        let path = entry.path();
+        match async {
+            ta_return!((), loga::Error);
+            let meta = tokio::fs::metadata(&path).await.context("Error reading fs metadata")?;
+            if !meta.is_file() {
+                return Ok(());
+            }
+            let str_path = path.to_string_lossy();
+            if str_path.to_ascii_lowercase().ends_with("comicinfo.xml") {
+                rtl =
+                    manga_matcher.is_match(
+                        &read_to_string(entry.path()).await.context("Error reading comic info")?,
+                    );
+            } else if mime_guess::from_path(entry.path()).first_or_octet_stream().type_().as_str() == "image" {
+                let mut sort = vec![];
+                for seg in index_matcher.captures_iter(&str_path) {
+                    sort.push(usize::from_str_radix(seg.get(1).unwrap().as_str(), 10).unwrap_or(usize::MAX));
+                }
+                let (width, height) =
+                    ImageReader::open(entry.path())?.into_dimensions().context("Error reading image dimensions")?;
+                manifest.insert(sort, ComicManifestPage {
+                    width: width,
+                    height: height,
+                    path: entry.path().strip_prefix(&dest).unwrap().to_path_buf().to_string_lossy().to_string(),
+                });
+            }
+            return Ok(());
+        }.await {
+            Ok(_) => { },
+            Err(e) => {
+                return Err(e.context_with("Error processing extacted comic file", ea!(path = path.dbg_str())));
+            },
+        }
+    }
+    let manifest_path = dest.join("sunwet.json");
+    write(&manifest_path, serde_json::to_string_pretty(&ComicManifest {
+        rtl: rtl,
+        pages: manifest.into_values().collect::<Vec<_>>(),
+    }).unwrap()).await.context_with("Error creating sunwet manifest", ea!(path = manifest_path.dbg_str()))?;
+    commit_generated(state, file.clone(), gentype.to_string(), "".to_string()).await?;
+    return Ok(());
+}
+
 async fn generate_files(state: &Arc<State>, log: &Log, file: &FileHash) -> Result<(), loga::Error> {
     let Some(meta) = get_meta(&state, &file).await? else {
         return Ok(());
     };
     let source = file_path(&state, &file)?;
     let mime = meta.mimetype.as_ref().map(|x| x.as_str()).unwrap_or("");
-    let mime = mime.split_once("/").unwrap_or((mime, ""));
-    match mime.0 {
-        "video" => {
+    let mime_slice = mime.split_once("/").unwrap_or((mime, ""));
+    match (mime_slice.0, mime_slice.1) {
+        ("video", _) => {
             generate_subs(&state, &file, &source).await.log(&log, loga::WARN, "Error doing sub file generation");
-            if mime.1 != "webm" {
+            if mime_slice.1 != "webm" {
                 generate_webm(&state, &file, &source)
                     .await
                     .log(&log, loga::WARN, "Error doing webm transcode file generation");
             }
         },
-        "audio" => {
-            match mime.1 {
+        ("audio", _) => {
+            match mime_slice.1 {
                 "aac" | "mp3" => { },
                 _ => {
                     generate_aac(&state, &file, &source)
@@ -275,6 +402,16 @@ async fn generate_files(state: &Arc<State>, log: &Log, file: &FileHash) -> Resul
                         .log(&log, loga::WARN, "Error doing webm transcode file generation");
                 },
             }
+        },
+        ("application", "epub+zip") => {
+            generate_book_html_dir(&state, &file, &source, mime)
+                .await
+                .log(&log, loga::WARN, "Error doing epub html generation");
+        },
+        ("application", "x-cbr") | ("application", "x-cbz") | ("application", "x-cb7") => {
+            generate_comic_dir(&state, &file, &source)
+                .await
+                .log(&log, loga::WARN, "Error doing comic extraction/meta generation");
         },
         _ => { },
     }

@@ -948,7 +948,7 @@
   presentation.leafMediaImg = /** @type {Presentation["leafMediaImg"]} */ (
     args
   ) => ({
-    root: e("img", { src: args.src }, {}),
+    root: e("img", { src: args.src, loading: "lazy" }, {}),
   });
   presentation.leafMediaAudio = /** @type {Presentation["leafMediaAudio"]} */ (
     args
@@ -2471,7 +2471,7 @@
       if (args.link != null) {
         const img = e(
           "img",
-          { src: args.src },
+          { src: args.src, loading: "lazy" },
           {
             styles_: [viewMediaLinkMediaStyle],
           }
@@ -2490,7 +2490,7 @@
       } else {
         const img = e(
           "img",
-          { src: args.src },
+          { src: args.src, loading: "lazy" },
           {
             styles_: [viewMediaNonlinkMediaStyle],
           }

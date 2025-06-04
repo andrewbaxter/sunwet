@@ -332,18 +332,10 @@ pub fn gentype_transcode(mime: &str) -> String {
 }
 
 // Lang is as given by VTT
-pub fn gentype_vtt(lang: &str) -> String {
-    return format!("vtt_{}", alphanumeric_only(lang));
+pub const GENTYPE_VTT: &str = "vtt";
+
+pub fn gentype_vtt_subpath(lang: &str) -> String {
+    return alphanumeric_only(lang);
 }
 
-// Why not ACCEPT header? Accept header only accepts mime types, we need more high
-// level data and I don't want to do extra-standard stuff.
-#[derive(Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct FileUrlQuery {
-    /// Derivation name, like `mime-image/jpg` or `vtt-eng`, and whether it's required.
-    /// If not required and the derivation is missing, respond with the original file
-    /// data, otherwise 404.
-    #[serde(skip_serializing_if = "Option::is_none", rename = "d", default)]
-    pub derivation: Option<(String, bool)>,
-}
+pub const GENTYPE_DIR: &str = "dir";

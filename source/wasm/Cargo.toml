@@ -16,6 +16,8 @@ wasm-bindgen = "=0.2.100"
 wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = [
     "HtmlInputElement",
+    "KeyboardEvent",
+    "WheelEvent",
     "Location",
     "Url",
     "MediaSession",
@@ -26,6 +28,8 @@ web-sys = { version = "0.3", features = [
     "HtmlAudioElement",
     "HtmlVideoElement",
     "HtmlMediaElement",
+    "HtmlImageElement",
+    "HtmlIFrameElement",
     "DomException",
     "MouseEvent",
     "DomRect",
@@ -36,6 +40,10 @@ web-sys = { version = "0.3", features = [
     "SupportedType",
     "CssStyleDeclaration",
     "StorageManager",
+    "IntersectionObserver",
+    "IntersectionObserverInit",
+    "IntersectionObserverEntry",
+    "NodeList",
 ] }
 futures = "0.3"
 tokio = { version = "1", features = ["macros", "sync"] }
@@ -53,6 +61,7 @@ async-trait = "0.1"
 flowcontrol = "0.2"
 structre = "0.2"
 by_address = "1"
+tokio-stream = { version = "0.1.17", features = ["sync"] }
 
 [build-dependencies]
 convert_case = "0.8.0"

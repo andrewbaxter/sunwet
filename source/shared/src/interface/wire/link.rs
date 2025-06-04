@@ -32,6 +32,8 @@ pub enum PrepareMedia {
     Audio(PrepareAudio),
     Video(SourceUrl),
     Image(SourceUrl),
+    Comic(SourceUrl),
+    Book(SourceUrl),
 }
 
 #[derive(Serialize, Deserialize, Clone)]

@@ -22,6 +22,9 @@ pub const PREDICATE_DOC: &str = "sunwet/1/doc";
 pub const PREDICATE_FILE: &str = "sunwet/1/file";
 pub const PREDICATE_MEDIA: &str = "sunwet/1/media";
 pub const PREDICATE_TOPIC: &str = "sunwet/1/topic";
+
+/// ISO 639-1 2-letter language
+pub const PREDICATE_LANG: &str = "sunwet/1/language";
 pub const OBJ_IS_ALBUM: &str = "sunwet/1/album";
 pub const OBJ_IS_TRACK: &str = "sunwet/1/track";
 pub const OBJ_IS_ARTIST: &str = "sunwet/1/artist";
@@ -29,4 +32,6 @@ pub const OBJ_IS_DOC: &str = "sunwet/1/doc";
 pub const OBJ_IS_NOTE: &str = "sunwet/1/note";
 pub const OBJ_MEDIA_AUDIO: &str = "sunwet/1/audio";
 pub const OBJ_MEDIA_VIDEO: &str = "sunwet/1/video";
+pub const OBJ_MEDIA_COMIC: &str = "sunwet/1/comic";
+pub const OBJ_MEDIA_BOOK: &str = "sunwet/1/book";
 pub const OBJ_MEDIA_IMAGE: &str = "sunwet/1/image";

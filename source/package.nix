@@ -100,7 +100,11 @@ let
     buildInputs = [ pkgs.sqlite ];
     postInstall = wrapBinary {
       bin = "sunwet";
-      packages = [ pkgs.ffmpeg ];
+      packages = [
+        pkgs.ffmpeg
+        pkgs.pandoc
+        pkgs._7zz
+      ];
     };
   };
 in

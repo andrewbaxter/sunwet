@@ -10,5 +10,4 @@ $album_id -> "sunwet/1/track" {
     ( -> "sunwet/1/index" first { => index } )
     ( -> "sunwet/1/superindex" first { => superindex } )
     ( -> "sunwet/1/file" first { => file } )
-    ( -> "sunwet/1/media" first { => media } )
 } asc superindex asc index

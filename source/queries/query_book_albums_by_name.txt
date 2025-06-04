@@ -1,0 +1,7 @@
+"sunwet/1/album" -< "sunwet/1/is"
+    -& (
+        ?(-> "sunwet/1/media" == "sunwet/1/book")
+        ?( -> "sunwet/1/language" == $lang )
+    )
+    include "query_comic_albums_suffix.txt"
+    desc album_name

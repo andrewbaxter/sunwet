@@ -57,8 +57,18 @@ pub fn file_path(state: &Arc<State>, hash: &FileHash) -> Result<PathBuf, loga::E
     return file_path_(&state.files_dir, hash);
 }
 
-pub fn genfile_path(state: &Arc<State>, hash: &FileHash, gentype: &str) -> Result<PathBuf, loga::Error> {
-    return Ok(file_path_(&state.genfiles_dir, hash)?.with_extension(alphanumeric_only(gentype)));
+pub fn genfile_path(
+    state: &Arc<State>,
+    hash: &FileHash,
+    gentype: &str,
+    subpath: &str,
+) -> Result<PathBuf, loga::Error> {
+    let out = file_path_(&state.genfiles_dir, hash)?.with_extension(alphanumeric_only(gentype));
+    if !subpath.is_empty() {
+        return Ok(out.join(subpath));
+    } else {
+        return Ok(out);
+    }
 }
 
 pub fn staged_file_path(state: &Arc<State>, hash: &FileHash) -> Result<PathBuf, loga::Error> {

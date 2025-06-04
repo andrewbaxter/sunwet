@@ -1,3 +1,4 @@
 "sunwet/1/album" -< "sunwet/1/is"
+    ?( -> "sunwet/1/media" == "sunwet/1/audio" )
     include "query_audio_albums_suffix.txt"
     desc album_add_timestamp desc album_name

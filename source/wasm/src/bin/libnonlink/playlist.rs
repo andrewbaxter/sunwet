@@ -1,13 +1,12 @@
 use {
     super::{
-        ministate::{
-            PlaylistRestorePos,
-        },
+        ministate::PlaylistRestorePos,
         state::{
             state,
             ViewMinistateState,
         },
     },
+    crate::libnonlink::api::req_file,
     chrono::{
         DateTime,
         Duration,
@@ -35,13 +34,17 @@ use {
     },
     serde::Deserialize,
     shared::interface::{
-        wire::link::{
-            Prepare,
-            PrepareAudio,
-            PrepareMedia,
-            SourceUrl,
-            WsC2S,
-            WsS2C,
+        derived::ComicManifest,
+        wire::{
+            link::{
+                Prepare,
+                PrepareAudio,
+                PrepareMedia,
+                SourceUrl,
+                WsC2S,
+                WsS2C,
+            },
+            GENTYPE_DIR,
         },
     },
     std::{
@@ -49,9 +52,7 @@ use {
             Cell,
             RefCell,
         },
-        collections::{
-            BTreeMap,
-        },
+        collections::BTreeMap,
         ops::Bound,
         rc::{
             Rc,
@@ -62,15 +63,17 @@ use {
         js::{
             el_audio,
             el_video,
-            env_preferred_audio,
-            env_preferred_video,
-            file_derivation_subtitles,
+            env_preferred_audio_url,
+            env_preferred_video_url,
+            file_derivation_subtitles_url,
             Env,
         },
         media::{
             pm_ready_prep,
             PlaylistMedia,
             PlaylistMediaAudioVideo,
+            PlaylistMediaBook,
+            PlaylistMediaComic,
             PlaylistMediaImage,
         },
         websocket::Ws,
@@ -98,6 +101,8 @@ pub enum PlaylistEntryMediaType {
     Audio,
     Video,
     Image,
+    Comic,
+    Book,
 }
 
 pub struct PlaylistEntry {
@@ -130,6 +135,15 @@ pub struct PlaylistState(pub Rc<PlaylistState_>);
 impl PlaylistState {
     pub fn weak(&self) -> WeakPlaylistState {
         return WeakPlaylistState(Rc::downgrade(&self.0));
+    }
+
+    pub fn format_time(&self, time: f64) -> String {
+        let Some(playing_i) = &*self.0.playing_i.borrow() else {
+            return format!("00:00");
+        };
+        let playlist = self.0.playlist.borrow();
+        let entry = playlist.get(&*playing_i).unwrap();
+        return entry.media.pm_format_time(time);
     }
 }
 
@@ -235,7 +249,7 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
         // Play, pause, track switch
         link!(
             //. .
-            (_pc = pc),
+            (pc = pc),
             (playing = playlist_state.0.playing.clone(), playing_i = playlist_state.0.playing_i.clone()),
             (),
             (playlist_state = playlist_state.clone(), media_session = media_session, bg = bg.clone()) {
@@ -297,7 +311,7 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
                             // Debounce: stop
                             playlist_state.0.debounce.set(Utc::now());
                             e.media.pm_stop();
-                            e.media.pm_seek(0.);
+                            e.media.pm_seek(pc, 0.);
                             e.media.pm_unpreload();
                         }
                     }
@@ -311,6 +325,7 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
                     if let Some((_, ws)) = &*playlist_state.0.share.borrow() {
                         bg.set(Some(spawn_rooted({
                             let ws = ws.clone();
+                            let eg = pc.eg();
                             async move {
                                 let new_time = e.media.pm_get_time();
                                 ws.send(WsC2S::Prepare(Prepare {
@@ -324,10 +339,12 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
                                         }),
                                         PlaylistEntryMediaType::Video => PrepareMedia::Video(e.source_url.clone()),
                                         PlaylistEntryMediaType::Image => PrepareMedia::Image(e.source_url.clone()),
+                                        PlaylistEntryMediaType::Comic => PrepareMedia::Comic(e.source_url.clone()),
+                                        PlaylistEntryMediaType::Book => PrepareMedia::Book(e.source_url.clone()),
                                     },
                                     media_time: e.media.pm_get_time(),
                                 })).await;
-                                pm_ready_prep(e.media.as_ref(), new_time).await;
+                                pm_ready_prep(eg, e.media.as_ref(), new_time).await;
                                 ws.send(WsC2S::Ready(Utc::now())).await;
                             }
                         })));
@@ -401,6 +418,7 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
                         e.media.pm_stop();
                         bg.set(Some(spawn_rooted({
                             let ws = ws.clone();
+                            let eg = pc.eg();
                             async move {
                                 ws.send(WsC2S::Prepare(Prepare {
                                     artist: e.artist.clone().unwrap_or_default(),
@@ -413,17 +431,19 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
                                         }),
                                         PlaylistEntryMediaType::Video => PrepareMedia::Video(e.source_url.clone()),
                                         PlaylistEntryMediaType::Image => PrepareMedia::Image(e.source_url.clone()),
+                                        PlaylistEntryMediaType::Comic => PrepareMedia::Comic(e.source_url.clone()),
+                                        PlaylistEntryMediaType::Book => PrepareMedia::Book(e.source_url.clone()),
                                     },
                                     media_time: new_time,
                                 })).await;
-                                pm_ready_prep(e.media.as_ref(), new_time).await;
+                                pm_ready_prep(eg, e.media.as_ref(), new_time).await;
                                 ws.send(WsC2S::Ready(Utc::now())).await;
                             }
                         })));
                     } else {
                         // Debounce: ?
                         playlist_state.0.debounce.set(Utc::now());
-                        e.media.pm_seek(new_time);
+                        e.media.pm_seek(pc, new_time);
                     }
                 }
             }
@@ -536,7 +556,7 @@ pub fn playlist_extend(
             PlaylistEntryMediaType::Audio => {
                 let media = el_audio(&match &entry.source_url {
                     SourceUrl::Url(v) => v.clone(),
-                    SourceUrl::File(v) => generated_file_url(&state().env, v, env_preferred_audio(&state().env)),
+                    SourceUrl::File(v) => env_preferred_audio_url(&state().env, v),
                 }).attr("controls", "true");
                 setup_media_element(pc, &media);
                 box_media = Box::new(PlaylistMediaAudioVideo::new_audio(media));
@@ -548,15 +568,12 @@ pub fn playlist_extend(
                         media = el_video(v);
                     },
                     SourceUrl::File(v) => {
-                        media = el_video(&generated_file_url(&state().env, v, env_preferred_video()));
+                        media = el_video(&env_preferred_video_url(&state().env, v));
                         for (i, lang) in state().env.languages.iter().enumerate() {
                             let track =
                                 el("track")
                                     .attr("kind", "subtitles")
-                                    .attr(
-                                        "src",
-                                        &generated_file_url(&state().env, v, file_derivation_subtitles(lang)),
-                                    )
+                                    .attr("src", &file_derivation_subtitles_url(&state().env, lang, v))
                                     .attr("srclang", &lang);
                             if i == 0 {
                                 track.ref_attr("default", "default");
@@ -575,6 +592,24 @@ pub fn playlist_extend(
                     SourceUrl::File(v) => file_url(&state().env, v),
                 }).attr("loading", "lazy");
                 box_media = Box::new(PlaylistMediaImage { element: media.clone() });
+            },
+            PlaylistEntryMediaType::Comic => {
+                box_media = Box::new(PlaylistMediaComic::new(pc, &match &entry.source_url {
+                    SourceUrl::Url(u) => u.to_string(),
+                    SourceUrl::File(h) => generated_file_url(&state().env, h, GENTYPE_DIR, ""),
+                }, |url| async move {
+                    return Ok(
+                        serde_json::from_slice::<ComicManifest>(
+                            &req_file(&state().env.base_url, &url).await?,
+                        ).map_err(|e| format!("Error reading comic manifest: {}", e))?,
+                    );
+                }, 0));
+            },
+            PlaylistEntryMediaType::Book => {
+                box_media = Box::new(PlaylistMediaBook::new(pc, &match &entry.source_url {
+                    SourceUrl::Url(u) => u.to_string(),
+                    SourceUrl::File(h) => generated_file_url(&state().env, h, GENTYPE_DIR, ""),
+                }, 0));
             },
         }
         playlist_state.0.playlist.borrow_mut().insert(entry_index, Rc::new(PlaylistEntry {
@@ -627,13 +662,7 @@ pub fn playlist_next(pc: &mut ProcessingContext, state: &PlaylistState, basis: O
     let Some(i) = basis.or(state.0.playing_i.get()) else {
         return;
     };
-    log_1(
-        &JsValue::from(
-            format!("playlist_next {:?} in {:?}", i, state.0.playlist.borrow().keys().collect::<Vec<_>>()),
-        ),
-    );
     if let Some((i, _)) = state.0.playlist.borrow().range((Bound::Excluded(i), Bound::Unbounded)).next() {
-        log_1(&JsValue::from(format!("Got next track, playing: {:?}", i)));
         state.0.playing.set(pc, true);
         state.0.playing_i.set(pc, Some(i.clone()));
         state.0.playing_time.set(pc, 0.);

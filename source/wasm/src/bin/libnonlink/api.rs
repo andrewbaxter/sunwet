@@ -15,7 +15,10 @@ use {
         utils::window,
     },
     js_sys::Uint8Array,
-    reqwasm::http::Request,
+    reqwasm::http::{
+        Request,
+        Response,
+    },
     shared::interface::{
         triple::FileHash,
         wire::{
@@ -75,13 +78,7 @@ pub fn redirect_logout(base_url: &str) -> ! {
     unreachable!();
 }
 
-async fn post(base_url: &str, req: Request) -> Result<Vec<u8>, String> {
-    let resp = match req.send().await {
-        Ok(r) => r,
-        Err(e) => {
-            return Err(format!("Failed to send request: {}", e));
-        },
-    };
+async fn read_resp(base_url: &str, resp: Response) -> Result<Vec<u8>, String> {
     let status = resp.status();
     if status == 401 && want_logged_in() {
         redirect_login(base_url);
@@ -96,6 +93,16 @@ async fn post(base_url: &str, req: Request) -> Result<Vec<u8>, String> {
         return Err(format!("Got error response [{}]: [{}]", status, String::from_utf8_lossy(&body)));
     }
     return Ok(body);
+}
+
+async fn post(base_url: &str, req: Request) -> Result<Vec<u8>, String> {
+    let resp = match req.send().await {
+        Ok(r) => r,
+        Err(e) => {
+            return Err(format!("Failed to send request: {}", e));
+        },
+    };
+    return read_resp(base_url, resp).await;
 }
 
 pub async fn req_post_json<T: C2SReqTrait>(base_url: &str, req: T) -> Result<T::Resp, String> {
@@ -120,4 +127,14 @@ pub async fn file_post_json(base_url: &str, hash: &FileHash, chunk_start: u64, b
             .body(Uint8Array::from(body));
     post(base_url, req).await?;
     return Ok(());
+}
+
+pub async fn req_file(base_url: &str, url: &str) -> Result<Vec<u8>, String> {
+    let resp = match Request::get(url).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            return Err(format!("Failed to send request: {}", e));
+        },
+    };
+    return read_resp(base_url, resp).await;
 }

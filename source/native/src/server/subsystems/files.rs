@@ -69,7 +69,6 @@ use {
             Node,
         },
         wire::{
-            FileUrlQuery,
             ReqCommit,
             ReqFormCommit,
             RespCommit,
@@ -436,6 +435,8 @@ pub async fn handle_file_get(
     identity: &Identity,
     head: http::request::Parts,
     file: FileHash,
+    gentype: String,
+    subpath: String,
 ) -> Result<Response<BoxBody<Bytes, std::io::Error>>, VisErr<loga::Error>> {
     let Some(meta) = get_meta(&state, &file).await.err_internal()? else {
         return Ok(response_404());
@@ -443,36 +444,29 @@ pub async fn handle_file_get(
     if !can_access_file(&state, identity, &file).await.err_internal()? {
         return Ok(response_401());
     }
-    let query;
-    if let Some(q) = head.uri.query() {
-        query =
-            serde_json::from_str::<FileUrlQuery>(
-                &urlencoding::decode(&q).context("Error url-decoding query").err_external()?,
-            )
-                .context("Error parsing query string")
-                .err_external()?;
-    } else {
-        query = FileUrlQuery::default();
-    }
     let mimetype;
     let local_path;
     superif!({
-        let Some((gentype, required)) = query.derivation else {
+        if gentype.is_empty() {
             break 'nogen;
-        };
+        }
         let search_node = DbNode(Node::File(file.clone()));
         let Some(gen_mimetype) = tx(&state.db, {
-            let gentype = gentype.clone();
+            let gentype = gentype.to_string();
             move |txn| Ok(db::gen_get(txn, &search_node, &gentype)?)
         }).await.err_internal()? else {
-            if required {
-                return Ok(response_404());
-            }
             break 'nogen;
         };
+        let gen_path = genfile_path(&state, &file, &gentype, &subpath).err_internal()?;
+        if !gen_path.exists() {
+            break 'nogen;
+        }
         mimetype = gen_mimetype;
-        local_path = genfile_path(&state, &file, &gentype).err_internal()?;
+        local_path = gen_path;
     } 'nogen {
+        if !subpath.is_empty() {
+            return Ok(response_404());
+        }
         mimetype = meta.mimetype.unwrap_or_else(|| format!("application/octet-stream"));
         local_path = file_path(&state, &file).err_internal()?;
     });

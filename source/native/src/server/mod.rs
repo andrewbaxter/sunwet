@@ -600,17 +600,22 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                         let Some(identity) = identify_requester(&state, &head.headers).await? else {
                             return Ok(response_401());
                         };
-                        let hash = path_iter.next().context("Missing file hash in path").err_external()?;
+                        let hash_gentype = path_iter.next().context("Missing file hash in path").err_external()?;
+                        let (hash, gentype) = hash_gentype.split_once(".").unwrap_or((hash_gentype, ""));
                         let file =
                             FileHash::from_str(hash)
                                 .map_err(|e| loga::err(e).context_with("Couldn't parse hash", ea!(hash = hash)))
                                 .err_external()?;
+                        let gentype = gentype.to_string();
+                        let subpath = path_iter.collect::<Vec<_>>().join("/");
                         match head.method {
                             Method::HEAD => {
+                                // Inaccurate for non-file derivations, but HEAD is mostly intended for maybe
+                                // media range request
                                 return handle_file_head(state, &identity, file).await;
                             },
                             Method::GET => {
-                                return handle_file_get(state, &identity, head, file).await;
+                                return handle_file_get(state, &identity, head, file, gentype, subpath).await;
                             },
                             Method::POST => {
                                 return handle_file_post(state, &identity, head, file, body).await.err_internal();
