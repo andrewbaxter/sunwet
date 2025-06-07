@@ -59,6 +59,7 @@ pub fn gather(sunwet_dir: &Path, path: &Path) -> Result<Gather, loga::Error> {
     let mut g = Gather::new(GatherTrackType::Comic);
     let mut list_cmd = Command::new("7zz");
     list_cmd.arg("l");
+    list_cmd.arg("-ba");
     list_cmd.arg(path);
     let list_output =
         list_cmd
@@ -105,7 +106,7 @@ pub fn gather(sunwet_dir: &Path, path: &Path) -> Result<Gather, loga::Error> {
             if let Some(lang) = text(&comicinfo, "LanguageISO") {
                 g.track_language = Some(lang);
             }
-        } else if mime.type_().as_str() != "image" {
+        } else if mime.type_().as_str() == "image" {
             let mut sort = vec![];
             for seg in index_matcher.captures_iter(line) {
                 sort.push(usize::from_str_radix(seg.get(1).unwrap().as_str(), 10).unwrap_or(usize::MAX));

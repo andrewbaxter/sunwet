@@ -12,6 +12,7 @@ use {
         Duration,
         Utc,
     },
+    futures::FutureExt,
     gloo::{
         timers::{
             callback::Interval,
@@ -594,19 +595,19 @@ pub fn playlist_extend(
                 box_media = Box::new(PlaylistMediaImage { element: media.clone() });
             },
             PlaylistEntryMediaType::Comic => {
-                box_media = Box::new(PlaylistMediaComic::new(pc, &match &entry.source_url {
+                box_media = Box::new(PlaylistMediaComic::new(&match &entry.source_url {
                     SourceUrl::Url(u) => u.to_string(),
                     SourceUrl::File(h) => generated_file_url(&state().env, h, GENTYPE_DIR, ""),
-                }, |url| async move {
+                }, Rc::new(|url| async move {
                     return Ok(
                         serde_json::from_slice::<ComicManifest>(
                             &req_file(&state().env.base_url, &url).await?,
                         ).map_err(|e| format!("Error reading comic manifest: {}", e))?,
                     );
-                }, 0));
+                }.boxed_local()), 0));
             },
             PlaylistEntryMediaType::Book => {
-                box_media = Box::new(PlaylistMediaBook::new(pc, &match &entry.source_url {
+                box_media = Box::new(PlaylistMediaBook::new(&match &entry.source_url {
                     SourceUrl::Url(u) => u.to_string(),
                     SourceUrl::File(h) => generated_file_url(&state().env, h, GENTYPE_DIR, ""),
                 }, 0));

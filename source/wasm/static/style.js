@@ -177,6 +177,7 @@
   const textIconFoldClosed = "\ue316";
   const textIconFoldOpened = "\ue313";
   const textIconClose = "\ue5cd";
+  const textIconFullscreen = "\ue5d0";
   const textIconRelIn = "\uf72d";
   const textIconRelOut = "\uf72e";
   const textIconEdit = "\ue3c9";
@@ -184,15 +185,12 @@
 
   // xx Variables
   const varFTitle = "24pt";
-  const varFAdmenu = "20pt";
   const varFMenu = "20pt";
   const varFMenuIcon = "14pt";
   const varFPageTitle = "18pt";
   const varFModalTitle = "24pt";
-  const varFFullscreenIconClose = "20pt";
   const varFModalIconClose = "20pt";
   const varFRelIcon = "32pt";
-  const varFNodeButton = "22pt";
   const varFLinkBig = "14pt";
 
   const varSFullscreenIconClose = "1cm";
@@ -441,6 +439,26 @@
 
   presentation.contVbox = /** @type {Presentation["contVbox"]} */ (args) => ({
     root: e("div", {}, { styles_: [contVboxStyle], children_: args.children }),
+  });
+
+  presentation.contRootStack = /** @type {Presentation["contRootStack"]} */ (
+    args
+  ) => ({
+    root: e(
+      "div",
+      {},
+      {
+        styles_: [
+          contStackStyle,
+          ss(uniq("cont_root_stack"), {
+            ">*:not(:last-child)": (s) => {
+              s.display = "none";
+            },
+          }),
+        ],
+        children_: args.children,
+      }
+    ),
   });
 
   const contTitleStyle = s(uniq("cont_title"), {
@@ -1793,6 +1811,7 @@
               s.flexWrap = "wrap";
               s.columnGap = varPViewCol;
               s.rowGap = varPViewList;
+              s.justifyContent = "space-around";
             },
           }),
         ],
@@ -1830,27 +1849,41 @@
     /** @type {Presentation["contMediaFullscreen"]} */ (args) => {
       const buttonClose = e(
         "button",
-        {
-          textContent: textIconClose,
-        },
+        {},
         {
           styles_: [
-            leafIconStyle,
             leafButtonStyle,
             ss(uniq("cont_media_fullscreen_close"), {
               "": (s) => {
-                s.color = "white";
                 const size = varSFullscreenIconClose;
                 s.width = size;
                 s.height = size;
-                s.fontSize = varFFullscreenIconClose;
               },
             }),
           ],
+          children_: [leafIcon({ text: textIconClose })],
+        }
+      );
+      const buttonFullscreen = e(
+        "button",
+        {},
+        {
+          styles_: [
+            leafButtonStyle,
+            ss(uniq("cont_media_fullscreen_fullscreen"), {
+              "": (s) => {
+                const size = varSFullscreenIconClose;
+                s.width = size;
+                s.height = size;
+              },
+            }),
+          ],
+          children_: [leafIcon({ text: textIconFullscreen })],
         }
       );
       return {
         buttonClose: buttonClose,
+        buttonFullscreen: buttonFullscreen,
         root: e(
           "div",
           {},
@@ -1859,8 +1892,11 @@
               contVboxStyle,
               ss(uniq("cont_fullscreen"), {
                 "": (s) => {
-                  s.backgroundColor = "black";
+                  s.zIndex = "5";
+                  s.backgroundColor = varCBackground;
                   s.justifyContent = "stretch";
+                  s.width = "100dvw";
+                  s.height = "100dvh";
                 },
                 ">*:nth-child(1)": (s) => {
                   s.flexGrow = "1";
@@ -1878,10 +1914,15 @@
                     ss(uniq("cont_media_fullscreen_close_bar"), {
                       "": (s) => {
                         s.justifyContent = "end";
+                        s.padding = varPSmall;
                       },
                     }),
                   ],
-                  children_: [buttonClose],
+                  children_: [
+                    buttonClose,
+                    leafSpace({}).root,
+                    buttonFullscreen,
+                  ],
                 }
               ),
             ],
@@ -1945,7 +1986,7 @@
             ss(uniq("cont_modal_outer"), {
               "": (s) => {
                 s.position = "fixed";
-                s.zIndex = "3";
+                s.zIndex = "4";
                 s.top = "0";
                 s.bottom = "0";
                 s.left = "0";
@@ -2957,6 +2998,176 @@
       };
     };
 
+  // /////////////////////////////////////////////////////////////////////////////
+  // xx Components, styles: fullscreen, media comic
+  presentation.contMediaComicOuter =
+    /** @type {Presentation["contMediaComicOuter"]} */ (args) => ({
+      root: e(
+        "div",
+        {},
+        {
+          styles_: [
+            ss(uniq("cont_media_comic_outer2"), {
+              "": (s) => {
+                s.width = "100%";
+                s.maxWidth = "100%";
+                s.minHeight = "0";
+                s.flexBasis = "0";
+
+                s.display = "grid";
+                s.gridTemplateColumns = "1fr";
+                s.gridTemplateRows = "1fr auto 1fr";
+                s.alignItems = "center";
+
+                s.backgroundColor = varCBackground;
+              },
+              ">*": (s) => {
+                s.gridRow = "2";
+                s.gridColumn = "1";
+              },
+            }),
+          ],
+          children_: args.children,
+        }
+      ),
+    });
+  presentation.contMediaComicInner =
+    /** @type {Presentation["contMediaComicInner"]} */ (args) => {
+      // This scales to the height required to show a representative (media (TODO), please don't include obi) page's width.
+      // This is done by making a container with 2 children:
+      // - The strut uses aspect ratio to get the height required to show full width. This will be short for wide pages
+      //   (but very tall for narrow pages). The container sets its height to max (the strut, the available height)
+      // - The 2nd child is the container for the pages, which is scaled to the parent height.
+
+      const strut = e(
+        "div",
+        {},
+        {
+          styles_: [
+            ss(uniq("cont_media_comic_inner_strut"), {
+              "": (s) => {
+                s.maxWidth = "100%";
+                s.gridColumn = "1";
+                s.gridRow = "1";
+              },
+            }),
+          ],
+        }
+      );
+      strut.style.aspectRatio = `${args.minAspectX}/${args.minAspectY}`;
+
+      if (args.rtl) {
+        args.children.reverse();
+      }
+      const contScroll = e(
+        "div",
+        {},
+        {
+          styles_: [
+            ss(uniq("cont_media_comic_inner_inner"), {
+              "": (s) => {
+                s.position = "absolute";
+                s.left = "0";
+                s.right = "0";
+                s.top = "0";
+                s.bottom = "0";
+
+                s.overflowX = "scroll";
+                s.display = "flex";
+
+                // For user scrollbar interaction
+                s.pointerEvents = "initial";
+              },
+            }),
+          ],
+          children_: args.children,
+        }
+      );
+
+      return {
+        contScroll: contScroll,
+        root: e(
+          "div",
+          {},
+          {
+            styles_: [
+              ss(uniq("cont_media_comic_outer"), {
+                "": (s) => {
+                  s.width = "100%";
+                  s.maxWidth = "100%";
+
+                  // Hack, we can't use min(max-content, 100%) so instead use maxHeight and height which
+                  // combine to form a min... thanks again CSS for straightforward and intuitive basic tools
+                  s.height = "max-content";
+                  s.maxHeight = "100%";
+
+                  s.display = "grid";
+                  s.gridTemplateColumns = "1fr";
+                  s.gridTemplateRows = "1fr";
+                  s.overflow = "hidden";
+                  s.position = "relative";
+
+                  // For click, scroll wheel events
+                  s.pointerEvents = "initial";
+                },
+              }),
+            ],
+            children_: [strut, contScroll],
+          }
+        ),
+      };
+    };
+  presentation.leafMediaComicEndPad =
+    /** @type {Presentation["leafMediaComicEndPad"]} */ (args) => ({
+      root: e(
+        "div",
+        {},
+        {
+          styles_: [
+            ss(uniq("leaf_media_comic_end_pad"), {
+              "": (s) => {
+                s.minWidth = "50dvw";
+              },
+            }),
+          ],
+        }
+      ),
+    });
+  presentation.leafMediaComicMidPad =
+    /** @type {Presentation["leafMediaComicMidPad"]} */ (args) => ({
+      root: e(
+        "div",
+        {},
+        {
+          styles_: [
+            ss(uniq("leaf_media_comic_mid_pad"), {
+              "": (s) => {
+                s.minWidth = "1cm";
+              },
+            }),
+          ],
+        }
+      ),
+    });
+  presentation.leafMediaComicPage =
+    /** @type {Presentation["leafMediaComicPage"]} */ (args) => {
+      const out = e(
+        "img",
+        { src: args.src, loading: "lazy" },
+        {
+          styles_: [
+            ss(uniq("leaf_media_comic_page"), {
+              "": (s) => {
+                s.height = "100%";
+                s.flexShrink = "0";
+              },
+            }),
+          ],
+        }
+      );
+      out.style.aspectRatio = `${args.aspectX}/${args.aspectY}`;
+      return { root: out };
+    };
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: page, form
 
@@ -3744,9 +3955,9 @@
   presentation.leafMenuBarButtonLogout =
     /** @type {Presentation["leafMenuBarButtonLogout"]} */ (args) =>
       presentation.leafButtonBig({
-        title: "Login",
+        title: "Logout",
         icon: textIconLogout,
-        text: "Login",
+        text: "Logout",
       });
 
   presentation.contMenuGroup = /** @type {Presentation["contMenuGroup"]} */ (

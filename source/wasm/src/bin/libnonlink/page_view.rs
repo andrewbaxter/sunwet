@@ -321,6 +321,7 @@ impl Build {
                             menu_item_id: menu_item_id.clone(),
                             query: query_id.clone(),
                             parameters: params,
+                            pagination: None,
                         }).await?;
                         let mut out = vec![];
                         for v in res.records {
@@ -419,7 +420,7 @@ impl Build {
         data_id: &Vec<usize>,
         data_at: &Vec<DataStackLevel>,
     ) -> El {
-        return el_async({
+        let build_infinite_page = {
             let menu_item_id = self.menu_item_id.clone();
             let vs = self.vs.clone();
             let param_data = self.param_data.clone();
@@ -431,21 +432,92 @@ impl Build {
             let config_query_params = config_query_params.clone();
             let data_id = data_id.clone();
             let data_at = data_at.clone();
+            move |chunk: Vec<(usize, TreeNode)>, node_meta: Rc<HashMap<Node, NodeMeta>>| -> Vec<El> {
+                return eg.event(|pc| {
+                    let mut build = Build {
+                        menu_item_id: menu_item_id.clone(),
+                        param_data: param_data.clone(),
+                        restore_playlist_pos: restore_playlist_pos.clone(),
+                        playlist_add: Default::default(),
+                        want_media: false,
+                        have_media: have_media.clone(),
+                        transport_slot: transport_slot.clone(),
+                        vs: vs.clone(),
+                    };
+                    let mut children = vec![];
+                    for (i, new_data_at_top) in chunk {
+                        let mut data_at = data_at.clone();
+                        data_at.push(DataStackLevel {
+                            data: new_data_at_top,
+                            node_meta: node_meta.clone(),
+                        });
+                        let mut data_id = data_id.clone();
+                        data_id.push(i);
+                        let mut blocks = vec![];
+                        for config_at in &config_at.row_blocks {
+                            let block_contents =
+                                build.build_widget(pc, &config_at.widget, &config_query_params, &data_id, &data_at);
+                            blocks.push(style_export::cont_view_block(style_export::ContViewBlockArgs {
+                                children: vec![block_contents],
+                                width: config_at.width.clone(),
+                            }).root);
+                        }
+                        children.push(
+                            style_export::cont_view_row(style_export::ContViewRowArgs { blocks: blocks }).root,
+                        );
+                    }
+                    playlist_extend(pc, &state().playlist, vs.clone(), build.playlist_add, &restore_playlist_pos);
+                    if !build.have_media.get() && build.want_media {
+                        build.transport_slot.ref_push(build_transport(pc));
+                        build.have_media.set(true);
+                    }
+                    return children;
+                }).unwrap();
+            }
+        };
+        return el_async({
+            let config_at = config_at.clone();
+            let menu_item_id = self.menu_item_id.clone();
+            let config_query_params = config_query_params.clone();
+            let data_at = data_at.clone();
             async move {
-                let node_meta;
-                let new_data_at_tops;
+                let body = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
                 match config_at.data {
-                    QueryOrField::Field(config_at) => {
-                        let Some(TreeNode::Array(res)) = maybe_get_field(&config_at, &data_at) else {
+                    QueryOrField::Field(data_field) => {
+                        let Some(TreeNode::Array(res)) = maybe_get_field(&data_field, &data_at) else {
                             return Err(
                                 format!(
                                     "Data rows field [{}] must be an array, but it is missing or not an array",
-                                    config_at
+                                    data_field
                                 ),
                             );
                         };
-                        new_data_at_tops = res;
-                        node_meta = Default::default();
+                        let new_data_at_tops = res;
+                        let mut chunked_data = vec![];
+                        let mut chunk_top = vec![];
+                        for e in new_data_at_tops.into_iter().enumerate() {
+                            chunk_top.push(e);
+                            if chunk_top.len() > 20 {
+                                chunked_data.push(chunk_top.split_off(0));
+                            }
+                        }
+                        if !chunk_top.is_empty() {
+                            chunked_data.push(chunk_top);
+                        }
+                        if chunked_data.is_empty() {
+                            chunked_data.push(Default::default());
+                        }
+                        let mut chunked_data = chunked_data.into_iter();
+                        build_infinite(body.clone(), chunked_data.next().unwrap(), {
+                            let build_infinite_page = build_infinite_page.clone();
+                            move |chunk| {
+                                let children = build_infinite_page(chunk, Default::default());
+                                let next_key = chunked_data.next();
+                                async move {
+                                    Ok((next_key, children))
+                                }
+                            }
+                        });
                     },
                     QueryOrField::Query(query_id) => {
                         let mut params = HashMap::new();
@@ -462,98 +534,41 @@ impl Build {
                                 params.insert(k.clone(), v);
                             }
                         }
-                        let res = req_post_json(&state().env.base_url, ReqViewQuery {
-                            menu_item_id: menu_item_id.clone(),
-                            query: query_id.clone(),
-                            parameters: params,
-                        }).await?;
-                        let mut out = vec![];
-                        for v in res.records {
-                            out.push(TreeNode::Record(v));
-                        }
-                        new_data_at_tops = out;
-                        node_meta = Rc::new(res.meta.into_iter().collect::<HashMap<_, _>>());
+                        build_infinite(body.clone(), None, {
+                            let menu_item_id = menu_item_id.clone();
+                            let query_id = query_id.clone();
+                            let mut count = 0usize;
+                            move |key| {
+                                let menu_item_id = menu_item_id.clone();
+                                let query_id = query_id.clone();
+                                let params = params.clone();
+                                let build_infinite_page = build_infinite_page.clone();
+                                async move {
+                                    let res = req_post_json(&state().env.base_url, ReqViewQuery {
+                                        menu_item_id: menu_item_id.clone(),
+                                        query: query_id.clone(),
+                                        parameters: params,
+                                        pagination: Some((20, key)),
+                                    }).await?;
+                                    let mut chunk = vec![];
+                                    for v in res.records {
+                                        chunk.push((count, TreeNode::Record(v)));
+                                        count += 1;
+                                    }
+                                    Ok(
+                                        (
+                                            res.page_end.map(|x| Some(x)),
+                                            build_infinite_page(
+                                                chunk,
+                                                Rc::new(res.meta.into_iter().collect::<HashMap<_, _>>()),
+                                            ),
+                                        ),
+                                    )
+                                }
+                            }
+                        });
                     },
                 }
-                let mut chunked_data = vec![];
-                let mut chunk_top = vec![];
-                for e in new_data_at_tops.into_iter().enumerate() {
-                    chunk_top.push(e);
-                    if chunk_top.len() > 20 {
-                        chunked_data.push(chunk_top.split_off(0));
-                    }
-                }
-                if !chunk_top.is_empty() {
-                    chunked_data.push(chunk_top);
-                }
-                if chunked_data.is_empty() {
-                    chunked_data.push(Default::default());
-                }
-                let mut chunked_data = chunked_data.into_iter();
-                let body = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
-                build_infinite(body.clone(), chunked_data.next().unwrap(), {
-                    let vs = vs.clone();
-                    move |chunk| {
-                        let children = eg.event(|pc| {
-                            let mut build = Build {
-                                menu_item_id: menu_item_id.clone(),
-                                param_data: param_data.clone(),
-                                restore_playlist_pos: restore_playlist_pos.clone(),
-                                playlist_add: Default::default(),
-                                want_media: false,
-                                have_media: have_media.clone(),
-                                transport_slot: transport_slot.clone(),
-                                vs: vs.clone(),
-                            };
-                            let mut children = vec![];
-                            for (i, new_data_at_top) in chunk {
-                                let mut data_at = data_at.clone();
-                                data_at.push(DataStackLevel {
-                                    data: new_data_at_top,
-                                    node_meta: node_meta.clone(),
-                                });
-                                let mut data_id = data_id.clone();
-                                data_id.push(i);
-                                let mut blocks = vec![];
-                                for config_at in &config_at.row_blocks {
-                                    let block_contents =
-                                        build.build_widget(
-                                            pc,
-                                            &config_at.widget,
-                                            &config_query_params,
-                                            &data_id,
-                                            &data_at,
-                                        );
-                                    blocks.push(style_export::cont_view_block(style_export::ContViewBlockArgs {
-                                        children: vec![block_contents],
-                                        width: config_at.width.clone(),
-                                    }).root);
-                                }
-                                children.push(
-                                    style_export::cont_view_row(
-                                        style_export::ContViewRowArgs { blocks: blocks },
-                                    ).root,
-                                );
-                            }
-                            playlist_extend(
-                                pc,
-                                &state().playlist,
-                                vs.clone(),
-                                build.playlist_add,
-                                &restore_playlist_pos,
-                            );
-                            if !build.have_media.get() && build.want_media {
-                                build.transport_slot.ref_push(build_transport(pc));
-                                build.have_media.set(true);
-                            }
-                            return children;
-                        }).unwrap();
-                        let next_key = chunked_data.next();
-                        async move {
-                            Ok((next_key, children))
-                        }
-                    }
-                });
                 return Ok(vec![body]);
             }
         });

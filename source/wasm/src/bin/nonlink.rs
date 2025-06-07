@@ -74,11 +74,11 @@ use {
         async_::bg_val,
         js::{
             el_async_,
-            log,
             scan_env,
             style_export::{
                 self,
             },
+            LogJsErr,
         },
     },
     wasm_bindgen::JsCast,
@@ -140,12 +140,14 @@ pub fn main() {
                 }
                 let client_config = client_config.get().await?;
 
-                fn build_menu_item(config: &ClientConfig, item: &ClientMenuItem) -> El {
+                fn build_menu_item(config: &ClientConfig, carry_titles: &Vec<String>, item: &ClientMenuItem) -> El {
                     match item {
                         ClientMenuItem::Section(item) => {
+                            let mut sub_carry_titles = carry_titles.clone();
+                            sub_carry_titles.push(item.name.clone());
                             let mut children = vec![];
                             for child in &item.children {
-                                children.push(build_menu_item(config, &child));
+                                children.push(build_menu_item(config, &sub_carry_titles, &child));
                             }
                             return style_export::cont_menu_group(style_export::ContMenuGroupArgs {
                                 title: item.name.clone(),
@@ -157,7 +159,7 @@ pub fn main() {
                                 title: item.name.clone(),
                                 href: ministate_octothorpe(&Ministate::MenuItem(MinistateMenuItem {
                                     menu_item_id: item.id.clone(),
-                                    title: item.name.clone(),
+                                    title: format!("{}, {}", carry_titles.join(", "), item.name),
                                     pos: None,
                                     params: Default::default(),
                                 })),
@@ -168,7 +170,7 @@ pub fn main() {
                                 title: item.name.clone(),
                                 href: ministate_octothorpe(&Ministate::MenuItem(MinistateMenuItem {
                                     menu_item_id: item.id.clone(),
-                                    title: item.name.clone(),
+                                    title: format!("{}, {}", carry_titles.join(", "), item.name),
                                     pos: None,
                                     params: Default::default(),
                                 })),
@@ -185,7 +187,7 @@ pub fn main() {
 
                 let mut root = vec![];
                 for item in &client_config.0.menu {
-                    root.push(build_menu_item(&client_config.0, item));
+                    root.push(build_menu_item(&client_config.0, &vec![], item));
                 }
                 let mut bar_children = vec![];
                 match &whoami {
@@ -213,7 +215,6 @@ pub fn main() {
                     },
                     RespWhoAmI::Token => { },
                 }
-                log("end of menu");
                 return Ok(vec![style_export::cont_menu_body(style_export::ContMenuBodyArgs {
                     children: root,
                     user: match whoami {
@@ -226,12 +227,12 @@ pub fn main() {
             }
         });
         let main_title = style_export::leaf_title(style_export::LeafTitleArgs { text: "Sunwet".to_string() }).root;
-        let root_res = style_export::app_main(style_export::AppMainArgs {
+        let app_res = style_export::app_main(style_export::AppMainArgs {
             main_title: main_title.clone(),
             main_body: main_body.clone(),
             menu_body: menu_body.clone(),
         });
-        root_res.admenu_button.on("click", {
+        app_res.admenu_button.on("click", {
             let eg = pc.eg();
             move |_| eg.event(|pc| {
                 let current_open = *state().menu_open.borrow();
@@ -284,64 +285,102 @@ pub fn main() {
         }).forget();
 
         // Root and display
-        set_root(vec![style_export::cont_stack(style_export::ContStackArgs { children: vec![] }).root.own(|stack| (
-            //. .
-            playlist_root,
-            link!(
-                (pc = pc),
-                (playing_i = state().playlist.0.playing_i.clone(), playing = state().playlist.0.playing.clone()),
-                (),
-                (state = state.clone(), stack = stack.weak(), current = Rc::new(RefCell::new(None as Option<El>))) {
-                    if !playing.get() {
-                        return None;
-                    }
-                    if !(!playing.get_old() || playing_i.get() != playing_i.get_old()) {
-                        return None;
-                    }
-                    let Some(stack) = stack.upgrade() else {
-                        return None;
-                    };
-                    let e = state().playlist.0.playlist.borrow().get(&playing_i.get().unwrap()).cloned().unwrap();
-                    if !e.media.pm_display() {
-                        return None;
-                    }
-                    if let Some(current) = current.borrow_mut().take() {
-                        current.ref_replace(vec![]);
-                    }
-                    let media_el = e.media.pm_el();
-                    let modal =
-                        style_export::cont_media_fullscreen(
-                            style_export::ContMediaFullscreenArgs { media: media_el.clone() },
-                        );
-                    modal.button_close.on("click", {
-                        let state = state.clone();
-                        let current = Rc::downgrade(&current);
-                        let eg = pc.eg();
-                        move |_| eg.event(|pc| {
-                            let Some(current) = current.upgrade() else {
-                                return;
-                            };
-                            if let Some(current) = current.borrow_mut().take() {
-                                current.ref_replace(vec![]);
+        set_root(
+            vec![
+                style_export::cont_root_stack(style_export::ContRootStackArgs { children: vec![] })
+                    .root
+                    .own(|modal_stack| (
+                        //. .
+                        playlist_root,
+                        link!(
+                            (pc = pc),
+                            (
+                                playing_i = state().playlist.0.playing_i.clone(),
+                                playing = state().playlist.0.playing.clone(),
+                            ),
+                            (),
+                            (
+                                state = state.clone(),
+                                modal_stack = modal_stack.weak(),
+                                current = Rc::new(RefCell::new(None as Option<El>))
+                            ) {
+                                if !playing.get() {
+                                    return None;
+                                }
+                                if !(!playing.get_old() || playing_i.get() != playing_i.get_old()) {
+                                    return None;
+                                }
+                                let Some(modal_stack) = modal_stack.upgrade() else {
+                                    return None;
+                                };
+                                let e =
+                                    state()
+                                        .playlist
+                                        .0
+                                        .playlist
+                                        .borrow()
+                                        .get(&playing_i.get().unwrap())
+                                        .cloned()
+                                        .unwrap();
+                                if !e.media.pm_display() {
+                                    return None;
+                                }
+                                if let Some(current) = current.borrow_mut().take() {
+                                    current.ref_replace(vec![]);
+                                }
+                                let media_display = e.media.pm_el(pc);
+                                let media_display_raw = media_display.raw();
+                                let modal =
+                                    style_export::cont_media_fullscreen(
+                                        style_export::ContMediaFullscreenArgs { media: media_display },
+                                    );
+                                modal.button_close.on("click", {
+                                    let state = state.clone();
+                                    let current = Rc::downgrade(&current);
+                                    let eg = pc.eg();
+                                    move |_| eg.event(|pc| {
+                                        let Some(current) = current.upgrade() else {
+                                            return;
+                                        };
+                                        if let Some(current) = current.borrow_mut().take() {
+                                            current.ref_replace(vec![]);
+                                        }
+                                        state().playlist.0.playing.set(pc, false);
+                                    }).unwrap()
+                                });
+                                modal.button_fullscreen.on("click", {
+                                    let media_display_raw = media_display_raw.clone();
+                                    move |_| {
+                                        media_display_raw
+                                            .request_fullscreen()
+                                            .log("Error making media display fullscreen");
+                                    }
+                                });
+                                let modal = modal.root;
+                                *current.borrow_mut() = Some(modal.clone());
+                                modal_stack.ref_push(modal);
+                                media_display_raw.request_fullscreen().log("Error making media display fullscreen");
                             }
-                            state().playlist.0.playing.set(pc, false);
-                        }).unwrap()
-                    });
-                    let modal = modal.root;
-                    *current.borrow_mut() = Some(modal.clone());
-                    stack.ref_push(modal);
-                    _ = e.media.pm_el().raw().request_fullscreen();
-                }
-            ),
-            link!((_pc = pc), (menu_open = state().menu_open.clone()), (), () {
-                let new_open = *menu_open.borrow();
-                let state_open = style_export::class_menu_state_open().value;
-                let x = document().get_elements_by_class_name(&style_export::class_menu_want_state_open().value);
-                for i in 0 .. x.length() {
-                    let ele = x.item(i).unwrap().dyn_into::<HtmlElement>().unwrap();
-                    ele.class_list().toggle_with_force(&state_open, new_open).unwrap();
-                }
-            }),
-        )).push(root_res.root).push(modal_stack)]);
+                        ),
+                        link!((_pc = pc), (menu_open = state().menu_open.clone()), (), () {
+                            let new_open = *menu_open.borrow();
+                            let state_open = style_export::class_menu_state_open().value;
+                            let x =
+                                document().get_elements_by_class_name(
+                                    &style_export::class_menu_want_state_open().value,
+                                );
+                            for i in 0 .. x.length() {
+                                let ele = x.item(i).unwrap().dyn_into::<HtmlElement>().unwrap();
+                                ele.class_list().toggle_with_force(&state_open, new_open).unwrap();
+                            }
+                        }),
+                    ))
+                    .push(
+                        style_export::cont_stack(
+                            style_export::ContStackArgs { children: vec![app_res.root, modal_stack] },
+                        ).root,
+                    )
+            ],
+        );
     });
 }

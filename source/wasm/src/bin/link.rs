@@ -1,7 +1,10 @@
 use {
     chrono::Utc,
     flowcontrol::shed,
-    futures::future::join_all,
+    futures::{
+        future::join_all,
+        FutureExt,
+    },
     gloo::{
         timers::future::TimeoutFuture,
         utils::document,
@@ -216,10 +219,10 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
                                     },
                                     PrepareMedia::Comic(source_url) => {
                                         state.0.display_under.ref_modify_classes(&[(&class_state_hide, true)]);
-                                        media = eg.event(|pc| Rc::new(PlaylistMediaComic::new(pc, &match source_url {
+                                        media = Rc::new(PlaylistMediaComic::new(&match source_url {
                                             SourceUrl::Url(u) => u,
                                             SourceUrl::File(h) => generated_file_url(&env, &h, GENTYPE_DIR, ""),
-                                        }, |url| async move {
+                                        }, Rc::new(|url| async move {
                                             return Ok(
                                                 serde_json::from_slice::<ComicManifest>(
                                                     &Request::get(&url)
@@ -238,16 +241,16 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
                                                         )?,
                                                 ).map_err(|e| format!("Error reading comic manifest: {}", e))?,
                                             );
-                                        }, 0))).unwrap();
-                                        state.0.display.ref_push(media.pm_el().clone());
+                                        }.boxed_local()), 0));
+                                        eg.event(|pc| state.0.display.ref_push(media.pm_el(pc).clone())).unwrap();
                                     },
                                     PrepareMedia::Book(source_url) => {
                                         state.0.display_under.ref_modify_classes(&[(&class_state_hide, true)]);
-                                        media = eg.event(|pc| Rc::new(PlaylistMediaBook::new(pc, &match source_url {
+                                        media = Rc::new(PlaylistMediaBook::new(&match source_url {
                                             SourceUrl::Url(u) => u,
                                             SourceUrl::File(h) => generated_file_url(&env, &h, GENTYPE_DIR, ""),
-                                        }, 0))).unwrap();
-                                        state.0.display.ref_push(media.pm_el().clone());
+                                        }, 0));
+                                        eg.event(|pc| state.0.display.ref_push(media.pm_el(pc).clone())).unwrap();
                                     },
                                 }
                                 eg.event(|pc| {

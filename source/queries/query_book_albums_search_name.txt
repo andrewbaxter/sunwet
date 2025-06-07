@@ -2,6 +2,5 @@ search $name -< "sunwet/1/name"
     -& (
         ?(-> "sunwet/1/is" == "sunwet/1/album")
         ?(-> "sunwet/1/media" == "sunwet/1/book")
-        ?( -> "sunwet/1/language" == $lang )
     )
-    include "query_audio_albums_suffix.txt"
+    include "query_book_albums_suffix.txt"

@@ -3,7 +3,7 @@
     ( -> "sunwet/1/add_timestamp" first { => album_add_timestamp } )
     ( -> "sunwet/1/name" first { => album_name } )
     (
-        -> "sunwet/1/artist" first {
+        -> "sunwet/1/track" -> "sunwet/1/artist" first {
             => album_artist_id
             ( -> "sunwet/1/name" first { => album_artist_name } )
         }

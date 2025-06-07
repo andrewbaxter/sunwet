@@ -229,11 +229,17 @@
       menuBody: stagingMenu,
     }).root;
 
+    const buildRoot = /** @type {(e: Element)=>void} */ (e) => {
+      document.body.appendChild(
+        presentation.contRootStack({ children: [e] }).root
+      );
+    };
+
     const hash = location.hash;
     switch (hash) {
       case "#main_async":
         {
-          document.body.appendChild(
+          buildRoot(
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "" }).root,
               mainBody: presentation.leafAsyncBlock({
@@ -246,7 +252,7 @@
         break;
       case "#main_err":
         {
-          document.body.appendChild(
+          buildRoot(
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "" }).root,
               mainBody: presentation.leafErrBlock({
@@ -260,7 +266,7 @@
         break;
       case "#home":
         {
-          document.body.appendChild(
+          buildRoot(
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "" }).root,
               mainBody: presentation.contPageHome({}).root,
@@ -271,12 +277,12 @@
         break;
       case "#view":
         {
-          document.body.appendChild(stagingPageView);
+          buildRoot(stagingPageView);
         }
         break;
       case "#menu":
         {
-          document.body.appendChild(stagingPageView);
+          buildRoot(stagingPageView);
           for (const e of document.getElementsByClassName(
             presentation.classMenuWantStateOpen({}).value
           )) {
@@ -286,8 +292,8 @@
         break;
       case "#view_modal_share":
         {
-          document.body.appendChild(stagingPageView);
-          document.body.appendChild(
+          buildRoot(stagingPageView);
+          buildRoot(
             presentation.contModalViewShare({
               qr: /** @type {HTMLElement} */ (
                 new DOMParser().parseFromString(
@@ -312,7 +318,7 @@
         {
           const media = document.createElement("div");
           media.style.border = "1px solid blue";
-          document.body.appendChild(
+          buildRoot(
             presentation.contMediaFullscreen({
               media: media,
             }).root
@@ -337,7 +343,7 @@
           modInput.input.classList.add(
             presentation.classStateModified({}).value
           );
-          document.body.appendChild(
+          buildRoot(
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "Music" }).root,
               mainBody: presentation.contPageForm({
@@ -401,7 +407,7 @@
         break;
       case "#node_view":
         {
-          document.body.appendChild(
+          buildRoot(
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "Music" }).root,
               mainBody: presentation.contPageNode({
@@ -496,7 +502,7 @@
                 json: "JSON",
               },
             }).root;
-          document.body.appendChild(
+          buildRoot(
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "Music" }).root,
               mainBody: presentation.contPageNode({
@@ -619,7 +625,7 @@
         break;
       case "#history":
         {
-          document.body.appendChild(
+          buildRoot(
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "History" }).root,
               mainBody: presentation.contPageNode({
@@ -776,12 +782,12 @@
         break;
       case "#link_perms":
         {
-          document.body.appendChild(presentation.appLinkPerms({}).root);
+          buildRoot(presentation.appLinkPerms({}).root);
         }
         break;
       case "#link_waiting":
         {
-          document.body.appendChild(presentation.appLink({}).root);
+          buildRoot(presentation.appLink({}).root);
         }
         break;
       case "#link":
@@ -791,7 +797,55 @@
           cover.src = "testcover.jpg";
           a.displayOver.innerHTML = "";
           a.display.appendChild(cover);
-          document.body.appendChild(a.root);
+          buildRoot(a.root);
+        }
+        break;
+      case "#media_comic":
+        {
+          const baseUrl =
+            "/mnt/home-dev/r/server3/servers/main/stage/testmedia/xmen/";
+          /** @type { {rtl: boolean, pages: {width: number, height: number, path: string }[]} } */
+          const manifest = await (await fetch(`${baseUrl}sunwet.json`)).json();
+
+          const children = [];
+          var minAspect = 1;
+          for (let i = 0; i < manifest.pages.length; i += 1) {
+            const page = manifest.pages[i];
+
+            const img = presentation.leafMediaComicPage({
+              src: `${baseUrl}${page.path}`,
+              aspectX: page.width.toString(),
+              aspectY: page.height.toString(),
+            }).root;
+            const vertAspect = page.width / page.height;
+            if (vertAspect < minAspect) {
+              minAspect = vertAspect;
+            }
+
+            if (i == 0) {
+              children.push(presentation.leafMediaComicEndPad({}).root);
+            } else if (i % 2 == 1) {
+              children.push(presentation.leafMediaComicMidPad({}).root);
+            }
+            children.push(img);
+            if (i == manifest.pages.length - 1) {
+              children.push(presentation.leafMediaComicEndPad({}).root);
+            }
+          }
+          buildRoot(
+            presentation.contMediaFullscreen({
+              media: presentation.contMediaComicOuter({
+                children: [
+                  presentation.contMediaComicInner({
+                    minAspectX: minAspect.toString(),
+                    minAspectY: "1",
+                    children: children,
+                    rtl: true,
+                  }).root,
+                ],
+              }).root,
+            }).root
+          );
         }
         break;
       default:

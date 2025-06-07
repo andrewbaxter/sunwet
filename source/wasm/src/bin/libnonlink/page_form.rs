@@ -468,6 +468,7 @@ pub fn build_page_form(
                         let res = req_post_json(&state().env.base_url, ReqQuery {
                             query: field2.query.clone(),
                             parameters: HashMap::new(),
+                            pagination: None,
                         }).await?;
                         let mut choices = vec![];
                         for mut choice in res.records {

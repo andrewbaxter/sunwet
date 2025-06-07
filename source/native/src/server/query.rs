@@ -755,6 +755,8 @@ fn build_chain(
     });
 }
 
+const COL_PAGE_KEY: &str = "page_key";
+
 pub fn build_root_chain(
     root_chain: Chain,
     parameters: HashMap<String, Node>,
@@ -894,18 +896,18 @@ pub fn build_root_chain(
     let cte = build_chain(&mut query_state, None, root_chain)?;
     let mut sel_root = sea_query::Query::select();
     sel_root.from(cte.cte);
+    sel_root.expr_as(
+        sea_query::ColumnRef::TableColumn(cte.cte_name.clone(), query_state.ident_col_end.clone()),
+        SeaRc::new(Alias::new(COL_PAGE_KEY.to_string())),
+    );
     for (name, plural) in cte.selects {
+        let user_name = SeaRc::new(Alias::new(format!("_{}", name)));
         let expr = sql_fn("json_object", vec![
             //. .
             Expr::value("scalar"),
             query_state.func_json_extract.clone().arg(sql_fn("ifnull", vec![
                 //. .
-                SimpleExpr::from(
-                    sea_query::ColumnRef::TableColumn(
-                        cte.cte_name.clone(),
-                        SeaRc::new(Alias::new(format!("_{}", name))),
-                    ),
-                ),
+                SimpleExpr::from(sea_query::ColumnRef::TableColumn(cte.cte_name.clone(), user_name.clone())),
                 sql_fn(
                     "json_object",
                     vec![
@@ -917,7 +919,7 @@ pub fn build_root_chain(
                 )
             ])).arg("$").into()
         ]);
-        let ident_name = SeaRc::new(Alias::new(name));
+        let ident_name = user_name;
         if plural {
             sel_root.expr_as(sql_fn("json_object", vec![
                 //. .
@@ -937,13 +939,18 @@ pub fn build_root_chain(
     return Ok(sel.build_rusqlite(sea_query::SqliteQueryBuilder));
 }
 
+pub struct Row {
+    pub value: BTreeMap<String, TreeNode>,
+    pub pagination_key: Node,
+}
+
 pub fn execute_sql_query(
     db: &rusqlite::Connection,
     sql_query: String,
     sql_parameters: sea_query_rusqlite::RusqliteValues,
     sort: Option<QuerySort>,
-) -> Result<Vec<BTreeMap<String, TreeNode>>, loga::Error> {
-    eprintln!("query {}", sql_query);
+    paginate: Option<(usize, Option<Node>)>,
+) -> Result<Vec<Row>, loga::Error> {
     let mut s = db.prepare(&sql_query)?;
     let column_names = s.column_names().into_iter().map(|k| k.to_string()).collect::<Vec<_>>();
     let mut sql_rows = s.query(&*sql_parameters.as_params()).context("Error executing query")?;
@@ -953,14 +960,30 @@ pub fn execute_sql_query(
             break;
         };
         let mut got_row1 = BTreeMap::new();
+        let mut pagination_key = None;
         for (i, name) in column_names.iter().enumerate() {
-            let value =
-                serde_json::from_str::<TreeNode>(
-                    &got_row.get::<usize, Option<String>>(i).unwrap().unwrap(),
-                ).unwrap();
-            got_row1.insert(name.to_string(), value);
+            if name.as_str() == COL_PAGE_KEY {
+                pagination_key =
+                    Some(
+                        serde_json::from_str::<Node>(
+                            &got_row.get::<usize, Option<String>>(i).unwrap().unwrap(),
+                        ).unwrap(),
+                    );
+            } else if let Some(name) = name.strip_prefix("_") {
+                got_row1.insert(
+                    name.to_string(),
+                    serde_json::from_str::<TreeNode>(
+                        &got_row.get::<usize, Option<String>>(i).unwrap().unwrap(),
+                    ).unwrap(),
+                );
+            } else {
+                panic!("Unrecognized returned field {}", name);
+            }
         }
-        out.push(got_row1);
+        out.push(Row {
+            value: got_row1,
+            pagination_key: pagination_key.unwrap(),
+        });
     }
     if let Some(sort) = sort {
         match sort {
@@ -970,7 +993,7 @@ pub fn execute_sql_query(
             QuerySort::Fields(sort) => {
                 out.sort_unstable_by(|a, b| {
                     for (dir, key) in &sort {
-                        let res = a.get(key).partial_cmp(&b.get(key)).unwrap_or(Ordering::Equal);
+                        let res = a.value.get(key).partial_cmp(&b.value.get(key)).unwrap_or(Ordering::Equal);
                         let rev = *dir == QuerySortDir::Desc;
                         match res {
                             Ordering::Less => if rev {
@@ -991,16 +1014,28 @@ pub fn execute_sql_query(
             },
         }
     }
-    return Ok(out);
+    if let Some((count, after)) = paginate {
+        if let Some(after) = after {
+            return Ok(out.into_iter().skip_while(|x| x.pagination_key < after).take(count).collect());
+        } else {
+            return Ok(out.into_iter().take(count).collect());
+        }
+    } else {
+        return Ok(out.into_iter().collect());
+    }
 }
 
 pub async fn execute_query(
     db: &Pool,
     query: Query,
     parameters: HashMap<String, Node>,
-) -> Result<Vec<BTreeMap<String, TreeNode>>, loga::Error> {
+    paginate: Option<(usize, Option<Node>)>,
+) -> Result<Vec<Row>, loga::Error> {
+    // Sorting currently happens in rust because sql does string sorting on json
+    // fields, not value-based sorting (ex: numbers). Therefore pagination also has to
+    // happen in rust.
     let (sql_query, sql_parameters) = build_root_chain(query.chain, parameters)?;
     return Ok(tx(&db, move |txn| {
-        return Ok(execute_sql_query(txn, sql_query, sql_parameters, query.sort)?);
+        return Ok(execute_sql_query(txn, sql_query, sql_parameters, query.sort, paginate)?);
     }).await?);
 }

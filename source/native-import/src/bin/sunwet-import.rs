@@ -176,8 +176,9 @@ fn is_doc(p: &[u8]) -> bool {
 }
 
 fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
-    let sunwet_dir = root_dir.join("sunwet");
-    create_dir_all(&sunwet_dir).context("Error making sunwet dir")?;
+    let sunwet_out_meta_dir = root_dir.join("sunwet");
+    let sunwet_out_meta = root_dir.join("sunwet.json");
+    create_dir_all(&sunwet_out_meta_dir).context("Error making sunwet dir")?;
     let timestamp = node_value_str(&Utc::now().to_rfc3339());
 
     // Gather metadata from tracks, prepare dir-associated data
@@ -233,6 +234,9 @@ fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
                 continue;
             },
         };
+        if file.path().starts_with(&sunwet_out_meta_dir) || file.path() == sunwet_out_meta {
+            continue;
+        }
         let meta = file.metadata()?;
         if meta.is_dir() {
             continue;
@@ -243,13 +247,13 @@ fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
         let e = file.path().extension().unwrap_or_default();
         let g;
         if is_audio(e.as_bytes()) {
-            g = gather_audio::gather(&sunwet_dir, file.path(), e);
+            g = gather_audio::gather(&sunwet_out_meta_dir, file.path(), e);
         } else if is_video(e.as_bytes()) {
             g = gather_video::gather(file.path());
         } else if is_comic(e.as_bytes()) {
-            g = gather_comic::gather(&sunwet_dir, file.path());
+            g = gather_comic::gather(&sunwet_out_meta_dir, file.path());
         } else if is_epub(e.as_bytes()) {
-            g = gather_epub::gather(&sunwet_dir, file.path());
+            g = gather_epub::gather(&sunwet_out_meta_dir, file.path());
         } else {
             leftover_files.push(file);
             continue;
@@ -381,7 +385,7 @@ fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
             ),
         );
         if let Some(lang) = &album.tracks.iter().next().unwrap().borrow().lang {
-            triples.push(triple(&node_value_str(&album.id), PREDICATE_MEDIA, &node_value_str(&lang)));
+            triples.push(triple(&node_value_str(&album.id), PREDICATE_LANG, &node_value_str(&lang)));
         }
         triples.push(triple(&node_value_str(&album.id), PREDICATE_NAME, &node_value_str(&album.name)));
         for artist in &album.artist {
@@ -421,7 +425,6 @@ fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
             triples.push(triple(&node_value_str(&track.id), PREDICATE_ADD_TIMESTAMP, &timestamp));
             triples.push(triple(&node_value_str(&track.id), PREDICATE_FILE, &node_upload(&root_dir, &track.file)));
             triples.push(triple(&node_value_str(&album.id), PREDICATE_TRACK, &node_value_str(&track.id)));
-            triples.push(triple(&node_value_str(&album.id), PREDICATE_LANG, &node_value_str(&track.id)));
             shed!{
                 'found _;
                 for covers in track.covers.values() {
@@ -450,7 +453,7 @@ fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
             triples.push(triple(&node_value_str(&album.id), PREDICATE_DOC, &node_value_str(&doc_id)));
         }
     }
-    write(root_dir.join("sunwet.json"), serde_json::to_string_pretty(&CliCommit {
+    write(sunwet_out_meta, serde_json::to_string_pretty(&CliCommit {
         add: triples,
         remove: vec![],
     }).unwrap()).context("Error writing sunwet.json")?;

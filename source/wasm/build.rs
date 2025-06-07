@@ -195,6 +195,11 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         Func {
+            name: "contRootStack",
+            args: vec![("children", &arrel_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
             name: "leafAsyncBlock",
             args: vec![("inRoot", &bool_)],
             returns: vec![("root", &el_)],
@@ -430,7 +435,7 @@ fn main() {
         Func {
             name: "contMediaFullscreen",
             args: vec![("media", &el_)],
-            returns: vec![("root", &el_), ("buttonClose", &el_)],
+            returns: vec![("root", &el_), ("buttonClose", &el_), ("buttonFullscreen", &el_)],
         },
         Func {
             name: "contModalViewShare",
@@ -556,6 +561,33 @@ fn main() {
                 ("value", &string_),
                 ("fontSize", &optstring_),
             ],
+            returns: vec![("root", &el_)],
+        },
+        // /////////////////////////////////////////////////////////////////////////////
+        // xx Components, styles: fullscreen, media comic
+        Func {
+            name: "contMediaComicOuter",
+            args: vec![("children", &arrel_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "contMediaComicInner",
+            args: vec![("minAspectX", &string_), ("minAspectY", &string_), ("children", &arrel_), ("rtl", &bool_)],
+            returns: vec![("root", &el_), ("contScroll", &el_)],
+        },
+        Func {
+            name: "leafMediaComicMidPad",
+            args: vec![],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafMediaComicEndPad",
+            args: vec![],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafMediaComicPage",
+            args: vec![("src", &string_), ("aspectX", &string_), ("aspectY", &string_)],
             returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////

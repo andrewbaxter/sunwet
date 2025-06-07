@@ -2,8 +2,7 @@ use {
     super::{
         access::Identity,
         subsystems::oidc,
-    },
-    crate::{
+    }, crate::{
         interface::{
             self,
             config::{
@@ -13,24 +12,15 @@ use {
             },
         },
         ScopeValue,
-    },
-    by_address::ByAddress,
-    cookie::time::ext::InstantExt,
-    deadpool_sqlite::Pool,
-    loga::{
+    }, by_address::ByAddress, cookie::time::ext::InstantExt, deadpool_sqlite::Pool, http::HeaderMap, loga::{
         ea,
         Log,
         ResultContext,
-    },
-    moka::future::Cache,
-    shared::interface::{
+    }, moka::future::Cache, shared::interface::{
         iam::UserIdentityId,
         triple::FileHash,
-        wire::link::{
-            WsS2L,
-        },
-    },
-    std::{
+        wire::link::WsS2L,
+    }, std::{
         collections::{
             HashMap,
             HashSet,
@@ -44,15 +34,13 @@ use {
             Duration,
             Instant,
         },
-    },
-    taskmanager::TaskManager,
-    tokio::sync::{
+    }, taskmanager::TaskManager, tokio::sync::{
         mpsc::{
             self,
             UnboundedSender,
         },
         oneshot,
-    },
+    }
 };
 
 pub struct WsLinkState<M> {
@@ -199,6 +187,7 @@ pub struct State {
     pub stage_dir: PathBuf,
     pub finishing_uploads: Mutex<HashSet<FileHash>>,
     pub generate_files: UnboundedSender<Option<FileHash>>,
+    pub http_resp_headers: HeaderMap,
     // Websockets
     pub link_sessions: Cache<String, Arc<LinkSessionState>>,
     pub link_bg: Mutex<Option<ScopeValue>>,

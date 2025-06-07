@@ -102,11 +102,22 @@ pub async fn handle_query(c: QueryCommand) -> Result<(), loga::Error> {
     } else {
         loga::INFO
     });
-    let res = req::req_simple(&log, ReqQuery {
-        query: c.query.value,
-        parameters: c.parameters.into_iter().map(|(k, v)| (k, v.0)).collect(),
-    }).await?;
-    println!("{}", serde_json::to_string_pretty(&res).unwrap());
+    let mut out = vec![];
+    const PAGE_SIZE: usize = 1000;
+    let mut pagination = Some((PAGE_SIZE, None));
+    loop {
+        let res = req::req_simple(&log, ReqQuery {
+            query: c.query.value.clone(),
+            parameters: c.parameters.iter().map(|(k, v)| (k.clone(), v.0.clone())).collect(),
+            pagination: pagination,
+        }).await?;
+        out.extend(res.records);
+        let Some(next_after) = res.page_end else {
+            break;
+        };
+        pagination = Some((PAGE_SIZE, Some(next_after)));
+    }
+    println!("{}", serde_json::to_string_pretty(&out).unwrap());
     return Ok(());
 }
 

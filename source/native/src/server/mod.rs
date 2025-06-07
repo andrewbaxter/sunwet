@@ -45,6 +45,9 @@ use {
     fsutil::create_dirs,
     http::{
         status,
+        HeaderMap,
+        HeaderName,
+        HeaderValue,
         Uri,
     },
     http_body_util::{
@@ -329,11 +332,21 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     return Ok(response_401());
                                 }
                                 let responder = req.respond();
+                                let expect_count = req.pagination.as_ref().map(|x| x.0);
                                 let records =
-                                    query::execute_query(&state.db, req.query, req.parameters).await.err_internal()?;
+                                    query::execute_query(&state.db, req.query, req.parameters, req.pagination)
+                                        .await
+                                        .err_internal()?;
+                                let page_end = expect_count.and_then(|x| {
+                                    if records.len() < x {
+                                        return None
+                                    } else {
+                                        records.last().map(|x| x.pagination_key.clone())
+                                    }
+                                });
                                 let mut files = vec![];
                                 for record in &records {
-                                    for v in record.values() {
+                                    for v in record.value.values() {
                                         gather_files(&mut files, v);
                                     }
                                 }
@@ -350,8 +363,9 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     }
                                 }).await.err_internal()?;
                                 resp = responder(RespQuery {
-                                    records: records,
+                                    records: records.into_iter().map(|x| x.value).collect(),
                                     meta: meta.into_iter().collect(),
+                                    page_end: page_end,
                                 });
                             },
                             C2SReq::ViewQuery(req) => {
@@ -399,13 +413,21 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 let mut view_hash = DefaultHasher::new();
                                 menu_item.item.hash(&mut view_hash);
                                 let view_hash = view_hash.finish();
+                                let expect_count = req.pagination.as_ref().map(|x| x.0);
                                 let records =
-                                    query::execute_query(&state.db, query.clone(), req.parameters)
+                                    query::execute_query(&state.db, query.clone(), req.parameters, req.pagination)
                                         .await
                                         .err_internal()?;
+                                let page_end = expect_count.and_then(|x| {
+                                    if records.len() < x {
+                                        return None
+                                    } else {
+                                        records.last().map(|x| x.pagination_key.clone())
+                                    }
+                                });
                                 let mut files = vec![];
                                 for record in &records {
-                                    for v in record.values() {
+                                    for v in record.value.values() {
                                         gather_files(&mut files, v);
                                     }
                                 }
@@ -429,8 +451,9 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     }
                                 }).await.err_internal()?;
                                 resp = responder(RespQuery {
-                                    records: records,
+                                    records: records.into_iter().map(|x| x.value).collect(),
                                     meta: meta.into_iter().collect(),
+                                    page_end: page_end,
                                 });
                             },
                             C2SReq::GetNodeMeta(req) => {
@@ -607,7 +630,11 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 .map_err(|e| loga::err(e).context_with("Couldn't parse hash", ea!(hash = hash)))
                                 .err_external()?;
                         let gentype = gentype.to_string();
-                        let subpath = path_iter.collect::<Vec<_>>().join("/");
+                        let subpath =
+                            path_iter
+                                .map(|x| urlencoding::decode(x).unwrap_or(x.into()))
+                                .collect::<Vec<_>>()
+                                .join("/");
                         match head.method {
                             Method::HEAD => {
                                 // Inaccurate for non-file derivations, but HEAD is mostly intended for maybe
@@ -624,7 +651,11 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                         }
                     },
                     _ => {
-                        return static_::handle_static(&head.headers, head.uri.path().trim_matches('/')).await;
+                        return static_::handle_static(
+                            state,
+                            &head.headers,
+                            head.uri.path().trim_matches('/'),
+                        ).await;
                     },
                 }
             }
@@ -771,6 +802,11 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
             genfiles_dir: genfiles_dir.clone(),
             finishing_uploads: Mutex::new(HashSet::new()),
             generate_files: generate_files_tx,
+            http_resp_headers: HeaderMap::from_iter([
+                //. .
+                ("cross-origin-embedder-policy", "require-corp"),
+                ("cross-origin-opener-policy", "same-origin"),
+            ].into_iter().map(|(k, v)| (HeaderName::from_static(k), HeaderValue::from_static(v)))),
             link_bg: Mutex::new(None),
             link_sessions: Cache::builder().time_to_idle(Duration::from_secs(24 * 60 * 60)).build(),
         });

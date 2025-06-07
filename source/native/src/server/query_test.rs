@@ -111,7 +111,12 @@ fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, TreeNode)]], query
             println!("explain row: {:?}", row);
         }
     }
-    let got = execute_sql_query(&db, query, query_values, sort).unwrap();
+    let got =
+        execute_sql_query(&db, query, query_values, sort, None)
+            .unwrap()
+            .into_iter()
+            .map(|x| x.value)
+            .collect::<Vec<_>>();
     let want =
         want
             .into_iter()
@@ -185,7 +190,12 @@ fn test_versions() {
             println!("explain row: {:?}", row);
         }
     }
-    let got = execute_sql_query(&db, query, query_values, None).unwrap();
+    let got =
+        execute_sql_query(&db, query, query_values, None, None)
+            .unwrap()
+            .into_iter()
+            .map(|x| x.value)
+            .collect::<Vec<_>>();
     assert_eq!(
         got,
         vec![[("y".to_string(), TreeNode::Scalar(s("no")))].into_iter().collect::<BTreeMap<_, _>>()]
@@ -225,7 +235,12 @@ fn test_delete() {
             println!("explain row: {:?}", row);
         }
     }
-    let got = execute_sql_query(&db, query, query_values, None).unwrap();
+    let got =
+        execute_sql_query(&db, query, query_values, None, None)
+            .unwrap()
+            .into_iter()
+            .map(|x| x.value)
+            .collect::<Vec<_>>();
     assert_eq!(got, vec![]);
 }
 
@@ -270,7 +285,12 @@ fn test_undelete() {
             println!("explain row: {:?}", row);
         }
     }
-    let got = execute_sql_query(&db, query, query_values, None).unwrap();
+    let got =
+        execute_sql_query(&db, query, query_values, None, None)
+            .unwrap()
+            .into_iter()
+            .map(|x| x.value)
+            .collect::<Vec<_>>();
     assert_eq!(
         got,
         vec![[("y".to_string(), TreeNode::Scalar(s("no")))].into_iter().collect::<BTreeMap<_, _>>()]

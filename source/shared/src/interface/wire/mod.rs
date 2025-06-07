@@ -120,6 +120,7 @@ pub struct ReqQuery {
     pub query: Query,
     #[serde(default)]
     pub parameters: HashMap<String, Node>,
+    pub pagination: Option<(usize, Option<Node>)>,
 }
 
 /// A tree node is like a json node but it can also encode files.  So the root of
@@ -139,6 +140,7 @@ pub enum TreeNode {
 pub struct RespQuery {
     pub records: Vec<BTreeMap<String, TreeNode>>,
     pub meta: Vec<(Node, NodeMeta)>,
+    pub page_end: Option<Node>,
 }
 
 impl Into<C2SReq> for ReqQuery {
@@ -158,6 +160,7 @@ pub struct ReqViewQuery {
     pub menu_item_id: String,
     pub query: String,
     pub parameters: HashMap<String, Node>,
+    pub pagination: Option<(usize, Option<Node>)>,
 }
 
 impl Into<C2SReq> for ReqViewQuery {

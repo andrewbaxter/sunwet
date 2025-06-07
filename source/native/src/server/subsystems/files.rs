@@ -470,7 +470,11 @@ pub async fn handle_file_get(
         mimetype = meta.mimetype.unwrap_or_else(|| format!("application/octet-stream"));
         local_path = file_path(&state, &file).err_internal()?;
     });
-    return Ok(htserve::responses::response_file(&head.headers, &mimetype, &local_path).await.err_internal()?);
+    return Ok(
+        htserve::responses::response_file(&head.headers, &mimetype, &local_path, &state.http_resp_headers)
+            .await
+            .err_internal()?,
+    );
 }
 
 pub async fn handle_file_post(

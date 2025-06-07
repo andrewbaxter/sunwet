@@ -1,4 +1,5 @@
 use {
+    crate::server::state::State,
     http::{
         header::{
             ETAG,
@@ -17,9 +18,11 @@ use {
     },
     hyper::body::Bytes,
     rust_embed::RustEmbed,
+    std::sync::Arc,
 };
 
 pub async fn handle_static(
+    state: Arc<State>,
     headers: &HeaderMap,
     path: &str,
 ) -> Result<Response<BoxBody<Bytes, std::io::Error>>, VisErr<loga::Error>> {
@@ -39,16 +42,13 @@ pub async fn handle_static(
                     return Ok(Response::builder().status(304).body(body_full(vec![])).unwrap());
                 }
             }
-            return Ok(
-                Response::builder()
-                    .status(200)
-                    .header("Content-type", f.metadata.mimetype())
-                    .header("Cross-Origin-Embedder-Policy", "require-corp")
-                    .header("Cross-Origin-Opener-Policy", "same-origin")
-                    .header(ETAG, etag)
-                    .body(body_full(f.data.to_vec()))
-                    .unwrap(),
-            );
+            let mut resp = Response::builder().status(200);
+            for (k, v) in &state.http_resp_headers {
+                resp = resp.header(k, v);
+            }
+            resp = resp.header("Content-type", f.metadata.mimetype());
+            resp = resp.header(ETAG, etag);
+            return Ok(resp.body(body_full(f.data.to_vec())).unwrap());
         },
         None => {
             return Ok(response_404());
