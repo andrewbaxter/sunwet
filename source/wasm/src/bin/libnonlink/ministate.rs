@@ -26,11 +26,20 @@ pub struct PlaylistRestorePos {
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct MinistateMenuItem {
-    pub menu_item_id: String,
+pub struct MinistateView {
+    pub id: String,
     pub title: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pos: Option<PlaylistRestorePos>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub params: HashMap<String, Node>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct MinistateForm {
+    pub id: String,
+    pub title: String,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub params: HashMap<String, Node>,
 }
@@ -53,7 +62,8 @@ pub struct MinistateNodeView {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Ministate {
     Home,
-    MenuItem(MinistateMenuItem),
+    View(MinistateView),
+    Form(MinistateForm),
     NodeEdit(MinistateNodeEdit),
     NodeView(MinistateNodeView),
     History,
@@ -66,7 +76,8 @@ pub fn ministate_octothorpe(s: &Ministate) -> String {
 pub fn ministate_title(s: &Ministate) -> String {
     match s {
         Ministate::Home => return format!("Home"),
-        Ministate::MenuItem(s) => return s.title.clone(),
+        Ministate::View(s) => return s.title.clone(),
+        Ministate::Form(s) => return s.title.clone(),
         Ministate::NodeEdit(s) => return s.title.clone(),
         Ministate::NodeView(s) => return s.title.clone(),
         Ministate::History => return format!("History"),

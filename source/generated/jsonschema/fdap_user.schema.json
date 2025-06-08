@@ -27,16 +27,45 @@
           ],
           "properties": {
             "limited": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "uniqueItems": true
+              "$ref": "#/definitions/IamGrantsLimited"
             }
           },
           "additionalProperties": false
         }
       ]
+    },
+    "IamGrantsLimited": {
+      "type": "object",
+      "properties": {
+        "forms": {
+          "description": "Give the user access to all these forms.",
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "menu_items": {
+          "description": "For every menu item id listed here, give the user access to the menu item, all child menu items (if a section) transitively, and any forms or views directly linked by leaf menu items.",
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "views": {
+          "description": "Give the user access to all these views.",
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

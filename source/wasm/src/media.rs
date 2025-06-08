@@ -701,8 +701,8 @@ impl MyIntersectionObserver {
             cb(entries);
         });
         let scroll_observer = IntersectionObserver::new_with_options(scroll_observer_cb.as_ref().unchecked_ref(), &{
-            let mut o = IntersectionObserverInit::new();
-            o.threshold(&JsValue::from(threshold));
+            let o = IntersectionObserverInit::new();
+            o.set_threshold(&JsValue::from(threshold));
             o
         }).unwrap();
         return Self(Rc::new(MyIntersectionObserver_ {

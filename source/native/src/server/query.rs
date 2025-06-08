@@ -1,7 +1,10 @@
 use {
     super::dbutil::tx,
     deadpool_sqlite::Pool,
-    flowcontrol::exenum,
+    flowcontrol::{
+        exenum,
+        superif,
+    },
     loga::{
         ea,
         ResultContext,
@@ -9,6 +12,8 @@ use {
     rand::{
         seq::SliceRandom,
         thread_rng,
+        Rng,
+        SeedableRng,
     },
     sea_query::{
         extension::sqlite::SqliteExpr,
@@ -42,7 +47,10 @@ use {
             Value,
         },
         triple::Node,
-        wire::TreeNode,
+        wire::{
+            Pagination,
+            TreeNode,
+        },
     },
     std::{
         cmp::Ordering,
@@ -949,7 +957,7 @@ pub fn execute_sql_query(
     sql_query: String,
     sql_parameters: sea_query_rusqlite::RusqliteValues,
     sort: Option<QuerySort>,
-    paginate: Option<(usize, Option<Node>)>,
+    paginate: Option<Pagination>,
 ) -> Result<Vec<Row>, loga::Error> {
     let mut s = db.prepare(&sql_query)?;
     let column_names = s.column_names().into_iter().map(|k| k.to_string()).collect::<Vec<_>>();
@@ -988,7 +996,19 @@ pub fn execute_sql_query(
     if let Some(sort) = sort {
         match sort {
             QuerySort::Random => {
-                out.shuffle(&mut thread_rng());
+                let seed;
+                superif!({
+                    let Some(pagination) = &paginate else {
+                        break 'noseed;
+                    };
+                    let Some(seed1) = pagination.seed else {
+                        break 'noseed;
+                    };
+                    seed = seed1;
+                } 'noseed {
+                    seed = thread_rng().gen();
+                });
+                out.shuffle(&mut rand_chacha::ChaChaRng::seed_from_u64(seed));
             },
             QuerySort::Fields(sort) => {
                 out.sort_unstable_by(|a, b| {
@@ -1014,11 +1034,11 @@ pub fn execute_sql_query(
             },
         }
     }
-    if let Some((count, after)) = paginate {
-        if let Some(after) = after {
-            return Ok(out.into_iter().skip_while(|x| x.pagination_key < after).take(count).collect());
+    if let Some(p) = paginate {
+        if let Some(after) = p.after {
+            return Ok(out.into_iter().skip_while(|x| x.pagination_key < after).take(p.count).collect());
         } else {
-            return Ok(out.into_iter().take(count).collect());
+            return Ok(out.into_iter().take(p.count).collect());
         }
     } else {
         return Ok(out.into_iter().collect());
@@ -1029,7 +1049,7 @@ pub async fn execute_query(
     db: &Pool,
     query: Query,
     parameters: HashMap<String, Node>,
-    paginate: Option<(usize, Option<Node>)>,
+    paginate: Option<Pagination>,
 ) -> Result<Vec<Row>, loga::Error> {
     // Sorting currently happens in rust because sql does string sorting on json
     // fields, not value-based sorting (ex: numbers). Therefore pagination also has to

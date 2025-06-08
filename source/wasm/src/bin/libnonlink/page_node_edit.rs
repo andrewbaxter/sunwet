@@ -1325,8 +1325,8 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                 }
 
                 // Edit form controls
-                let button_save = style_export::leaf_button_big_save().root;
-                button_save.ref_on("click", {
+                let button_commit = style_export::leaf_button_big_commit().root;
+                button_commit.ref_on("click", {
                     let triple_states = triple_states.clone();
                     let pivot_state = pivot_state.clone();
                     let error_slot = error_slot.weak();
@@ -1553,7 +1553,7 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                         }));
                     }
                 });
-                bar_out.push(button_save);
+                bar_out.push(button_commit);
                 return Ok(vec![style_export::cont_page_node(style_export::ContPageNodeArgs {
                     page_button_children: buttons_out,
                     children: out,

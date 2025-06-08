@@ -78,7 +78,7 @@ impl C2SReqTrait for ReqCommit {
 #[derive(Serialize, Deserialize, Default, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqFormCommit {
-    pub menu_item_id: String,
+    pub form_id: String,
     pub parameters: HashMap<String, TreeNode>,
 }
 
@@ -116,11 +116,21 @@ impl C2SReqTrait for ReqUploadFinish {
 // # Query
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct Pagination {
+    pub count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seed: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub after: Option<Node>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqQuery {
     pub query: Query,
     #[serde(default)]
     pub parameters: HashMap<String, Node>,
-    pub pagination: Option<(usize, Option<Node>)>,
+    pub pagination: Option<Pagination>,
 }
 
 /// A tree node is like a json node but it can also encode files.  So the root of
@@ -157,10 +167,10 @@ impl C2SReqTrait for ReqQuery {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqViewQuery {
-    pub menu_item_id: String,
+    pub view_id: String,
     pub query: String,
     pub parameters: HashMap<String, Node>,
-    pub pagination: Option<(usize, Option<Node>)>,
+    pub pagination: Option<Pagination>,
 }
 
 impl Into<C2SReq> for ReqViewQuery {

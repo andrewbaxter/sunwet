@@ -23,14 +23,19 @@ use {
                 DbNode,
             },
         },
+        server::access::{
+            can_access_file,
+            AccessRes,
+            Identity,
+        },
     },
     aargvark::{
         traits_impls::AargvarkJson,
         Aargvark,
     },
     access::{
+        check_is_admin,
         identify_requester,
-        is_admin,
     },
     chrono::DateTime,
     dbutil::tx,
@@ -57,6 +62,7 @@ use {
     htwrap::htserve::{
         responses::{
             response_401,
+            response_403,
             response_404,
         },
         viserr::{
@@ -109,7 +115,6 @@ use {
         FdapUsersState,
         GlobalState,
         LocalUsersState,
-        MenuItem,
         State,
         UsersState,
     },
@@ -232,9 +237,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                         }
                     },
                     "api" => {
-                        let Some(identity) = identify_requester(&state, &head.headers).await? else {
-                            return Ok(response_401());
-                        };
+                        let identity = identify_requester(&state, &head.headers).await?;
                         let req =
                             serde_json::from_slice::<C2SReq>(
                                 &body
@@ -302,37 +305,105 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                         let resp: (resp::RespToken, resp::Resp);
                         match req {
                             C2SReq::Commit(req) => {
-                                if !is_admin(&state, &identity).await.err_internal()? {
-                                    return Ok(response_401());
+                                {
+                                    // Check access
+                                    match check_is_admin(&state, &identity, "Commit").await.err_internal()? {
+                                        AccessRes::Yes => { },
+                                        AccessRes::NoAccess => {
+                                            return Ok(response_403());
+                                        },
+                                        AccessRes::NoIdent => {
+                                            return Ok(response_401());
+                                        },
+                                    }
                                 }
                                 resp = req.respond()(handle_commit(state, req).await.err_internal()?);
                             },
                             C2SReq::FormCommit(req) => {
                                 let responder = req.respond();
-                                match get_iam_grants(&state, &identity).await.err_internal()? {
-                                    IamGrants::Admin => { },
-                                    IamGrants::Limited(grants) => {
-                                        if !grants.contains(&req.menu_item_id) {
-                                            return Ok(response_401());
+                                let global_config = get_global_config(&state).await.err_internal()?;
+                                let Some(form) = global_config.forms.get(&req.form_id) else {
+                                    return Err(
+                                        loga::err_with("No known form with id", ea!(form = req.form_id)),
+                                    ).err_external();
+                                };
+                                {
+                                    // Check access
+                                    let grants = get_iam_grants(&state, &identity).await.err_internal()?;
+                                    let res = shed!{
+                                        'ok _;
+                                        match &grants {
+                                            IamGrants::Admin => {
+                                                break 'ok AccessRes::Yes;
+                                            },
+                                            IamGrants::Limited(grants) => {
+                                                if grants.forms.contains(&req.form_id) {
+                                                    break 'ok AccessRes::Yes;
+                                                }
+                                                for id in &form.menu_self_and_ancestors {
+                                                    if grants.menu_items.contains(id) {
+                                                        break 'ok AccessRes::Yes;
+                                                    }
+                                                }
+                                            },
                                         }
-                                    },
+                                        if matches!(identity, Identity::Public) {
+                                            break 'ok AccessRes::NoIdent;
+                                        }
+                                        else {
+                                            break 'ok AccessRes::NoAccess;
+                                            return Ok(response_403());
+                                        }
+                                    };
+                                    state
+                                        .log
+                                        .log_with(
+                                            loga::DEBUG,
+                                            "Form commit access result",
+                                            ea!(
+                                                identity = identity.dbg_str(),
+                                                grants = grants.dbg_str(),
+                                                form_id = req.form_id,
+                                                menu_ids = form.menu_self_and_ancestors.dbg_str(),
+                                                result = res.dbg_str()
+                                            ),
+                                        );
+                                    match res {
+                                        AccessRes::Yes => { },
+                                        AccessRes::NoIdent => {
+                                            return Ok(response_401());
+                                        },
+                                        AccessRes::NoAccess => {
+                                            return Ok(response_403());
+                                        },
+                                    }
                                 }
                                 resp = responder(handle_form_commit(state, req).await?);
                             },
                             C2SReq::UploadFinish(req) => {
                                 let responder = req.respond();
-                                let Some(res) =
-                                    handle_finish_upload(state, &identity, req.0).await.err_internal()? else {
-                                        return Ok(response_401());
-                                    };
+                                match can_access_file(&state, &identity, &req.0).await.err_internal()? {
+                                    AccessRes::Yes => (),
+                                    AccessRes::NoIdent => return Ok(response_401()),
+                                    AccessRes::NoAccess => return Ok(response_403()),
+                                }
+                                let Some(res) = handle_finish_upload(state, req.0).await.err_internal()? else {
+                                    return Ok(response_401());
+                                };
                                 resp = responder(res);
                             },
                             C2SReq::Query(req) => {
-                                if !is_admin(&state, &identity).await.err_internal()? {
-                                    return Ok(response_401());
+                                match check_is_admin(&state, &identity, "Query").await.err_internal()? {
+                                    AccessRes::Yes => { },
+                                    AccessRes::NoAccess => {
+                                        return Ok(response_403());
+                                    },
+                                    AccessRes::NoIdent => {
+                                        return Ok(response_401());
+                                    },
                                 }
                                 let responder = req.respond();
-                                let expect_count = req.pagination.as_ref().map(|x| x.0);
+                                let expect_count = req.pagination.as_ref().map(|x| x.count);
                                 let records =
                                     query::execute_query(&state.db, req.query, req.parameters, req.pagination)
                                         .await
@@ -370,50 +441,75 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                             },
                             C2SReq::ViewQuery(req) => {
                                 let responder = req.respond();
-                                match get_iam_grants(&state, &identity).await.err_internal()? {
-                                    IamGrants::Admin => { },
-                                    IamGrants::Limited(grants) => {
-                                        if !grants.contains(&req.menu_item_id) {
-                                            return Ok(response_401());
-                                        }
-                                    },
-                                }
                                 let global_config = get_global_config(&state).await.err_internal()?;
-                                let Some(MenuItem::View(menu_item)) =
-                                    global_config.menu_items.get(&req.menu_item_id) else {
-                                        return Err(
-                                            loga::err_with(
-                                                "No known view menu_item with id",
-                                                ea!(menu_item = req.menu_item_id),
-                                            ),
-                                        ).err_external();
-                                    };
-                                shed!{
-                                    'granted _;
-                                    match get_iam_grants(&state, &identity).await.err_internal()? {
-                                        IamGrants::Admin => break 'granted,
-                                        IamGrants::Limited(grants) => {
-                                            for id in &menu_item.self_and_ancestors {
-                                                if grants.contains(id) {
-                                                    break 'granted;
+                                let Some(view) = global_config.views.get(&req.view_id) else {
+                                    return Err(
+                                        loga::err_with("No known view menu_item with id", ea!(view = req.view_id)),
+                                    ).err_external();
+                                };
+                                {
+                                    // Access check
+                                    let grants = get_iam_grants(&state, &identity).await.err_internal()?;
+                                    let res = shed!{
+                                        'ok _;
+                                        match &grants {
+                                            IamGrants::Admin => {
+                                                break 'ok AccessRes::Yes;
+                                            },
+                                            IamGrants::Limited(grants) => {
+                                                if grants.forms.contains(&req.view_id) {
+                                                    break 'ok AccessRes::Yes;
                                                 }
-                                            }
+                                                for id in &view.menu_self_and_ancestors {
+                                                    if grants.menu_items.contains(id) {
+                                                        break 'ok AccessRes::Yes;
+                                                    }
+                                                }
+                                            },
+                                        }
+                                        if matches!(identity, Identity::Public) {
+                                            break 'ok AccessRes::NoIdent;
+                                        }
+                                        else {
+                                            break 'ok AccessRes::NoAccess;
+                                            return Ok(response_403());
+                                        }
+                                    };
+                                    state
+                                        .log
+                                        .log_with(
+                                            loga::DEBUG,
+                                            "View query access result",
+                                            ea!(
+                                                identity = identity.dbg_str(),
+                                                grants = grants.dbg_str(),
+                                                view_id = req.view_id,
+                                                menu_ids = view.menu_self_and_ancestors.dbg_str(),
+                                                result = res.dbg_str()
+                                            ),
+                                        );
+                                    match res {
+                                        AccessRes::Yes => { },
+                                        AccessRes::NoIdent => {
+                                            return Ok(response_401());
+                                        },
+                                        AccessRes::NoAccess => {
+                                            return Ok(response_403());
                                         },
                                     }
-                                    return Ok(response_401());
                                 }
-                                let Some(query) = menu_item.item.queries.get(&req.query) else {
+                                let Some(query) = view.item.queries.get(&req.query) else {
                                     return Err(
                                         loga::err_with(
                                             "No known query with id in view",
-                                            ea!(menu_item = req.menu_item_id, query = req.query),
+                                            ea!(view = req.view_id, query = req.query),
                                         ),
                                     ).err_external();
                                 };
                                 let mut view_hash = DefaultHasher::new();
-                                menu_item.item.hash(&mut view_hash);
+                                view.item.hash(&mut view_hash);
                                 let view_hash = view_hash.finish();
-                                let expect_count = req.pagination.as_ref().map(|x| x.0);
+                                let expect_count = req.pagination.as_ref().map(|x| x.count);
                                 let records =
                                     query::execute_query(&state.db, query.clone(), req.parameters, req.pagination)
                                         .await
@@ -433,13 +529,13 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 }
                                 let meta = tx(&state.db, {
                                     move |txn| {
-                                        db::file_access_clear_nonversion(txn, &req.menu_item_id, view_hash as i64)?;
+                                        db::file_access_clear_nonversion(txn, &req.view_id, view_hash as i64)?;
                                         let mut meta = HashMap::new();
                                         for file in files {
                                             db::file_access_insert(
                                                 txn,
                                                 &DbFileHash(file.clone()),
-                                                &req.menu_item_id,
+                                                &req.view_id,
                                                 view_hash as i64,
                                             )?;
                                             let node = Node::File(file);
@@ -467,8 +563,17 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 });
                             },
                             C2SReq::History(req) => {
-                                if !is_admin(&state, &identity).await.err_internal()? {
-                                    return Ok(response_401());
+                                {
+                                    // Check access
+                                    match check_is_admin(&state, &identity, "History").await.err_internal()? {
+                                        AccessRes::Yes => { },
+                                        AccessRes::NoAccess => {
+                                            return Ok(response_403());
+                                        },
+                                        AccessRes::NoIdent => {
+                                            return Ok(response_401());
+                                        },
+                                    }
                                 }
                                 let (commits, triples) = tx(&state.db, move |txn| {
                                     let start = DateTime::from_str(&req.start_incl.to_string()).unwrap();
@@ -519,8 +624,17 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 resp = req.respond()(out.into_values().collect());
                             },
                             C2SReq::HistoryCommitCount(req) => {
-                                if !is_admin(&state, &identity).await.err_internal()? {
-                                    return Ok(response_401());
+                                {
+                                    // Check access
+                                    match check_is_admin(&state, &identity, "History commit count").await.err_internal()? {
+                                        AccessRes::Yes => { },
+                                        AccessRes::NoAccess => {
+                                            return Ok(response_403());
+                                        },
+                                        AccessRes::NoIdent => {
+                                            return Ok(response_401());
+                                        },
+                                    }
                                 }
                                 let (commits, triples) = tx(&state.db, move |txn| {
                                     let end = DateTime::from_str(&req.end_excl.to_string()).unwrap();
@@ -569,8 +683,17 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 resp = req.respond()(out.into_values().collect());
                             },
                             C2SReq::GetTriplesAround(req) => {
-                                if !is_admin(&state, &identity).await.err_internal()? {
-                                    return Ok(response_401());
+                                {
+                                    // Check access
+                                    match check_is_admin(&state, &identity, "Get triples around").await.err_internal()? {
+                                        AccessRes::Yes => { },
+                                        AccessRes::NoAccess => {
+                                            return Ok(response_403());
+                                        },
+                                        AccessRes::NoIdent => {
+                                            return Ok(response_401());
+                                        },
+                                    }
                                 }
                                 let responder = req.respond();
                                 let (incoming, outgoing) = tx(&state.db, move |txn| {
@@ -620,15 +743,18 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                         return Ok(resp.1);
                     },
                     "file" => {
-                        let Some(identity) = identify_requester(&state, &head.headers).await? else {
-                            return Ok(response_401());
-                        };
+                        let identity = identify_requester(&state, &head.headers).await?;
                         let hash_gentype = path_iter.next().context("Missing file hash in path").err_external()?;
                         let (hash, gentype) = hash_gentype.split_once(".").unwrap_or((hash_gentype, ""));
                         let file =
                             FileHash::from_str(hash)
                                 .map_err(|e| loga::err(e).context_with("Couldn't parse hash", ea!(hash = hash)))
                                 .err_external()?;
+                        match can_access_file(&state, &identity, &file).await.err_internal()? {
+                            AccessRes::Yes => (),
+                            AccessRes::NoIdent => return Ok(response_401()),
+                            AccessRes::NoAccess => return Ok(response_403()),
+                        }
                         let gentype = gentype.to_string();
                         let subpath =
                             path_iter
@@ -639,13 +765,13 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                             Method::HEAD => {
                                 // Inaccurate for non-file derivations, but HEAD is mostly intended for maybe
                                 // media range request
-                                return handle_file_head(state, &identity, file).await;
+                                return handle_file_head(state, file).await;
                             },
                             Method::GET => {
-                                return handle_file_get(state, &identity, head, file, gentype, subpath).await;
+                                return handle_file_get(state, head, file, gentype, subpath).await;
                             },
                             Method::POST => {
-                                return handle_file_post(state, &identity, head, file, body).await.err_internal();
+                                return handle_file_post(state, head, file, body).await.err_internal();
                             },
                             _ => return Ok(response_404()),
                         }

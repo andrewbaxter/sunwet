@@ -398,7 +398,7 @@
                   }).root,
                   presentation.leafSpace({}).root,
                 ],
-                barChildren: [presentation.leafButtonBigSave({}).root],
+                barChildren: [presentation.leafButtonBigCommit({}).root],
               }).root,
               menuBody: stagingMenu,
             }).root
@@ -432,6 +432,9 @@
                       }).root,
                       presentation.contNodeRowIncoming({
                         children: [
+                          presentation.leafNodeViewFileButtons({
+                            url: "https://abcd",
+                          }).root,
                           presentation.leafNodeViewNodeText({
                             value: "ABCD-1234",
                             link: "abcd",
@@ -468,6 +471,9 @@
                       }).root,
                       presentation.contNodeRowOutgoing({
                         children: [
+                          presentation.leafNodeViewFileButtons({
+                            url: "https://abcd",
+                          }).root,
                           presentation.leafNodeViewPredicate({
                             value: "sunwet/1/has",
                           }).root,
@@ -616,7 +622,7 @@
                     hint: "Add outgoing triple",
                   }).root,
                 ],
-                barChildren: [presentation.leafButtonBigSave({}).root],
+                barChildren: [presentation.leafButtonBigCommit({}).root],
               }).root,
               menuBody: stagingMenu,
             }).root
@@ -630,7 +636,7 @@
               mainTitle: presentation.leafTitle({ text: "History" }).root,
               mainBody: presentation.contPageNode({
                 pageButtonChildren: [],
-                barChildren: [presentation.leafButtonBigSave({}).root],
+                barChildren: [presentation.leafButtonBigCommit({}).root],
                 children: [
                   presentation.contHistoryCommit({
                     stamp: new Date().toISOString(),

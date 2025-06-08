@@ -3,7 +3,7 @@ use {
         ministate::PlaylistRestorePos,
         state::{
             state,
-            ViewMinistateState,
+            MinistateViewState,
         },
     },
     crate::libnonlink::api::req_file,
@@ -117,7 +117,7 @@ pub struct PlaylistEntry {
 }
 
 pub struct PlaylistState_ {
-    pub view_ministate_state: RefCell<Option<ViewMinistateState>>,
+    pub view_ministate_state: RefCell<Option<MinistateViewState>>,
     pub env: Env,
     pub debounce: Cell<DateTime<Utc>>,
     pub playlist: RefCell<BTreeMap<PlaylistIndex, Rc<PlaylistEntry>>>,
@@ -506,7 +506,7 @@ pub struct PlaylistPushArg {
 pub fn playlist_extend(
     pc: &mut ProcessingContext,
     playlist_state: &PlaylistState,
-    vs: ViewMinistateState,
+    vs: MinistateViewState,
     entries: Vec<(PlaylistIndex, PlaylistPushArg)>,
     restore_pos: &Option<PlaylistRestorePos>,
 ) {

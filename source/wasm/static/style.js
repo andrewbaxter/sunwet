@@ -169,7 +169,8 @@
   const textIconNext = "\ue5cc";
   const textIconPrev = "\ue5cb";
   const textIconLink = "\ue157";
-  const textIconSave = "\ue161";
+  const textIconCommit = "\ue161";
+  const textIconSave = "\uf090";
   const textIconUnlink = "\ue16f";
   const textIconLogin = "\uea77";
   const textIconLogout = "\ue9ba";
@@ -841,34 +842,38 @@
     },
   });
   const leafButtonLink = /** @type {
-    (args: { title: string, icon?: string, text?: string, extraStyles: string[], url: string }) => { root: HTMLElement }
+    (args: { title: string, icon?: string, text?: string, extraStyles: string[], url: string, download?: boolean }) => { root: HTMLElement }
   } */ (args) => {
     const children = [];
     if (args.icon != null) {
       children.push(
-        e("div", { textContent: args.icon }, { styles_: [leafIconStyle] })
+        leafIcon({ text: args.icon, extraStyles: [leafIconStyle] })
       );
     }
     if (args.text != null) {
       children.push(e("span", { textContent: args.text }, {}));
     }
+    const out = e(
+      "a",
+      {
+        title: args.title,
+        href: args.url,
+      },
+      {
+        styles_: [
+          leafButtonStyle,
+          leafButtonLinkStyle,
+          contHboxStyle,
+          ...args.extraStyles,
+        ],
+        children_: children,
+      }
+    );
+    if (args.download != null && args.download) {
+      out.download = "";
+    }
     return {
-      root: e(
-        "a",
-        {
-          title: args.title,
-          href: args.url,
-        },
-        {
-          styles_: [
-            leafButtonStyle,
-            leafButtonLinkStyle,
-            contHboxStyle,
-            ...args.extraStyles,
-          ],
-          children_: children,
-        }
-      ),
+      root: out,
     };
   };
 
@@ -896,13 +901,13 @@
           }),
         ],
       });
-  presentation.leafButtonBigSave =
-    /** @type { Presentation["leafButtonBigSave"] } */
+  presentation.leafButtonBigCommit =
+    /** @type { Presentation["leafButtonBigCommit"] } */
     (args) =>
       presentation.leafButtonBig({
-        title: "Save",
-        icon: textIconSave,
-        text: "Save",
+        title: "Commit",
+        icon: textIconCommit,
+        text: "Commit",
       });
   const leafButtonLinkSmall =
     /** @type {(args: { title: string, icon?: string, text?: string, url: string }) => { root: HTMLElement }} */ (
@@ -988,6 +993,15 @@
       { src: args.src, controls: true },
       { styles_: [leafMediaStyle] }
     ),
+  });
+
+  const pageButtonsStyle = s(uniq("page_buttons_style"), {
+    "": (s) => {
+      s.justifyContent = "end";
+      s.paddingLeft = varPSmall;
+      s.paddingRight = varPSmall;
+      s.paddingBottom = varPSmall;
+    },
   });
 
   // /////////////////////////////////////////////////////////////////////////////
@@ -3245,6 +3259,7 @@
 
   // /////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: page, view/edit node
+
   presentation.contPageNode = /** @type {Presentation["contPageNode"]} */ (
     args
   ) => {
@@ -3458,19 +3473,84 @@
         }
       ),
     });
+  const leafButtonEditFreeStyle = ss(uniq("leaf_button_free"), {
+    "": (s) => {
+      s.borderRadius = varRNodeButton;
+      s.color = `color-mix(in srgb, ${varCForeground}, transparent 30%)`;
+      s.width = varSNodeButton;
+      s.maxWidth = varSNodeButton;
+      s.height = varSNodeButton;
+      s.maxHeight = varSNodeButton;
+    },
+    ":hover": (s) => {
+      s.color = varCForeground;
+    },
+    ":hover:active": (s) => {
+      s.color = varCForeground;
+    },
+    [`.${classStatePressed}`]: (s) => {
+      s.color = varCModified;
+    },
+  });
+  const leafButtonEditFree =
+    /** @type { (args: { icon: string, hint: string }) => { root: HTMLElement } } */ (
+      args
+    ) =>
+      leafButton({
+        title: args.hint,
+        icon: args.icon,
+        extraStyles: [leafButtonEditFreeStyle],
+      });
+  const leafButtonEditFreeLink =
+    /** @type { (args: { icon: string, hint: string, url: string, download?: boolean }) => { root: HTMLElement } } */ (
+      args
+    ) =>
+      leafButtonLink({
+        title: args.hint,
+        icon: args.icon,
+        url: args.url,
+        download: args.download,
+        extraStyles: [leafButtonEditFreeStyle],
+      });
+
+  const leafNodeButtons =
+    /** @type { (args: {children: Element[]})=>{root: Element}} */ (args) => {
+      return {
+        root: e(
+          "div",
+          {},
+          {
+            styles_: [contHboxStyle, contEditNodeHboxStyle],
+            children_: args.children,
+          }
+        ),
+      };
+    };
 
   // /////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: page, node view
 
-  const pageButtonsStyle = s(uniq("page_buttons_style"), {
-    "": (s) => {
-      s.justifyContent = "end";
-      s.paddingLeft = varPSmall;
-      s.paddingRight = varPSmall;
-      s.paddingBottom = varPSmall;
-    },
-  });
-
+  presentation.leafNodeViewFileButtons =
+    /** @type {Presentation["leafNodeViewFileButtons"]} */ (args) => {
+      return {
+        root: e(
+          "div",
+          {},
+          {
+            styles_: [contHboxStyle, contEditNodeHboxStyle],
+            children_: [
+              presentation.leafSpace({}).root,
+              leafButtonEditFreeLink({
+                icon: textIconSave,
+                hint: "Save",
+                url: args.url,
+                download: true,
+              }).root,
+            ],
+          }
+        ),
+      };
+    };
   presentation.leafNodeViewNodeText =
     /** @type {Presentation["leafNodeViewNodeText"]} */ (args) => {
       const out = e(
@@ -3516,49 +3596,6 @@
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: page, node edit
 
-  const leafButtonEditFree =
-    /** @type { (args: { icon: string, hint: string }) => { root: HTMLElement } } */ (
-      args
-    ) =>
-      leafButton({
-        title: args.hint,
-        icon: args.icon,
-        extraStyles: [
-          ss(uniq("leaf_button_free"), {
-            "": (s) => {
-              s.borderRadius = varRNodeButton;
-              s.color = `color-mix(in srgb, ${varCForeground}, transparent 30%)`;
-              s.width = varSNodeButton;
-              s.maxWidth = varSNodeButton;
-              s.height = varSNodeButton;
-              s.maxHeight = varSNodeButton;
-            },
-            ":hover": (s) => {
-              s.color = varCForeground;
-            },
-            ":hover:active": (s) => {
-              s.color = varCForeground;
-            },
-            [`.${classStatePressed}`]: (s) => {
-              s.color = varCModified;
-            },
-          }),
-        ],
-      });
-
-  const leafNodeEditButtons =
-    /** @type { (args: {children: Element[]})=>{root: Element}} */ (args) => {
-      return {
-        root: e(
-          "div",
-          {},
-          {
-            styles_: [contHboxStyle, contEditNodeHboxStyle],
-            children_: args.children,
-          }
-        ),
-      };
-    };
   const leafButtonNodeEditAdd =
     /** @type {(args: {hint: string})=>{root: Element}} */ (args) =>
       leafButtonEditFree({ icon: textIconAdd, hint: args.hint });
@@ -3568,7 +3605,7 @@
       return {
         root: presentation.contNodeRowIncoming({
           children: [
-            leafNodeEditButtons({
+            leafNodeButtons({
               children: [leafSpace({}).root, button, leafSpace({}).root],
             }).root,
           ],
@@ -3583,7 +3620,7 @@
       return {
         root: presentation.contNodeRowOutgoing({
           children: [
-            leafNodeEditButtons({
+            leafNodeButtons({
               children: [leafSpace({}).root, button, leafSpace({}).root],
             }).root,
           ],

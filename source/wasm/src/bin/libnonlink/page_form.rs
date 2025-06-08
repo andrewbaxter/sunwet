@@ -38,7 +38,6 @@ use {
                 ClientForm,
                 FormFieldType,
             },
-            ClientConfig,
         },
         triple::Node,
         wire::{
@@ -143,20 +142,29 @@ fn build_field_enum(
 
 pub fn build_page_form(
     eg: EventGraph,
-    config: ClientConfig,
-    menu_item_title: String,
+    id: String,
+    title: String,
     form: ClientForm,
+    initial_params: HashMap<String, Node>,
 ) -> Result<El, String> {
-    let draft_id = format!("form-draft-{}", form.id);
+    let draft_id = format!("form-draft-{}", id);
     let error_slot = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
     let mut out = vec![error_slot.clone()];
     let mut bar_out = vec![];
+    let mut initial_field_data = HashMap::new();
+    if let Ok(draft_data) = LocalStorage::get::<HashMap<String, Node>>(&draft_id) {
+        for (k, v) in draft_data {
+            initial_field_data.insert(k, CommitNode::Node(v));
+        }
+    }
+    for (k, v) in &initial_params {
+        let Entry::Vacant(e) = initial_field_data.entry(k.clone()) else {
+            continue;
+        };
+        e.insert(CommitNode::Node(v.clone()));
+    }
     let fs = FormState(Rc::new(FormState_ {
-        data: RefCell::new(
-            LocalStorage::get::<HashMap<String, Node>>(&draft_id)
-                .map(|m| m.into_iter().map(|(k, v)| (k, CommitNode::Node(v))).collect::<HashMap<_, _>>())
-                .unwrap_or_else(|_| Default::default()),
-        ),
+        data: RefCell::new(initial_field_data),
         draft_debounce: Default::default(),
         draft_id: draft_id,
     }));
@@ -537,16 +545,17 @@ pub fn build_page_form(
             },
         }
     }
-    let button_save = style_export::leaf_button_big_save().root;
+    let button_commit = style_export::leaf_button_big_commit().root;
     let save_thinking = Rc::new(RefCell::new(None));
-    button_save.ref_own(|_| save_thinking.clone());
-    button_save.ref_on("click", {
+    button_commit.ref_own(|_| save_thinking.clone());
+    button_commit.ref_on("click", {
         let eg = eg.clone();
         let error_slot = error_slot.weak();
         let fs = fs.clone();
-        let menu_item_title = menu_item_title.clone();
-        let config = config.clone();
-        let menu_item = form.clone();
+        let title = title.clone();
+        let form = form.clone();
+        let id = id.clone();
+        let initial_params = initial_params.clone();
         move |ev| {
             {
                 let Some(error_slot) = error_slot.upgrade() else {
@@ -561,13 +570,14 @@ pub fn build_page_form(
                 let eg = eg.clone();
                 let fs = fs.clone();
                 let error_slot = error_slot.clone();
-                let menu_item_title = menu_item_title.clone();
-                let config = config.clone();
-                let menu_item = menu_item.clone();
+                let title = title.clone();
+                let form = form.clone();
+                let id = id.clone();
+                let initial_params = initial_params.clone();
                 async move {
                     match async {
                         let data = fs.0.data.borrow().clone();
-                        for field in &menu_item.fields {
+                        for field in &form.fields {
                             if match &field.r#type {
                                 FormFieldType::Id => false,
                                 FormFieldType::Comment(_) => false,
@@ -602,7 +612,7 @@ pub fn build_page_form(
                             params_to_post.insert(k.clone(), TreeNode::Scalar(n));
                         }
                         req_post_json(&state().env.base_url, ReqFormCommit {
-                            menu_item_id: menu_item.id.clone(),
+                            form_id: id.clone(),
                             parameters: params_to_post,
                         }).await?;
                         upload_files(files_to_upload).await?;
@@ -613,8 +623,8 @@ pub fn build_page_form(
                             eg.event(|pc| {
                                 set_page(
                                     pc,
-                                    &menu_item_title,
-                                    build_page_form(pc.eg(), config, menu_item_title.clone(), menu_item).unwrap(),
+                                    &title,
+                                    build_page_form(pc.eg(), id, title.clone(), form, initial_params).unwrap(),
                                 );
                             }).unwrap();
                             return;
@@ -635,7 +645,7 @@ pub fn build_page_form(
             }));
         }
     });
-    bar_out.push(button_save);
+    bar_out.push(button_commit);
     return Ok(style_export::cont_page_form(style_export::ContPageFormArgs {
         entries: out,
         bar_children: bar_out,

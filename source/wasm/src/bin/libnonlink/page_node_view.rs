@@ -18,12 +18,18 @@ use {
     rooting::El,
     shared::interface::{
         ont::PREDICATE_NAME,
-        triple::Node,
+        triple::{
+            FileHash,
+            Node,
+        },
         wire::ReqGetTriplesAround,
     },
-    wasm::js::{
-        el_async_,
-        style_export,
+    wasm::{
+        js::{
+            el_async_,
+            style_export,
+        },
+        world::file_url,
     },
 };
 
@@ -50,6 +56,12 @@ pub fn build_node_el(node: &Node, link: bool) -> El {
             None
         },
     }).root;
+}
+
+pub fn build_node_file_buttons_el(f: &FileHash) -> El {
+    return style_export::leaf_node_view_file_buttons(
+        style_export::LeafNodeViewFileButtonsArgs { url: file_url(&state().env, f) },
+    ).root;
 }
 
 pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node) {
@@ -82,13 +94,16 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                 {
                     let mut triples_els = vec![];
                     for t in triples.incoming {
-                        let triple_els =
-                            vec![
-                                build_node_el(&t.subject, true),
-                                style_export::leaf_node_view_predicate(
-                                    style_export::LeafNodeViewPredicateArgs { value: t.predicate.clone() },
-                                ).root,
-                            ];
+                        let mut triple_els = vec![];
+                        if let Node::File(n) = &t.subject {
+                            triple_els.push(build_node_file_buttons_el(n));
+                        }
+                        triple_els.push(build_node_el(&t.subject, true));
+                        triple_els.push(
+                            style_export::leaf_node_view_predicate(
+                                style_export::LeafNodeViewPredicateArgs { value: t.predicate.clone() },
+                            ).root,
+                        );
                         triples_els.push(style_export::cont_node_row_incoming(style_export::ContNodeRowIncomingArgs {
                             children: triple_els,
                             new: false,
@@ -123,13 +138,16 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                                 node: t.subject.clone(),
                             }));
                         }
-                        let triple_els =
-                            vec![
-                                style_export::leaf_node_view_predicate(
-                                    style_export::LeafNodeViewPredicateArgs { value: t.predicate.clone() },
-                                ).root,
-                                build_node_el(&t.object, true),
-                            ];
+                        let mut triple_els = vec![];
+                        if let Node::File(n) = &t.subject {
+                            triple_els.push(build_node_file_buttons_el(n));
+                        }
+                        triple_els.push(
+                            style_export::leaf_node_view_predicate(
+                                style_export::LeafNodeViewPredicateArgs { value: t.predicate.clone() },
+                            ).root,
+                        );
+                        triple_els.push(build_node_el(&t.object, true));
                         triples_els.push(style_export::cont_node_row_outgoing(style_export::ContNodeRowOutgoingArgs {
                             children: triple_els,
                             new: false,

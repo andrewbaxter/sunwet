@@ -507,7 +507,6 @@
       "type": "object",
       "required": [
         "fields",
-        "name",
         "outputs"
       ],
       "properties": {
@@ -516,9 +515,6 @@
           "items": {
             "$ref": "#/definitions/FormField"
           }
-        },
-        "name": {
-          "type": "string"
         },
         "outputs": {
           "type": "array",
@@ -754,6 +750,26 @@
         }
       ]
     },
+    "FormLink": {
+      "type": "object",
+      "required": [
+        "form_id"
+      ],
+      "properties": {
+        "form_id": {
+          "type": "string"
+        },
+        "parameters": {
+          "description": "Provide initial parameters for fields, by field id.",
+          "default": {},
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Node"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "FormOutput": {
       "type": "object",
       "required": [
@@ -778,7 +794,9 @@
       "type": "object",
       "required": [
         "api_tokens",
-        "menu"
+        "forms",
+        "menu",
+        "views"
       ],
       "properties": {
         "api_tokens": {
@@ -787,19 +805,37 @@
             "$ref": "#/definitions/IamGrants"
           }
         },
+        "forms": {
+          "description": "Form ids to form definitions",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Form"
+          }
+        },
         "menu": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/MenuItem"
+            "$ref": "#/definitions/ServerConfigMenuItem"
           }
         },
         "public_iam_grants": {
-          "default": [],
-          "type": "array",
-          "items": {
-            "type": "string"
+          "default": {
+            "forms": [],
+            "menu_items": [],
+            "views": []
           },
-          "uniqueItems": true
+          "allOf": [
+            {
+              "$ref": "#/definitions/IamGrantsLimited"
+            }
+          ]
+        },
+        "views": {
+          "description": "View ids to view definitions",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/View"
+          }
         }
       },
       "additionalProperties": false
@@ -819,16 +855,45 @@
           ],
           "properties": {
             "limited": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "uniqueItems": true
+              "$ref": "#/definitions/IamGrantsLimited"
             }
           },
           "additionalProperties": false
         }
       ]
+    },
+    "IamGrantsLimited": {
+      "type": "object",
+      "properties": {
+        "forms": {
+          "description": "Give the user access to all these forms.",
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "menu_items": {
+          "description": "For every menu item id listed here, give the user access to the menu item, all child menu items (if a section) transitively, and any forms or views directly linked by leaf menu items.",
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "views": {
+          "description": "Give the user access to all these views.",
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
     },
     "InputOrInline": {
       "oneOf": [
@@ -896,19 +961,107 @@
     "Link": {
       "type": "object",
       "required": [
-        "title",
-        "to_node",
-        "value"
+        "dest",
+        "title"
       ],
       "properties": {
+        "dest": {
+          "$ref": "#/definitions/LinkDest"
+        },
         "title": {
           "$ref": "#/definitions/FieldOrLiteral"
+        }
+      },
+      "additionalProperties": false
+    },
+    "LinkDest": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "plain"
+          ],
+          "properties": {
+            "plain": {
+              "$ref": "#/definitions/FieldOrLiteral"
+            }
+          },
+          "additionalProperties": false
         },
-        "to_node": {
-          "type": "boolean"
+        {
+          "type": "object",
+          "required": [
+            "view"
+          ],
+          "properties": {
+            "view": {
+              "$ref": "#/definitions/LinkDestView"
+            }
+          },
+          "additionalProperties": false
         },
-        "value": {
-          "$ref": "#/definitions/FieldOrLiteral"
+        {
+          "type": "object",
+          "required": [
+            "form"
+          ],
+          "properties": {
+            "form": {
+              "$ref": "#/definitions/LinkDestForm"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "node"
+          ],
+          "properties": {
+            "node": {
+              "$ref": "#/definitions/FieldOrLiteral"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "LinkDestForm": {
+      "type": "object",
+      "required": [
+        "id",
+        "parameters"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "parameters": {
+          "description": "Provide other initial parameters for fields, by field id.",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/FieldOrLiteral"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "LinkDestView": {
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "parameters": {
+          "description": "Provide initial query parameters.",
+          "default": {},
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/FieldOrLiteral"
+          }
         }
       },
       "additionalProperties": false
@@ -979,42 +1132,7 @@
         }
       ]
     },
-    "MenuItem": {
-      "type": "object",
-      "required": [
-        "id",
-        "sub"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "sub": {
-          "$ref": "#/definitions/MenuItemSub"
-        }
-      },
-      "additionalProperties": false
-    },
-    "MenuItemSection": {
-      "type": "object",
-      "required": [
-        "children",
-        "name"
-      ],
-      "properties": {
-        "children": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/MenuItem"
-          }
-        },
-        "name": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
-    },
-    "MenuItemSub": {
+    "MenuItemPage": {
       "oneOf": [
         {
           "type": "string",
@@ -1025,23 +1143,11 @@
         {
           "type": "object",
           "required": [
-            "section"
-          ],
-          "properties": {
-            "section": {
-              "$ref": "#/definitions/MenuItemSection"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
             "view"
           ],
           "properties": {
             "view": {
-              "$ref": "#/definitions/View"
+              "$ref": "#/definitions/ViewLink"
             }
           },
           "additionalProperties": false
@@ -1053,12 +1159,27 @@
           ],
           "properties": {
             "form": {
-              "$ref": "#/definitions/Form"
+              "$ref": "#/definitions/FormLink"
             }
           },
           "additionalProperties": false
         }
       ]
+    },
+    "MenuItemSection": {
+      "type": "object",
+      "required": [
+        "children"
+      ],
+      "properties": {
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ServerConfigMenuItem"
+          }
+        }
+      },
+      "additionalProperties": false
     },
     "MoveDirection": {
       "type": "string",
@@ -1217,6 +1338,55 @@
         },
         "v": true
       }
+    },
+    "ServerConfigMenuItem": {
+      "type": "object",
+      "required": [
+        "detail",
+        "id",
+        "name"
+      ],
+      "properties": {
+        "detail": {
+          "$ref": "#/definitions/ServerConfigMenuItemDetail"
+        },
+        "id": {
+          "description": "The id of a menu item is used for permissions.",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ServerConfigMenuItemDetail": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "section"
+          ],
+          "properties": {
+            "section": {
+              "$ref": "#/definitions/MenuItemSection"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "page"
+          ],
+          "properties": {
+            "page": {
+              "$ref": "#/definitions/MenuItemPage"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "Step": {
       "oneOf": [
@@ -1422,13 +1592,12 @@
     "View": {
       "type": "object",
       "required": [
-        "name",
-        "queries",
-        "root"
+        "display",
+        "queries"
       ],
       "properties": {
-        "name": {
-          "type": "string"
+        "display": {
+          "$ref": "#/definitions/WidgetRootDataRows"
         },
         "parameters": {
           "default": {},
@@ -1442,9 +1611,26 @@
           "additionalProperties": {
             "$ref": "#/definitions/Query"
           }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ViewLink": {
+      "type": "object",
+      "required": [
+        "view_id"
+      ],
+      "properties": {
+        "parameters": {
+          "description": "Provide initial query parameters. These can be modified by the user.",
+          "default": {},
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Node"
+          }
         },
-        "root": {
-          "$ref": "#/definitions/WidgetRootDataRows"
+        "view_id": {
+          "type": "string"
         }
       },
       "additionalProperties": false

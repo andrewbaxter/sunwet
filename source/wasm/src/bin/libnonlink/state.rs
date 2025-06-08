@@ -4,7 +4,6 @@ use {
             record_new_ministate,
             record_replace_ministate,
             Ministate,
-            MinistateMenuItem,
             PlaylistRestorePos,
         },
         page_form::build_page_form,
@@ -17,6 +16,7 @@ use {
             PlaylistState,
         },
     },
+    crate::libnonlink::ministate::MinistateView,
     gloo::utils::document,
     lunk::{
         EventGraph,
@@ -27,7 +27,6 @@ use {
     shared::interface::{
         config::{
             ClientConfig,
-            ClientMenuItem,
         },
         triple::Node,
     },
@@ -51,7 +50,7 @@ pub struct State_ {
     pub ministate: RefCell<Ministate>,
     pub env: Env,
     pub playlist: PlaylistState,
-    pub client_config: BgVal<Result<Rc<(ClientConfig, HashMap<String, ClientMenuItem>)>, String>>,
+    pub client_config: BgVal<Result<Rc<ClientConfig>, String>>,
     pub menu_open: Prim<bool>,
     // Arcmutex due to OnceLock, should El use sync alternatives?
     pub main_title: El,
@@ -95,37 +94,34 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
         Ministate::Home => {
             set_page_(pc, "Home", true, style_export::cont_page_home().root);
         },
-        Ministate::MenuItem(ms) => {
-            set_page(pc, &ms.title, el_async_(true, {
-                let title = ms.title.clone();
-                let menu_item_id = ms.menu_item_id.clone();
-                let pos = ms.pos.clone();
-                let params = ms.params.clone();
+        Ministate::View(v) => {
+            set_page(pc, &v.title, el_async_(true, {
+                let title = v.title.clone();
+                let view_id = v.id.clone();
+                let pos = v.pos.clone();
+                let params = v.params.clone();
                 let eg = pc.eg();
                 async move {
                     let client_config = state().client_config.get().await?;
-                    let Some(menu_item) = client_config.1.get(&menu_item_id) else {
-                        return Err(format!("No menu item with id [{}] in config", menu_item_id));
+                    let Some(view) = client_config.views.get(&view_id) else {
+                        return Err(format!("No view with id [{}] in config", view_id));
                     };
-                    match menu_item {
-                        ClientMenuItem::Section(_) => {
-                            return Err(format!("Menu item [{}] is a section, nothing to display.", menu_item_id));
-                        },
-                        ClientMenuItem::View(menu_item) => {
-                            return build_page_view(eg, title, menu_item.clone(), params, pos).map(|x| vec![x]);
-                        },
-                        ClientMenuItem::Form(menu_item) => {
-                            return build_page_form(
-                                eg,
-                                client_config.0.clone(),
-                                title,
-                                menu_item.clone(),
-                            ).map(|x| vec![x]);
-                        },
-                        ClientMenuItem::History => {
-                            unreachable!();
-                        },
-                    }
+                    return build_page_view(eg, view_id, title, view.clone(), params, pos).map(|x| vec![x]);
+                }
+            }));
+        },
+        Ministate::Form(f) => {
+            set_page(pc, &f.title, el_async_(true, {
+                let title = f.title.clone();
+                let form_id = f.id.clone();
+                let params = f.params.clone();
+                let eg = pc.eg();
+                async move {
+                    let client_config = state().client_config.get().await?;
+                    let Some(form) = client_config.forms.get(&form_id) else {
+                        return Err(format!("No menu item with id [{}] in config", form_id));
+                    };
+                    return build_page_form(eg, form_id, title, form.clone(), params).map(|x| vec![x]);
                 }
             }));
         },
@@ -146,22 +142,22 @@ pub fn change_ministate(pc: &mut ProcessingContext, s: &Ministate) {
     build_ministate(pc, s);
 }
 
-pub struct ViewMinistateState_ {
-    pub menu_item_id: String,
+pub struct MinistateViewState_ {
+    pub view_id: String,
     pub title: String,
     pub pos: Option<PlaylistRestorePos>,
     pub params: HashMap<String, Node>,
 }
 
 #[derive(Clone)]
-pub struct ViewMinistateState(pub Rc<RefCell<ViewMinistateState_>>);
+pub struct MinistateViewState(pub Rc<RefCell<MinistateViewState_>>);
 
-impl ViewMinistateState {
+impl MinistateViewState {
     pub fn set_pos(&self, pos: Option<PlaylistRestorePos>) {
         let mut s = self.0.borrow_mut();
         s.pos = pos;
-        record_replace_ministate(&Ministate::MenuItem(MinistateMenuItem {
-            menu_item_id: s.menu_item_id.clone(),
+        record_replace_ministate(&Ministate::View(MinistateView {
+            id: s.view_id.clone(),
             title: s.title.clone(),
             pos: s.pos.clone(),
             params: s.params.clone(),
@@ -171,8 +167,8 @@ impl ViewMinistateState {
     pub fn set_param(&self, k: String, v: Node) {
         let mut s = self.0.borrow_mut();
         s.params.insert(k, v);
-        record_replace_ministate(&Ministate::MenuItem(MinistateMenuItem {
-            menu_item_id: s.menu_item_id.clone(),
+        record_replace_ministate(&Ministate::View(MinistateView {
+            id: s.view_id.clone(),
             title: s.title.clone(),
             pos: s.pos.clone(),
             params: s.params.clone(),

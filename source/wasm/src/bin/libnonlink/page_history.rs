@@ -83,16 +83,16 @@ fn setup_revert_button<'a>(button: &El, hist_state: Rc<HistState>, was_deleted: 
 
 pub fn build_page_history(pc: &mut ProcessingContext) {
     let error_slot = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
-    let button_save = style_export::leaf_button_big_save().root;
+    let button_commit = style_export::leaf_button_big_commit().root;
     let page_res = style_export::cont_page_node(style_export::ContPageNodeArgs {
         page_button_children: vec![],
-        bar_children: vec![button_save.clone()],
+        bar_children: vec![button_commit.clone()],
         children: vec![error_slot.clone()],
     });
     let hist_state = Rc::new(HistState {
         revert_was_deleted: Default::default(),
         revert_was_added: Default::default(),
-        save: button_save.weak(),
+        save: button_commit.weak(),
     });
     build_infinite(page_res.body.clone(), Utc::now(), {
         let hist_state = hist_state.clone();
@@ -184,10 +184,10 @@ pub fn build_page_history(pc: &mut ProcessingContext) {
             }
         }
     });
-    button_save.ref_on("click", {
+    button_commit.ref_on("click", {
         let hist_state = hist_state.clone();
         let error_slot = error_slot.weak();
-        let button = button_save.weak();
+        let button = button_commit.weak();
         let eg = pc.eg();
         let save_thinking = Rc::new(RefCell::new(None));
         move |_ev| {

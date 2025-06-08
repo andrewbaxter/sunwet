@@ -258,7 +258,7 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         Func {
-            name: "leafButtonBigSave",
+            name: "leafButtonBigCommit",
             args: vec![],
             returns: vec![("root", &el_)],
         },
@@ -631,6 +631,11 @@ fn main() {
         },
         // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: page, node view, history
+        Func {
+            name: "leafNodeViewFileButtons",
+            args: vec![("url", &string_)],
+            returns: vec![("root", &el_)],
+        },
         Func {
             name: "leafNodeViewPredicate",
             args: vec![("value", &string_)],

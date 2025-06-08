@@ -1,13 +1,13 @@
 use {
-    crate::interface::triple::Node,
+    crate::interface::{
+        triple::Node,
+    },
     schemars::JsonSchema,
     serde::{
         Deserialize,
         Serialize,
     },
-    std::collections::{
-        BTreeMap,
-    },
+    std::collections::BTreeMap,
 };
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, JsonSchema, Hash)]
@@ -92,10 +92,35 @@ pub enum QueryOrField {
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct LinkDestView {
+    pub id: String,
+    /// Provide initial query parameters.
+    #[serde(default)]
+    pub parameters: BTreeMap<String, FieldOrLiteral>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct LinkDestForm {
+    pub id: String,
+    /// Provide other initial parameters for fields, by field id.
+    pub parameters: BTreeMap<String, FieldOrLiteral>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum LinkDest {
+    Plain(FieldOrLiteral),
+    View(LinkDestView),
+    Form(LinkDestForm),
+    Node(FieldOrLiteral),
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct Link {
-    pub value: FieldOrLiteral,
     pub title: FieldOrLiteral,
-    pub to_node: bool,
+    pub dest: LinkDest,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
@@ -337,8 +362,6 @@ pub enum ClientViewParam {
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ClientView {
-    pub id: String,
-    pub name: String,
     pub root: WidgetRootDataRows,
     pub parameters: BTreeMap<String, ClientViewParam>,
     pub query_parameters: BTreeMap<String, Vec<String>>,

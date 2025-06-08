@@ -22,8 +22,10 @@ use {
         Log,
         ResultContext,
     },
-    query::{
-        compile_query,
+    query::compile_query,
+    rand::{
+        thread_rng,
+        Rng,
     },
     shared::interface::{
         query::Query,
@@ -32,6 +34,7 @@ use {
             Node,
         },
         wire::{
+            Pagination,
             ReqGetTriplesAround,
             ReqHistory,
             ReqQuery,
@@ -104,7 +107,12 @@ pub async fn handle_query(c: QueryCommand) -> Result<(), loga::Error> {
     });
     let mut out = vec![];
     const PAGE_SIZE: usize = 1000;
-    let mut pagination = Some((PAGE_SIZE, None));
+    let seed = thread_rng().gen();
+    let mut pagination = Some(Pagination {
+        count: PAGE_SIZE,
+        seed: Some(seed),
+        after: None,
+    });
     loop {
         let res = req::req_simple(&log, ReqQuery {
             query: c.query.value.clone(),
@@ -115,7 +123,11 @@ pub async fn handle_query(c: QueryCommand) -> Result<(), loga::Error> {
         let Some(next_after) = res.page_end else {
             break;
         };
-        pagination = Some((PAGE_SIZE, Some(next_after)));
+        pagination = Some(Pagination {
+            count: PAGE_SIZE,
+            seed: Some(seed),
+            after: Some(next_after),
+        });
     }
     println!("{}", serde_json::to_string_pretty(&out).unwrap());
     return Ok(());

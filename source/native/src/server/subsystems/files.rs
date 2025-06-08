@@ -1,17 +1,13 @@
 use {
     crate::{
         interface::{
-            config::{
-                IamGrants,
-                MenuItemId,
-            },
+            config::MenuItemId,
             triple::{
                 DbFileHash,
                 DbNode,
             },
         },
         server::{
-            access::Identity,
             db::{
                 self,
             },
@@ -25,8 +21,6 @@ use {
             },
             state::{
                 get_global_config,
-                get_iam_grants,
-                MenuItem,
                 State,
             },
         },
@@ -43,7 +37,6 @@ use {
         responses::{
             body_empty,
             response_200_json,
-            response_401,
             response_404,
         },
         viserr::{
@@ -56,6 +49,7 @@ use {
         Incoming,
     },
     loga::{
+        conversion::ResultIgnore,
         ea,
         ResultContext,
     },
@@ -79,7 +73,6 @@ use {
         },
     },
     std::{
-        collections::HashSet,
         hash::{
             DefaultHasher,
             Hash,
@@ -230,11 +223,11 @@ pub async fn handle_commit(state: Arc<State>, c: ReqCommit) -> Result<RespCommit
 
 pub async fn handle_form_commit(state: Arc<State>, c: ReqFormCommit) -> Result<RespCommit, VisErr<loga::Error>> {
     let global_config = get_global_config(&state).await.err_internal()?;
-    let Some(MenuItem::Form(menu_item_form)) = global_config.menu_items.get(&c.menu_item_id) else {
-        return Err(loga::err_with("No known form menu item with id", ea!(id = c.menu_item_id))).err_external();
+    let Some(form) = global_config.forms.get(&c.form_id) else {
+        return Err(loga::err_with("No known form with id", ea!(id = c.form_id))).err_external();
     };
     let mut form_hash = DefaultHasher::new();
-    menu_item_form.item.hash(&mut form_hash);
+    form.item.hash(&mut form_hash);
 
     // Build form data
     let mut add = vec![];
@@ -259,7 +252,7 @@ pub async fn handle_form_commit(state: Arc<State>, c: ReqFormCommit) -> Result<R
             },
         }
     };
-    for triple in &menu_item_form.item.outputs {
+    for triple in &form.item.outputs {
         let subjects;
         match &triple.subject {
             InputOrInline::Input(field) => {
@@ -306,21 +299,17 @@ pub async fn handle_form_commit(state: Arc<State>, c: ReqFormCommit) -> Result<R
         }
     }
     return Ok(commit(state, ReqCommit {
-        comment: format!("Form [{}]", c.menu_item_id),
+        comment: format!("Form [{}]", c.form_id),
         add: add,
         remove: vec![],
         files: vec![],
-    }, Some((c.menu_item_id, form_hash.finish()))).await.err_internal()?);
+    }, Some((c.form_id, form_hash.finish()))).await.err_internal()?);
 }
 
 pub async fn handle_finish_upload(
     state: Arc<State>,
-    identity: &Identity,
     file: FileHash,
 ) -> Result<Option<RespUploadFinish>, loga::Error> {
-    if !can_access_file(&state, identity, &file).await? {
-        return Ok(None);
-    }
     let done;
     if file_path(&state, &file)?.exists() {
         done = true;
@@ -378,45 +367,13 @@ pub async fn handle_finish_upload(
     return Ok(Some(RespUploadFinish { done: done }));
 }
 
-async fn get_file_page_reqs(state: &State, file: &FileHash) -> Result<HashSet<MenuItemId>, loga::Error> {
-    let file = DbFileHash(file.clone());
-    let access = tx(&state.db, move |txn| Ok(db::file_access_get(txn, &file)?)).await?;
-    return Ok(access.into_iter().collect());
-}
-
-async fn can_access_file(state: &State, identity: &Identity, file: &FileHash) -> Result<bool, loga::Error> {
-    match get_iam_grants(state, identity).await? {
-        IamGrants::Admin => return Ok(true),
-        IamGrants::Limited(grants) => {
-            let page_reqs = get_file_page_reqs(state, file).await?;
-            for grant in grants {
-                if page_reqs.contains(&grant) {
-                    return Ok(true);
-                }
-            }
-        },
-    }
-    if let Identity::Link(l) = identity {
-        if let Some(session) = state.link_sessions.get(l).await {
-            if session.public_files.lock().unwrap().contains(&file) {
-                return Ok(true);
-            }
-        }
-    }
-    return Ok(false);
-}
-
 pub async fn handle_file_head(
     state: Arc<State>,
-    identity: &Identity,
     file: FileHash,
 ) -> Result<Response<BoxBody<Bytes, std::io::Error>>, VisErr<loga::Error>> {
     let Some(meta) = get_meta(&state, &file).await.err_internal()? else {
         return Ok(response_404());
     };
-    if !can_access_file(&state, identity, &file).await.err_internal()? {
-        return Ok(response_401());
-    }
     return Ok(
         Response::builder()
             .status(200)
@@ -432,7 +389,6 @@ pub async fn handle_file_head(
 
 pub async fn handle_file_get(
     state: Arc<State>,
-    identity: &Identity,
     head: http::request::Parts,
     file: FileHash,
     gentype: String,
@@ -441,9 +397,6 @@ pub async fn handle_file_get(
     let Some(meta) = get_meta(&state, &file).await.err_internal()? else {
         return Ok(response_404());
     };
-    if !can_access_file(&state, identity, &file).await.err_internal()? {
-        return Ok(response_401());
-    }
     let mimetype;
     let local_path;
     superif!({
@@ -479,14 +432,10 @@ pub async fn handle_file_get(
 
 pub async fn handle_file_post(
     state: Arc<State>,
-    identity: &Identity,
     head: http::request::Parts,
     file: FileHash,
     body: Incoming,
 ) -> Result<Response<BoxBody<Bytes, std::io::Error>>, loga::Error> {
-    if !can_access_file(&state, identity, &file).await? {
-        return Ok(response_401());
-    }
     let offset = async {
         Ok(
             head

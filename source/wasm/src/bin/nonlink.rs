@@ -1,4 +1,8 @@
 use {
+    crate::libnonlink::ministate::{
+        MinistateForm,
+        MinistateView,
+    },
     flowcontrol::{
         superif,
         ta_return,
@@ -29,7 +33,6 @@ use {
             read_ministate,
             record_replace_ministate,
             Ministate,
-            MinistateMenuItem,
             SESSIONSTORAGE_POST_REDIRECT,
         },
         page_view::LOCALSTORAGE_SHARE_SESSION_ID,
@@ -57,6 +60,8 @@ use {
         config::{
             ClientConfig,
             ClientMenuItem,
+            ClientMenuItemDetail,
+            ClientPage,
         },
         wire::{
             ReqGetClientConfig,
@@ -66,7 +71,6 @@ use {
     },
     std::{
         cell::RefCell,
-        collections::HashMap,
         panic,
         rc::Rc,
     },
@@ -97,35 +101,13 @@ pub fn main() {
         let client_config = bg_val({
             let env = env.clone();
             async move {
-                let config = match req_post_json(&env.base_url, ReqGetClientConfig).await {
-                    Ok(c) => c,
-                    Err(e) => {
-                        return Err(format!("Error retrieving menu: {:?}", e));
-                    },
-                };
-                let mut menu_items = HashMap::new();
-
-                fn build_lookup(out: &mut HashMap<String, ClientMenuItem>, item: &ClientMenuItem) {
-                    match item {
-                        ClientMenuItem::Section(i) => {
-                            for item in &i.children {
-                                build_lookup(out, item);
-                            }
-                        },
-                        ClientMenuItem::View(i) => {
-                            out.insert(i.id.clone(), ClientMenuItem::View(i.clone()));
-                        },
-                        ClientMenuItem::Form(i) => {
-                            out.insert(i.id.clone(), ClientMenuItem::Form(i.clone()));
-                        },
-                        ClientMenuItem::History => { },
-                    }
-                }
-
-                for item in &config.menu {
-                    build_lookup(&mut menu_items, item);
-                }
-                return Ok(Rc::new((config, menu_items)));
+                return Ok(
+                    Rc::new(
+                        req_post_json(&env.base_url, ReqGetClientConfig)
+                            .await
+                            .map_err(|e| format!("Error retrieving menu: {:?}", e))?,
+                    ),
+                );
             }
         });
         let menu_body = el_async_(true, {
@@ -141,12 +123,12 @@ pub fn main() {
                 let client_config = client_config.get().await?;
 
                 fn build_menu_item(config: &ClientConfig, carry_titles: &Vec<String>, item: &ClientMenuItem) -> El {
-                    match item {
-                        ClientMenuItem::Section(item) => {
+                    match &item.detail {
+                        ClientMenuItemDetail::Section(section) => {
                             let mut sub_carry_titles = carry_titles.clone();
                             sub_carry_titles.push(item.name.clone());
                             let mut children = vec![];
-                            for child in &item.children {
+                            for child in &section.children {
                                 children.push(build_menu_item(config, &sub_carry_titles, &child));
                             }
                             return style_export::cont_menu_group(style_export::ContMenuGroupArgs {
@@ -154,40 +136,51 @@ pub fn main() {
                                 children: children,
                             }).root;
                         },
-                        ClientMenuItem::View(item) => {
-                            return style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
-                                title: item.name.clone(),
-                                href: ministate_octothorpe(&Ministate::MenuItem(MinistateMenuItem {
-                                    menu_item_id: item.id.clone(),
-                                    title: format!("{}, {}", carry_titles.join(", "), item.name),
-                                    pos: None,
-                                    params: Default::default(),
-                                })),
-                            }).root;
-                        },
-                        ClientMenuItem::Form(item) => {
-                            return style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
-                                title: item.name.clone(),
-                                href: ministate_octothorpe(&Ministate::MenuItem(MinistateMenuItem {
-                                    menu_item_id: item.id.clone(),
-                                    title: format!("{}, {}", carry_titles.join(", "), item.name),
-                                    pos: None,
-                                    params: Default::default(),
-                                })),
-                            }).root;
-                        },
-                        ClientMenuItem::History => {
-                            return style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
-                                title: "History".to_string(),
-                                href: ministate_octothorpe(&Ministate::History),
-                            }).root;
+                        ClientMenuItemDetail::Page(page) => {
+                            match page {
+                                ClientPage::View(page) => {
+                                    return style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
+                                        title: item.name.clone(),
+                                        href: ministate_octothorpe(&Ministate::View(MinistateView {
+                                            id: page.view_id.clone(),
+                                            title: format!("{}, {}", carry_titles.join(", "), item.name),
+                                            pos: None,
+                                            params: page
+                                                .parameters
+                                                .iter()
+                                                .map(|(k, v)| (k.clone(), v.clone()))
+                                                .collect(),
+                                        })),
+                                    }).root;
+                                },
+                                ClientPage::Form(page) => {
+                                    return style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
+                                        title: item.name.clone(),
+                                        href: ministate_octothorpe(&Ministate::Form(MinistateForm {
+                                            id: item.id.clone(),
+                                            title: format!("{}, {}", carry_titles.join(", "), item.name),
+                                            params: page
+                                                .parameters
+                                                .iter()
+                                                .map(|(k, v)| (k.clone(), v.clone()))
+                                                .collect(),
+                                        })),
+                                    }).root;
+                                },
+                                ClientPage::History => {
+                                    return style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
+                                        title: "History".to_string(),
+                                        href: ministate_octothorpe(&Ministate::History),
+                                    }).root;
+                                },
+                            }
                         },
                     }
                 }
 
                 let mut root = vec![];
-                for item in &client_config.0.menu {
-                    root.push(build_menu_item(&client_config.0, &vec![], item));
+                for item in &client_config.menu {
+                    root.push(build_menu_item(&client_config, &vec![], item));
                 }
                 let mut bar_children = vec![];
                 match &whoami {

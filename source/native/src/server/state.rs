@@ -2,26 +2,41 @@ use {
     super::{
         access::Identity,
         subsystems::oidc,
-    }, crate::{
+    },
+    crate::{
         interface::{
             self,
             config::{
                 IamGrants,
-                MenuItemId,
+                IamGrantsLimited,
+                MenuItemPage,
+                ServerConfigMenuItem,
+                ServerConfigMenuItemDetail,
                 UserConfig,
             },
         },
         ScopeValue,
-    }, by_address::ByAddress, cookie::time::ext::InstantExt, deadpool_sqlite::Pool, http::HeaderMap, loga::{
+    },
+    by_address::ByAddress,
+    cookie::time::ext::InstantExt,
+    deadpool_sqlite::Pool,
+    http::HeaderMap,
+    loga::{
         ea,
         Log,
         ResultContext,
-    }, moka::future::Cache, shared::interface::{
+    },
+    moka::future::Cache,
+    shared::interface::{
+        config::view,
         iam::UserIdentityId,
+        query,
         triple::FileHash,
         wire::link::WsS2L,
-    }, std::{
+    },
+    std::{
         collections::{
+            BTreeMap,
             HashMap,
             HashSet,
         },
@@ -34,13 +49,15 @@ use {
             Duration,
             Instant,
         },
-    }, taskmanager::TaskManager, tokio::sync::{
+    },
+    taskmanager::TaskManager,
+    tokio::sync::{
         mpsc::{
             self,
             UnboundedSender,
         },
         oneshot,
-    }
+    },
 };
 
 pub struct WsLinkState<M> {
@@ -53,91 +70,241 @@ pub struct FdapState {
     pub fdap_client: fdap::Client,
 }
 
-pub struct MenuItemSection {
-    pub name: String,
-    pub self_and_ancestors: HashSet<String>,
-    pub children: Vec<String>,
-}
-
-pub struct MenuItemView {
-    pub item: interface::config::View,
-    pub self_and_ancestors: HashSet<String>,
-}
-
-pub struct MenuItemForm {
+pub struct ServerForm {
+    pub menu_self_and_ancestors: HashSet<String>,
     pub item: interface::config::Form,
-    pub self_and_ancestors: HashSet<String>,
 }
 
-pub enum MenuItem {
-    Section(MenuItemSection),
-    View(MenuItemView),
-    Form(MenuItemForm),
-    History,
+pub struct ServerView {
+    pub menu_self_and_ancestors: HashSet<String>,
+    pub item: interface::config::View,
+    pub query_parameters: BTreeMap<String, Vec<String>>,
 }
 
 pub struct GlobalConfig {
-    pub public_iam_grants: HashSet<MenuItemId>,
-    pub menu: Vec<String>,
-    pub menu_items: HashMap<String, MenuItem>,
+    pub public_iam_grants: IamGrantsLimited,
+    pub menu: Vec<ServerConfigMenuItem>,
+    pub forms: HashMap<String, ServerForm>,
+    pub views: HashMap<String, ServerView>,
     pub api_tokens: HashMap<String, IamGrants>,
 }
 
 pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<Arc<GlobalConfig>, loga::Error> {
+    let mut forms = HashMap::new();
+    for (k, v) in &config0.forms {
+        forms.insert(k.to_string(), ServerForm {
+            menu_self_and_ancestors: Default::default(),
+            item: v.clone(),
+        });
+    }
+    let mut views = HashMap::new();
+    for (k, v) in &config0.views {
+        fn recurse_query_value(v: &query::Value, query_parameters: &mut HashSet<String>) {
+            match v {
+                query::Value::Literal(_) => { },
+                query::Value::Parameter(r) => {
+                    query_parameters.insert(r.clone());
+                },
+            }
+        }
+
+        fn recurse_query_str_value(v: &query::StrValue, query_parameters: &mut HashSet<String>) {
+            match v {
+                query::StrValue::Literal(_) => { },
+                query::StrValue::Parameter(r) => {
+                    query_parameters.insert(r.clone());
+                },
+            }
+        }
+
+        fn recurse_query_filter_expr(f: &query::FilterExpr, query_parameters: &mut HashSet<String>) {
+            match f {
+                query::FilterExpr::Exists(f) => {
+                    recurse_query_chain_body(&f.subchain, query_parameters);
+                    if let Some(suffix) = &f.suffix {
+                        match suffix {
+                            query::FilterSuffix::Simple(suffix) => {
+                                recurse_query_value(&suffix.value, query_parameters);
+                            },
+                            query::FilterSuffix::Like(suffix) => {
+                                recurse_query_str_value(&suffix.value, query_parameters);
+                            },
+                        }
+                    }
+                },
+                query::FilterExpr::Junction(f) => {
+                    for e in &f.subexprs {
+                        recurse_query_filter_expr(e, query_parameters);
+                    }
+                },
+            }
+        }
+
+        fn recurse_query_chain_body(query_chain: &query::ChainBody, query_parameters: &mut HashSet<String>) {
+            if let Some(root) = &query_chain.root {
+                match root {
+                    query::ChainRoot::Value(r) => match r {
+                        query::Value::Literal(_) => { },
+                        query::Value::Parameter(r) => {
+                            query_parameters.insert(r.clone());
+                        },
+                    },
+                    query::ChainRoot::Search(r) => recurse_query_str_value(r, query_parameters),
+                }
+            }
+            for step in &query_chain.steps {
+                match step {
+                    shared::interface::query::Step::Move(s) => {
+                        recurse_query_str_value(&s.predicate, query_parameters);
+                        if let Some(f) = &s.filter {
+                            recurse_query_filter_expr(f, query_parameters);
+                        }
+                    },
+                    shared::interface::query::Step::Recurse(s) => {
+                        recurse_query_chain_body(&s.subchain, query_parameters);
+                    },
+                    shared::interface::query::Step::Junction(s) => {
+                        for c in &s.subchains {
+                            recurse_query_chain_body(c, query_parameters);
+                        }
+                    },
+                }
+            }
+        }
+
+        fn recurse_query_chain(query_chain: &query::Chain, query_parameters: &mut HashSet<String>) {
+            recurse_query_chain_body(&query_chain.body, query_parameters);
+            for s in &query_chain.subchains {
+                recurse_query_chain(s, query_parameters);
+            }
+        }
+
+        fn recurse_build_query_parameters(
+            queries: &BTreeMap<String, query::Query>,
+            w: &view::Widget,
+            query_parameters: &mut BTreeMap<String, Vec<String>>,
+        ) -> Result<(), loga::Error> {
+            match w {
+                view::Widget::Layout(w) => {
+                    for e in &w.elements {
+                        recurse_build_query_parameters(queries, e, query_parameters)?;
+                    }
+                },
+                view::Widget::DataRows(w) => {
+                    match &w.data {
+                        view::QueryOrField::Field(_) => { },
+                        view::QueryOrField::Query(q) => {
+                            let query = queries.get(q).context(format!("Missing query [{}]", q))?;
+                            query_parameters.entry(q.clone()).or_insert_with(|| {
+                                let mut params = HashSet::new();
+                                recurse_query_chain(&query.chain, &mut params);
+                                return params.into_iter().collect::<Vec<_>>();
+                            });
+                        },
+                    }
+                    match &w.row_widget {
+                        view::DataRowsLayout::Unaligned(w) => {
+                            recurse_build_query_parameters(queries, &w.widget, query_parameters)?;
+                        },
+                        view::DataRowsLayout::Table(w) => {
+                            for e in &w.elements {
+                                recurse_build_query_parameters(queries, e, query_parameters)?;
+                            }
+                        },
+                    }
+                },
+                view::Widget::Text(_) => { },
+                view::Widget::Date(_) => { },
+                view::Widget::Time(_) => { },
+                view::Widget::Datetime(_) => { },
+                view::Widget::Color(_) => { },
+                view::Widget::Media(_) => { },
+                view::Widget::PlayButton(_) => { },
+                view::Widget::Space => { },
+            }
+            return Ok(());
+        }
+
+        let mut query_parameters: BTreeMap<String, Vec<String>> = Default::default();
+        match &v.display.data {
+            view::QueryOrField::Field(_) => { },
+            view::QueryOrField::Query(q) => {
+                let query = v.queries.get(q).context(format!("Missing query [{}] referred in view [{}]", q, k))?;
+                query_parameters.entry(q.clone()).or_insert_with(|| {
+                    let mut params = HashSet::new();
+                    recurse_query_chain(&query.chain, &mut params);
+                    return params.into_iter().collect::<Vec<_>>();
+                });
+            },
+        }
+        for b in &v.display.row_blocks {
+            recurse_build_query_parameters(
+                &v.queries,
+                &b.widget,
+                &mut query_parameters,
+            ).context(format!("Error extracting query parameters in view [{}]", k))?;
+        }
+        views.insert(k.to_string(), ServerView {
+            menu_self_and_ancestors: Default::default(),
+            item: v.clone(),
+            query_parameters: query_parameters,
+        });
+    }
+
     fn build_menu_items(
         config0: &interface::config::GlobalConfig,
-        menu_out: &mut Vec<String>,
-        menu_items_out: &mut HashMap<String, MenuItem>,
-        ancestry: &HashSet<String>,
+        views_out: &mut HashMap<String, ServerView>,
+        forms_out: &mut HashMap<String, ServerForm>,
+        ancestry: &mut Vec<String>,
         seen: &mut HashSet<String>,
-        at: &interface::config::MenuItem,
+        at: &interface::config::ServerConfigMenuItem,
     ) -> Result<(), loga::Error> {
         if !seen.insert(at.id.clone()) {
             return Err(loga::err(format!("Multiple menu items with id {}", at.id)));
         }
-        let mut ancestry = ancestry.clone();
-        ancestry.insert(at.id.clone());
-        match &at.sub {
-            interface::config::MenuItemSub::Section(sub) => {
-                let mut out = vec![];
-                for child in &sub.children {
-                    build_menu_items(config0, &mut out, menu_items_out, &ancestry, seen, child)?;
+        ancestry.push(at.id.clone());
+        match &at.detail {
+            ServerConfigMenuItemDetail::Section(d) => {
+                for child in &d.children {
+                    build_menu_items(config0, views_out, forms_out, ancestry, seen, child)?;
                 }
-                menu_items_out.insert(at.id.clone(), MenuItem::Section(MenuItemSection {
-                    name: sub.name.clone(),
-                    children: out,
-                    self_and_ancestors: ancestry,
-                }));
             },
-            interface::config::MenuItemSub::View(sub) => {
-                menu_items_out.insert(at.id.clone(), MenuItem::View(MenuItemView {
-                    item: sub.clone(),
-                    self_and_ancestors: ancestry,
-                }));
-            },
-            interface::config::MenuItemSub::Form(sub) => {
-                menu_items_out.insert(at.id.clone(), MenuItem::Form(MenuItemForm {
-                    item: sub.clone(),
-                    self_and_ancestors: ancestry,
-                }));
-            },
-            interface::config::MenuItemSub::History => {
-                menu_items_out.insert(at.id.clone(), MenuItem::History);
+            ServerConfigMenuItemDetail::Page(d) => match d {
+                MenuItemPage::View(d) => {
+                    let view =
+                        views_out
+                            .get_mut(&d.view_id)
+                            .context_with(
+                                "Menu item refers to nonexistent view",
+                                ea!(menu_item = at.id, view = d.view_id),
+                            )?;
+                    view.menu_self_and_ancestors.extend(ancestry.iter().cloned());
+                },
+                MenuItemPage::Form(d) => {
+                    let form =
+                        forms_out
+                            .get_mut(&d.form_id)
+                            .context_with(
+                                "Menu item refers to nonexistent form",
+                                ea!(menu_item = at.id, form = d.form_id),
+                            )?;
+                    form.menu_self_and_ancestors.extend(ancestry.iter().cloned());
+                },
+                MenuItemPage::History => { },
             },
         }
-        menu_out.push(at.id.clone());
+        ancestry.pop();
         return Ok(());
     }
 
-    let mut menu = vec![];
-    let mut menu_items = HashMap::new();
     for item in &config0.menu {
-        build_menu_items(&config0, &mut menu, &mut menu_items, &HashSet::new(), &mut HashSet::new(), item)?;
+        build_menu_items(&config0, &mut views, &mut forms, &mut vec![], &mut HashSet::new(), item)?;
     }
     return Ok(Arc::new(GlobalConfig {
         public_iam_grants: config0.public_iam_grants.clone(),
-        menu: menu,
-        menu_items: menu_items,
+        menu: config0.menu.clone(),
+        forms: forms,
+        views: views,
         api_tokens: config0.api_tokens.clone(),
     }));
 }

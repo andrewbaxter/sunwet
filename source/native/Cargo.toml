@@ -58,6 +58,7 @@ by_address = "1"
 enclose = "=1.2.0"
 image = "0.25"
 regex = "1"
+rand_chacha = "0.3"
 
 
 [build-dependencies]

@@ -11,8 +11,8 @@ use {
         },
         state::{
             state,
-            ViewMinistateState,
-            ViewMinistateState_,
+            MinistateViewState,
+            MinistateViewState_,
         },
     },
     crate::libnonlink::{
@@ -20,6 +20,8 @@ use {
         ministate::{
             ministate_octothorpe,
             Ministate,
+            MinistateForm,
+            MinistateView,
         },
         playlist::{
             playlist_extend,
@@ -44,6 +46,7 @@ use {
         },
         timers::callback::Timeout,
     },
+    js_sys::Math::random,
     lunk::{
         link,
         EventGraph,
@@ -66,6 +69,8 @@ use {
             Direction,
             FieldOrLiteral,
             FieldOrLiteralString,
+            Link,
+            LinkDest,
             Orientation,
             QueryOrField,
             Widget,
@@ -84,6 +89,7 @@ use {
         wire::{
             link::SourceUrl,
             NodeMeta,
+            Pagination,
             ReqViewQuery,
             TreeNode,
         },
@@ -98,6 +104,7 @@ use {
             HashMap,
         },
         rc::Rc,
+        u64,
     },
     uuid::Uuid,
     wasm::{
@@ -111,9 +118,7 @@ use {
         },
         world::file_url,
     },
-    wasm_bindgen::{
-        JsCast,
-    },
+    wasm_bindgen::JsCast,
     web_sys::{
         DomParser,
         Element,
@@ -201,46 +206,78 @@ fn unwrap_value_media_url(data_at: &Node) -> Result<SourceUrl, String> {
     }
 }
 
-fn unwrap_value_move_url(
-    dest_title_field: &FieldOrLiteral,
-    data_at: &TreeNode,
-    data_stack: &Vec<DataStackLevel>,
-    to_node: bool,
-) -> Result<String, String> {
-    match data_at {
-        TreeNode::Array(v) => return Ok(serde_json::to_string(v).unwrap()),
-        TreeNode::Record(v) => return Ok(serde_json::to_string(v).unwrap()),
-        TreeNode::Scalar(v) => {
-            if to_node {
-                let title = match maybe_get_field_or_literal(dest_title_field, data_stack)? {
-                    Some(x) => unwrap_value_string(&x),
-                    None => serde_json::to_string(&v).unwrap(),
-                };
-                return Ok(ministate_octothorpe(&Ministate::NodeView(MinistateNodeView {
-                    title: title,
-                    node: v.clone(),
-                })));
-            }
-            match v {
-                Node::File(v) => return Ok(file_url(&state().env, v)),
-                Node::Value(v) => match v {
-                    serde_json::Value::String(v) => return Ok(v.clone()),
-                    _ => return Ok(serde_json::to_string(v).unwrap()),
+fn unwrap_value_move_url(data_stack: &Vec<DataStackLevel>, link: &Link) -> Result<Option<String>, String> {
+    let title = match maybe_get_field_or_literal(&link.title, data_stack)? {
+        Some(x) => unwrap_value_string(&x),
+        None => format!("(unknown name)"),
+    };
+    match &link.dest {
+        LinkDest::Plain(d) => {
+            let Some(TreeNode::Scalar(data_at)) = maybe_get_field_or_literal(d, data_stack)? else {
+                return Ok(None);
+            };
+            match data_at {
+                Node::File(data_at) => {
+                    return Ok(Some(file_url(&state().env, &data_at)));
+                },
+                Node::Value(serde_json::Value::String(data_at)) => {
+                    return Ok(Some(data_at));
+                },
+                _ => {
+                    return Ok(None);
                 },
             }
+        },
+        LinkDest::View(d) => {
+            let mut params = HashMap::new();
+            for (k, v) in &d.parameters {
+                let Some(TreeNode::Scalar(v)) = maybe_get_field_or_literal(v, data_stack)? else {
+                    continue;
+                };
+                params.insert(k.clone(), v);
+            }
+            return Ok(Some(ministate_octothorpe(&Ministate::View(MinistateView {
+                id: d.id.clone(),
+                title: title,
+                pos: None,
+                params: params,
+            }))));
+        },
+        LinkDest::Form(d) => {
+            let mut params = HashMap::new();
+            for (k, v) in &d.parameters {
+                let Some(TreeNode::Scalar(v)) = maybe_get_field_or_literal(v, data_stack)? else {
+                    continue;
+                };
+                params.insert(k.clone(), v);
+            }
+            return Ok(Some(ministate_octothorpe(&Ministate::Form(MinistateForm {
+                id: d.id.clone(),
+                title: title,
+                params: params,
+            }))));
+        },
+        LinkDest::Node(d) => {
+            let Some(TreeNode::Scalar(data_at)) = maybe_get_field_or_literal(d, data_stack)? else {
+                return Ok(None);
+            };
+            return Ok(Some(ministate_octothorpe(&Ministate::NodeView(MinistateNodeView {
+                title: title,
+                node: data_at,
+            }))));
         },
     }
 }
 
 struct Build {
-    menu_item_id: String,
+    view_id: String,
     param_data: HashMap<String, Node>,
     restore_playlist_pos: Option<PlaylistRestorePos>,
     playlist_add: Vec<(PlaylistIndex, PlaylistPushArg)>,
     have_media: Rc<Cell<bool>>,
     want_media: bool,
     transport_slot: El,
-    vs: ViewMinistateState,
+    vs: MinistateViewState,
 }
 
 impl Build {
@@ -275,7 +312,7 @@ impl Build {
         data_at: &Vec<DataStackLevel>,
     ) -> El {
         return el_async({
-            let menu_item_id = self.menu_item_id.clone();
+            let view_id = self.view_id.clone();
             let param_data = self.param_data.clone();
             let restore_playlist_pos = self.restore_playlist_pos.clone();
             let eg = pc.eg();
@@ -318,7 +355,7 @@ impl Build {
                             }
                         }
                         let res = req_post_json(&state().env.base_url, ReqViewQuery {
-                            menu_item_id: menu_item_id.clone(),
+                            view_id: view_id.clone(),
                             query: query_id.clone(),
                             parameters: params,
                             pagination: None,
@@ -333,7 +370,7 @@ impl Build {
                 };
                 return eg.event(move |pc| {
                     let mut build = Build {
-                        menu_item_id: menu_item_id.clone(),
+                        view_id: view_id.clone(),
                         vs: vs.clone(),
                         param_data: param_data.clone(),
                         restore_playlist_pos: restore_playlist_pos.clone(),
@@ -421,7 +458,7 @@ impl Build {
         data_at: &Vec<DataStackLevel>,
     ) -> El {
         let build_infinite_page = {
-            let menu_item_id = self.menu_item_id.clone();
+            let view_id = self.view_id.clone();
             let vs = self.vs.clone();
             let param_data = self.param_data.clone();
             let restore_playlist_pos = self.restore_playlist_pos.clone();
@@ -435,7 +472,7 @@ impl Build {
             move |chunk: Vec<(usize, TreeNode)>, node_meta: Rc<HashMap<Node, NodeMeta>>| -> Vec<El> {
                 return eg.event(|pc| {
                     let mut build = Build {
-                        menu_item_id: menu_item_id.clone(),
+                        view_id: view_id.clone(),
                         param_data: param_data.clone(),
                         restore_playlist_pos: restore_playlist_pos.clone(),
                         playlist_add: Default::default(),
@@ -477,7 +514,7 @@ impl Build {
         };
         return el_async({
             let config_at = config_at.clone();
-            let menu_item_id = self.menu_item_id.clone();
+            let view_id = self.view_id.clone();
             let config_query_params = config_query_params.clone();
             let data_at = data_at.clone();
             async move {
@@ -535,20 +572,25 @@ impl Build {
                             }
                         }
                         build_infinite(body.clone(), None, {
-                            let menu_item_id = menu_item_id.clone();
+                            let seed = (random() * u64::MAX as f64) as u64;
+                            let view_id = view_id.clone();
                             let query_id = query_id.clone();
                             let mut count = 0usize;
                             move |key| {
-                                let menu_item_id = menu_item_id.clone();
+                                let view_id = view_id.clone();
                                 let query_id = query_id.clone();
                                 let params = params.clone();
                                 let build_infinite_page = build_infinite_page.clone();
                                 async move {
                                     let res = req_post_json(&state().env.base_url, ReqViewQuery {
-                                        menu_item_id: menu_item_id.clone(),
+                                        view_id: view_id.clone(),
                                         query: query_id.clone(),
                                         parameters: params,
-                                        pagination: Some((20, key)),
+                                        pagination: Some(Pagination {
+                                            count: 20,
+                                            seed: Some(seed),
+                                            after: key,
+                                        }),
                                     }).await?;
                                     let mut chunk = vec![];
                                     for v in res.records {
@@ -574,7 +616,7 @@ impl Build {
         });
     }
 
-    fn build_widget_text(&mut self, config_at: &WidgetText, data_at: &Vec<DataStackLevel>) -> El {
+    fn build_widget_text(&mut self, config_at: &WidgetText, data_stack: &Vec<DataStackLevel>) -> El {
         match (|| {
             ta_return!(El, String);
             return Ok(style_export::leaf_view_text(style_export::LeafViewTextArgs {
@@ -583,7 +625,7 @@ impl Build {
                 text: format!(
                     "{}{}{}",
                     config_at.prefix,
-                    unwrap_value_string(&match maybe_get_field_or_literal_string(&config_at.data, data_at)? {
+                    unwrap_value_string(&match maybe_get_field_or_literal_string(&config_at.data, data_stack)? {
                         Some(x) => x,
                         None => return Ok(el("div")),
                     }),
@@ -595,10 +637,7 @@ impl Build {
                     let Some(link) = config_at.link.as_ref() else {
                         break None;
                     };
-                    let Some(field) = maybe_get_field_or_literal(&link.value, data_at)? else {
-                        break None;
-                    };
-                    break Some(unwrap_value_move_url(&link.title, &field, data_at, link.to_node)?);
+                    break unwrap_value_move_url(data_stack, &link)?;
                 },
             }).root);
         })() {
@@ -631,13 +670,10 @@ impl Build {
                             SourceUrl::File(v) => file_url(&state().env, &v),
                         },
                         link: shed!{
-                            let Some(l) = &config_at.link else {
+                            let Some(link) = config_at.link.as_ref() else {
                                 break None;
                             };
-                            let Some(d) = maybe_get_field_or_literal(&l.value, &data_stack)? else {
-                                break None;
-                            };
-                            break Some(unwrap_value_move_url(&l.title, &d, data_stack, l.to_node)?);
+                            break unwrap_value_move_url(data_stack, &link)?;
                         },
                         text: shed!{
                             let Some(v) = &config_at.alt else {
@@ -660,13 +696,10 @@ impl Build {
                             SourceUrl::File(v) => file_url(&state().env, &v),
                         },
                         link: shed!{
-                            let Some(l) = &config_at.link else {
+                            let Some(link) = config_at.link.as_ref() else {
                                 break None;
                             };
-                            let Some(d) = maybe_get_field_or_literal(&l.value, &data_stack)? else {
-                                break None;
-                            };
-                            break Some(unwrap_value_move_url(&l.title, &d, data_stack, l.to_node)?);
+                            break unwrap_value_move_url(data_stack, &link)?;
                         },
                         text: shed!{
                             let Some(v) = &config_at.alt else {
@@ -690,13 +723,10 @@ impl Build {
                             SourceUrl::File(v) => file_url(&state().env, &v),
                         },
                         link: shed!{
-                            let Some(l) = &config_at.link else {
+                            let Some(link) = config_at.link.as_ref() else {
                                 break None;
                             };
-                            let Some(d) = maybe_get_field_or_literal(&l.value, &data_stack)? else {
-                                break None;
-                            };
-                            break Some(unwrap_value_move_url(&l.title, &d, data_stack, l.to_node)?);
+                            break unwrap_value_move_url(data_stack, &link)?;
                         },
                         text: shed!{
                             let Some(v) = &config_at.alt else {
@@ -1203,7 +1233,7 @@ struct BuildViewBodyCommon {
     body: WeakEl,
     transport_slot: WeakEl,
     have_media: Rc<Cell<bool>>,
-    view_ministate_state: ViewMinistateState,
+    view_ministate_state: MinistateViewState,
 }
 
 fn build_page_view_body(
@@ -1221,7 +1251,7 @@ fn build_page_view_body(
     body.ref_clear();
     playlist_clear(pc, &state().playlist);
     let mut build = Build {
-        menu_item_id: common.id.clone(),
+        view_id: common.id.clone(),
         vs: common.view_ministate_state.clone(),
         param_data: param_data.clone(),
         restore_playlist_pos: restore_playlist_pos.clone(),
@@ -1255,22 +1285,23 @@ fn build_page_view_body(
 
 pub fn build_page_view(
     eg: EventGraph,
-    menu_item_title: String,
+    id: String,
+    title: String,
     view: ClientView,
     params: HashMap<String, Node>,
     restore_playlist_pos: Option<PlaylistRestorePos>,
 ) -> Result<El, String> {
     return eg.event(|pc| {
-        let vs = ViewMinistateState(Rc::new(RefCell::new(ViewMinistateState_ {
-            menu_item_id: view.id.clone(),
-            title: menu_item_title.clone(),
+        let vs = MinistateViewState(Rc::new(RefCell::new(MinistateViewState_ {
+            view_id: id.clone(),
+            title: title.clone(),
             pos: restore_playlist_pos.clone(),
             params: params.clone(),
         })));
         let transport_slot = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
         let body = style_export::cont_view_root_rows(style_export::ContViewRootRowsArgs { rows: vec![] }).root;
         let common = Rc::new(BuildViewBodyCommon {
-            id: view.id.clone(),
+            id: id.clone(),
             view_ministate_state: vs.clone(),
             transport_slot: transport_slot.weak(),
             config_at: view.root,
