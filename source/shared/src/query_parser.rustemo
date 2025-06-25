@@ -25,8 +25,8 @@ FILTER_SUFFIX: FILTER_SUFFIX_SIMPLE | FILTER_SUFFIX_LIKE ;
 FILTER_SUFFIX_SIMPLE: FILTER_OP VAL ;
 FILTER_SUFFIX_LIKE: sym_op_like STR_PARAM_VAL ;
 FILTER_OP: sym_op_eq | sym_op_neq | sym_op_gt | sym_op_gte | sym_op_lt | sym_op_lte ;
-FILTER_JUNCT_AND: sym_open_junct_and sym_open_paren FILTER+ sym_end_paren ;
-FILTER_JUNCT_OR: sym_open_junct_or sym_open_paren FILTER+ sym_end_paren ;
+FILTER_JUNCT_AND: sym_open_junct_and FILTER+ sym_end_paren ;
+FILTER_JUNCT_OR: sym_open_junct_or FILTER+ sym_end_paren ;
 
 CHAIN_BIND: CHAIN_BIND_CURRENT | CHAIN_BIND_SUBCHAIN ;
 CHAIN_BIND_CURRENT: sym_bind ident ;

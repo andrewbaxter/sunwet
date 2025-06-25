@@ -779,6 +779,35 @@
           );
         }
         break;
+      case "#query":
+        {
+          const root = presentation.contPageQuery({
+            initialQuery: '"hello world" { => value }',
+          });
+          root.results.appendChild(
+            presentation.leafQueryRow({
+              data: JSON.stringify({ a: 4, b: 6, c: -7 }, null, 4),
+            }).root
+          );
+          root.results.appendChild(
+            presentation.leafQueryRow({
+              data: JSON.stringify({ a: 4, b: 6, c: -7 }, null, 4),
+            }).root
+          );
+          root.results.appendChild(
+            presentation.leafQueryRow({
+              data: JSON.stringify({ a: 4, b: 6, c: -7 }, null, 4),
+            }).root
+          );
+          buildRoot(
+            presentation.appMain({
+              mainTitle: presentation.leafTitle({ text: "Query" }).root,
+              mainBody: root.root,
+              menuBody: stagingMenu,
+            }).root
+          );
+        }
+        break;
       case "#link_perms":
         {
           buildRoot(presentation.appLinkPerms({}).root);

@@ -46,6 +46,7 @@ let
     root = workspaceWasm;
     release = true;
     CARGO_BUILD_TARGET = "wasm32-unknown-unknown";
+    GIT_HASH = "fakehash";
   };
   nativeBindgen = naersk.buildPackage {
     root = ./native-bindgen;

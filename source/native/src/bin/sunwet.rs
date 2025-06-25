@@ -13,13 +13,14 @@ use {
 };
 
 #[derive(Aargvark)]
+#[vark(break_help)]
 enum Command {
     Query(client::QueryCommand),
     CompileQuery(client::CompileQueryCommand),
     Commit(client::commit::CommitCommand),
     PrepareImportCommit(client::import_::PrepareImportCommitCommand),
-    PrepareMergeCommit(client::MergeNodesCommand),
-    PrepareDeleteCommit(client::DeleteNodesCommand),
+    MergeNodes(client::MergeNodesCommand),
+    DeleteNodes(client::DeleteNodesCommand),
     History(client::HistoryCommand),
     GetNode(client::GetNodeCommand),
     RunServer(server::Args),
@@ -45,10 +46,10 @@ async fn main1() -> Result<(), loga::Error> {
         Command::PrepareImportCommit(c) => {
             client::import_::handle_prepare_import_commit(c).await?;
         },
-        Command::PrepareDeleteCommit(c) => {
+        Command::DeleteNodes(c) => {
             client::handle_delete_nodes(c).await?;
         },
-        Command::PrepareMergeCommit(c) => {
+        Command::MergeNodes(c) => {
             client::handle_merge_nodes_command(c).await?;
         },
         Command::History(c) => {

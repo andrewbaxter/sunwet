@@ -5,9 +5,9 @@ pub mod gather_video;
 pub mod gather;
 
 use {
-    crate::client::{
-        query::compile_query,
-        req,
+    crate::client::req::{
+        self,
+        ENV_SUNWET,
     },
     aargvark::Aargvark,
     by_address::ByAddress,
@@ -21,59 +21,62 @@ use {
         Log,
         ResultContext,
     },
-    shared::interface::{
-        cli::{
-            CliCommit,
-            CliNode,
-            CliTriple,
+    shared::{
+        interface::{
+            cli::{
+                CliCommit,
+                CliNode,
+                CliTriple,
+            },
+            ont::{
+                OBJ_IS_ALBUM,
+                OBJ_IS_ARTIST,
+                OBJ_IS_DOC,
+                OBJ_IS_TRACK,
+                OBJ_MEDIA_AUDIO,
+                OBJ_MEDIA_BOOK,
+                OBJ_MEDIA_COMIC,
+                OBJ_MEDIA_IMAGE,
+                OBJ_MEDIA_VIDEO,
+                PREDICATE_ADD_TIMESTAMP,
+                PREDICATE_ARTIST,
+                PREDICATE_COVER,
+                PREDICATE_DOC,
+                PREDICATE_FILE,
+                PREDICATE_INDEX,
+                PREDICATE_IS,
+                PREDICATE_LANG,
+                PREDICATE_MEDIA,
+                PREDICATE_NAME,
+                PREDICATE_SUPERINDEX,
+                PREDICATE_TRACK,
+            },
+            query::{
+                Chain,
+                ChainBody,
+                ChainRoot,
+                FilterExpr,
+                FilterExprExistance,
+                FilterExprExistsType,
+                FilterExprJunction,
+                FilterSuffix,
+                FilterSuffixSimple,
+                FilterSuffixSimpleOperator,
+                JunctionType,
+                MoveDirection,
+                Query,
+                Step,
+                StepMove,
+                StrValue,
+                Value,
+            },
+            triple::Node,
+            wire::{
+                ReqQuery,
+                TreeNode,
+            },
         },
-        ont::{
-            OBJ_IS_ALBUM,
-            OBJ_IS_ARTIST,
-            OBJ_IS_DOC,
-            OBJ_IS_TRACK,
-            OBJ_MEDIA_AUDIO,
-            OBJ_MEDIA_BOOK,
-            OBJ_MEDIA_COMIC,
-            OBJ_MEDIA_IMAGE,
-            OBJ_MEDIA_VIDEO,
-            PREDICATE_ADD_TIMESTAMP,
-            PREDICATE_ARTIST,
-            PREDICATE_COVER,
-            PREDICATE_DOC,
-            PREDICATE_FILE,
-            PREDICATE_INDEX,
-            PREDICATE_IS,
-            PREDICATE_LANG,
-            PREDICATE_MEDIA,
-            PREDICATE_NAME,
-            PREDICATE_SUPERINDEX,
-            PREDICATE_TRACK,
-        },
-        query::{
-            Chain,
-            ChainBody,
-            ChainRoot,
-            FilterExpr,
-            FilterExprExistance,
-            FilterExprExistsType,
-            FilterExprJunction,
-            FilterSuffix,
-            FilterSuffixSimple,
-            FilterSuffixSimpleOperator,
-            JunctionType,
-            MoveDirection,
-            Query,
-            Step,
-            StepMove,
-            StrValue,
-            Value,
-        },
-        triple::Node,
-        wire::{
-            ReqQuery,
-            TreeNode,
-        },
+        query_parser::compile_query,
     },
     std::{
         cell::RefCell,
@@ -84,6 +87,7 @@ use {
             HashMap,
             HashSet,
         },
+        env,
         fs::{
             create_dir_all,
             write,
@@ -106,13 +110,13 @@ pub async fn node_id(
     query: &'static str,
     parameters: HashMap<String, Node>,
 ) -> Result<Node, loga::Error> {
-    return node_id_direct(log, compile_query(None, query)?, parameters).await;
+    return node_id_direct(log, compile_query(None, query).map_err(loga::err)?, parameters).await;
 }
 
 pub async fn node_id_artist(log: &Log, name: &str) -> Result<Node, loga::Error> {
     return node_id(
         log,
-        r#"$name -< "sunwet/1/name" ?( -> "sunwet/1/is" "sunwet/1/artist" ) { => id }"#,
+        r#"$name -< "sunwet/1/name" ?( -> "sunwet/1/is" == "sunwet/1/artist" ) { => id }"#,
         [(format!("artist"), Node::from_str(name))].into_iter().collect(),
     ).await;
 }
@@ -122,6 +126,9 @@ pub async fn node_id_direct(
     query: Query,
     parameters: HashMap<String, Node>,
 ) -> Result<Node, loga::Error> {
+    if env::var_os(ENV_SUNWET).is_none() {
+        return Ok(Node::Value(serde_json::Value::String(Uuid::new_v4().hyphenated().to_string())));
+    }
     let out = req::req_simple(&log, ReqQuery {
         query: query.clone(),
         parameters: parameters.clone(),
@@ -263,7 +270,7 @@ fn is_doc(p: &[u8]) -> bool {
     }
 }
 
-fn query_album_track(album: Node, superindex: Option<f64>, index: Option<f64>, name: &str) -> Query {
+fn query_album_track(album: Node, superindex: Option<f64>, index: Option<f64>, name: &Option<String>) -> Query {
     let mut filter = vec![];
     {
         let subchain = ChainBody {
@@ -323,22 +330,24 @@ fn query_album_track(album: Node, superindex: Option<f64>, index: Option<f64>, n
             }));
         }
     }
-    filter.push(FilterExpr::Exists(FilterExprExistance {
-        type_: FilterExprExistsType::Exists,
-        subchain: ChainBody {
-            root: None,
-            steps: vec![Step::Move(StepMove {
-                dir: MoveDirection::Forward,
-                predicate: StrValue::Literal(PREDICATE_NAME.to_string()),
-                filter: None,
-                first: false,
-            })],
-        },
-        suffix: Some(FilterSuffix::Simple(FilterSuffixSimple {
-            op: FilterSuffixSimpleOperator::Eq,
-            value: Value::Literal(Node::Value(serde_json::Value::String(name.to_string()))),
-        })),
-    }));
+    if let Some(name) = name {
+        filter.push(FilterExpr::Exists(FilterExprExistance {
+            type_: FilterExprExistsType::Exists,
+            subchain: ChainBody {
+                root: None,
+                steps: vec![Step::Move(StepMove {
+                    dir: MoveDirection::Forward,
+                    predicate: StrValue::Literal(PREDICATE_NAME.to_string()),
+                    filter: None,
+                    first: false,
+                })],
+            },
+            suffix: Some(FilterSuffix::Simple(FilterSuffixSimple {
+                op: FilterSuffixSimpleOperator::Eq,
+                value: Value::Literal(Node::Value(serde_json::Value::String(name.to_string()))),
+            })),
+        }));
+    }
     return Query {
         chain: Chain {
             body: ChainBody {
@@ -379,7 +388,7 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
         index: Option<f64>,
         superindex: Option<f64>,
         artist: Vec<Rc<RefCell<GatherArtist>>>,
-        name: String,
+        name: Option<String>,
         lang: Option<String>,
         // Precedence -> hash -> prevalence in tracks
         covers: BTreeMap<usize, HashMap<PathBuf, usize>>,
@@ -446,9 +455,14 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
         let g = g.context_with("Error gathering meta for file", ea!(path = file.path().dbg_str()))?;
 
         // Sanity check minimum meta
-        let Some(track_name) = g.track_name else {
-            return Err(loga::err_with("File missing track name", ea!(path = file.path().dbg_str())));
-        };
+        if g.track_name.is_none() && g.track_index.is_none() {
+            return Err(
+                loga::err_with(
+                    "File missing both index in album and track name, no identifier to look up remotely",
+                    ea!(path = file.path().dbg_str()),
+                ),
+            );
+        }
         if g.track_artist.is_empty() {
             return Err(loga::err_with("File missing track artist", ea!(path = file.path().dbg_str())));
         }
@@ -469,7 +483,9 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
             };
             album_artist2.insert(ByAddress(artist));
         }
-        let album_name = g.album_name.unwrap_or_else(|| track_name.clone());
+        let Some(album_name) = g.album_name.or_else(|| g.track_name.clone()) else {
+            return Err(loga::err_with("File missing track and album name", ea!(ath = file.path().dbg_str())));
+        };
         let album = match albums.entry(AlbumKey {
             album_artist: album_artist2.clone(),
             name: album_name.clone(),
@@ -484,10 +500,10 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
                             &log,
                             concat!(
                                 r#"$artist -< "sunwet/1/artist" "#,
-                                r#"  -& ( "#,
+                                r#"  &( "#,
                                 r#"    ?(-> "sunwet/1/is" == "sunwet/1/album") "#,
                                 r#"    ?(-> "sunwet/1/name" == $name )"#,
-                                r#"  ) "#,
+                                r#"  )"#,
                                 r#"  { => id } "#,
                             ),
                             [
@@ -541,7 +557,7 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
         let track = Rc::new(RefCell::new(GatherTrack {
             id: node_id_direct(
                 &log,
-                query_album_track(album.borrow().id.clone(), g.track_superindex, g.track_index, &track_name),
+                query_album_track(album.borrow().id.clone(), g.track_superindex, g.track_index, &g.track_name),
                 Default::default(),
             ).await?,
             type_: g.track_type,
@@ -549,7 +565,7 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
             superindex: g.track_superindex,
             file: file.path().to_path_buf(),
             artist: track_artist2,
-            name: track_name,
+            name: g.track_name,
             lang: g.track_language,
             covers: Default::default(),
         }));
@@ -643,7 +659,9 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
             if let Some(index) = track.superindex {
                 triples.push(triple(&node_node(&track.id), PREDICATE_SUPERINDEX, &node_value_f64(index)));
             }
-            triples.push(triple(&node_node(&track.id), PREDICATE_NAME, &node_value_str(&track.name)));
+            if let Some(name) = track.name.as_ref() {
+                triples.push(triple(&node_node(&track.id), PREDICATE_NAME, &node_value_str(name)));
+            }
             for artist in &track.artist {
                 triples.push(triple(&node_node(&track.id), PREDICATE_ARTIST, &node_node(&artist.borrow().id)));
             }

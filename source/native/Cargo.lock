@@ -2610,8 +2610,6 @@ dependencies = [
  "regex",
  "rusqlite",
  "rust-embed",
- "rustemo",
- "rustemo-compiler",
  "schemars",
  "sea-query",
  "sea-query-rusqlite",
@@ -3956,6 +3954,8 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "hex",
+ "rustemo",
+ "rustemo-compiler",
  "schemars",
  "serde",
  "serde_json",

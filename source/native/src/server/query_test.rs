@@ -3,7 +3,6 @@
 use {
     super::defaultviews::node_is_album,
     crate::{
-        client::query::compile_query,
         interface::triple::DbNode,
         server::{
             db,
@@ -19,35 +18,38 @@ use {
         TimeZone,
         Utc,
     },
-    shared::interface::{
-        ont::{
-            PREDICATE_ADD_TIMESTAMP,
-            PREDICATE_ARTIST,
-            PREDICATE_IS,
-            PREDICATE_NAME,
-            PREDICATE_TRACK,
+    shared::{
+        query_parser::compile_query,
+        interface::{
+            ont::{
+                PREDICATE_ADD_TIMESTAMP,
+                PREDICATE_ARTIST,
+                PREDICATE_IS,
+                PREDICATE_NAME,
+                PREDICATE_TRACK,
+            },
+            query::{
+                Chain,
+                ChainBody,
+                ChainRoot,
+                FilterExpr,
+                FilterExprExistance,
+                FilterExprExistsType,
+                FilterSuffixSimple,
+                FilterSuffixSimpleOperator,
+                JunctionType,
+                MoveDirection,
+                Query,
+                Step,
+                StepJunction,
+                StepMove,
+                StepRecurse,
+                StrValue,
+                Value,
+            },
+            triple::Node,
+            wire::TreeNode,
         },
-        query::{
-            Chain,
-            ChainBody,
-            ChainRoot,
-            FilterExpr,
-            FilterExprExistance,
-            FilterExprExistsType,
-            FilterSuffixSimple,
-            FilterSuffixSimpleOperator,
-            JunctionType,
-            MoveDirection,
-            Query,
-            Step,
-            StepJunction,
-            StepMove,
-            StepRecurse,
-            StrValue,
-            Value,
-        },
-        triple::Node,
-        wire::TreeNode,
     },
     std::{
         collections::{
@@ -151,7 +153,7 @@ fn test_base() {
             ],
         ],
         compile_query(
-            Some(&query_dir),
+            Some((&query_dir, |p| read_to_string(p).map_err(|e| e.to_string()))),
             &read_to_string(&query_dir.join("query_audio_albums_by_add_date.txt")).unwrap(),
         ).unwrap(),
     );

@@ -701,6 +701,18 @@ fn main() {
             returns: vec![("root", &el_), ("button", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
+        // xx Components, styles: page, query
+        Func {
+            name: "contPageQuery",
+            args: vec![("initialQuery", &string_)],
+            returns: vec![("root", &el_), ("query", &el_), ("results", &el_)],
+        },
+        Func {
+            name: "leafQueryRow",
+            args: vec![("data", &string_)],
+            returns: vec![("root", &el_)],
+        },
+        // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: menu
         Func {
             name: "contBarMenu",

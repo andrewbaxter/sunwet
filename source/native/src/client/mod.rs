@@ -23,35 +23,36 @@ use {
         Log,
         ResultContext,
     },
-    query::compile_query,
     serde::Serialize,
-    shared::interface::{
-        query::Query,
-        triple::{
-            FileHash,
-            Node,
+    shared::{
+        interface::{
+            query::Query,
+            triple::{
+                FileHash,
+                Node,
+            },
+            wire::{
+                ReqCommit,
+                ReqGetTriplesAround,
+                ReqHistory,
+                ReqHistoryFilter,
+                ReqHistoryFilterPredicate,
+                ReqQuery,
+                Triple,
+            },
         },
-        wire::{
-            ReqCommit,
-            ReqGetTriplesAround,
-            ReqHistory,
-            ReqHistoryFilter,
-            ReqHistoryFilterPredicate,
-            ReqQuery,
-            Triple,
-        },
+        query_parser::compile_query,
     },
     std::{
         collections::HashMap,
         env::current_dir,
+        fs::read_to_string,
         str::FromStr,
     },
 };
 
 pub mod req;
 pub mod commit;
-pub mod query;
-pub mod query_test;
 pub mod import_;
 
 pub struct StrNode(pub Node);
@@ -152,7 +153,16 @@ pub fn handle_compile_query(c: CompileQueryCommand) -> Result<(), loga::Error> {
     } else {
         return Err(loga::err("Must specify a query, either on the command line or as a file"));
     }
-    let out = compile_query(Some(&query_dir), &query)?;
+    let out =
+        compile_query(
+            Some(
+                (
+                    &query_dir,
+                    |p| read_to_string(p).map_err(|e| format!("Error reading import at [{:?}]: {}", p, e)),
+                ),
+            ),
+            &query,
+        ).map_err(|e| loga::err(e))?;
     println!("{}", serde_json::to_string_pretty(&out).unwrap());
     return Ok(());
 }

@@ -1,14 +1,5 @@
 use {
-    loga::{
-        ea,
-        DebugDisplay,
-        ResultContext,
-    },
-    query_parser_actions::{
-        ROOT,
-        STEP,
-    },
-    shared::interface::{
+    super::interface::{
         query::{
             Chain,
             ChainBody,
@@ -35,22 +26,28 @@ use {
         },
         triple::Node,
     },
+    query_parser_actions::{
+        ROOT,
+        STEP,
+    },
     std::{
-        fs::read_to_string,
-        path::Path,
+        path::{
+            Path,
+            PathBuf,
+        },
     },
 };
 
 mod query_parser {
     #![allow(warnings)]
 
-    include!(concat!(env!("OUT_DIR"), "/src/client/query_parser.rs"));
+    include!(concat!(env!("OUT_DIR"), "/src/query_parser.rs"));
 }
 
 mod query_parser_actions {
     #![allow(warnings)]
 
-    include!(concat!(env!("OUT_DIR"), "/src/client/query_parser_actions.rs"));
+    include!(concat!(env!("OUT_DIR"), "/src/query_parser_actions.rs"));
 }
 
 fn unquote_string(s: impl AsRef<str>) -> String {
@@ -66,7 +63,7 @@ fn compile_str_value(value: query_parser_actions::STR_PARAM_VAL) -> StrValue {
     }
 }
 
-fn compile_value(value: query_parser_actions::VAL) -> Result<Value, loga::Error> {
+fn compile_value(value: query_parser_actions::VAL) -> Result<Value, String> {
     match value {
         query_parser_actions::VAL::str_(v) => {
             return Ok(Value::Literal(Node::Value(serde_json::from_str(&v).unwrap())));
@@ -96,7 +93,11 @@ fn compile_value(value: query_parser_actions::VAL) -> Result<Value, loga::Error>
                 v = &v[1 .. v.len() - 1];
             }
             return Ok(
-                Value::Literal(Node::Value(serde_json::from_str(&v).context("Invalid JSON in value literal")?)),
+                Value::Literal(
+                    Node::Value(
+                        serde_json::from_str(&v).map_err(|e| format!("Invalid JSON in value literal: {}", e))?,
+                    ),
+                ),
             );
         },
         query_parser_actions::VAL::param(mut v) => {
@@ -105,7 +106,7 @@ fn compile_value(value: query_parser_actions::VAL) -> Result<Value, loga::Error>
     }
 }
 
-fn compile_filter_suffix(suffix: query_parser_actions::FILTER_SUFFIX) -> Result<FilterSuffix, loga::Error> {
+fn compile_filter_suffix(suffix: query_parser_actions::FILTER_SUFFIX) -> Result<FilterSuffix, String> {
     match suffix {
         query_parser_actions::FILTER_SUFFIX::FILTER_SUFFIX_SIMPLE(suffix) => {
             return Ok(FilterSuffix::Simple(FilterSuffixSimple {
@@ -126,7 +127,7 @@ fn compile_filter_suffix(suffix: query_parser_actions::FILTER_SUFFIX) -> Result<
     }
 }
 
-fn compile_filter(filter: query_parser_actions::FILTER) -> Result<FilterExpr, loga::Error> {
+fn compile_filter(filter: query_parser_actions::FILTER) -> Result<FilterExpr, String> {
     match filter {
         query_parser_actions::FILTER::FILTER_EXISTS(f) => {
             return Ok(FilterExpr::Exists(FilterExprExistance {
@@ -173,7 +174,7 @@ fn compile_filter(filter: query_parser_actions::FILTER) -> Result<FilterExpr, lo
     }
 }
 
-fn compile_chain_body(body_root: Option<ROOT>, body_steps: Vec<STEP>) -> Result<ChainBody, loga::Error> {
+fn compile_chain_body(body_root: Option<ROOT>, body_steps: Vec<STEP>) -> Result<ChainBody, String> {
     let root;
     match body_root {
         Some(parsed_root) => match parsed_root {
@@ -257,7 +258,10 @@ fn compile_chain_body(body_root: Option<ROOT>, body_steps: Vec<STEP>) -> Result<
     })
 }
 
-fn compile_chain(query_dir: Option<&Path>, chain: query_parser_actions::CHAIN) -> Result<Chain, loga::Error> {
+fn compile_chain(
+    query_context: Option<(&Path, fn(&PathBuf) -> Result<String, String>)>,
+    chain: query_parser_actions::CHAIN,
+) -> Result<Chain, String> {
     let mut bind_current = None;
     let mut children = vec![];
     let body_root = chain.chain_body.rootopt;
@@ -272,35 +276,21 @@ fn compile_chain(query_dir: Option<&Path>, chain: query_parser_actions::CHAIN) -
             },
             query_parser_actions::CHAIN_TAIL::CHAIN_TAIL_INCLUDE(tail) => {
                 let tail = unquote_string(tail);
-                let Some(query_dir) = query_dir else {
+                let Some((query_dir, includer)) = query_context else {
                     return Err(
-                        loga::err_with(
-                            "Query has include but query filesystem path not provided, cannot resolve",
-                            ea!(include = tail),
-                        ),
+                        format!("Query has include [{}] but query filesystem path not provided, cannot resolve", tail),
                     );
                 };
                 let built_path = query_dir.join(&tail);
-                let include_query =
-                    read_to_string(
-                        &built_path,
-                    ).context_with(
-                        "Error reading include query",
-                        ea!(
-                            context_path = query_dir.dbg_str(),
-                            include_path = tail,
-                            combined_path = built_path.dbg_str()
-                        ),
-                    )?;
-                let display_path = built_path.dbg_str();
+                let include_query = includer(&built_path)?;
+                let display_path = format!("{:?}", built_path);
                 let parse =
-                    rustemo::Parser::parse(&query_parser::QueryParserParser::new(), &include_query)
-                        .map_err(loga::err)
-                        .context_with("Error parsing included query", ea!(path = display_path))?;
+                    rustemo::Parser::parse(
+                        &query_parser::QueryParserParser::new(),
+                        &include_query,
+                    ).map_err(|e| format!("Error parsing included query at [{}]: {}", display_path, e))?;
                 if parse.chain.chain_body.rootopt.is_some() {
-                    return Err(
-                        loga::err_with("Included query has root, cannot be used as suffix", ea!(path = display_path)),
-                    );
+                    return Err(format!("Included query at [{}] has root, cannot be used as suffix", display_path));
                 }
                 body_steps.extend(parse.chain.chain_body.step0.unwrap_or_default());
                 at_tail = parse.chain.chain_tail;
@@ -311,12 +301,12 @@ fn compile_chain(query_dir: Option<&Path>, chain: query_parser_actions::CHAIN) -
         match action {
             query_parser_actions::CHAIN_BIND::CHAIN_BIND_CURRENT(action) => {
                 if bind_current.is_some() {
-                    return Err(loga::err("You can only assign one name for a chain (select)"));
+                    return Err(format!("You can only assign one name for a chain (select)"));
                 }
                 bind_current = Some(action);
             },
             query_parser_actions::CHAIN_BIND::CHAIN_BIND_SUBCHAIN(action) => {
-                children.push(compile_chain(query_dir, *action)?);
+                children.push(compile_chain(query_context, *action)?);
             },
         }
     }
@@ -327,13 +317,16 @@ fn compile_chain(query_dir: Option<&Path>, chain: query_parser_actions::CHAIN) -
     });
 }
 
-pub fn compile_query(query_dir: Option<&Path>, query: &str) -> Result<Query, loga::Error> {
+pub fn compile_query(
+    query_context: Option<(&Path, fn(&PathBuf) -> Result<String, String>)>,
+    query: &str,
+) -> Result<Query, String> {
     let parse =
         rustemo::Parser::parse(&query_parser::QueryParserParser::new(), query)
-            .map_err(loga::err)
-            .context("Error parsing query")?;
+            .map_err(|e| e.to_string())
+            .map_err(|e| format!("Error parsing query: {}", e))?;
     return Ok(Query {
-        chain: compile_chain(query_dir, parse.chain)?,
+        chain: compile_chain(query_context, parse.chain)?,
         sort: match parse.sortopt {
             Some(sort) => match sort {
                 query_parser_actions::SORT::SORT_PAIRS(sort) => {

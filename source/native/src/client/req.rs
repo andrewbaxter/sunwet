@@ -24,8 +24,8 @@ use {
     },
 };
 
-const ENV_SUNWET: &str = "SUNWET";
-const ENV_SUNWET_TOKEN: &str = "SUNWET_TOKEN";
+pub const ENV_SUNWET: &str = "SUNWET";
+pub const ENV_SUNWET_TOKEN: &str = "SUNWET_TOKEN";
 
 pub fn server_url() -> Result<Uri, loga::Error> {
     let url0 = env::var(ENV_SUNWET).context_with("Missing env var", ea!(var = ENV_SUNWET))?;

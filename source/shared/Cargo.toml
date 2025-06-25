@@ -10,3 +10,7 @@ chrono = { version = "0.4", features = ["serde"] }
 schemars = "0.8"
 sha2 = "0.10"
 hex = "0.4"
+rustemo = "0.7"
+
+[build-dependencies]
+rustemo-compiler = "0.7"

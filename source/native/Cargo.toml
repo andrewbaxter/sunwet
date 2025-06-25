@@ -50,7 +50,6 @@ rand = "0.8"
 oauth2 = { version = "4", default-features = false }
 fdap = { version = "0.1" }
 mime_guess = "2"
-rustemo = "0.7"
 schemars = "0.8"
 # A dep just to disable rustemo logs
 log = { version = "*", features = ["release_max_level_off"] }
@@ -74,7 +73,6 @@ xmltree = "0.11"
 
 [build-dependencies]
 good-ormning = { version = "0.3", features = ["sqlite", "chrono"] }
-rustemo-compiler = "0.7"
 
 [dev-dependencies]
 pretty_assertions = "1"

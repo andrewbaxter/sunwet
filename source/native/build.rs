@@ -476,15 +476,4 @@ fn main() {
             panic!("Generate failed.");
         },
     };
-
-    // Query parser
-    let path = root.join("src/client/query_parser.rustemo");
-    println!("cargo:rerun-if-changed={}", path.to_str().unwrap());
-    rustemo_compiler::Settings::new()
-        .builder_type(rustemo_compiler::BuilderType::Default)
-        .actions(true)
-        .fancy_regex(true)
-        //. .parser_algo(rustemo_compiler::ParserAlgo::GLR)
-        .process_grammar(&path)
-        .unwrap();
 }

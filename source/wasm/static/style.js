@@ -175,6 +175,8 @@
   const textIconHistory = "\ue889";
 
   // xx Variables
+  const varFNormal = "12pt";
+  const varFCode = "12pt";
   const varFTitle = "24pt";
   const varFMenu = "20pt";
   const varFMenuIcon = "14pt";
@@ -267,7 +269,7 @@
     "rgb(230, 232, 238)",
     "rgb(70, 73, 77)"
   );
-  const varCNodeCenter = vs(
+  const varCBackground2 = vs(
     uniq("node_center"),
     "rgb(215, 217, 225)",
     "rgb(82, 87, 94)"
@@ -3453,7 +3455,7 @@
               },
               "": (s) => {
                 s.padding = varPSmall;
-                s.backgroundColor = varCNodeCenter;
+                s.backgroundColor = varCBackground2;
                 s.borderRadius = varRNode;
                 s.margin = `${varPNodeCenter} 0`;
               },
@@ -3968,6 +3970,100 @@
         button: revertButton,
       };
     };
+
+  ///////////////////////////////////////////////////////////////////////////////
+  // xx Components, styles: page, query
+
+  presentation.contPageQuery = /** @type {Presentation["contPageQuery"]} */ (
+    args
+  ) => {
+    const blockWidth = `min(10cm, 100%)`;
+    const query = e(
+      "div",
+      { contentEditable: "plaintext-only", textContent: args.initialQuery },
+      {
+        styles_: [
+          ss(uniq("cont_page_query_query"), {
+            "": (s) => {
+              s.minWidth = blockWidth;
+              s.pointerEvents = "initial";
+              s.flexGrow = "1";
+              s.fontFamily = "monospace";
+              s.fontSize = varFCode;
+              s.whiteSpace = "pre";
+            },
+          }),
+        ],
+      }
+    );
+    const results = e(
+      "div",
+      {},
+      {
+        styles_: [
+          contVboxStyle,
+          ss(uniq("cont_page_query_results"), {
+            "": (s) => {
+              s.minWidth = blockWidth;
+              s.flexGrow = "1";
+              s.fontFamily = "monospace";
+              s.fontSize = varFCode;
+              s.gap = varPSmall;
+            },
+          }),
+        ],
+      }
+    );
+    return {
+      root: e(
+        "div",
+        {},
+        {
+          styles_: [
+            contBodyStyle,
+            ss(uniq("cont_page_query"), {
+              "": (s) => {
+                s.flexGrow = "1";
+
+                s.display = "flex";
+                s.flexWrap = "wrap";
+                s.justifyContent = "stretch";
+
+                s.margin = `0 calc(${varSCol1Width} * 2)`;
+              },
+            }),
+          ],
+          children_: [query, results],
+        }
+      ),
+      query: query,
+      results: results,
+    };
+  };
+
+  presentation.leafQueryRow = /** @type {Presentation["leafQueryRow"]} */ (
+    args
+  ) => ({
+    root: e(
+      "div",
+      { textContent: args.data },
+      {
+        styles_: [
+          ss(uniq("leaf_query_row"), {
+            "": (s) => {
+              s.pointerEvents = "initial";
+              s.padding = varPSmall;
+              s.whiteSpace = "pre";
+            },
+            ":nth-child(odd)": (s) => {
+              s.backgroundColor = varCBackground2;
+              s.borderRadius = varRMedia;
+            },
+          }),
+        ],
+      }
+    ),
+  });
 
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: menu
