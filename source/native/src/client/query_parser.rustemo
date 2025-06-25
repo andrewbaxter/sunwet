@@ -10,11 +10,11 @@ ROOT: VAL | ROOT_SEARCH ;
 ROOT_SEARCH: kw_search STR_PARAM_VAL ;
 
 STEP: STEP_MOVE_UP | STEP_MOVE_DOWN | STEP_RECURSE | STEP_JUNCT_AND | STEP_JUNCT_OR ;
-STEP_MOVE_DOWN: sym_move_down STR_PARAM_VAL FILTER? FIRST? ;
-STEP_MOVE_UP: sym_move_up STR_PARAM_VAL FILTER? FIRST? ;
-STEP_RECURSE: sym_open_recurse sym_open_paren CHAIN_BODY sym_end_paren FIRST? ;
-STEP_JUNCT_AND: sym_open_junct_and sym_open_paren JUNCT_SUBCHAIN+ sym_end_paren ;
-STEP_JUNCT_OR: sym_open_junct_or sym_open_paren JUNCT_SUBCHAIN+ sym_end_paren ;
+STEP_MOVE_DOWN: sym_step_move_down STR_PARAM_VAL FILTER? FIRST? ;
+STEP_MOVE_UP: sym_step_move_up STR_PARAM_VAL FILTER? FIRST? ;
+STEP_RECURSE: sym_step_open_recurse sym_open_paren CHAIN_BODY sym_end_paren FIRST? ;
+STEP_JUNCT_AND: sym_step_junct_and sym_open_paren JUNCT_SUBCHAIN+ sym_end_paren ;
+STEP_JUNCT_OR: sym_step_junct_or sym_open_paren JUNCT_SUBCHAIN+ sym_end_paren ;
 JUNCT_SUBCHAIN: sym_open_paren CHAIN_BODY sym_end_paren ;
 FIRST: kw_first ;
 
@@ -52,12 +52,14 @@ kw_sort_desc: "desc";
 kw_sort_random: "shuffle";
 
 sym_bind: "=>";
-sym_move_down: "->";
+sym_step_move_down: "->";
 // Trochus operator
-sym_move_up: "-<";
+sym_step_move_up: "-<";
 // Uchiko operator
-sym_open_recurse: "-*";
-sym_open_junct_and: "-&";
+sym_step_open_recurse: "-*";
+sym_step_junct_and: "-&";
+sym_open_junct_and: "&(";
+sym_step_junct_or: "|(";
 // Crepe operator
 sym_open_junct_or: "-|";
 sym_open_exist: "?(";

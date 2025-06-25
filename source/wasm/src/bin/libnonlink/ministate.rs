@@ -60,13 +60,40 @@ pub struct MinistateNodeView {
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum MinistateHistoryPredicate {
+    Incoming(String),
+    Outgoing(String),
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct MinistateHistoryFilter {
+    pub node: Node,
+    pub predicate: Option<MinistateHistoryPredicate>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct MinistateHistory {
+    pub filter: Option<MinistateHistoryFilter>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct MinistateQuery {
+    pub query: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Ministate {
     Home,
     View(MinistateView),
     Form(MinistateForm),
     NodeEdit(MinistateNodeEdit),
     NodeView(MinistateNodeView),
-    History,
+    History(MinistateHistory),
+    Query(MinistateQuery),
 }
 
 pub fn ministate_octothorpe(s: &Ministate) -> String {
@@ -80,7 +107,8 @@ pub fn ministate_title(s: &Ministate) -> String {
         Ministate::Form(s) => return s.title.clone(),
         Ministate::NodeEdit(s) => return s.title.clone(),
         Ministate::NodeView(s) => return s.title.clone(),
-        Ministate::History => return format!("History"),
+        Ministate::History(_) => return format!("History"),
+        Ministate::Query(_) => return format!("Query"),
     }
 }
 

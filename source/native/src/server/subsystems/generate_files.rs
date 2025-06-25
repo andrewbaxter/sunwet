@@ -328,7 +328,7 @@ async fn generate_comic_dir(state: &Arc<State>, file: &FileHash, source: &Path) 
         return Err(loga::err_with("Error extracting comic", ea!(res = res.dbg_str(), command = cmd.dbg_str())));
     }
     let index_matcher = Regex::new("(\\d+)").unwrap();
-    let manga_matcher = Regex::new("<\\s*[Mm][Aa][Nn][Gg][Aa]\\s*>\\s*[Yy][Ee][Ss]\\s*<").unwrap();
+    let manga_matcher = Regex::new("<\\s*Manga\\s*>\\s*Yes").unwrap();
     let mut manifest = BTreeMap::new();
     let mut rtl = false;
     let mut dest_walk = WalkDir::new(&dest);

@@ -13,7 +13,6 @@ use {
             helpers::{
                 expr_and,
                 expr_field_eq,
-                expr_field_gte,
                 expr_field_lt,
                 fn_max,
                 set_field,
@@ -121,46 +120,83 @@ fn main() {
                 .order(Expr::field(&commit), Order::Desc)
                 .build_query("triple_get", QueryResCount::MaybeOne),
         );
+        for (name0, where0) in [
+            ("all", None),
+            ("by_node", Some(Expr::BinOpChain {
+                op: BinOp::Or,
+                exprs: vec![expr_field_eq("eq_node", &subject), expr_field_eq("eq_node", &object)],
+            })),
+            (
+                "by_subject_predicate",
+                Some(
+                    expr_and(vec![expr_field_eq("eq_subject", &subject), expr_field_eq("eq_predicate", &predicate)]),
+                ),
+            ),
+            (
+                "by_predicate_object",
+                Some(
+                    expr_and(vec![expr_field_eq("eq_predicate", &predicate), expr_field_eq("eq_object", &object)]),
+                ),
+            ),
+        ] {
+            let mut where_exprs = vec![expr_field_lt("time", &commit), Expr::BinOp {
+                left: Box::new(Expr::LitArray(vec![
+                    //. .
+                    Expr::field(&subject),
+                    Expr::field(&predicate),
+                    Expr::field(&object)
+                ])),
+                op: BinOp::GreaterThan,
+                right: Box::new(Expr::LitArray(vec![
+                    //. .
+                    Expr::Param {
+                        name: format!("page_subject"),
+                        type_: subject.type_.type_.clone(),
+                    },
+                    Expr::Param {
+                        name: format!("page_predicate"),
+                        type_: predicate.type_.type_.clone(),
+                    },
+                    Expr::Param {
+                        name: format!("page_object"),
+                        type_: object.type_.type_.clone(),
+                    }
+                ])),
+            }];
+            if let Some(where_) = where0 {
+                where_exprs.push(where_);
+            }
+            queries.push(
+                new_select(&t)
+                    .return_field(&subject)
+                    .return_field(&predicate)
+                    .return_field(&object)
+                    .return_field(&commit)
+                    .return_field(&exist)
+                    .where_(expr_and(where_exprs))
+                    .order(Expr::field(&commit), Order::Desc)
+                    .order(Expr::field(&exist), Order::Asc)
+                    .order(Expr::field(&subject), Order::Asc)
+                    .order(Expr::field(&predicate), Order::Asc)
+                    .order(Expr::field(&object), Order::Asc)
+                    .limit(Expr::LitI32(500))
+                    .build_query_named_res(&format!("triple_list_{}", name0), QueryResCount::Many, "DbResTriple"),
+            );
+        }
         queries.push(
             new_select(&t)
                 .return_field(&subject)
                 .return_field(&predicate)
                 .return_field(&object)
-                .return_named("event_commit", fn_max(Expr::field(&commit)))
-                .return_field(&exist)
-                .where_(expr_and(vec![expr_field_eq("subject", &subject)]))
-                .group(vec![Expr::field(&subject), Expr::field(&predicate), Expr::field(&object)])
-                .build_query("triple_list_from", QueryResCount::Many),
-        );
-        queries.push(
-            new_select(&t)
-                .return_field(&subject)
-                .return_field(&predicate)
-                .return_field(&object)
-                .return_named("event_commit", fn_max(Expr::field(&commit)))
-                .return_field(&exist)
-                .where_(expr_and(vec![expr_field_eq("object", &object)]))
-                .group(vec![Expr::field(&subject), Expr::field(&predicate), Expr::field(&object)])
-                .build_query("triple_list_to", QueryResCount::Many),
-        );
-        queries.push(
-            new_select(&t)
-                .return_field(&subject)
-                .return_field(&predicate)
-                .return_field(&object)
-                .return_field(&commit)
-                .return_field(&exist)
-                .build_query("triple_list_all", QueryResCount::Many),
-        );
-        queries.push(
-            new_select(&t)
-                .return_field(&subject)
-                .return_field(&predicate)
-                .return_field(&object)
-                .return_field(&commit)
-                .return_field(&exist)
-                .where_(expr_and(vec![expr_field_gte("start_incl", &commit), expr_field_lt("end_excl", &commit)]))
-                .build_query("triple_list_between", QueryResCount::Many),
+                .where_(expr_and(vec![Expr::BinOpChain {
+                    op: BinOp::Or,
+                    exprs: vec![expr_field_eq("node", &subject), expr_field_eq("node", &object)],
+                }, Expr::BinOp {
+                    left: Box::new(Expr::field(&exist)),
+                    op: BinOp::Equals,
+                    right: Box::new(Expr::LitBool(true)),
+                }]))
+                .build_query("triple_list_exist_around", QueryResCount::Many),
         );
         queries.push({
             let mut current =
@@ -251,21 +287,8 @@ fn main() {
             new_select(&t)
                 .return_field(&event_stamp)
                 .return_field(&desc)
-                .where_(
-                    expr_and(
-                        vec![expr_field_gte("start_incl", &event_stamp), expr_field_lt("end_excl", &event_stamp)],
-                    ),
-                )
-                .build_query("commit_list_between", QueryResCount::Many),
-        );
-        queries.push(
-            new_select(&t)
-                .return_field(&event_stamp)
-                .return_field(&desc)
-                .where_(expr_field_lt("end_excl", &event_stamp))
-                .order(Expr::field(&event_stamp), Order::Desc)
-                .limit(Expr::LitU32(50))
-                .build_query("commit_list_count", QueryResCount::Many),
+                .where_(expr_field_eq("stamp", &event_stamp))
+                .build_query("commit_get", QueryResCount::MaybeOne),
         );
         queries.push({
             let mut active_commits =

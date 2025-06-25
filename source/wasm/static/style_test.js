@@ -432,8 +432,9 @@
                       }).root,
                       presentation.contNodeRowIncoming({
                         children: [
-                          presentation.leafNodeViewFileButtons({
-                            url: "https://abcd",
+                          presentation.leafNodeViewNodeButtons({
+                            history: "https://abcd",
+                            download: "https://abcd",
                           }).root,
                           presentation.leafNodeViewNodeText({
                             value: "ABCD-1234",
@@ -449,6 +450,9 @@
                   }).root,
                   presentation.contNodeSectionCenter({
                     children: [
+                      presentation.leafNodeViewNodeButtons({
+                        history: "https://abcd",
+                      }).root,
                       presentation.leafNodeViewNodeText({
                         value: "ABCD-1234",
                         link: "abcd",
@@ -471,8 +475,9 @@
                       }).root,
                       presentation.contNodeRowOutgoing({
                         children: [
-                          presentation.leafNodeViewFileButtons({
-                            url: "https://abcd",
+                          presentation.leafNodeViewNodeButtons({
+                            download: "https://abcd",
+                            history: "https://abcd",
                           }).root,
                           presentation.leafNodeViewPredicate({
                             value: "sunwet/1/has",
@@ -634,148 +639,136 @@
           buildRoot(
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "History" }).root,
-              mainBody: presentation.contPageNode({
+              mainBody: presentation.contPageHistory({
                 pageButtonChildren: [],
                 barChildren: [presentation.leafButtonBigCommit({}).root],
                 children: [
                   presentation.contHistoryCommit({
                     stamp: new Date().toISOString(),
                     desc: "",
-                    children: [
-                      presentation.contHistorySubject({
-                        center: [
-                          presentation.leafNodeViewNodeText({
-                            value: "ABCD-1234",
-                            link: "abcd",
-                          }).root,
-                        ],
-                        rows: [
-                          presentation.contHistoryPredicateObjectRemove({
-                            children: [
-                              presentation.leafNodeViewPredicate({
-                                value: "sunwet/1/has",
-                              }).root,
-                              presentation.leafNodeViewNodeText({
-                                value: "ABCD-1234",
-                                link: "abcd",
-                              }).root,
-                            ],
-                          }).root,
-                          presentation.contHistoryPredicateObjectAdd({
-                            children: [
-                              presentation.leafNodeViewPredicate({
-                                value: "sunwet/1/has",
-                              }).root,
-                              presentation.leafNodeViewNodeText({
-                                value:
-                                  "ABCD-1234 this is a ton of data PLUS-A_VERY_LONG_IDENTIFIERleafNodeViewNodeText and some unbreakable",
-                                link: "abcd",
-                              }).root,
-                            ],
-                          }).root,
-                        ],
+                  }).root,
+                  presentation.contHistorySubject({
+                    center: [
+                      presentation.leafNodeViewNodeText({
+                        value: "ABCD-1234",
+                        link: "abcd",
                       }).root,
-                      presentation.contHistorySubject({
-                        center: [
-                          presentation.leafNodeViewNodeText({
-                            value: "ABCD-1234",
-                            link: "abcd",
-                          }).root,
-                        ],
-                        rows: [
-                          presentation.contHistoryPredicateObjectRemove({
-                            children: [
-                              presentation.leafNodeViewPredicate({
-                                value: "sunwet/1/has",
-                              }).root,
-                              presentation.leafNodeViewNodeText({
-                                value: "ABCD-1234",
-                                link: "abcd",
-                              }).root,
-                            ],
-                          }).root,
-                          presentation.contHistoryPredicateObjectAdd({
-                            children: [
-                              presentation.leafNodeViewPredicate({
-                                value: "sunwet/1/has",
-                              }).root,
-                              presentation.leafNodeViewNodeText({
-                                value: "ABCD-1234",
-                                link: "abcd",
-                              }).root,
-                            ],
-                          }).root,
-                        ],
+                    ],
+                  }).root,
+                  presentation.contHistoryPredicateObjectRemove({
+                    children: [
+                      presentation.leafNodeViewPredicate({
+                        value: "sunwet/1/has",
+                      }).root,
+                      presentation.leafNodeViewNodeText({
+                        value: "ABCD-1234",
+                        link: "abcd",
+                      }).root,
+                    ],
+                  }).root,
+                  presentation.contHistoryPredicateObjectAdd({
+                    children: [
+                      presentation.leafNodeViewPredicate({
+                        value: "sunwet/1/has",
+                      }).root,
+                      presentation.leafNodeViewNodeText({
+                        value:
+                          "ABCD-1234 this is a ton of data PLUS-A_VERY_LONG_IDENTIFIERleafNodeViewNodeText and some unbreakable",
+                        link: "abcd",
+                      }).root,
+                    ],
+                  }).root,
+                  presentation.contHistorySubject({
+                    center: [
+                      presentation.leafNodeViewNodeText({
+                        value: "ABCD-1234",
+                        link: "abcd",
+                      }).root,
+                    ],
+                  }).root,
+                  presentation.contHistoryPredicateObjectRemove({
+                    children: [
+                      presentation.leafNodeViewPredicate({
+                        value: "sunwet/1/has",
+                      }).root,
+                      presentation.leafNodeViewNodeText({
+                        value: "ABCD-1234",
+                        link: "abcd",
+                      }).root,
+                    ],
+                  }).root,
+                  presentation.contHistoryPredicateObjectAdd({
+                    children: [
+                      presentation.leafNodeViewPredicate({
+                        value: "sunwet/1/has",
+                      }).root,
+                      presentation.leafNodeViewNodeText({
+                        value: "ABCD-1234",
+                        link: "abcd",
                       }).root,
                     ],
                   }).root,
                   presentation.contHistoryCommit({
                     stamp: new Date().toISOString(),
                     desc: "Something",
-                    children: [
-                      presentation.contHistorySubject({
-                        center: [
-                          presentation.leafNodeViewNodeText({
-                            value: "ABCD-1234",
-                            link: "abcd",
-                          }).root,
-                        ],
-                        rows: [
-                          presentation.contHistoryPredicateObjectAdd({
-                            children: [
-                              presentation.leafNodeViewPredicate({
-                                value: "sunwet/1/has",
-                              }).root,
-                              presentation.leafNodeViewNodeText({
-                                value: "ABCD-1234",
-                                link: "abcd",
-                              }).root,
-                            ],
-                          }).root,
-                          presentation.contHistoryPredicateObjectAdd({
-                            children: [
-                              presentation.leafNodeViewPredicate({
-                                value: "sunwet/1/has",
-                              }).root,
-                              presentation.leafNodeViewNodeText({
-                                value: "ABCD-1234",
-                                link: "abcd",
-                              }).root,
-                            ],
-                          }).root,
-                        ],
+                  }).root,
+                  presentation.contHistorySubject({
+                    center: [
+                      presentation.leafNodeViewNodeText({
+                        value: "ABCD-1234",
+                        link: "abcd",
                       }).root,
-                      presentation.contHistorySubject({
-                        center: [
-                          presentation.leafNodeViewNodeText({
-                            value: "ABCD-1234",
-                            link: "abcd",
-                          }).root,
-                        ],
-                        rows: [
-                          presentation.contHistoryPredicateObjectRemove({
-                            children: [
-                              presentation.leafNodeViewPredicate({
-                                value: "sunwet/1/has",
-                              }).root,
-                              presentation.leafNodeViewNodeText({
-                                value: "ABCD-1234",
-                                link: "abcd",
-                              }).root,
-                            ],
-                          }).root,
-                          presentation.contHistoryPredicateObjectRemove({
-                            children: [
-                              presentation.leafNodeViewPredicate({
-                                value: "sunwet/1/has",
-                              }).root,
-                              presentation.leafNodeViewNodeText({
-                                value: "ABCD-1234",
-                                link: "abcd",
-                              }).root,
-                            ],
-                          }).root,
-                        ],
+                    ],
+                  }).root,
+                  presentation.contHistoryPredicateObjectAdd({
+                    children: [
+                      presentation.leafNodeViewPredicate({
+                        value: "sunwet/1/has",
+                      }).root,
+                      presentation.leafNodeViewNodeText({
+                        value: "ABCD-1234",
+                        link: "abcd",
+                      }).root,
+                    ],
+                  }).root,
+                  presentation.contHistoryPredicateObjectAdd({
+                    children: [
+                      presentation.leafNodeViewPredicate({
+                        value: "sunwet/1/has",
+                      }).root,
+                      presentation.leafNodeViewNodeText({
+                        value: "ABCD-1234",
+                        link: "abcd",
+                      }).root,
+                    ],
+                  }).root,
+                  presentation.contHistorySubject({
+                    center: [
+                      presentation.leafNodeViewNodeText({
+                        value: "ABCD-1234",
+                        link: "abcd",
+                      }).root,
+                    ],
+                  }).root,
+                  presentation.contHistoryPredicateObjectRemove({
+                    children: [
+                      presentation.leafNodeViewPredicate({
+                        value: "sunwet/1/has",
+                      }).root,
+                      presentation.leafNodeViewNodeText({
+                        value: "ABCD-1234",
+                        link: "abcd",
+                      }).root,
+                    ],
+                  }).root,
+                  presentation.contHistoryPredicateObjectRemove({
+                    children: [
+                      presentation.leafNodeViewPredicate({
+                        value: "sunwet/1/has",
+                      }).root,
+                      presentation.leafNodeViewNodeText({
+                        value: "ABCD-1234",
+                        link: "abcd",
                       }).root,
                     ],
                   }).root,

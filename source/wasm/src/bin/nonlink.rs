@@ -1,6 +1,7 @@
 use {
     crate::libnonlink::ministate::{
         MinistateForm,
+        MinistateHistory,
         MinistateView,
     },
     flowcontrol::{
@@ -170,7 +171,9 @@ pub fn main() {
                                 ClientPage::History => {
                                     return style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
                                         title: "History".to_string(),
-                                        href: ministate_octothorpe(&Ministate::History),
+                                        href: ministate_octothorpe(
+                                            &Ministate::History(MinistateHistory::default()),
+                                        ),
                                     }).root;
                                 },
                             }

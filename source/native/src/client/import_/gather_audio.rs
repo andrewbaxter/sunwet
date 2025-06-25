@@ -1,5 +1,5 @@
 use {
-    crate::gather::{
+    super::gather::{
         prep_cover,
         Gather,
         GatherTrackType,
@@ -10,6 +10,7 @@ use {
         ffi::OsStr,
         fs::File,
         path::Path,
+        str::FromStr,
     },
 };
 
@@ -43,11 +44,10 @@ pub fn gather(sunwet_dir: &Path, path: &Path, e: &OsStr) -> Result<Gather, loga:
                         g.track_artist.push(tag.value.to_string());
                     },
                     symphonia::core::meta::StandardTagKey::DiscNumber => {
-                        g.track_superindex = Some(usize::from_str_radix(&tag.value.to_string(), 10)?);
+                        g.track_superindex = Some(f64::from_str(&tag.value.to_string())?);
                     },
                     symphonia::core::meta::StandardTagKey::TrackNumber => {
-                        g.track_index =
-                            Some(usize::from_str_radix(&tag.value.to_string().split("/").next().unwrap(), 10)?);
+                        g.track_index = Some(f64::from_str(&tag.value.to_string().split("/").next().unwrap())?);
                     },
                     symphonia::core::meta::StandardTagKey::TrackTitle => {
                         g.track_name = Some(tag.value.to_string());

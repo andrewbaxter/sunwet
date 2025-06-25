@@ -257,11 +257,11 @@ fn build_step(
                 let from_ident_primary_start;
                 let from_ident_primary_end;
                 match step.dir {
-                    MoveDirection::Down => {
+                    MoveDirection::Forward => {
                         from_ident_primary_start = &query_state.ident_col_subject;
                         from_ident_primary_end = &query_state.ident_col_object;
                     },
-                    MoveDirection::Up => {
+                    MoveDirection::Backward => {
                         from_ident_primary_start = &query_state.ident_col_object;
                         from_ident_primary_end = &query_state.ident_col_subject;
                     },

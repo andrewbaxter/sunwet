@@ -1,5 +1,5 @@
 use {
-    crate::gather::{
+    super::gather::{
         prep_cover,
         Gather,
         GatherTrackType,
@@ -8,7 +8,10 @@ use {
     loga::{
         ResultContext,
     },
-    std::path::Path,
+    std::{
+        path::Path,
+        str::FromStr,
+    },
 };
 
 pub fn gather(sunwet_dir: &Path, path: &Path) -> Result<Gather, loga::Error> {
@@ -17,7 +20,7 @@ pub fn gather(sunwet_dir: &Path, path: &Path) -> Result<Gather, loga::Error> {
     if let Some(title) = epub.mdata("title") {
         g.track_name = Some(title.value.clone());
         if let Some(index) = title.refinement("display-seq") {
-            let Ok(index) = usize::from_str_radix(&index.value, 10) else {
+            let Ok(index) = f64::from_str(&index.value) else {
                 return Err(loga::err(format!("Epub has invalid index (display-seq): [{}]", index.value)));
             };
             g.track_index = Some(index);
@@ -32,7 +35,7 @@ pub fn gather(sunwet_dir: &Path, path: &Path) -> Result<Gather, loga::Error> {
             let indexes = idx.value.split(".").collect::<Vec<_>>();
             let mut indexes2 = vec![];
             for i in indexes {
-                let Ok(i) = usize::from_str_radix(i, 10) else {
+                let Ok(i) = f64::from_str(i) else {
                     return Err(loga::err(format!("Epub has invalid index (group-position): [{}]", i)));
                 };
                 indexes2.push(i);
@@ -52,7 +55,10 @@ pub fn gather(sunwet_dir: &Path, path: &Path) -> Result<Gather, loga::Error> {
         if let Some(path) = prep_cover(&sunwet_dir, &mime, &cover_data)? {
             g
                 .track_cover
-                .insert(g.track_superindex.unwrap_or_default() * 10000 + g.track_index.unwrap_or(1000), path);
+                .insert(
+                    (g.track_superindex.unwrap_or_default() * 10000. + g.track_index.unwrap_or(1000.)) as usize,
+                    path,
+                );
         }
     }
     return Ok(g);

@@ -17,6 +17,9 @@ enum Command {
     Query(client::QueryCommand),
     CompileQuery(client::CompileQueryCommand),
     Commit(client::commit::CommitCommand),
+    PrepareImportCommit(client::import_::PrepareImportCommitCommand),
+    PrepareMergeCommit(client::MergeNodesCommand),
+    PrepareDeleteCommit(client::DeleteNodesCommand),
     History(client::HistoryCommand),
     GetNode(client::GetNodeCommand),
     RunServer(server::Args),
@@ -38,6 +41,15 @@ async fn main1() -> Result<(), loga::Error> {
         },
         Command::Commit(c) => {
             client::commit::handle_commit(c).await?;
+        },
+        Command::PrepareImportCommit(c) => {
+            client::import_::handle_prepare_import_commit(c).await?;
+        },
+        Command::PrepareDeleteCommit(c) => {
+            client::handle_delete_nodes(c).await?;
+        },
+        Command::PrepareMergeCommit(c) => {
+            client::handle_merge_nodes_command(c).await?;
         },
         Command::History(c) => {
             client::handle_history(c).await?;

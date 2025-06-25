@@ -1,4 +1,5 @@
 use {
+    crate::client::req::req_simple,
     aargvark::{
         help::{
             HelpPattern,
@@ -23,10 +24,7 @@ use {
         ResultContext,
     },
     query::compile_query,
-    rand::{
-        thread_rng,
-        Rng,
-    },
+    serde::Serialize,
     shared::interface::{
         query::Query,
         triple::{
@@ -34,10 +32,13 @@ use {
             Node,
         },
         wire::{
-            Pagination,
+            ReqCommit,
             ReqGetTriplesAround,
             ReqHistory,
+            ReqHistoryFilter,
+            ReqHistoryFilterPredicate,
             ReqQuery,
+            Triple,
         },
     },
     std::{
@@ -51,6 +52,7 @@ pub mod req;
 pub mod commit;
 pub mod query;
 pub mod query_test;
+pub mod import_;
 
 pub struct StrNode(pub Node);
 
@@ -105,30 +107,11 @@ pub async fn handle_query(c: QueryCommand) -> Result<(), loga::Error> {
     } else {
         loga::INFO
     });
-    let mut out = vec![];
-    const PAGE_SIZE: usize = 1000;
-    let seed = thread_rng().gen();
-    let mut pagination = Some(Pagination {
-        count: PAGE_SIZE,
-        seed: Some(seed),
-        after: None,
-    });
-    loop {
-        let res = req::req_simple(&log, ReqQuery {
-            query: c.query.value.clone(),
-            parameters: c.parameters.iter().map(|(k, v)| (k.clone(), v.0.clone())).collect(),
-            pagination: pagination,
-        }).await?;
-        out.extend(res.records);
-        let Some(next_after) = res.page_end else {
-            break;
-        };
-        pagination = Some(Pagination {
-            count: PAGE_SIZE,
-            seed: Some(seed),
-            after: Some(next_after),
-        });
-    }
+    let out = req::req_simple(&log, ReqQuery {
+        query: c.query.value.clone(),
+        parameters: c.parameters.iter().map(|(k, v)| (k.clone(), v.0.clone())).collect(),
+        pagination: None,
+    }).await?.records;
     println!("{}", serde_json::to_string_pretty(&out).unwrap());
     return Ok(());
 }
@@ -202,25 +185,165 @@ impl AargvarkFromStr for StrDatetime {
 }
 
 #[derive(Aargvark)]
-pub struct HistoryCommand {
+pub struct DeleteNodesCommand {
     debug: Option<()>,
-    /// Get commits starting at this time or after
-    start: Option<StrDatetime>,
-    /// Get commits starting before this time
-    end: Option<StrDatetime>,
+    nodes: Vec<StrNode>,
 }
 
-pub async fn handle_history(c: HistoryCommand) -> Result<(), loga::Error> {
-    let log = Log::new_root(if c.debug.is_some() {
+pub async fn handle_delete_nodes(args: DeleteNodesCommand) -> Result<(), loga::Error> {
+    let log = Log::new_root(if args.debug.is_some() {
         loga::DEBUG
     } else {
         loga::INFO
     });
-    let res = req::req_simple(&log, ReqHistory {
-        start_incl: c.start.unwrap_or(StrDatetime(DateTime::<Utc>::MIN_UTC)).0,
-        end_excl: c.end.unwrap_or(StrDatetime(DateTime::<Utc>::MAX_UTC)).0,
+    let mut triples = vec![];
+    for node in args.nodes {
+        let node_triples = req_simple(&log, ReqGetTriplesAround { node: node.0 }).await?;
+        triples.extend(node_triples.incoming);
+        triples.extend(node_triples.outgoing);
+    }
+    req_simple(&log, ReqCommit {
+        comment: format!("CLI delete note"),
+        add: vec![],
+        remove: triples,
+        files: vec![],
     }).await?;
-    println!("{}", serde_json::to_string_pretty(&res).unwrap());
+    return Ok(());
+}
+
+#[derive(Aargvark)]
+pub struct MergeNodesCommand {
+    debug: Option<()>,
+    dest_node: StrNode,
+    merge_nodes: Vec<StrNode>,
+}
+
+pub async fn handle_merge_nodes_command(args: MergeNodesCommand) -> Result<(), loga::Error> {
+    let log = Log::new_root(if args.debug.is_some() {
+        loga::DEBUG
+    } else {
+        loga::INFO
+    });
+    let mut remove = vec![];
+    let mut add = vec![];
+    for node in args.merge_nodes {
+        let node_triples = req_simple(&log, ReqGetTriplesAround { node: node.0 }).await?;
+        for t in node_triples.incoming {
+            add.push(Triple {
+                subject: t.subject.clone(),
+                predicate: t.predicate.clone(),
+                object: args.dest_node.0.clone(),
+            });
+            remove.push(t);
+        }
+        for t in node_triples.outgoing {
+            add.push(Triple {
+                subject: args.dest_node.0.clone(),
+                predicate: t.predicate.clone(),
+                object: t.object.clone(),
+            });
+            remove.push(t);
+        }
+    }
+    req_simple(&log, ReqCommit {
+        comment: format!("CLI merge nodes"),
+        add: add,
+        remove: remove,
+        files: vec![],
+    }).await?;
+    return Ok(());
+}
+
+#[derive(Aargvark)]
+pub struct HistoryCommand {
+    debug: Option<()>,
+    /// Get commits starting before this time
+    before: Option<StrDatetime>,
+    /// Get commits no earlier than this time
+    until: Option<StrDatetime>,
+    /// Restrict to history affecting this subject
+    subject: Option<StrNode>,
+    /// Restrict to history involving relations with this predicate
+    predicate: Option<String>,
+    /// Restrict to history affecting this object
+    object: Option<StrNode>,
+}
+
+pub async fn handle_history(args: HistoryCommand) -> Result<(), loga::Error> {
+    let log = Log::new_root(if args.debug.is_some() {
+        loga::DEBUG
+    } else {
+        loga::INFO
+    });
+
+    #[derive(Serialize)]
+    struct HistoryEvent {
+        delete: bool,
+        triple: Triple,
+    }
+
+    #[derive(Serialize)]
+    struct HistoryCommit {
+        id_timestmap: DateTime<Utc>,
+        description: String,
+        events: Vec<HistoryEvent>,
+    }
+
+    let mut commits = HashMap::new();
+    let mut before_commit = args.before.map(|x| x.0);
+    let mut after_triple = None;
+    'paginate : loop {
+        let res = req::req_simple(&log, ReqHistory {
+            before_commit: before_commit,
+            after_triple: after_triple,
+            filter: match (
+                args.subject.as_ref().map(|x| x.0.clone()),
+                args.object.as_ref().map(|x| x.0.clone()),
+            ) {
+                (None, None) => None,
+                (None, Some(n)) => Some(ReqHistoryFilter {
+                    node: n,
+                    predicate: args.predicate.clone().map(|p| ReqHistoryFilterPredicate::Incoming(p)),
+                }),
+                (Some(n), None) => Some(ReqHistoryFilter {
+                    predicate: args.predicate.clone().map(|p| ReqHistoryFilterPredicate::Outgoing(p)),
+                    node: n,
+                }),
+                (Some(_), Some(_)) => return Err(
+                    loga::err("History only usefully filters with an open subject or object, not both"),
+                ),
+            },
+        }).await?;
+        if res.events.is_empty() {
+            break 'paginate;
+        }
+        before_commit = res.events.last().map(|x| x.commit);
+        after_triple = res.events.last().map(|x| x.triple.clone());
+        for c in res.commit_descriptions {
+            commits.entry(c.0).or_insert_with(|| HistoryCommit {
+                id_timestmap: c.0,
+                description: c.1,
+                events: Default::default(),
+            });
+        }
+        for e in res.events {
+            if let Some(until) = &args.until {
+                if e.commit < until.0 {
+                    break 'paginate;
+                }
+            }
+            commits.get_mut(&e.commit).unwrap().events.push(HistoryEvent {
+                delete: e.delete,
+                triple: e.triple,
+            });
+        }
+    }
+    println!(
+        "{}",
+        serde_json::to_string_pretty(
+            &commits.values().filter(|x| !x.events.is_empty()).collect::<Vec<_>>(),
+        ).unwrap()
+    );
     return Ok(());
 }
 

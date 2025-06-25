@@ -37,7 +37,10 @@ use {
         check_is_admin,
         identify_requester,
     },
-    chrono::DateTime,
+    chrono::{
+        DateTime,
+        Utc,
+    },
     dbutil::tx,
     deadpool_sqlite::{
         Hook,
@@ -48,6 +51,7 @@ use {
         ta_return,
     },
     fsutil::create_dirs,
+    good_ormning_runtime::GoodError,
     http::{
         status,
         HeaderMap,
@@ -98,8 +102,10 @@ use {
         wire::{
             C2SReq,
             NodeMeta,
+            ReqHistoryFilterPredicate,
             RespGetTriplesAround,
-            RespHistoryCommit,
+            RespHistory,
+            RespHistoryEvent,
             RespQuery,
             RespWhoAmI,
             TreeNode,
@@ -120,7 +126,6 @@ use {
     },
     std::{
         collections::{
-            BTreeMap,
             HashMap,
             HashSet,
         },
@@ -290,8 +295,6 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                             impl ReqResp for shared::interface::wire::ReqGetNodeMeta { }
 
                             impl ReqResp for shared::interface::wire::ReqHistory { }
-
-                            impl ReqResp for shared::interface::wire::ReqHistoryCommitCount { }
 
                             impl ReqResp for shared::interface::wire::ReqGetTriplesAround { }
 
@@ -563,6 +566,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 });
                             },
                             C2SReq::History(req) => {
+                                let responder = req.respond();
                                 {
                                     // Check access
                                     match check_is_admin(&state, &identity, "History").await.err_internal()? {
@@ -575,112 +579,100 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                         },
                                     }
                                 }
-                                let (commits, triples) = tx(&state.db, move |txn| {
-                                    let start = DateTime::from_str(&req.start_incl.to_string()).unwrap();
-                                    let end = DateTime::from_str(&req.end_excl.to_string()).unwrap();
-                                    return Ok(
-                                        (
-                                            db::commit_list_between(txn, start, end)?,
-                                            db::triple_list_between(txn, start, end)?,
-                                        ),
-                                    );
-                                }).await.err_internal()?;
-                                let mut out = BTreeMap::new();
-                                for c in commits {
-                                    out.insert(c.idtimestamp, RespHistoryCommit {
-                                        timestamp: c.idtimestamp.to_rfc3339().parse().unwrap(),
-                                        desc: c.description,
-                                        add: vec![],
-                                        remove: vec![],
-                                    });
-                                }
-                                for t in triples {
-                                    let Some(commit) = out.get_mut(&t.commit_) else {
-                                        state
-                                            .log
-                                            .log_with(
-                                                loga::WARN,
-                                                "Triple detached from commit - this is probably a bug",
-                                                ea!(
-                                                    stamp = t.commit_,
-                                                    subject = t.subject.0.dbg_str(),
-                                                    predicate = t.predicate,
-                                                    object = t.object.0.dbg_str()
-                                                ),
-                                            );
-                                        continue;
-                                    };
-                                    let t1 = Triple {
-                                        subject: t.subject.0,
-                                        predicate: t.predicate,
-                                        object: t.object.0,
-                                    };
-                                    if t.exists {
-                                        commit.add.push(t1);
+                                let page_commit = req.before_commit.unwrap_or_else(|| DateTime::<Utc>::MAX_UTC);
+                                let (page_subject, page_predicate, page_object) = match req.after_triple {
+                                    Some(t) => {
+                                        (DbNode(t.subject), t.predicate, DbNode(t.object))
+                                    },
+                                    None => {
+                                        (DbNode(Node::zero()), "".to_string(), DbNode(Node::zero()))
+                                    },
+                                };
+                                let (events, commit_descriptions) = tx(&state.db, move |txn| {
+                                    let events;
+                                    if let Some(f) = req.filter {
+                                        if let Some(p) = f.predicate {
+                                            match p {
+                                                ReqHistoryFilterPredicate::Incoming(p) => {
+                                                    events =
+                                                        db::triple_list_by_predicate_object(
+                                                            txn,
+                                                            page_commit,
+                                                            &page_subject,
+                                                            &page_predicate,
+                                                            &page_object,
+                                                            &p,
+                                                            &DbNode(f.node),
+                                                        )?;
+                                                },
+                                                ReqHistoryFilterPredicate::Outgoing(p) => {
+                                                    events =
+                                                        db::triple_list_by_subject_predicate(
+                                                            txn,
+                                                            page_commit,
+                                                            &page_subject,
+                                                            &page_predicate,
+                                                            &page_object,
+                                                            &DbNode(f.node),
+                                                            &p,
+                                                        )?;
+                                                },
+                                            }
+                                        } else {
+                                            events =
+                                                db::triple_list_by_node(
+                                                    txn,
+                                                    page_commit,
+                                                    &page_subject,
+                                                    &page_predicate,
+                                                    &page_object,
+                                                    &DbNode(f.node),
+                                                )?;
+                                        }
                                     } else {
-                                        commit.remove.push(t1)
+                                        events =
+                                            db::triple_list_all(
+                                                txn,
+                                                page_commit,
+                                                &page_subject,
+                                                &page_predicate,
+                                                &page_object,
+                                            )?;
                                     }
-                                }
-                                resp = req.respond()(out.into_values().collect());
-                            },
-                            C2SReq::HistoryCommitCount(req) => {
-                                {
-                                    // Check access
-                                    match check_is_admin(&state, &identity, "History commit count").await.err_internal()? {
-                                        AccessRes::Yes => { },
-                                        AccessRes::NoAccess => {
-                                            return Ok(response_403());
-                                        },
-                                        AccessRes::NoIdent => {
-                                            return Ok(response_401());
-                                        },
+                                    let mut commit_descriptions = HashMap::new();
+                                    for ev in &events {
+                                        match commit_descriptions.entry(ev.commit_) {
+                                            std::collections::hash_map::Entry::Occupied(_) => (),
+                                            std::collections::hash_map::Entry::Vacant(entry) => {
+                                                entry.insert(
+                                                    db::commit_get(txn, ev.commit_)?
+                                                        .ok_or_else(
+                                                            || GoodError(
+                                                                format!(
+                                                                    "Triple references nonexistent commit [{}]",
+                                                                    ev.commit_.to_rfc3339()
+                                                                ),
+                                                            ),
+                                                        )?
+                                                        .description,
+                                                );
+                                            },
+                                        }
                                     }
-                                }
-                                let (commits, triples) = tx(&state.db, move |txn| {
-                                    let end = DateTime::from_str(&req.end_excl.to_string()).unwrap();
-                                    let commits = db::commit_list_count(txn, end)?;
-                                    let Some(start) = commits.iter().map(|c| c.idtimestamp).min() else {
-                                        return Ok((commits, vec![]));
-                                    };
-                                    return Ok((commits, db::triple_list_between(txn, start, end)?));
+                                    return Ok((events, commit_descriptions));
                                 }).await.err_internal()?;
-                                let mut out = BTreeMap::new();
-                                for c in commits {
-                                    out.insert(c.idtimestamp, RespHistoryCommit {
-                                        timestamp: c.idtimestamp.to_rfc3339().parse().unwrap(),
-                                        desc: c.description,
-                                        add: vec![],
-                                        remove: vec![],
-                                    });
-                                }
-                                for t in triples {
-                                    let Some(commit) = out.get_mut(&t.commit_) else {
-                                        state
-                                            .log
-                                            .log_with(
-                                                loga::WARN,
-                                                "Triple detached from commit - this is probably a bug",
-                                                ea!(
-                                                    stamp = t.commit_,
-                                                    subject = t.subject.0.dbg_str(),
-                                                    predicate = t.predicate,
-                                                    object = t.object.0.dbg_str()
-                                                ),
-                                            );
-                                        continue;
-                                    };
-                                    let t1 = Triple {
-                                        subject: t.subject.0,
-                                        predicate: t.predicate,
-                                        object: t.object.0,
-                                    };
-                                    if t.exists {
-                                        commit.add.push(t1);
-                                    } else {
-                                        commit.remove.push(t1)
-                                    }
-                                }
-                                resp = req.respond()(out.into_values().collect());
+                                resp = responder(RespHistory {
+                                    events: events.into_iter().map(|x| RespHistoryEvent {
+                                        delete: !x.exists,
+                                        commit: x.commit_,
+                                        triple: Triple {
+                                            subject: x.subject.0,
+                                            predicate: x.predicate,
+                                            object: x.object.0,
+                                        },
+                                    }).collect(),
+                                    commit_descriptions: commit_descriptions,
+                                });
                             },
                             C2SReq::GetTriplesAround(req) => {
                                 {
@@ -696,33 +688,32 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     }
                                 }
                                 let responder = req.respond();
-                                let (incoming, outgoing) = tx(&state.db, move |txn| {
-                                    return Ok(
-                                        (
-                                            db::triple_list_to(txn, &DbNode(req.node.clone()))?,
-                                            db::triple_list_from(txn, &DbNode(req.node.clone()))?,
-                                        ),
-                                    );
+                                let triples = tx(&state.db, {
+                                    let node = req.node.clone();
+                                    move |txn| {
+                                        return Ok(db::triple_list_exist_around(txn, &DbNode(node))?);
+                                    }
                                 }).await.err_internal()?;
+                                let mut incoming = vec![];
+                                let mut outgoing = vec![];
+                                for t in triples {
+                                    if t.object.0 == req.node {
+                                        incoming.push(Triple {
+                                            subject: t.subject.0,
+                                            predicate: t.predicate,
+                                            object: t.object.0,
+                                        });
+                                    } else {
+                                        outgoing.push(Triple {
+                                            subject: t.subject.0,
+                                            predicate: t.predicate,
+                                            object: t.object.0,
+                                        });
+                                    }
+                                }
                                 resp = responder(RespGetTriplesAround {
-                                    incoming: incoming.into_iter().filter_map(|x| if !x.exists {
-                                        None
-                                    } else {
-                                        Some(Triple {
-                                            subject: x.subject.0,
-                                            predicate: x.predicate,
-                                            object: x.object.0,
-                                        })
-                                    }).collect(),
-                                    outgoing: outgoing.into_iter().filter_map(|x| if !x.exists {
-                                        None
-                                    } else {
-                                        Some(Triple {
-                                            subject: x.subject.0,
-                                            predicate: x.predicate,
-                                            object: x.object.0,
-                                        })
-                                    }).collect(),
+                                    incoming: incoming,
+                                    outgoing: outgoing,
                                 });
                             },
                             C2SReq::GetClientConfig(req) => {

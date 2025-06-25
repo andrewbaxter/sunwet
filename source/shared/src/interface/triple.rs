@@ -77,6 +77,23 @@ pub enum Node {
     Value(serde_json::Value),
 }
 
+impl Node {
+    pub fn from_str(v: &str) -> Node {
+        return Node::Value(serde_json::Value::String(v.to_string()));
+    }
+
+    /// A value that sorts earliest.
+    pub fn zero() -> Node {
+        return Node::Value(serde_json::Value::Null);
+    }
+}
+
+impl<T: Into<serde_json::Value>> From<T> for Node {
+    fn from(value: T) -> Self {
+        return Node::Value(value.into());
+    }
+}
+
 impl JsonSchema for Node {
     fn schema_name() -> String {
         return "Node".to_string();
@@ -135,8 +152,8 @@ impl Ord for Node {
         {
             fn prio(n: &Node) -> u8 {
                 return match n {
-                    Node::File(_) => 1,
-                    Node::Value(_) => 2,
+                    Node::Value(_) => 1,
+                    Node::File(_) => 2,
                 };
             }
 

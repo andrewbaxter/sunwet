@@ -237,21 +237,341 @@ pub fn triple_get(
     Ok(None)
 }
 
+pub fn triple_list_all(
+    db: &rusqlite::Connection,
+    time: chrono::DateTime<chrono::Utc>,
+    page_subject: &crate::interface::triple::DbNode,
+    page_predicate: &str,
+    page_object: &crate::interface::triple::DbNode,
+) -> Result<Vec<DbRes1>, GoodError> {
+    let mut out = vec![];
+    let query =
+        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , \"triple\" . \"commit_\" , \"triple\" . \"exists\" from \"triple\" where ( ( \"triple\" . \"commit_\" < $1 ) and ( ( \"triple\" . \"subject\" ,  \"triple\" . \"predicate\" ,  \"triple\" . \"object\" ) > ( $2 ,  $3 ,  $4 ) ) ) order by \"triple\" . \"commit_\" desc , \"triple\" . \"exists\" asc , \"triple\" . \"subject\" asc , \"triple\" . \"predicate\" asc , \"triple\" . \"object\" asc limit 500 ";
+    let mut stmt = db.prepare(query).to_good_error_query(query)?;
+    let mut rows =
+        stmt
+            .query(
+                rusqlite::params![
+                    time.to_rfc3339(),
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
+                        &page_subject,
+                    ),
+                    page_predicate,
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
+                        &page_object,
+                    )
+                ],
+            )
+            .to_good_error_query(query)?;
+    while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
+        out.push(DbRes1 {
+            subject: {
+                let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
+                let x =
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::from_sql(
+                        x,
+                    ).to_good_error(|| format!("Parsing result {}", 0usize))?;
+                x
+            },
+            predicate: {
+                let x: String = r.get(1usize).to_good_error(|| format!("Getting result {}", 1usize))?;
+                x
+            },
+            object: {
+                let x: String = r.get(2usize).to_good_error(|| format!("Getting result {}", 2usize))?;
+                let x =
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::from_sql(
+                        x,
+                    ).to_good_error(|| format!("Parsing result {}", 2usize))?;
+                x
+            },
+            commit_: {
+                let x: String = r.get(3usize).to_good_error(|| format!("Getting result {}", 3usize))?;
+                let x =
+                    chrono::DateTime::<chrono::Utc>::from(
+                        chrono::DateTime::<chrono::FixedOffset>::parse_from_rfc3339(
+                            &x,
+                        ).to_good_error(|| format!("Getting result {}", 3usize))?,
+                    );
+                x
+            },
+            exists: {
+                let x: bool = r.get(4usize).to_good_error(|| format!("Getting result {}", 4usize))?;
+                x
+            },
+        });
+    }
+    Ok(out)
+}
+
+pub fn triple_list_by_node(
+    db: &rusqlite::Connection,
+    time: chrono::DateTime<chrono::Utc>,
+    page_subject: &crate::interface::triple::DbNode,
+    page_predicate: &str,
+    page_object: &crate::interface::triple::DbNode,
+    eq_node: &crate::interface::triple::DbNode,
+) -> Result<Vec<DbRes1>, GoodError> {
+    let mut out = vec![];
+    let query =
+        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , \"triple\" . \"commit_\" , \"triple\" . \"exists\" from \"triple\" where ( ( \"triple\" . \"commit_\" < $1 ) and ( ( \"triple\" . \"subject\" ,  \"triple\" . \"predicate\" ,  \"triple\" . \"object\" ) > ( $2 ,  $3 ,  $4 ) ) and ( ( \"triple\" . \"subject\" = $5 ) or ( \"triple\" . \"object\" = $5 ) ) ) order by \"triple\" . \"commit_\" desc , \"triple\" . \"exists\" asc , \"triple\" . \"subject\" asc , \"triple\" . \"predicate\" asc , \"triple\" . \"object\" asc limit 500 ";
+    let mut stmt = db.prepare(query).to_good_error_query(query)?;
+    let mut rows =
+        stmt
+            .query(
+                rusqlite::params![
+                    time.to_rfc3339(),
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
+                        &page_subject,
+                    ),
+                    page_predicate,
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
+                        &page_object,
+                    ),
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
+                        &eq_node,
+                    )
+                ],
+            )
+            .to_good_error_query(query)?;
+    while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
+        out.push(DbRes1 {
+            subject: {
+                let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
+                let x =
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::from_sql(
+                        x,
+                    ).to_good_error(|| format!("Parsing result {}", 0usize))?;
+                x
+            },
+            predicate: {
+                let x: String = r.get(1usize).to_good_error(|| format!("Getting result {}", 1usize))?;
+                x
+            },
+            object: {
+                let x: String = r.get(2usize).to_good_error(|| format!("Getting result {}", 2usize))?;
+                let x =
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::from_sql(
+                        x,
+                    ).to_good_error(|| format!("Parsing result {}", 2usize))?;
+                x
+            },
+            commit_: {
+                let x: String = r.get(3usize).to_good_error(|| format!("Getting result {}", 3usize))?;
+                let x =
+                    chrono::DateTime::<chrono::Utc>::from(
+                        chrono::DateTime::<chrono::FixedOffset>::parse_from_rfc3339(
+                            &x,
+                        ).to_good_error(|| format!("Getting result {}", 3usize))?,
+                    );
+                x
+            },
+            exists: {
+                let x: bool = r.get(4usize).to_good_error(|| format!("Getting result {}", 4usize))?;
+                x
+            },
+        });
+    }
+    Ok(out)
+}
+
+pub fn triple_list_by_subject_predicate(
+    db: &rusqlite::Connection,
+    time: chrono::DateTime<chrono::Utc>,
+    page_subject: &crate::interface::triple::DbNode,
+    page_predicate: &str,
+    page_object: &crate::interface::triple::DbNode,
+    eq_subject: &crate::interface::triple::DbNode,
+    eq_predicate: &str,
+) -> Result<Vec<DbRes1>, GoodError> {
+    let mut out = vec![];
+    let query =
+        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , \"triple\" . \"commit_\" , \"triple\" . \"exists\" from \"triple\" where ( ( \"triple\" . \"commit_\" < $1 ) and ( ( \"triple\" . \"subject\" ,  \"triple\" . \"predicate\" ,  \"triple\" . \"object\" ) > ( $2 ,  $3 ,  $4 ) ) and ( ( \"triple\" . \"subject\" = $5 ) and ( \"triple\" . \"predicate\" = $6 ) ) ) order by \"triple\" . \"commit_\" desc , \"triple\" . \"exists\" asc , \"triple\" . \"subject\" asc , \"triple\" . \"predicate\" asc , \"triple\" . \"object\" asc limit 500 ";
+    let mut stmt = db.prepare(query).to_good_error_query(query)?;
+    let mut rows =
+        stmt
+            .query(
+                rusqlite::params![
+                    time.to_rfc3339(),
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
+                        &page_subject,
+                    ),
+                    page_predicate,
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
+                        &page_object,
+                    ),
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
+                        &eq_subject,
+                    ),
+                    eq_predicate
+                ],
+            )
+            .to_good_error_query(query)?;
+    while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
+        out.push(DbRes1 {
+            subject: {
+                let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
+                let x =
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::from_sql(
+                        x,
+                    ).to_good_error(|| format!("Parsing result {}", 0usize))?;
+                x
+            },
+            predicate: {
+                let x: String = r.get(1usize).to_good_error(|| format!("Getting result {}", 1usize))?;
+                x
+            },
+            object: {
+                let x: String = r.get(2usize).to_good_error(|| format!("Getting result {}", 2usize))?;
+                let x =
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::from_sql(
+                        x,
+                    ).to_good_error(|| format!("Parsing result {}", 2usize))?;
+                x
+            },
+            commit_: {
+                let x: String = r.get(3usize).to_good_error(|| format!("Getting result {}", 3usize))?;
+                let x =
+                    chrono::DateTime::<chrono::Utc>::from(
+                        chrono::DateTime::<chrono::FixedOffset>::parse_from_rfc3339(
+                            &x,
+                        ).to_good_error(|| format!("Getting result {}", 3usize))?,
+                    );
+                x
+            },
+            exists: {
+                let x: bool = r.get(4usize).to_good_error(|| format!("Getting result {}", 4usize))?;
+                x
+            },
+        });
+    }
+    Ok(out)
+}
+
+pub fn triple_list_by_predicate_object(
+    db: &rusqlite::Connection,
+    time: chrono::DateTime<chrono::Utc>,
+    page_subject: &crate::interface::triple::DbNode,
+    page_predicate: &str,
+    page_object: &crate::interface::triple::DbNode,
+    eq_predicate: &str,
+    eq_object: &crate::interface::triple::DbNode,
+) -> Result<Vec<DbRes1>, GoodError> {
+    let mut out = vec![];
+    let query =
+        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , \"triple\" . \"commit_\" , \"triple\" . \"exists\" from \"triple\" where ( ( \"triple\" . \"commit_\" < $1 ) and ( ( \"triple\" . \"subject\" ,  \"triple\" . \"predicate\" ,  \"triple\" . \"object\" ) > ( $2 ,  $3 ,  $4 ) ) and ( ( \"triple\" . \"predicate\" = $5 ) and ( \"triple\" . \"object\" = $6 ) ) ) order by \"triple\" . \"commit_\" desc , \"triple\" . \"exists\" asc , \"triple\" . \"subject\" asc , \"triple\" . \"predicate\" asc , \"triple\" . \"object\" asc limit 500 ";
+    let mut stmt = db.prepare(query).to_good_error_query(query)?;
+    let mut rows =
+        stmt
+            .query(
+                rusqlite::params![
+                    time.to_rfc3339(),
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
+                        &page_subject,
+                    ),
+                    page_predicate,
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
+                        &page_object,
+                    ),
+                    eq_predicate,
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
+                        &eq_object,
+                    )
+                ],
+            )
+            .to_good_error_query(query)?;
+    while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
+        out.push(DbRes1 {
+            subject: {
+                let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
+                let x =
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::from_sql(
+                        x,
+                    ).to_good_error(|| format!("Parsing result {}", 0usize))?;
+                x
+            },
+            predicate: {
+                let x: String = r.get(1usize).to_good_error(|| format!("Getting result {}", 1usize))?;
+                x
+            },
+            object: {
+                let x: String = r.get(2usize).to_good_error(|| format!("Getting result {}", 2usize))?;
+                let x =
+                    <crate::interface::triple::DbNode as good_ormning_runtime
+                    ::sqlite
+                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::from_sql(
+                        x,
+                    ).to_good_error(|| format!("Parsing result {}", 2usize))?;
+                x
+            },
+            commit_: {
+                let x: String = r.get(3usize).to_good_error(|| format!("Getting result {}", 3usize))?;
+                let x =
+                    chrono::DateTime::<chrono::Utc>::from(
+                        chrono::DateTime::<chrono::FixedOffset>::parse_from_rfc3339(
+                            &x,
+                        ).to_good_error(|| format!("Getting result {}", 3usize))?,
+                    );
+                x
+            },
+            exists: {
+                let x: bool = r.get(4usize).to_good_error(|| format!("Getting result {}", 4usize))?;
+                x
+            },
+        });
+    }
+    Ok(out)
+}
+
 pub struct DbRes2 {
     pub subject: crate::interface::triple::DbNode,
     pub predicate: String,
     pub object: crate::interface::triple::DbNode,
-    pub event_commit: chrono::DateTime<chrono::Utc>,
-    pub exists: bool,
 }
 
-pub fn triple_list_from(
+pub fn triple_list_exist_around(
     db: &rusqlite::Connection,
-    subject: &crate::interface::triple::DbNode,
+    node: &crate::interface::triple::DbNode,
 ) -> Result<Vec<DbRes2>, GoodError> {
     let mut out = vec![];
     let query =
-        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , max ( \"triple\" . \"commit_\" ) as \"event_commit\" , \"triple\" . \"exists\" from \"triple\" where ( ( \"triple\" . \"subject\" = $1 ) ) group by \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" ";
+        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" from \"triple\" where ( ( ( \"triple\" . \"subject\" = $1 ) or ( \"triple\" . \"object\" = $1 ) ) and ( \"triple\" . \"exists\" = true ) ) ";
     let mut stmt = db.prepare(query).to_good_error_query(query)?;
     let mut rows =
         stmt
@@ -260,7 +580,7 @@ pub fn triple_list_from(
                     <crate::interface::triple::DbNode as good_ormning_runtime
                     ::sqlite
                     ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
-                        &subject,
+                        &node,
                     )
                 ],
             )
@@ -289,192 +609,6 @@ pub fn triple_list_from(
                     ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::from_sql(
                         x,
                     ).to_good_error(|| format!("Parsing result {}", 2usize))?;
-                x
-            },
-            event_commit: {
-                let x: String = r.get(3usize).to_good_error(|| format!("Getting result {}", 3usize))?;
-                let x =
-                    chrono::DateTime::<chrono::Utc>::from(
-                        chrono::DateTime::<chrono::FixedOffset>::parse_from_rfc3339(
-                            &x,
-                        ).to_good_error(|| format!("Getting result {}", 3usize))?,
-                    );
-                x
-            },
-            exists: {
-                let x: bool = r.get(4usize).to_good_error(|| format!("Getting result {}", 4usize))?;
-                x
-            },
-        });
-    }
-    Ok(out)
-}
-
-pub fn triple_list_to(
-    db: &rusqlite::Connection,
-    object: &crate::interface::triple::DbNode,
-) -> Result<Vec<DbRes2>, GoodError> {
-    let mut out = vec![];
-    let query =
-        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , max ( \"triple\" . \"commit_\" ) as \"event_commit\" , \"triple\" . \"exists\" from \"triple\" where ( ( \"triple\" . \"object\" = $1 ) ) group by \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" ";
-    let mut stmt = db.prepare(query).to_good_error_query(query)?;
-    let mut rows =
-        stmt
-            .query(
-                rusqlite::params![
-                    <crate::interface::triple::DbNode as good_ormning_runtime
-                    ::sqlite
-                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
-                        &object,
-                    )
-                ],
-            )
-            .to_good_error_query(query)?;
-    while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
-        out.push(DbRes2 {
-            subject: {
-                let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
-                let x =
-                    <crate::interface::triple::DbNode as good_ormning_runtime
-                    ::sqlite
-                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::from_sql(
-                        x,
-                    ).to_good_error(|| format!("Parsing result {}", 0usize))?;
-                x
-            },
-            predicate: {
-                let x: String = r.get(1usize).to_good_error(|| format!("Getting result {}", 1usize))?;
-                x
-            },
-            object: {
-                let x: String = r.get(2usize).to_good_error(|| format!("Getting result {}", 2usize))?;
-                let x =
-                    <crate::interface::triple::DbNode as good_ormning_runtime
-                    ::sqlite
-                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::from_sql(
-                        x,
-                    ).to_good_error(|| format!("Parsing result {}", 2usize))?;
-                x
-            },
-            event_commit: {
-                let x: String = r.get(3usize).to_good_error(|| format!("Getting result {}", 3usize))?;
-                let x =
-                    chrono::DateTime::<chrono::Utc>::from(
-                        chrono::DateTime::<chrono::FixedOffset>::parse_from_rfc3339(
-                            &x,
-                        ).to_good_error(|| format!("Getting result {}", 3usize))?,
-                    );
-                x
-            },
-            exists: {
-                let x: bool = r.get(4usize).to_good_error(|| format!("Getting result {}", 4usize))?;
-                x
-            },
-        });
-    }
-    Ok(out)
-}
-
-pub fn triple_list_all(db: &rusqlite::Connection) -> Result<Vec<DbRes1>, GoodError> {
-    let mut out = vec![];
-    let query =
-        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , \"triple\" . \"commit_\" , \"triple\" . \"exists\" from \"triple\" ";
-    let mut stmt = db.prepare(query).to_good_error_query(query)?;
-    let mut rows = stmt.query(rusqlite::params![]).to_good_error_query(query)?;
-    while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
-        out.push(DbRes1 {
-            subject: {
-                let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
-                let x =
-                    <crate::interface::triple::DbNode as good_ormning_runtime
-                    ::sqlite
-                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::from_sql(
-                        x,
-                    ).to_good_error(|| format!("Parsing result {}", 0usize))?;
-                x
-            },
-            predicate: {
-                let x: String = r.get(1usize).to_good_error(|| format!("Getting result {}", 1usize))?;
-                x
-            },
-            object: {
-                let x: String = r.get(2usize).to_good_error(|| format!("Getting result {}", 2usize))?;
-                let x =
-                    <crate::interface::triple::DbNode as good_ormning_runtime
-                    ::sqlite
-                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::from_sql(
-                        x,
-                    ).to_good_error(|| format!("Parsing result {}", 2usize))?;
-                x
-            },
-            commit_: {
-                let x: String = r.get(3usize).to_good_error(|| format!("Getting result {}", 3usize))?;
-                let x =
-                    chrono::DateTime::<chrono::Utc>::from(
-                        chrono::DateTime::<chrono::FixedOffset>::parse_from_rfc3339(
-                            &x,
-                        ).to_good_error(|| format!("Getting result {}", 3usize))?,
-                    );
-                x
-            },
-            exists: {
-                let x: bool = r.get(4usize).to_good_error(|| format!("Getting result {}", 4usize))?;
-                x
-            },
-        });
-    }
-    Ok(out)
-}
-
-pub fn triple_list_between(
-    db: &rusqlite::Connection,
-    start_incl: chrono::DateTime<chrono::Utc>,
-    end_excl: chrono::DateTime<chrono::Utc>,
-) -> Result<Vec<DbRes1>, GoodError> {
-    let mut out = vec![];
-    let query =
-        "select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , \"triple\" . \"commit_\" , \"triple\" . \"exists\" from \"triple\" where ( ( \"triple\" . \"commit_\" >= $1 ) and ( \"triple\" . \"commit_\" < $2 ) ) ";
-    let mut stmt = db.prepare(query).to_good_error_query(query)?;
-    let mut rows =
-        stmt.query(rusqlite::params![start_incl.to_rfc3339(), end_excl.to_rfc3339()]).to_good_error_query(query)?;
-    while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
-        out.push(DbRes1 {
-            subject: {
-                let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
-                let x =
-                    <crate::interface::triple::DbNode as good_ormning_runtime
-                    ::sqlite
-                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::from_sql(
-                        x,
-                    ).to_good_error(|| format!("Parsing result {}", 0usize))?;
-                x
-            },
-            predicate: {
-                let x: String = r.get(1usize).to_good_error(|| format!("Getting result {}", 1usize))?;
-                x
-            },
-            object: {
-                let x: String = r.get(2usize).to_good_error(|| format!("Getting result {}", 2usize))?;
-                let x =
-                    <crate::interface::triple::DbNode as good_ormning_runtime
-                    ::sqlite
-                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::from_sql(
-                        x,
-                    ).to_good_error(|| format!("Parsing result {}", 2usize))?;
-                x
-            },
-            commit_: {
-                let x: String = r.get(3usize).to_good_error(|| format!("Getting result {}", 3usize))?;
-                let x =
-                    chrono::DateTime::<chrono::Utc>::from(
-                        chrono::DateTime::<chrono::FixedOffset>::parse_from_rfc3339(
-                            &x,
-                        ).to_good_error(|| format!("Getting result {}", 3usize))?,
-                    );
-                x
-            },
-            exists: {
-                let x: bool = r.get(4usize).to_good_error(|| format!("Getting result {}", 4usize))?;
                 x
             },
         });
@@ -504,19 +638,17 @@ pub struct DbRes3 {
     pub description: String,
 }
 
-pub fn commit_list_between(
+pub fn commit_get(
     db: &rusqlite::Connection,
-    start_incl: chrono::DateTime<chrono::Utc>,
-    end_excl: chrono::DateTime<chrono::Utc>,
-) -> Result<Vec<DbRes3>, GoodError> {
-    let mut out = vec![];
+    stamp: chrono::DateTime<chrono::Utc>,
+) -> Result<Option<DbRes3>, GoodError> {
     let query =
-        "select \"commit\" . \"idtimestamp\" , \"commit\" . \"description\" from \"commit\" where ( ( \"commit\" . \"idtimestamp\" >= $1 ) and ( \"commit\" . \"idtimestamp\" < $2 ) ) ";
+        "select \"commit\" . \"idtimestamp\" , \"commit\" . \"description\" from \"commit\" where ( \"commit\" . \"idtimestamp\" = $1 ) ";
     let mut stmt = db.prepare(query).to_good_error_query(query)?;
-    let mut rows =
-        stmt.query(rusqlite::params![start_incl.to_rfc3339(), end_excl.to_rfc3339()]).to_good_error_query(query)?;
-    while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
-        out.push(DbRes3 {
+    let mut rows = stmt.query(rusqlite::params![stamp.to_rfc3339()]).to_good_error_query(query)?;
+    let r = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))?;
+    if let Some(r) = r {
+        return Ok(Some(DbRes3 {
             idtimestamp: {
                 let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
                 let x =
@@ -531,39 +663,9 @@ pub fn commit_list_between(
                 let x: String = r.get(1usize).to_good_error(|| format!("Getting result {}", 1usize))?;
                 x
             },
-        });
+        }));
     }
-    Ok(out)
-}
-
-pub fn commit_list_count(
-    db: &rusqlite::Connection,
-    end_excl: chrono::DateTime<chrono::Utc>,
-) -> Result<Vec<DbRes3>, GoodError> {
-    let mut out = vec![];
-    let query =
-        "select \"commit\" . \"idtimestamp\" , \"commit\" . \"description\" from \"commit\" where ( \"commit\" . \"idtimestamp\" < $1 ) order by \"commit\" . \"idtimestamp\" desc limit 50 ";
-    let mut stmt = db.prepare(query).to_good_error_query(query)?;
-    let mut rows = stmt.query(rusqlite::params![end_excl.to_rfc3339()]).to_good_error_query(query)?;
-    while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
-        out.push(DbRes3 {
-            idtimestamp: {
-                let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
-                let x =
-                    chrono::DateTime::<chrono::Utc>::from(
-                        chrono::DateTime::<chrono::FixedOffset>::parse_from_rfc3339(
-                            &x,
-                        ).to_good_error(|| format!("Getting result {}", 0usize))?,
-                    );
-                x
-            },
-            description: {
-                let x: String = r.get(1usize).to_good_error(|| format!("Getting result {}", 1usize))?;
-                x
-            },
-        });
-    }
-    Ok(out)
+    Ok(None)
 }
 
 pub fn commit_gc(db: &rusqlite::Connection) -> Result<(), GoodError> {

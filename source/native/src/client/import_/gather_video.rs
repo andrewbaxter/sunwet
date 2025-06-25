@@ -1,11 +1,14 @@
 use {
-    crate::gather::{
+    super::gather::{
         Gather,
         GatherTrackType,
     },
     loga::ResultContext,
     serde::Deserialize,
-    std::path::Path,
+    std::{
+        path::Path,
+        str::FromStr,
+    },
 };
 
 #[derive(Deserialize)]
@@ -96,7 +99,7 @@ pub fn gather(path: &Path) -> Result<Gather, loga::Error> {
         // Parse tags
         for level in &levels {
             match level.as_str() {
-                "EDITION / ISSUE / VOLUME / OPUS / SEASON / SEQUEL" | "fake_ALBUM" => {
+                "COLLECTION" => {
                     for (k, v) in &tags {
                         match k.as_str() {
                             "TITLE" => {
@@ -109,7 +112,7 @@ pub fn gather(path: &Path) -> Result<Gather, loga::Error> {
                         }
                     }
                 },
-                "TRACK / SONG / CHAPTER" => {
+                "ALBUM" | "OPERA" | "CONCERT" | "MOVIE" | "EPISODE" => {
                     for (k, v) in &tags {
                         match k.as_str() {
                             "TITLE" => {
@@ -119,7 +122,7 @@ pub fn gather(path: &Path) -> Result<Gather, loga::Error> {
                                 g.track_artist.push(v.clone());
                             },
                             "PART_NUMBER" => {
-                                g.track_index = Some(usize::from_str_radix(&v, 10)?);
+                                g.track_index = Some(f64::from_str(&v)?);
                             },
                             _ => { },
                         }

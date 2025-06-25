@@ -234,8 +234,9 @@ impl C2SReqTrait for ReqGetNodeMeta {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqHistory {
-    pub end_excl: DateTime<Utc>,
-    pub start_incl: DateTime<Utc>,
+    pub before_commit: Option<DateTime<Utc>>,
+    pub after_triple: Option<Triple>,
+    pub filter: Option<ReqHistoryFilter>,
 }
 
 impl Into<C2SReq> for ReqHistory {
@@ -244,34 +245,38 @@ impl Into<C2SReq> for ReqHistory {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct RespHistoryEvent {
+    pub delete: bool,
+    pub commit: DateTime<Utc>,
+    pub triple: Triple,
+}
+
 #[derive(Serialize, Deserialize, Default, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct RespHistoryCommit {
-    pub timestamp: DateTime<Utc>,
-    pub desc: String,
-    pub add: Vec<Triple>,
-    pub remove: Vec<Triple>,
+pub struct RespHistory {
+    pub events: Vec<RespHistoryEvent>,
+    pub commit_descriptions: HashMap<DateTime<Utc>, String>,
 }
 
 impl C2SReqTrait for ReqHistory {
-    type Resp = Vec<RespHistoryCommit>;
+    type Resp = RespHistory;
 }
 
 // # History, commits
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct ReqHistoryCommitCount {
-    pub end_excl: DateTime<Utc>,
+pub enum ReqHistoryFilterPredicate {
+    Incoming(String),
+    Outgoing(String),
 }
 
-impl Into<C2SReq> for ReqHistoryCommitCount {
-    fn into(self) -> C2SReq {
-        return C2SReq::HistoryCommitCount(self);
-    }
-}
-
-impl C2SReqTrait for ReqHistoryCommitCount {
-    type Resp = Vec<RespHistoryCommit>;
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct ReqHistoryFilter {
+    pub node: Node,
+    pub predicate: Option<ReqHistoryFilterPredicate>,
 }
 
 // # Get Menu
@@ -328,7 +333,6 @@ pub enum C2SReq {
     GetTriplesAround(ReqGetTriplesAround),
     GetNodeMeta(ReqGetNodeMeta),
     History(ReqHistory),
-    HistoryCommitCount(ReqHistoryCommitCount),
     GetClientConfig(ReqGetClientConfig),
     WhoAmI(ReqWhoAmI),
 }

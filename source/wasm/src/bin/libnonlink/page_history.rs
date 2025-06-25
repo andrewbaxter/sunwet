@@ -6,33 +6,31 @@ use {
     },
     crate::libnonlink::{
         api::req_post_json,
+        ministate::{
+            MinistateHistory,
+            MinistateHistoryPredicate,
+        },
         state::state,
     },
-    chrono::Utc,
     lunk::ProcessingContext,
     rooting::{
         spawn_rooted,
         El,
         WeakEl,
     },
-    shared::interface::{
-        triple::Node,
-        wire::{
-            ReqCommit,
-            ReqHistoryCommitCount,
-            Triple,
-        },
+    shared::interface::wire::{
+        ReqCommit,
+        ReqHistory,
+        ReqHistoryFilter,
+        ReqHistoryFilterPredicate,
+        Triple,
     },
     std::{
         cell::{
             Cell,
             RefCell,
         },
-        cmp::Reverse,
-        collections::{
-            BTreeMap,
-            HashSet,
-        },
+        collections::HashSet,
         rc::Rc,
     },
     wasm::js::style_export,
@@ -42,6 +40,7 @@ struct HistState {
     revert_was_deleted: RefCell<HashSet<Triple>>,
     revert_was_added: RefCell<HashSet<Triple>>,
     save: WeakEl,
+    ministate: MinistateHistory,
 }
 
 fn setup_revert_button<'a>(button: &El, hist_state: Rc<HistState>, was_deleted: bool, row: Triple) {
@@ -81,7 +80,7 @@ fn setup_revert_button<'a>(button: &El, hist_state: Rc<HistState>, was_deleted: 
     });
 }
 
-pub fn build_page_history(pc: &mut ProcessingContext) {
+pub fn build_page_history(pc: &mut ProcessingContext, ministate: &MinistateHistory) {
     let error_slot = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
     let button_commit = style_export::leaf_button_big_commit().root;
     let page_res = style_export::cont_page_node(style_export::ContPageNodeArgs {
@@ -93,94 +92,98 @@ pub fn build_page_history(pc: &mut ProcessingContext) {
         revert_was_deleted: Default::default(),
         revert_was_added: Default::default(),
         save: button_commit.weak(),
+        ministate: ministate.clone(),
     });
-    build_infinite(page_res.body.clone(), Utc::now(), {
+    build_infinite(page_res.body.clone(), (None, None), {
         let hist_state = hist_state.clone();
-        move |key| {
+        move |(page_before_commit, page_after_triple)| {
             let hist_state = hist_state.clone();
             async move {
-                let mut commits =
-                    req_post_json(&state().env.base_url, ReqHistoryCommitCount { end_excl: key }).await?;
-                commits.sort_by_cached_key(|c| Reverse(c.timestamp));
+                let hist_res = req_post_json(&state().env.base_url, ReqHistory {
+                    before_commit: page_before_commit.clone(),
+                    after_triple: page_after_triple.clone(),
+                    filter: match &hist_state.ministate.filter {
+                        Some(f) => Some(ReqHistoryFilter {
+                            node: f.node.clone(),
+                            predicate: match &f.predicate {
+                                Some(p) => match p {
+                                    MinistateHistoryPredicate::Incoming(p) => Some(
+                                        ReqHistoryFilterPredicate::Incoming(p.clone()),
+                                    ),
+                                    MinistateHistoryPredicate::Outgoing(p) => Some(
+                                        ReqHistoryFilterPredicate::Outgoing(p.clone()),
+                                    ),
+                                },
+                                None => None,
+                            },
+                        }),
+                        None => None,
+                    },
+                }).await?;
+                if hist_res.events.is_empty() {
+                    return Ok((None, vec!{
+                    }));
+                }
+                let page_before_commit_next = hist_res.events.last().as_ref().map(|x| x.commit);
+                let page_after_triple_next = hist_res.events.last().as_ref().map(|x| x.triple.clone());
+                let mut prev_commit = page_before_commit;
+                let mut prev_subject = page_after_triple.map(|x| x.subject);
                 let mut out = vec![];
-                let next_key = commits.last().map(|x| x.timestamp);
-                for commit in commits {
-                    #[derive(Default)]
-                    struct Pred {
-                        remove: Vec<Triple>,
-                        add: Vec<Triple>,
-                    }
-
-                    let mut subjects: BTreeMap<Node, BTreeMap<String, Pred>> = Default::default();
-                    for triple in commit.remove {
-                        subjects
-                            .entry(triple.subject.clone())
-                            .or_default()
-                            .entry(triple.predicate.clone())
-                            .or_default()
-                            .remove
-                            .push(triple);
-                    }
-                    for triple in commit.add {
-                        subjects
-                            .entry(triple.subject.clone())
-                            .or_default()
-                            .entry(triple.predicate.clone())
-                            .or_default()
-                            .add
-                            .push(triple);
-                    }
-                    let mut commit_children = vec![];
-                    for (subject, preds) in subjects {
-                        let mut subject_rows = vec![];
-                        for (_, pred) in preds {
-                            for row in pred.remove {
-                                let row_res =
-                                    style_export::cont_history_predicate_object_remove(
-                                        style_export::ContHistoryPredicateObjectRemoveArgs {
-                                            children: vec![
-                                                style_export::leaf_node_view_predicate(
-                                                    style_export::LeafNodeViewPredicateArgs {
-                                                        value: row.predicate.clone(),
-                                                    },
-                                                ).root,
-                                                build_node_el(&row.object, true),
-                                            ],
-                                        },
-                                    );
-                                setup_revert_button(&row_res.button, hist_state.clone(), true, row);
-                                subject_rows.push(row_res.root);
-                            }
-                            for row in pred.add {
-                                let row_res =
-                                    style_export::cont_history_predicate_object_add(
-                                        style_export::ContHistoryPredicateObjectAddArgs {
-                                            children: vec![
-                                                style_export::leaf_node_view_predicate(
-                                                    style_export::LeafNodeViewPredicateArgs {
-                                                        value: row.predicate.clone(),
-                                                    },
-                                                ).root,
-                                                build_node_el(&row.object, true),
-                                            ],
-                                        },
-                                    );
-                                setup_revert_button(&row_res.button, hist_state.clone(), false, row);
-                                subject_rows.push(row_res.root);
-                            }
-                        }
-                        commit_children.push(style_export::cont_history_subject(style_export::ContHistorySubjectArgs {
-                            center: vec![build_node_el(&subject, true)],
-                            rows: subject_rows,
+                for event in hist_res.events {
+                    let mut commit_changed = false;
+                    if Some(event.commit) != prev_commit {
+                        prev_commit = Some(event.commit);
+                        commit_changed = true;
+                        out.push(style_export::cont_history_commit(style_export::ContHistoryCommitArgs {
+                            stamp: event.commit.to_rfc3339(),
+                            desc: hist_res.commit_descriptions.get(&event.commit).cloned().unwrap_or_default(),
                         }).root);
                     }
-                    out.push(style_export::cont_history_commit(style_export::ContHistoryCommitArgs {
-                        stamp: commit.timestamp.to_rfc3339(),
-                        desc: commit.desc,
-                        children: commit_children,
-                    }).root);
+                    if commit_changed || Some(&event.triple.subject) != prev_subject.as_ref() {
+                        prev_subject = Some(event.triple.subject.clone());
+                        out.push(
+                            style_export::cont_history_subject(
+                                style_export::ContHistorySubjectArgs {
+                                    center: vec![build_node_el(&event.triple.subject, true)],
+                                },
+                            ).root,
+                        );
+                    }
+                    out.push(if event.delete {
+                        let row_res =
+                            style_export::cont_history_predicate_object_remove(
+                                style_export::ContHistoryPredicateObjectRemoveArgs {
+                                    children: vec![
+                                        style_export::leaf_node_view_predicate(
+                                            style_export::LeafNodeViewPredicateArgs {
+                                                value: event.triple.predicate.clone(),
+                                            },
+                                        ).root,
+                                        build_node_el(&event.triple.object, true),
+                                    ],
+                                },
+                            );
+                        setup_revert_button(&row_res.button, hist_state.clone(), true, event.triple);
+                        row_res.root
+                    } else {
+                        let row_res =
+                            style_export::cont_history_predicate_object_add(
+                                style_export::ContHistoryPredicateObjectAddArgs {
+                                    children: vec![
+                                        style_export::leaf_node_view_predicate(
+                                            style_export::LeafNodeViewPredicateArgs {
+                                                value: event.triple.predicate.clone(),
+                                            },
+                                        ).root,
+                                        build_node_el(&event.triple.object, true),
+                                    ],
+                                },
+                            );
+                        setup_revert_button(&row_res.button, hist_state.clone(), false, event.triple);
+                        row_res.root
+                    });
                 }
-                return Ok((next_key, out));
+                return Ok((Some((page_before_commit_next, page_after_triple_next)), out));
             }
         }
     });
@@ -223,7 +226,7 @@ pub fn build_page_history(pc: &mut ProcessingContext) {
                     match res {
                         Ok(_) => {
                             eg.event(|pc| {
-                                build_page_history(pc);
+                                build_page_history(pc, &hist_state.ministate);
                             });
                         },
                         Err(e) => {

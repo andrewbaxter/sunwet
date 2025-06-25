@@ -1,5 +1,5 @@
 use {
-    crate::gather::{
+    super::gather::{
         prep_cover,
         Gather,
         GatherTrackType,
@@ -14,6 +14,7 @@ use {
     std::{
         path::Path,
         process::Command,
+        str::FromStr,
     },
 };
 
@@ -98,7 +99,7 @@ pub fn gather(sunwet_dir: &Path, path: &Path) -> Result<Gather, loga::Error> {
                 g.album_name = Some(album);
             }
             if let Some(number) = text(&comicinfo, "Number") {
-                let Ok(index) = usize::from_str_radix(&number, 10) else {
+                let Ok(index) = f64::from_str(&number) else {
                     return Err(loga::err(format!("Epub has invalid index (display-seq): [{}]", number)));
                 };
                 g.track_index = Some(index);
@@ -123,7 +124,10 @@ pub fn gather(sunwet_dir: &Path, path: &Path) -> Result<Gather, loga::Error> {
             )? {
             g
                 .track_cover
-                .insert(g.track_superindex.unwrap_or_default() * 10000 + g.track_index.unwrap_or(1000), path);
+                .insert(
+                    (g.track_superindex.unwrap_or_default() * 10000. + g.track_index.unwrap_or(1000.)) as usize,
+                    path,
+                );
         }
     }
     return Ok(g);

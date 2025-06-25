@@ -24,8 +24,8 @@ pub enum Value {
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum MoveDirection {
-    Down,
-    Up,
+    Forward,
+    Backward,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug, JsonSchema)]
@@ -68,7 +68,7 @@ pub enum FilterSuffix {
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct FilterExprExists {
+pub struct FilterExprExistance {
     pub type_: FilterExprExistsType,
     pub subchain: ChainBody,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -100,7 +100,7 @@ pub struct FilterExprJunction {
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum FilterExpr {
-    Exists(FilterExprExists),
+    Exists(FilterExprExistance),
     Junction(FilterExprJunction),
 }
 

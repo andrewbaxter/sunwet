@@ -14,7 +14,7 @@ use {
             ChainBody,
             ChainRoot,
             FilterExpr,
-            FilterExprExists,
+            FilterExprExistance,
             FilterExprExistsType,
             FilterExprJunction,
             FilterSuffix,
@@ -129,7 +129,7 @@ fn compile_filter_suffix(suffix: query_parser_actions::FILTER_SUFFIX) -> Result<
 fn compile_filter(filter: query_parser_actions::FILTER) -> Result<FilterExpr, loga::Error> {
     match filter {
         query_parser_actions::FILTER::FILTER_EXISTS(f) => {
-            return Ok(FilterExpr::Exists(FilterExprExists {
+            return Ok(FilterExpr::Exists(FilterExprExistance {
                 type_: FilterExprExistsType::Exists,
                 subchain: compile_chain_body(f.chain_body.rootopt, f.chain_body.step0.unwrap_or_default())?,
                 suffix: if let Some(parsed_suffix) = f.filter_suffixopt {
@@ -140,7 +140,7 @@ fn compile_filter(filter: query_parser_actions::FILTER) -> Result<FilterExpr, lo
             }));
         },
         query_parser_actions::FILTER::FILTER_NOT_EXISTS(f) => {
-            return Ok(FilterExpr::Exists(FilterExprExists {
+            return Ok(FilterExpr::Exists(FilterExprExistance {
                 type_: FilterExprExistsType::DoesntExist,
                 subchain: compile_chain_body(f.chain_body.rootopt, f.chain_body.step0.unwrap_or_default())?,
                 suffix: if let Some(parsed_suffix) = f.filter_suffixopt {
@@ -199,7 +199,7 @@ fn compile_chain_body(body_root: Option<ROOT>, body_steps: Vec<STEP>) -> Result<
                     filter = None;
                 }
                 steps.push(Step::Move(StepMove {
-                    dir: MoveDirection::Up,
+                    dir: MoveDirection::Backward,
                     predicate: compile_str_value(step.str_param_val),
                     filter: filter,
                     first: step.firstopt.is_some(),
@@ -213,7 +213,7 @@ fn compile_chain_body(body_root: Option<ROOT>, body_steps: Vec<STEP>) -> Result<
                     filter = None;
                 }
                 steps.push(Step::Move(StepMove {
-                    dir: MoveDirection::Down,
+                    dir: MoveDirection::Forward,
                     predicate: compile_str_value(step.str_param_val),
                     filter: filter,
                     first: step.firstopt.is_some(),

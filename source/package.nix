@@ -2,7 +2,7 @@
 let
   fenix =
     import
-      (fetchTarball "https://github.com/nix-community/fenix/archive/1a79901b0e37ca189944e24d9601c8426675de50.zip")
+      (fetchTarball "https://github.com/nix-community/fenix/archive/77de5067629e201436c76f14f96614a19368c4ae.zip")
       { };
   toolchain = fenix.combine [
     fenix.stable.rustc

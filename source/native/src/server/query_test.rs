@@ -32,7 +32,7 @@ use {
             ChainBody,
             ChainRoot,
             FilterExpr,
-            FilterExprExists,
+            FilterExprExistance,
             FilterExprExistsType,
             FilterSuffixSimple,
             FilterSuffixSimpleOperator,
@@ -315,7 +315,7 @@ fn test_recurse() {
                     steps: vec![
                         //. .
                         Step::Move(StepMove {
-                            dir: MoveDirection::Up,
+                            dir: MoveDirection::Backward,
                             predicate: StrValue::Literal(PREDICATE_IS.to_string()),
                             filter: None,
                             first: false,
@@ -324,7 +324,7 @@ fn test_recurse() {
                             subchain: ChainBody {
                                 root: None,
                                 steps: vec![Step::Move(StepMove {
-                                    dir: MoveDirection::Up,
+                                    dir: MoveDirection::Backward,
                                     predicate: StrValue::Literal(PREDICATE_TRACK.to_string()),
                                     filter: None,
                                     first: false,
@@ -333,7 +333,7 @@ fn test_recurse() {
                             first: false,
                         }),
                         Step::Move(StepMove {
-                            dir: MoveDirection::Down,
+                            dir: MoveDirection::Forward,
                             predicate: StrValue::Literal(PREDICATE_NAME.to_string()),
                             filter: None,
                             first: false,
@@ -365,14 +365,14 @@ fn test_filter_eq() {
                     steps: vec![
                         //. .
                         Step::Move(StepMove {
-                            dir: MoveDirection::Up,
+                            dir: MoveDirection::Backward,
                             predicate: StrValue::Literal(PREDICATE_IS.to_string()),
-                            filter: Some(FilterExpr::Exists(FilterExprExists {
+                            filter: Some(FilterExpr::Exists(FilterExprExistance {
                                 type_: FilterExprExistsType::Exists,
                                 subchain: ChainBody {
                                     root: None,
                                     steps: vec![Step::Move(StepMove {
-                                        dir: MoveDirection::Down,
+                                        dir: MoveDirection::Forward,
                                         predicate: StrValue::Literal(PREDICATE_NAME.to_string()),
                                         filter: None,
                                         first: false,
@@ -412,14 +412,14 @@ fn test_filter_lt() {
                     steps: vec![
                         //. .
                         Step::Move(StepMove {
-                            dir: MoveDirection::Up,
+                            dir: MoveDirection::Backward,
                             predicate: StrValue::Literal(PREDICATE_IS.to_string()),
-                            filter: Some(FilterExpr::Exists(FilterExprExists {
+                            filter: Some(FilterExpr::Exists(FilterExprExistance {
                                 type_: FilterExprExistsType::Exists,
                                 subchain: ChainBody {
                                     root: None,
                                     steps: vec![Step::Move(StepMove {
-                                        dir: MoveDirection::Down,
+                                        dir: MoveDirection::Forward,
                                         predicate: StrValue::Literal("sunwet/1/q".to_string()),
                                         filter: None,
                                         first: false,
@@ -468,7 +468,7 @@ fn test_chain_union() {
                                 ChainBody {
                                     root: Some(ChainRoot::Value(Value::Literal(s("sunwet/1/dog")))),
                                     steps: vec![Step::Move(StepMove {
-                                        dir: MoveDirection::Up,
+                                        dir: MoveDirection::Backward,
                                         predicate: StrValue::Literal(PREDICATE_IS.to_string()),
                                         filter: None,
                                         first: false,
@@ -477,7 +477,7 @@ fn test_chain_union() {
                                 ChainBody {
                                     root: Some(ChainRoot::Value(Value::Literal(s("sunwet/1/what")))),
                                     steps: vec![Step::Move(StepMove {
-                                        dir: MoveDirection::Up,
+                                        dir: MoveDirection::Backward,
                                         predicate: StrValue::Literal(PREDICATE_IS.to_string()),
                                         filter: None,
                                         first: false,
@@ -524,7 +524,13 @@ fn test_gc() {
         format!("{:?}", (s("d"), "e".to_string(), s("f"), stamp2, true))
     ];
     let mut have =
-        db::triple_list_all(&db)
+        db::triple_list_all(
+            &db,
+            DateTime::<Utc>::MAX_UTC,
+            &DbNode(Node::Value(serde_json::Value::Null)),
+            "",
+            &DbNode(Node::Value(serde_json::Value::Null)),
+        )
             .unwrap()
             .into_iter()
             .map(|r| format!("{:?}", (r.subject.0, r.predicate, r.object.0, r.commit_, r.exists)))
@@ -533,7 +539,13 @@ fn test_gc() {
     pretty_assertions::assert_eq!(want, have);
     db::triple_gc_deleted(&db, stamp2 + Duration::seconds(1)).unwrap();
     let mut have =
-        db::triple_list_all(&db)
+        db::triple_list_all(
+            &db,
+            DateTime::<Utc>::MAX_UTC,
+            &DbNode(Node::Value(serde_json::Value::Null)),
+            "",
+            &DbNode(Node::Value(serde_json::Value::Null)),
+        )
             .unwrap()
             .into_iter()
             .map(|r| format!("{:?}", (r.subject.0, r.predicate, r.object.0, r.commit_, r.exists)))

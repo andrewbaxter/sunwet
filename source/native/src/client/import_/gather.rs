@@ -29,9 +29,9 @@ pub struct Gather {
     pub album_artist: BTreeSet<String>,
     pub track_artist: Vec<String>,
     pub track_name: Option<String>,
-    pub track_index: Option<usize>,
+    pub track_index: Option<f64>,
     pub track_type: GatherTrackType,
-    pub track_superindex: Option<usize>,
+    pub track_superindex: Option<f64>,
     pub track_language: Option<String>,
     pub track_cover: HashMap<usize, PathBuf>,
 }

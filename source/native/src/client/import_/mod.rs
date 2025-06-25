@@ -1,22 +1,25 @@
+pub mod gather_audio;
+pub mod gather_comic;
+pub mod gather_epub;
+pub mod gather_video;
+pub mod gather;
+
 use {
+    crate::client::{
+        query::compile_query,
+        req,
+    },
     aargvark::Aargvark,
     by_address::ByAddress,
     chrono::Utc,
     flowcontrol::shed,
+    gather::GatherTrackType,
     loga::{
         ea,
-        fatal,
         DebugDisplay,
         ErrContext,
         Log,
         ResultContext,
-    },
-    native_import::{
-        gather::GatherTrackType,
-        gather_audio,
-        gather_comic,
-        gather_epub,
-        gather_video,
     },
     shared::interface::{
         cli::{
@@ -47,10 +50,35 @@ use {
             PREDICATE_SUPERINDEX,
             PREDICATE_TRACK,
         },
+        query::{
+            Chain,
+            ChainBody,
+            ChainRoot,
+            FilterExpr,
+            FilterExprExistance,
+            FilterExprExistsType,
+            FilterExprJunction,
+            FilterSuffix,
+            FilterSuffixSimple,
+            FilterSuffixSimpleOperator,
+            JunctionType,
+            MoveDirection,
+            Query,
+            Step,
+            StepMove,
+            StrValue,
+            Value,
+        },
+        triple::Node,
+        wire::{
+            ReqQuery,
+            TreeNode,
+        },
     },
     std::{
         cell::RefCell,
         collections::{
+            hash_map::Entry,
             BTreeMap,
             BTreeSet,
             HashMap,
@@ -73,8 +101,61 @@ use {
     walkdir::WalkDir,
 };
 
-pub fn node_id() -> String {
-    return Uuid::new_v4().hyphenated().to_string();
+pub async fn node_id(
+    log: &Log,
+    query: &'static str,
+    parameters: HashMap<String, Node>,
+) -> Result<Node, loga::Error> {
+    return node_id_direct(log, compile_query(None, query)?, parameters).await;
+}
+
+pub async fn node_id_artist(log: &Log, name: &str) -> Result<Node, loga::Error> {
+    return node_id(
+        log,
+        r#"$name -< "sunwet/1/name" ?( -> "sunwet/1/is" "sunwet/1/artist" ) { => id }"#,
+        [(format!("artist"), Node::from_str(name))].into_iter().collect(),
+    ).await;
+}
+
+pub async fn node_id_direct(
+    log: &Log,
+    query: Query,
+    parameters: HashMap<String, Node>,
+) -> Result<Node, loga::Error> {
+    let out = req::req_simple(&log, ReqQuery {
+        query: query.clone(),
+        parameters: parameters.clone(),
+        pagination: None,
+    }).await?.records;
+    let mut out_iter = out.iter();
+    let Some(first) = out_iter.next() else {
+        return Ok(Node::Value(serde_json::Value::String(Uuid::new_v4().hyphenated().to_string())));
+    };
+    if out_iter.next().is_some() {
+        return Err(
+            loga::err_with(
+                "Imported node id can't be matched, multiple potential existing nodes found",
+                ea!(query = query.dbg_str(), params = parameters.dbg_str(), res = out.dbg_str()),
+            ),
+        );
+    }
+    let Some(id) = first.get("id") else {
+        return Err(
+            loga::err_with(
+                "Assertion! Found multiple existing entries in the database matching entry",
+                ea!(query = query.dbg_str(), params = parameters.dbg_str(), res = out.dbg_str()),
+            ),
+        );
+    };
+    let TreeNode::Scalar(id) = id else {
+        return Err(
+            loga::err_with(
+                "Assertion! Found id is not a scalar node (is array or record; bad query)",
+                ea!(query = query.dbg_str(), params = parameters.dbg_str(), res = out.dbg_str()),
+            ),
+        );
+    };
+    return Ok(id.clone());
 }
 
 pub fn node_upload(root: &Path, p: &Path) -> CliNode {
@@ -85,8 +166,15 @@ pub fn node_value_str(v: &str) -> CliNode {
     return CliNode::Value(serde_json::Value::String(v.to_string()));
 }
 
-pub fn node_value_usize(v: usize) -> CliNode {
-    return CliNode::Value(serde_json::Value::Number(serde_json::Number::from(v as i64)));
+pub fn node_node(v: &Node) -> CliNode {
+    match v {
+        Node::File(v) => return CliNode::File(v.clone()),
+        Node::Value(v) => return CliNode::Value(v.clone()),
+    }
+}
+
+pub fn node_value_f64(v: f64) -> CliNode {
+    return CliNode::Value(serde_json::Value::Number(serde_json::Number::from_f64(v).unwrap()));
 }
 
 pub fn triple(sub: &CliNode, pred: &str, obj: &CliNode) -> CliTriple {
@@ -175,7 +263,104 @@ fn is_doc(p: &[u8]) -> bool {
     }
 }
 
-fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
+fn query_album_track(album: Node, superindex: Option<f64>, index: Option<f64>, name: &str) -> Query {
+    let mut filter = vec![];
+    {
+        let subchain = ChainBody {
+            root: None,
+            steps: vec![Step::Move(StepMove {
+                dir: MoveDirection::Forward,
+                predicate: StrValue::Literal(PREDICATE_SUPERINDEX.to_string()),
+                filter: None,
+                first: false,
+            })],
+        };
+        if let Some(superindex) = superindex {
+            filter.push(FilterExpr::Exists(FilterExprExistance {
+                type_: FilterExprExistsType::Exists,
+                subchain: subchain,
+                suffix: Some(FilterSuffix::Simple(FilterSuffixSimple {
+                    op: FilterSuffixSimpleOperator::Eq,
+                    value: Value::Literal(
+                        Node::Value(serde_json::Value::Number(serde_json::Number::from_f64(superindex).unwrap())),
+                    ),
+                })),
+            }));
+        } else {
+            filter.push(FilterExpr::Exists(FilterExprExistance {
+                type_: FilterExprExistsType::DoesntExist,
+                subchain: subchain,
+                suffix: None,
+            }));
+        }
+    }
+    {
+        let subchain = ChainBody {
+            root: None,
+            steps: vec![Step::Move(StepMove {
+                dir: MoveDirection::Forward,
+                predicate: StrValue::Literal(PREDICATE_INDEX.to_string()),
+                filter: None,
+                first: false,
+            })],
+        };
+        if let Some(index) = index {
+            filter.push(FilterExpr::Exists(FilterExprExistance {
+                type_: FilterExprExistsType::Exists,
+                subchain: subchain,
+                suffix: Some(FilterSuffix::Simple(FilterSuffixSimple {
+                    op: FilterSuffixSimpleOperator::Eq,
+                    value: Value::Literal(
+                        Node::Value(serde_json::Value::Number(serde_json::Number::from_f64(index).unwrap())),
+                    ),
+                })),
+            }));
+        } else {
+            filter.push(FilterExpr::Exists(FilterExprExistance {
+                type_: FilterExprExistsType::DoesntExist,
+                subchain: subchain,
+                suffix: None,
+            }));
+        }
+    }
+    filter.push(FilterExpr::Exists(FilterExprExistance {
+        type_: FilterExprExistsType::Exists,
+        subchain: ChainBody {
+            root: None,
+            steps: vec![Step::Move(StepMove {
+                dir: MoveDirection::Forward,
+                predicate: StrValue::Literal(PREDICATE_NAME.to_string()),
+                filter: None,
+                first: false,
+            })],
+        },
+        suffix: Some(FilterSuffix::Simple(FilterSuffixSimple {
+            op: FilterSuffixSimpleOperator::Eq,
+            value: Value::Literal(Node::Value(serde_json::Value::String(name.to_string()))),
+        })),
+    }));
+    return Query {
+        chain: Chain {
+            body: ChainBody {
+                root: Some(ChainRoot::Value(Value::Literal(album))),
+                steps: vec![Step::Move(StepMove {
+                    dir: MoveDirection::Forward,
+                    predicate: StrValue::Literal(PREDICATE_TRACK.to_string()),
+                    filter: Some(FilterExpr::Junction(FilterExprJunction {
+                        type_: JunctionType::And,
+                        subexprs: filter,
+                    })),
+                    first: false,
+                })],
+            },
+            bind: Some(format!("id")),
+            subchains: Default::default(),
+        },
+        sort: None,
+    };
+}
+
+async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
     let sunwet_out_meta_dir = root_dir.join("sunwet");
     let sunwet_out_meta = root_dir.join("sunwet.json");
     create_dir_all(&sunwet_out_meta_dir).context("Error making sunwet dir")?;
@@ -183,16 +368,16 @@ fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
 
     // Gather metadata from tracks, prepare dir-associated data
     struct GatherArtist {
-        id: String,
+        id: Node,
         name: String,
     }
 
     struct GatherTrack {
-        id: String,
+        id: Node,
         file: PathBuf,
         type_: GatherTrackType,
-        index: Option<usize>,
-        superindex: Option<usize>,
+        index: Option<f64>,
+        superindex: Option<f64>,
         artist: Vec<Rc<RefCell<GatherArtist>>>,
         name: String,
         lang: Option<String>,
@@ -201,7 +386,7 @@ fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
     }
 
     struct GatherAlbum {
-        id: String,
+        id: Node,
         name: String,
         artist: BTreeSet<ByAddress<Rc<RefCell<GatherArtist>>>>,
         tracks: Vec<Rc<RefCell<GatherTrack>>>,
@@ -270,26 +455,66 @@ fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
 
         // Build album artist
         let mut album_artist2 = BTreeSet::new();
-        for artist in &g.album_artist {
-            album_artist2.insert(
-                ByAddress(artists.entry(artist.clone()).or_insert_with(|| Rc::new(RefCell::new(GatherArtist {
-                    id: node_id(),
-                    name: artist.clone(),
-                }))).clone()),
-            );
+        for artist_name in &g.album_artist {
+            let artist = match artists.entry(artist_name.clone()) {
+                Entry::Occupied(e) => {
+                    e.get().clone()
+                },
+                Entry::Vacant(e) => {
+                    e.insert(Rc::new(RefCell::new(GatherArtist {
+                        id: node_id_artist(&log, artist_name).await?,
+                        name: artist_name.clone(),
+                    }))).clone()
+                },
+            };
+            album_artist2.insert(ByAddress(artist));
         }
         let album_name = g.album_name.unwrap_or_else(|| track_name.clone());
-        let album = albums.entry(AlbumKey {
+        let album = match albums.entry(AlbumKey {
             album_artist: album_artist2.clone(),
             name: album_name.clone(),
-        }).or_insert_with(|| Rc::new(RefCell::new(GatherAlbum {
-            id: node_id(),
-            name: album_name,
-            artist: album_artist2,
-            tracks: Default::default(),
-            covers: Default::default(),
-            documents: Default::default(),
-        })));
+        }) {
+            Entry::Occupied(e) => {
+                e.get().clone()
+            },
+            Entry::Vacant(e) => {
+                e.insert(Rc::new(RefCell::new(GatherAlbum {
+                    id: match album_artist2.iter().next() {
+                        Some(a) => node_id(
+                            &log,
+                            concat!(
+                                r#"$artist -< "sunwet/1/artist" "#,
+                                r#"  -& ( "#,
+                                r#"    ?(-> "sunwet/1/is" == "sunwet/1/album") "#,
+                                r#"    ?(-> "sunwet/1/name" == $name )"#,
+                                r#"  ) "#,
+                                r#"  { => id } "#,
+                            ),
+                            [
+                                (format!("artist"), a.0.borrow().id.clone()),
+                                (format!("name"), Node::from_str(&album_name)),
+                            ]
+                                .into_iter()
+                                .collect(),
+                        ).await?,
+                        None => node_id(
+                            &log,
+                            concat!(
+                                r#"$name -< "sunwet/1/name" "#,
+                                r#"  ?(-> "sunwet/1/is" == "sunwet/1/album") "#,
+                                r#"  { => id } "#,
+                            ),
+                            [(format!("name"), Node::from_str(&album_name))].into_iter().collect(),
+                        ).await?,
+                    },
+                    name: album_name,
+                    artist: album_artist2,
+                    tracks: Default::default(),
+                    covers: Default::default(),
+                    documents: Default::default(),
+                }))).clone()
+            },
+        };
         for (priority, cover) in &g.track_cover {
             *album.borrow_mut().covers.entry(*priority).or_default().entry(cover.clone()).or_default() += 1;
         }
@@ -301,14 +526,24 @@ fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
 
         // Assemble track
         let mut track_artist2 = vec![];
-        for artist in &g.track_artist {
-            track_artist2.push(artists.entry(artist.clone()).or_insert_with(|| Rc::new(RefCell::new(GatherArtist {
-                id: node_id(),
-                name: artist.clone(),
-            }))).clone());
+        for artist_name in &g.track_artist {
+            let artist = match artists.entry(artist_name.clone()) {
+                Entry::Occupied(e) => e.get().clone(),
+                Entry::Vacant(e) => {
+                    e.insert(Rc::new(RefCell::new(GatherArtist {
+                        id: node_id_artist(&log, &artist_name).await?,
+                        name: artist_name.clone(),
+                    }))).clone()
+                },
+            };
+            track_artist2.push(artist);
         }
         let track = Rc::new(RefCell::new(GatherTrack {
-            id: node_id(),
+            id: node_id_direct(
+                &log,
+                query_album_track(album.borrow().id.clone(), g.track_superindex, g.track_index, &track_name),
+                Default::default(),
+            ).await?,
             type_: g.track_type,
             index: g.track_index,
             superindex: g.track_superindex,
@@ -365,66 +600,56 @@ fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
     let mut triples = vec![];
     for artist in artists.values() {
         let artist = artist.borrow();
-        triples.push(triple(&node_value_str(&artist.id), PREDICATE_IS, &obj_is_artist()));
-        triples.push(triple(&node_value_str(&artist.id), PREDICATE_NAME, &node_value_str(&artist.name)));
-        triples.push(triple(&node_value_str(&artist.id), PREDICATE_ADD_TIMESTAMP, &timestamp));
+        triples.push(triple(&node_node(&artist.id), PREDICATE_IS, &obj_is_artist()));
+        triples.push(triple(&node_node(&artist.id), PREDICATE_NAME, &node_value_str(&artist.name)));
+        triples.push(triple(&node_node(&artist.id), PREDICATE_ADD_TIMESTAMP, &timestamp));
     }
     for album in albums.values() {
         let album = album.borrow();
-        triples.push(triple(&node_value_str(&album.id), PREDICATE_IS, &obj_is_album()));
+        triples.push(triple(&node_node(&album.id), PREDICATE_IS, &obj_is_album()));
         triples.push(
-            triple(
-                &node_value_str(&album.id),
-                PREDICATE_MEDIA,
-                &match album.tracks.iter().next().unwrap().borrow().type_ {
-                    GatherTrackType::Audio => obj_media_audio(),
-                    GatherTrackType::Video => obj_media_video(),
-                    GatherTrackType::Comic => obj_media_comic(),
-                    GatherTrackType::Book => obj_media_book(),
-                },
-            ),
+            triple(&node_node(&album.id), PREDICATE_MEDIA, &match album.tracks.iter().next().unwrap().borrow().type_ {
+                GatherTrackType::Audio => obj_media_audio(),
+                GatherTrackType::Video => obj_media_video(),
+                GatherTrackType::Comic => obj_media_comic(),
+                GatherTrackType::Book => obj_media_book(),
+            }),
         );
         if let Some(lang) = &album.tracks.iter().next().unwrap().borrow().lang {
-            triples.push(triple(&node_value_str(&album.id), PREDICATE_LANG, &node_value_str(&lang)));
+            triples.push(triple(&node_node(&album.id), PREDICATE_LANG, &node_value_str(&lang)));
         }
-        triples.push(triple(&node_value_str(&album.id), PREDICATE_NAME, &node_value_str(&album.name)));
+        triples.push(triple(&node_node(&album.id), PREDICATE_NAME, &node_value_str(&album.name)));
         for artist in &album.artist {
-            triples.push(
-                triple(&node_value_str(&album.id), PREDICATE_ARTIST, &node_value_str(&artist.borrow().id)),
-            );
+            triples.push(triple(&node_node(&album.id), PREDICATE_ARTIST, &node_node(&artist.borrow().id)));
         }
-        triples.push(triple(&node_value_str(&album.id), PREDICATE_ADD_TIMESTAMP, &timestamp));
+        triples.push(triple(&node_node(&album.id), PREDICATE_ADD_TIMESTAMP, &timestamp));
         shed!{
             'found _;
             for covers in album.covers.values() {
                 let mut covers = covers.iter().collect::<Vec<_>>();
                 covers.sort_by_cached_key(|c| *c.1);
                 if let Some((cover, _)) = covers.into_iter().next() {
-                    triples.push(
-                        triple(&node_value_str(&album.id), PREDICATE_COVER, &node_upload(root_dir, cover)),
-                    );
+                    triples.push(triple(&node_node(&album.id), PREDICATE_COVER, &node_upload(root_dir, cover)));
                     break 'found;
                 }
             }
         };
         for track in &album.tracks {
             let track = track.borrow();
-            triples.push(triple(&node_value_str(&track.id), PREDICATE_IS, &obj_is_track()));
+            triples.push(triple(&node_node(&track.id), PREDICATE_IS, &obj_is_track()));
             if let Some(index) = track.index {
-                triples.push(triple(&node_value_str(&track.id), PREDICATE_INDEX, &node_value_usize(index)));
+                triples.push(triple(&node_node(&track.id), PREDICATE_INDEX, &node_value_f64(index)));
             }
             if let Some(index) = track.superindex {
-                triples.push(triple(&node_value_str(&track.id), PREDICATE_SUPERINDEX, &node_value_usize(index)));
+                triples.push(triple(&node_node(&track.id), PREDICATE_SUPERINDEX, &node_value_f64(index)));
             }
-            triples.push(triple(&node_value_str(&track.id), PREDICATE_NAME, &node_value_str(&track.name)));
+            triples.push(triple(&node_node(&track.id), PREDICATE_NAME, &node_value_str(&track.name)));
             for artist in &track.artist {
-                triples.push(
-                    triple(&node_value_str(&track.id), PREDICATE_ARTIST, &node_value_str(&artist.borrow().id)),
-                );
+                triples.push(triple(&node_node(&track.id), PREDICATE_ARTIST, &node_node(&artist.borrow().id)));
             }
-            triples.push(triple(&node_value_str(&track.id), PREDICATE_ADD_TIMESTAMP, &timestamp));
-            triples.push(triple(&node_value_str(&track.id), PREDICATE_FILE, &node_upload(&root_dir, &track.file)));
-            triples.push(triple(&node_value_str(&album.id), PREDICATE_TRACK, &node_value_str(&track.id)));
+            triples.push(triple(&node_node(&track.id), PREDICATE_ADD_TIMESTAMP, &timestamp));
+            triples.push(triple(&node_node(&track.id), PREDICATE_FILE, &node_upload(&root_dir, &track.file)));
+            triples.push(triple(&node_node(&album.id), PREDICATE_TRACK, &node_node(&track.id)));
             shed!{
                 'found _;
                 for covers in track.covers.values() {
@@ -432,7 +657,7 @@ fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
                     covers.sort_by_cached_key(|c| *c.1);
                     if let Some((cover, _)) = covers.into_iter().next() {
                         triples.push(
-                            triple(&node_value_str(&track.id), PREDICATE_COVER, &node_upload(root_dir, cover)),
+                            triple(&node_node(&track.id), PREDICATE_COVER, &node_upload(root_dir, cover)),
                         );
                         break 'found;
                     }
@@ -440,17 +665,21 @@ fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
             };
         }
         for doc in &album.documents {
-            let doc_id = node_id();
-            triples.push(triple(&node_value_str(&doc_id), PREDICATE_IS, &obj_is_document()));
-            triples.push(
-                triple(
-                    &node_value_str(&doc_id),
-                    PREDICATE_NAME,
-                    &node_value_str(&String::from_utf8_lossy(doc.file_name().unwrap_or_default().as_bytes())),
-                ),
-            );
-            triples.push(triple(&node_value_str(&doc_id), PREDICATE_ADD_TIMESTAMP, &timestamp));
-            triples.push(triple(&node_value_str(&album.id), PREDICATE_DOC, &node_value_str(&doc_id)));
+            let name = String::from_utf8_lossy(doc.file_name().unwrap_or_default().as_bytes());
+            let doc_id =
+                node_id(
+                    &log,
+                    concat!(
+                        r#"$name -< "sunwet/1/name" "#,
+                        r#"  ?( -> "sunwet/1/is" == "sunwet/1/document" ) "#,
+                        r#"  { => id } "#,
+                    ),
+                    [(format!("name"), Node::from_str(&name))].into_iter().collect(),
+                ).await?;
+            triples.push(triple(&node_node(&doc_id), PREDICATE_IS, &obj_is_document()));
+            triples.push(triple(&node_node(&doc_id), PREDICATE_NAME, &node_value_str(&name)));
+            triples.push(triple(&node_node(&doc_id), PREDICATE_ADD_TIMESTAMP, &timestamp));
+            triples.push(triple(&node_node(&album.id), PREDICATE_DOC, &node_node(&doc_id)));
         }
     }
     write(sunwet_out_meta, serde_json::to_string_pretty(&CliCommit {
@@ -462,7 +691,7 @@ fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
 
 /// Turn a directory/archive file into a sunwet commit directory ready for upload.
 #[derive(Aargvark)]
-struct Args {
+pub struct PrepareImportCommitCommand {
     /// The archive or directory to import.
     source: PathBuf,
     /// The path to the directory to write the commit in. If not specified, uses the
@@ -471,8 +700,7 @@ struct Args {
     dest: Option<PathBuf>,
 }
 
-fn main1() -> Result<(), loga::Error> {
-    let args = aargvark::vark::<Args>();
+pub async fn handle_prepare_import_commit(args: PrepareImportCommitCommand) -> Result<(), loga::Error> {
     let log = loga::Log::new_root(loga::INFO);
     let source_meta =
         args
@@ -497,7 +725,7 @@ fn main1() -> Result<(), loga::Error> {
                     ).stack_context(&log, "Error creating file in output directory")?;
                 let mut source = File::open(&args.source).context("Error opening file")?;
                 io::copy(&mut source, &mut out).stack_context(&log, "Error extracting contents")?;
-                import_dir(&log, &dest)?;
+                import_dir(&log, &dest).await?;
             } else if e.as_bytes() == b"zip" {
                 let dest = match args.dest {
                     Some(d) => d,
@@ -528,7 +756,7 @@ fn main1() -> Result<(), loga::Error> {
                         },
                     }
                 }
-                import_dir(&log, &dest)?;
+                import_dir(&log, &dest).await?;
             } else {
                 return Err(loga::err("Unsupported source file type"));
             }
@@ -538,7 +766,7 @@ fn main1() -> Result<(), loga::Error> {
     } else if source_meta.is_dir() {
         let dest = args.dest.as_ref().unwrap_or(&args.source);
         let log = log.fork(ea!(dest = dest.to_string_lossy()));
-        import_dir(&log, dest)?;
+        import_dir(&log, dest).await?;
     } else {
         return Err(
             loga::err_with(
@@ -548,11 +776,4 @@ fn main1() -> Result<(), loga::Error> {
         );
     }
     return Ok(());
-}
-
-fn main() {
-    match main1() {
-        Ok(_) => { },
-        Err(e) => fatal(e),
-    }
 }

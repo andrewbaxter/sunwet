@@ -29,12 +29,12 @@ fn test_rt_move() {
                     ),
                 ),
                 steps: vec![Step::Move(StepMove {
-                    dir: shared::interface::query::MoveDirection::Down,
+                    dir: shared::interface::query::MoveDirection::Forward,
                     predicate: StrValue::Literal("owner".to_string()),
                     filter: None,
                     first: false,
                 }), Step::Move(StepMove {
-                    dir: shared::interface::query::MoveDirection::Down,
+                    dir: shared::interface::query::MoveDirection::Forward,
                     predicate: StrValue::Literal("name".to_string()),
                     filter: None,
                     first: false,

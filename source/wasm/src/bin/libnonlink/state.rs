@@ -16,7 +16,10 @@ use {
             PlaylistState,
         },
     },
-    crate::libnonlink::ministate::MinistateView,
+    crate::libnonlink::{
+        ministate::MinistateView,
+        page_query::build_page_query,
+    },
     gloo::utils::document,
     lunk::{
         EventGraph,
@@ -25,9 +28,7 @@ use {
     },
     rooting::El,
     shared::interface::{
-        config::{
-            ClientConfig,
-        },
+        config::ClientConfig,
         triple::Node,
     },
     std::{
@@ -131,8 +132,11 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
         Ministate::NodeView(ms) => {
             build_page_node_view(pc, &ms.title, &ms.node);
         },
-        Ministate::History => {
-            build_page_history(pc);
+        Ministate::History(ms) => {
+            build_page_history(pc, ms);
+        },
+        Ministate::Query(ms) => {
+            build_page_query(pc, ms);
         },
     }
 }

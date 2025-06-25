@@ -9,6 +9,8 @@ use {
             ministate_octothorpe,
             record_replace_ministate,
             Ministate,
+            MinistateHistory,
+            MinistateHistoryFilter,
             MinistateNodeEdit,
         },
         state::state,
@@ -19,7 +21,6 @@ use {
     shared::interface::{
         ont::PREDICATE_NAME,
         triple::{
-            FileHash,
             Node,
         },
         wire::ReqGetTriplesAround,
@@ -58,12 +59,6 @@ pub fn build_node_el(node: &Node, link: bool) -> El {
     }).root;
 }
 
-pub fn build_node_file_buttons_el(f: &FileHash) -> El {
-    return style_export::leaf_node_view_file_buttons(
-        style_export::LeafNodeViewFileButtonsArgs { url: file_url(&state().env, f) },
-    ).root;
-}
-
 pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node) {
     set_page(pc, title, el_async_(true, {
         let eg = pc.eg();
@@ -95,9 +90,26 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                     let mut triples_els = vec![];
                     for t in triples.incoming {
                         let mut triple_els = vec![];
-                        if let Node::File(n) = &t.subject {
-                            triple_els.push(build_node_file_buttons_el(n));
-                        }
+                        triple_els.push(
+                            style_export::leaf_node_view_node_buttons(style_export::LeafNodeViewNodeButtonsArgs {
+                                download: match &t.subject {
+                                    Node::File(n) => Some(file_url(&state().env, n)),
+                                    _ => None,
+                                },
+                                history: Some(
+                                    ministate_octothorpe(
+                                        &Ministate::History(MinistateHistory { filter: Some(MinistateHistoryFilter {
+                                            predicate: Some(
+                                                crate::libnonlink::ministate::MinistateHistoryPredicate::Incoming(
+                                                    t.predicate.clone(),
+                                                ),
+                                            ),
+                                            node: node.clone(),
+                                        }) }),
+                                    ),
+                                ),
+                            }).root,
+                        );
                         triple_els.push(build_node_el(&t.subject, true));
                         triple_els.push(
                             style_export::leaf_node_view_predicate(
@@ -118,7 +130,18 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
 
                 // Pivot
                 {
-                    let children = vec![build_node_el(&node, false)];
+                    let children =
+                        vec![style_export::leaf_node_view_node_buttons(style_export::LeafNodeViewNodeButtonsArgs {
+                            download: None,
+                            history: Some(
+                                ministate_octothorpe(
+                                    &Ministate::History(MinistateHistory { filter: Some(MinistateHistoryFilter {
+                                        node: node.clone(),
+                                        predicate: None,
+                                    }) }),
+                                ),
+                            ),
+                        }).root, build_node_el(&node, false)];
                     out.push(
                         style_export::cont_node_section_center(
                             style_export::ContNodeSectionCenterArgs { children: children },
@@ -139,9 +162,26 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                             }));
                         }
                         let mut triple_els = vec![];
-                        if let Node::File(n) = &t.subject {
-                            triple_els.push(build_node_file_buttons_el(n));
-                        }
+                        triple_els.push({
+                            style_export::leaf_node_view_node_buttons(style_export::LeafNodeViewNodeButtonsArgs {
+                                download: match &t.object {
+                                    Node::File(n) => Some(file_url(&state().env, n)),
+                                    _ => None,
+                                },
+                                history: Some(
+                                    ministate_octothorpe(
+                                        &Ministate::History(MinistateHistory { filter: Some(MinistateHistoryFilter {
+                                            node: node.clone(),
+                                            predicate: Some(
+                                                crate::libnonlink::ministate::MinistateHistoryPredicate::Outgoing(
+                                                    t.predicate.clone(),
+                                                ),
+                                            ),
+                                        }) }),
+                                    ),
+                                ),
+                            }).root
+                        });
                         triple_els.push(
                             style_export::leaf_node_view_predicate(
                                 style_export::LeafNodeViewPredicateArgs { value: t.predicate.clone() },
