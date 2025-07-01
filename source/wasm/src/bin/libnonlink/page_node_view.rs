@@ -23,10 +23,14 @@ use {
         triple::{
             Node,
         },
-        wire::ReqGetTriplesAround,
+        wire::{
+            ReqGetNodeMeta,
+            ReqGetTriplesAround,
+        },
     },
     wasm::{
         js::{
+            el_async,
             el_async_,
             style_export,
         },
@@ -42,6 +46,49 @@ pub fn node_to_text(node: &Node) -> String {
             node => return serde_json::to_string(node).unwrap(),
         },
     };
+}
+
+pub fn build_node_media_el(node: &Node) -> Option<El> {
+    let Node::File(h) = node else {
+        return None;
+    };
+    let h = h.clone();
+    let src_url = file_url(&state().env, &h);
+    return Some(el_async(async move {
+        ta_return!(Vec < El >, String);
+        let meta = req_post_json(&state().env.base_url, ReqGetNodeMeta { node: Node::File(h.clone()) }).await?;
+        match meta {
+            Some(meta) => {
+                match meta.mime.as_ref().map(|x| x.as_str()).unwrap_or("").split("/").next().unwrap() {
+                    "image" => {
+                        return Ok(
+                            vec![style_export::leaf_media_img(style_export::LeafMediaImgArgs { src: src_url }).root],
+                        );
+                    },
+                    "video" => {
+                        return Ok(
+                            vec![
+                                style_export::leaf_media_video(style_export::LeafMediaVideoArgs { src: src_url }).root
+                            ],
+                        );
+                    },
+                    "audio" => {
+                        return Ok(
+                            vec![
+                                style_export::leaf_media_audio(style_export::LeafMediaAudioArgs { src: src_url }).root
+                            ],
+                        );
+                    },
+                    _ => {
+                        return Ok(vec![]);
+                    },
+                }
+            },
+            None => {
+                return Ok(vec![]);
+            },
+        }
+    }));
 }
 
 pub fn build_node_el(node: &Node, link: bool) -> El {
@@ -90,6 +137,15 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                     let mut triples_els = vec![];
                     for t in triples.incoming {
                         let mut triple_els = vec![];
+                        triple_els.push(build_node_el(&t.subject, true));
+                        triple_els.push(
+                            style_export::leaf_node_view_predicate(
+                                style_export::LeafNodeViewPredicateArgs { value: t.predicate.clone() },
+                            ).root,
+                        );
+                        if let Some(ele) = build_node_media_el(&t.subject) {
+                            triple_els.push(ele);
+                        };
                         triple_els.push(
                             style_export::leaf_node_view_node_buttons(style_export::LeafNodeViewNodeButtonsArgs {
                                 download: match &t.subject {
@@ -110,12 +166,6 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                                 ),
                             }).root,
                         );
-                        triple_els.push(build_node_el(&t.subject, true));
-                        triple_els.push(
-                            style_export::leaf_node_view_predicate(
-                                style_export::LeafNodeViewPredicateArgs { value: t.predicate.clone() },
-                            ).root,
-                        );
                         triples_els.push(style_export::cont_node_row_incoming(style_export::ContNodeRowIncomingArgs {
                             children: triple_els,
                             new: false,
@@ -130,8 +180,10 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
 
                 // Pivot
                 {
-                    let children =
-                        vec![style_export::leaf_node_view_node_buttons(style_export::LeafNodeViewNodeButtonsArgs {
+                    let mut children = vec![
+                        //. .
+                        build_node_el(&node, false),
+                        style_export::leaf_node_view_node_buttons(style_export::LeafNodeViewNodeButtonsArgs {
                             download: None,
                             history: Some(
                                 ministate_octothorpe(
@@ -141,7 +193,11 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                                     }) }),
                                 ),
                             ),
-                        }).root, build_node_el(&node, false)];
+                        }).root,
+                    ];
+                    if let Some(ele) = build_node_media_el(&node) {
+                        children.push(ele);
+                    };
                     out.push(
                         style_export::cont_node_section_center(
                             style_export::ContNodeSectionCenterArgs { children: children },
@@ -162,6 +218,15 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                             }));
                         }
                         let mut triple_els = vec![];
+                        triple_els.push(
+                            style_export::leaf_node_view_predicate(
+                                style_export::LeafNodeViewPredicateArgs { value: t.predicate.clone() },
+                            ).root,
+                        );
+                        triple_els.push(build_node_el(&t.object, true));
+                        if let Some(ele) = build_node_media_el(&t.object) {
+                            triple_els.push(ele);
+                        }
                         triple_els.push({
                             style_export::leaf_node_view_node_buttons(style_export::LeafNodeViewNodeButtonsArgs {
                                 download: match &t.object {
@@ -182,12 +247,6 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                                 ),
                             }).root
                         });
-                        triple_els.push(
-                            style_export::leaf_node_view_predicate(
-                                style_export::LeafNodeViewPredicateArgs { value: t.predicate.clone() },
-                            ).root,
-                        );
-                        triple_els.push(build_node_el(&t.object, true));
                         triples_els.push(style_export::cont_node_row_outgoing(style_export::ContNodeRowOutgoingArgs {
                             children: triple_els,
                             new: false,

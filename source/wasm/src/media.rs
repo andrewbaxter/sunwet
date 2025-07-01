@@ -383,6 +383,7 @@ impl PlaylistMedia for PlaylistMediaComic {
                 inner: El,
                 groups: Vec<Vec<El>>,
                 page_lookup: HashMap<usize, PageLookupEntry>,
+                fix_scroll: RefCell<Option<ScopeValue>>,
             }
 
             impl State {
@@ -461,6 +462,7 @@ impl PlaylistMedia for PlaylistMediaComic {
                 inner: res.cont_scroll,
                 groups: build_state.groups,
                 page_lookup: build_state.page_lookup,
+                fix_scroll: RefCell::new(None),
             });
 
             // Wait for browser ready
@@ -505,6 +507,38 @@ impl PlaylistMedia for PlaylistMediaComic {
                             }
                         }
                         let internal_at = Prim::new(*at.borrow());
+                        state.inner.ref_on("fullscreenchange", {
+                            let state = Rc::downgrade(&state);
+                            let internal_at = internal_at.clone();
+                            move |_| {
+                                let Some(state1) = state.upgrade() else {
+                                    return;
+                                };
+                                *state1.fix_scroll.borrow_mut() = Some(spawn_rooted({
+                                    let state = state.clone();
+                                    let internal_at = internal_at.clone();
+                                    async move {
+                                        loop {
+                                            {
+                                                let Some(state) = state.upgrade() else {
+                                                    return;
+                                                };
+                                                let want_center = state.calc_want_center(*internal_at.borrow());
+                                                state.set_scroll_center(want_center);
+                                                if (state.get_scroll_center() - want_center).abs() < 3. {
+                                                    break;
+                                                }
+                                            }
+                                            TimeoutFuture::new(100).await;
+                                        }
+                                        let Some(state) = state.upgrade() else {
+                                            return;
+                                        };
+                                        *state.fix_scroll.borrow_mut() = None;
+                                    }
+                                }));
+                            }
+                        });
                         state.inner.ref_on("scroll", {
                             let visible = visible.clone();
                             let state = Rc::downgrade(&state);
@@ -520,6 +554,9 @@ impl PlaylistMedia for PlaylistMediaComic {
                                     let Some(state) = state.upgrade() else {
                                         return;
                                     };
+                                    if state.fix_scroll.borrow().is_some() {
+                                        return;
+                                    }
                                     let visible = visible.borrow().clone();
                                     let view_center = state.get_scroll_center();
                                     for index in visible {

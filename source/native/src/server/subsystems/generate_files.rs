@@ -75,6 +75,7 @@ use {
             write,
         },
         process::Command,
+        select,
         sync::mpsc::UnboundedReceiver,
     },
     tokio_stream::{
@@ -130,8 +131,8 @@ async fn generate_subs(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
     #[derive(Deserialize)]
     struct Stream {
         index: usize,
-        codec_type: String,
-        codec_name: String,
+        codec_type: Option<String>,
+        codec_name: Option<String>,
         #[serde(default)]
         tags: HashMap<String, String>,
     }
@@ -144,10 +145,13 @@ async fn generate_subs(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
     let streams =
         serde_json::from_slice::<Streams>(&streams_res.stdout).context("Error parsing video streams json")?;
     for stream in streams.streams {
-        if stream.codec_type != "subtitle" {
+        let (Some(codec_type), Some(codec_name)) = (stream.codec_type, stream.codec_name) else {
+            continue;
+        };
+        if codec_type != "subtitle" {
             continue
         }
-        match stream.codec_name.as_str() {
+        match codec_name.as_str() {
             "ass" | "srt" | "ssa" | "webvtt" | "subrip" | "stl" => { },
             _ => {
                 continue
@@ -201,8 +205,9 @@ async fn generate_webm(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
     }
     let tmp = tempdir_in(&state.temp_dir)?;
     let passlog_path = tmp.path().join("passlog");
-    let pass1_res =
-        Command::new("ffmpeg")
+    {
+        let mut cmd_pass1 = Command::new("ffmpeg");
+        cmd_pass1
             .stdin(Stdio::null())
             .arg("-i")
             .arg(source)
@@ -213,15 +218,24 @@ async fn generate_webm(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
             .arg(&passlog_path)
             .arg("-an")
             .args(&["-f", "webm"])
-            .args(&["-y", "/dev/null"])
-            .output()
-            .await
-            .context("Error starting webm conversion pass 1")?;
-    if !pass1_res.status.success() {
-        return Err(loga::err_with("Generating webm, pass 1 failed", ea!(output = pass1_res.pretty_dbg_str())));
+            .args(&["-y", "/dev/null"]);
+        let pass1_res =
+            cmd_pass1
+                .output()
+                .await
+                .context_with("Error starting webm conversion pass 1", ea!(command = cmd_pass1.dbg_str()))?;
+        if !pass1_res.status.success() {
+            return Err(
+                loga::err_with(
+                    "Generating webm, pass 1 failed",
+                    ea!(output = pass1_res.pretty_dbg_str(), command = cmd_pass1.dbg_str()),
+                ),
+            );
+        }
     }
-    let pass2_res =
-        Command::new("ffmpeg")
+    {
+        let mut cmd_pass2 = Command::new("ffmpeg");
+        cmd_pass2
             .stdin(Stdio::null())
             .arg("-i")
             .arg(source)
@@ -231,12 +245,20 @@ async fn generate_webm(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
             .arg("-passlogfile")
             .arg(&passlog_path)
             .args(&["-f", "webm"])
-            .arg(&dest)
-            .output()
-            .await
-            .context("Error starting webm conversion pass 2")?;
-    if !pass2_res.status.success() {
-        return Err(loga::err_with("Generating webm, pass 2 failed", ea!(output = pass2_res.pretty_dbg_str())));
+            .arg(&dest);
+        let pass2_res =
+            cmd_pass2
+                .output()
+                .await
+                .context_with("Error starting webm conversion pass 2", ea!(command = cmd_pass2.dbg_str()))?;
+        if !pass2_res.status.success() {
+            return Err(
+                loga::err_with(
+                    "Generating webm, pass 2 failed",
+                    ea!(output = pass2_res.pretty_dbg_str(), command = cmd_pass2.dbg_str()),
+                ),
+            );
+        }
     }
     commit_generated(state, file.clone(), gentype, mimetype.to_string()).await?;
     return Ok(());
@@ -422,10 +444,12 @@ pub fn start_generate_files(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
     tm.stream("Generate files", UnboundedReceiverStream::new(rx), {
         let state = state.clone();
         let log = state.log.fork(ea!(subsys = "filegen"));
+        let tm = tm.clone();
         move |file| {
             let log = log.clone();
             let state = state.clone();
-            async move {
+            let tm = tm.clone();
+            let work = async move {
                 match file {
                     Some(file) => {
                         let log = log.fork(ea!(file = file.to_string()));
@@ -472,6 +496,14 @@ pub fn start_generate_files(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                             },
                         }
                     },
+                }
+            };
+            async move {
+                select!{
+                    _ = work => {
+                    },
+                    _ = tm.until_terminate() => {
+                    }
                 }
             }
         }

@@ -83,6 +83,7 @@ fn setup_revert_button<'a>(button: &El, hist_state: Rc<HistState>, was_deleted: 
 pub fn build_page_history(pc: &mut ProcessingContext, ministate: &MinistateHistory) {
     let error_slot = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
     let button_commit = style_export::leaf_button_big_commit().root;
+    button_commit.ref_classes(&[&style_export::class_state_disabled().value]);
     let page_res = style_export::cont_page_node(style_export::ContPageNodeArgs {
         page_button_children: vec![],
         bar_children: vec![button_commit.clone()],
@@ -94,14 +95,13 @@ pub fn build_page_history(pc: &mut ProcessingContext, ministate: &MinistateHisto
         save: button_commit.weak(),
         ministate: ministate.clone(),
     });
-    build_infinite(page_res.body.clone(), (None, None), {
+    page_res.body.ref_push(build_infinite(None, {
         let hist_state = hist_state.clone();
-        move |(page_before_commit, page_after_triple)| {
+        move |page_key| {
             let hist_state = hist_state.clone();
             async move {
                 let hist_res = req_post_json(&state().env.base_url, ReqHistory {
-                    before_commit: page_before_commit.clone(),
-                    after_triple: page_after_triple.clone(),
+                    page_key: page_key.clone(),
                     filter: match &hist_state.ministate.filter {
                         Some(f) => Some(ReqHistoryFilter {
                             node: f.node.clone(),
@@ -121,13 +121,11 @@ pub fn build_page_history(pc: &mut ProcessingContext, ministate: &MinistateHisto
                     },
                 }).await?;
                 if hist_res.events.is_empty() {
-                    return Ok((None, vec!{
-                    }));
+                    return Ok((None, vec![]));
                 }
-                let page_before_commit_next = hist_res.events.last().as_ref().map(|x| x.commit);
-                let page_after_triple_next = hist_res.events.last().as_ref().map(|x| x.triple.clone());
-                let mut prev_commit = page_before_commit;
-                let mut prev_subject = page_after_triple.map(|x| x.subject);
+                let page_key_next = hist_res.events.last().as_ref().map(|x| (x.commit, x.triple.clone()));
+                let mut prev_commit = page_key.as_ref().map(|x| x.0);
+                let mut prev_subject = page_key.map(|x| x.1.subject);
                 let mut out = vec![];
                 for event in hist_res.events {
                     let mut commit_changed = false;
@@ -183,10 +181,10 @@ pub fn build_page_history(pc: &mut ProcessingContext, ministate: &MinistateHisto
                         row_res.root
                     });
                 }
-                return Ok((Some((page_before_commit_next, page_after_triple_next)), out));
+                return Ok((Some(page_key_next), out));
             }
         }
-    });
+    }));
     button_commit.ref_on("click", {
         let hist_state = hist_state.clone();
         let error_slot = error_slot.weak();

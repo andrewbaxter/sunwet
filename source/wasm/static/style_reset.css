@@ -22,7 +22,7 @@ Baseline un-styling.
     color: inherit;
     font-family: inherit;
     font-size: inherit;
-    overflow: hidden;
+    flex-shrink: 0;
   }
 
   html {

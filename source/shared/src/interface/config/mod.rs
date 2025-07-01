@@ -44,6 +44,7 @@ pub enum ClientPage {
     View(ClientViewLink),
     Form(ClientFormLink),
     History,
+    Query,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]

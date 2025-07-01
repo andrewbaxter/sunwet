@@ -291,6 +291,7 @@ pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<
                     form.menu_self_and_ancestors.extend(ancestry.iter().cloned());
                 },
                 MenuItemPage::History => { },
+                MenuItemPage::Query => { },
             },
         }
         ancestry.pop();

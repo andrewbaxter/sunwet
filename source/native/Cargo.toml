@@ -65,9 +65,6 @@ zip = "0.6"
 walkdir = "2"
 symphonia = { version = "0.5", features = ["all"] }
 uuid = { version = "1", features = ["v4"] }
-mkvparser = "0.2"
-mkvdump = "0.6"
-xml-schema = "0.3"
 epub = { git = "https://github.com/danigm/epub-rs", rev = "27eeef34a8987dbbd86260deff994cfde34a4846" }
 xmltree = "0.11"
 

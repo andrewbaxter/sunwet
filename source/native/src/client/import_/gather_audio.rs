@@ -5,7 +5,11 @@ use {
         GatherTrackType,
     },
     flowcontrol::shed,
-    loga::ErrContext,
+    loga::{
+        ea,
+        ErrContext,
+        ResultContext,
+    },
     std::{
         ffi::OsStr,
         fs::File,
@@ -44,10 +48,24 @@ pub fn gather(sunwet_dir: &Path, path: &Path, e: &OsStr) -> Result<Gather, loga:
                         g.track_artist.push(tag.value.to_string());
                     },
                     symphonia::core::meta::StandardTagKey::DiscNumber => {
-                        g.track_superindex = Some(f64::from_str(&tag.value.to_string())?);
+                        let v = tag.value.to_string();
+                        let v = v.split("/").next().unwrap();
+                        g.track_superindex =
+                            Some(
+                                f64::from_str(
+                                    &v,
+                                ).context_with("Error converting disc number to float", ea!(text = v))?,
+                            );
                     },
                     symphonia::core::meta::StandardTagKey::TrackNumber => {
-                        g.track_index = Some(f64::from_str(&tag.value.to_string().split("/").next().unwrap())?);
+                        let v = tag.value.to_string();
+                        let v = v.split("/").next().unwrap();
+                        g.track_index =
+                            Some(
+                                f64::from_str(
+                                    &v,
+                                ).context_with("Error converting track number to float", ea!(text = v))?,
+                            );
                     },
                     symphonia::core::meta::StandardTagKey::TrackTitle => {
                         g.track_name = Some(tag.value.to_string());

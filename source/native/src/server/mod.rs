@@ -37,10 +37,6 @@ use {
         check_is_admin,
         identify_requester,
     },
-    chrono::{
-        DateTime,
-        Utc,
-    },
     dbutil::tx,
     deadpool_sqlite::{
         Hook,
@@ -408,9 +404,12 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 let responder = req.respond();
                                 let expect_count = req.pagination.as_ref().map(|x| x.count);
                                 let records =
-                                    query::execute_query(&state.db, req.query, req.parameters, req.pagination)
-                                        .await
-                                        .err_internal()?;
+                                    query::execute_query(
+                                        &state.db,
+                                        req.query,
+                                        req.parameters,
+                                        req.pagination,
+                                    ).await?;
                                 let page_end = expect_count.and_then(|x| {
                                     if records.len() < x {
                                         return None
@@ -439,7 +438,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 resp = responder(RespQuery {
                                     records: records.into_iter().map(|x| x.value).collect(),
                                     meta: meta.into_iter().collect(),
-                                    page_end: page_end,
+                                    next_page_key: page_end,
                                 });
                             },
                             C2SReq::ViewQuery(req) => {
@@ -514,9 +513,12 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 let view_hash = view_hash.finish();
                                 let expect_count = req.pagination.as_ref().map(|x| x.count);
                                 let records =
-                                    query::execute_query(&state.db, query.clone(), req.parameters, req.pagination)
-                                        .await
-                                        .err_internal()?;
+                                    query::execute_query(
+                                        &state.db,
+                                        query.clone(),
+                                        req.parameters,
+                                        req.pagination,
+                                    ).await?;
                                 let page_end = expect_count.and_then(|x| {
                                     if records.len() < x {
                                         return None
@@ -552,7 +554,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 resp = responder(RespQuery {
                                     records: records.into_iter().map(|x| x.value).collect(),
                                     meta: meta.into_iter().collect(),
-                                    page_end: page_end,
+                                    next_page_key: page_end,
                                 });
                             },
                             C2SReq::GetNodeMeta(req) => {
@@ -579,65 +581,72 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                         },
                                     }
                                 }
-                                let page_commit = req.before_commit.unwrap_or_else(|| DateTime::<Utc>::MAX_UTC);
-                                let (page_subject, page_predicate, page_object) = match req.after_triple {
-                                    Some(t) => {
-                                        (DbNode(t.subject), t.predicate, DbNode(t.object))
-                                    },
-                                    None => {
-                                        (DbNode(Node::zero()), "".to_string(), DbNode(Node::zero()))
-                                    },
-                                };
                                 let (events, commit_descriptions) = tx(&state.db, move |txn| {
                                     let events;
                                     if let Some(f) = req.filter {
                                         if let Some(p) = f.predicate {
                                             match p {
                                                 ReqHistoryFilterPredicate::Incoming(p) => {
-                                                    events =
-                                                        db::triple_list_by_predicate_object(
+                                                    events = if let Some(after) = req.page_key {
+                                                        db::hist_list_by_predicate_object_after(
                                                             txn,
-                                                            page_commit,
-                                                            &page_subject,
-                                                            &page_predicate,
-                                                            &page_object,
+                                                            after.0,
+                                                            &DbNode(after.1.subject),
+                                                            &after.1.predicate,
+                                                            &DbNode(after.1.object),
                                                             &p,
                                                             &DbNode(f.node),
-                                                        )?;
+                                                        )?
+                                                    } else {
+                                                        db::hist_list_by_predicate_object(txn, &p, &DbNode(f.node))?
+                                                    };
                                                 },
                                                 ReqHistoryFilterPredicate::Outgoing(p) => {
-                                                    events =
-                                                        db::triple_list_by_subject_predicate(
+                                                    events = if let Some(after) = req.page_key {
+                                                        db::hist_list_by_subject_predicate_after(
                                                             txn,
-                                                            page_commit,
-                                                            &page_subject,
-                                                            &page_predicate,
-                                                            &page_object,
+                                                            after.0,
+                                                            &DbNode(after.1.subject),
+                                                            &after.1.predicate,
+                                                            &DbNode(after.1.object),
                                                             &DbNode(f.node),
                                                             &p,
-                                                        )?;
+                                                        )?
+                                                    } else {
+                                                        db::hist_list_by_subject_predicate(
+                                                            txn,
+                                                            &DbNode(f.node),
+                                                            &p,
+                                                        )?
+                                                    };
                                                 },
                                             }
                                         } else {
-                                            events =
-                                                db::triple_list_by_node(
+                                            events = if let Some(after) = req.page_key {
+                                                db::hist_list_by_node_after(
                                                     txn,
-                                                    page_commit,
-                                                    &page_subject,
-                                                    &page_predicate,
-                                                    &page_object,
+                                                    after.0,
+                                                    &DbNode(after.1.subject),
+                                                    &after.1.predicate,
+                                                    &DbNode(after.1.object),
                                                     &DbNode(f.node),
-                                                )?;
+                                                )?
+                                            } else {
+                                                db::hist_list_by_node(txn, &DbNode(f.node))?
+                                            };
                                         }
                                     } else {
-                                        events =
-                                            db::triple_list_all(
+                                        events = if let Some(after) = req.page_key {
+                                            db::hist_list_all_after(
                                                 txn,
-                                                page_commit,
-                                                &page_subject,
-                                                &page_predicate,
-                                                &page_object,
-                                            )?;
+                                                after.0,
+                                                &DbNode(after.1.subject),
+                                                &after.1.predicate,
+                                                &DbNode(after.1.object),
+                                            )?
+                                        } else {
+                                            db::hist_list_all(txn)?
+                                        };
                                     }
                                     let mut commit_descriptions = HashMap::new();
                                     for ev in &events {
@@ -691,7 +700,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 let triples = tx(&state.db, {
                                     let node = req.node.clone();
                                     move |txn| {
-                                        return Ok(db::triple_list_exist_around(txn, &DbNode(node))?);
+                                        return Ok(db::triple_list_around(txn, &DbNode(node))?);
                                     }
                                 }).await.err_internal()?;
                                 let mut incoming = vec![];
@@ -831,6 +840,7 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
         create_dirs(&stage_dir).await?;
         let files_dir = config.files_dir.join("ready");
         create_dirs(&files_dir).await?;
+        create_dirs(&config.temp_dir).await?;
         let db_path = config.graph_dir.join("db.sqlite3");
         let db =
             deadpool_sqlite::Config::new(&db_path)
@@ -838,7 +848,11 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
                 .context("Error creating sqlite pool builder")?
                 .post_create(Hook::async_fn(|db, _| Box::pin(async {
                     db
-                        .interact(|db| rusqlite::vtab::array::load_module(db))
+                        .interact(|db| {
+                            db.busy_timeout(Duration::from_secs(60 * 10))?;
+                            rusqlite::vtab::array::load_module(db)?;
+                            return Ok(());
+                        })
                         .await
                         .map_err(|e| HookError::Message(e.to_string().into()))?
                         .map_err(|e| HookError::Backend(e))?;

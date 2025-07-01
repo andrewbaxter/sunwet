@@ -339,7 +339,7 @@
           ],
           "properties": {
             "exists": {
-              "$ref": "#/definitions/FilterExprExists"
+              "$ref": "#/definitions/FilterExprExistance"
             }
           },
           "additionalProperties": false
@@ -358,7 +358,7 @@
         }
       ]
     },
-    "FilterExprExists": {
+    "FilterExprExistance": {
       "type": "object",
       "required": [
         "subchain",
@@ -995,7 +995,8 @@
         {
           "type": "string",
           "enum": [
-            "history"
+            "history",
+            "query"
           ]
         },
         {
@@ -1042,8 +1043,8 @@
     "MoveDirection": {
       "type": "string",
       "enum": [
-        "down",
-        "up"
+        "forward",
+        "backward"
       ]
     },
     "Node": {
@@ -1624,10 +1625,6 @@
               "$ref": "#/definitions/TransAlign"
             }
           ]
-        },
-        "x_scroll": {
-          "default": false,
-          "type": "boolean"
         }
       },
       "additionalProperties": false
@@ -1929,6 +1926,13 @@
         "orientation"
       ],
       "properties": {
+        "color": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "cons_size_max": {
           "default": null,
           "type": [

@@ -28,8 +28,8 @@ use {
         interface::{
             query::Query,
             triple::{
-                FileHash,
                 Node,
+                StrNode,
             },
             wire::{
                 ReqCommit,
@@ -49,36 +49,18 @@ use {
         fs::read_to_string,
         str::FromStr,
     },
+    uuid::Uuid,
 };
 
 pub mod req;
 pub mod commit;
 pub mod import_;
 
-pub struct StrNode(pub Node);
+pub struct AargvarkStrNode(pub Node);
 
-impl AargvarkFromStr for StrNode {
+impl AargvarkFromStr for AargvarkStrNode {
     fn from_str(s: &str) -> Result<Self, String> {
-        let Some((k, v)) = s.split_once("=") else {
-            return Err(format!("Invalid node format: [{}]", s));
-        };
-        match k {
-            "f" => {
-                return Ok(StrNode(Node::File(
-                    //. .
-                    FileHash::from_str(v).map_err(|e| format!("File node [{}] isn't in a valid format: {}", v, e))?,
-                )));
-            },
-            "v" => {
-                return Ok(StrNode(Node::Value(
-                    //. .
-                    serde_json::from_str(v).map_err(|e| format!("Value node has invalid json [{}]: {}", v, e))?,
-                )));
-            },
-            _ => {
-                return Err(format!("Unknown node prefix [{}]", k));
-            },
-        }
+        return Ok(AargvarkStrNode(StrNode::from_str(s)?.0));
     }
 
     fn build_help_pattern(_state: &mut aargvark::help::HelpState) -> aargvark::help::HelpPattern {
@@ -99,7 +81,7 @@ impl AargvarkFromStr for StrNode {
 pub struct QueryCommand {
     debug: Option<()>,
     query: AargvarkJson<Query>,
-    parameters: HashMap<String, StrNode>,
+    parameters: HashMap<String, AargvarkStrNode>,
 }
 
 pub async fn handle_query(c: QueryCommand) -> Result<(), loga::Error> {
@@ -197,7 +179,7 @@ impl AargvarkFromStr for StrDatetime {
 #[derive(Aargvark)]
 pub struct DeleteNodesCommand {
     debug: Option<()>,
-    nodes: Vec<StrNode>,
+    nodes: Vec<AargvarkStrNode>,
 }
 
 pub async fn handle_delete_nodes(args: DeleteNodesCommand) -> Result<(), loga::Error> {
@@ -224,8 +206,8 @@ pub async fn handle_delete_nodes(args: DeleteNodesCommand) -> Result<(), loga::E
 #[derive(Aargvark)]
 pub struct MergeNodesCommand {
     debug: Option<()>,
-    dest_node: StrNode,
-    merge_nodes: Vec<StrNode>,
+    dest_node: AargvarkStrNode,
+    merge_nodes: Vec<AargvarkStrNode>,
 }
 
 pub async fn handle_merge_nodes_command(args: MergeNodesCommand) -> Result<(), loga::Error> {
@@ -265,6 +247,47 @@ pub async fn handle_merge_nodes_command(args: MergeNodesCommand) -> Result<(), l
 }
 
 #[derive(Aargvark)]
+pub struct DuplicateNodesCommand {
+    debug: Option<()>,
+    /// Node to duplicate
+    node: AargvarkStrNode,
+}
+
+pub async fn handle_duplicate_nodes_command(args: DuplicateNodesCommand) -> Result<(), loga::Error> {
+    let log = Log::new_root(if args.debug.is_some() {
+        loga::DEBUG
+    } else {
+        loga::INFO
+    });
+    let dest_str = Uuid::new_v4().hyphenated().to_string();
+    let dest = Node::Value(serde_json::Value::String(dest_str.clone()));
+    let mut add = vec![];
+    let node_triples = req_simple(&log, ReqGetTriplesAround { node: args.node.0.clone() }).await?;
+    for t in node_triples.incoming {
+        add.push(Triple {
+            subject: t.subject.clone(),
+            predicate: t.predicate.clone(),
+            object: dest.clone(),
+        });
+    }
+    for t in node_triples.outgoing {
+        add.push(Triple {
+            subject: dest.clone(),
+            predicate: t.predicate.clone(),
+            object: t.object.clone(),
+        });
+    }
+    req_simple(&log, ReqCommit {
+        comment: format!("CLI duplicate [{}]", serde_json::to_string(&args.node.0).unwrap()),
+        add: add,
+        remove: vec![],
+        files: vec![],
+    }).await?;
+    print!("{}", dest_str);
+    return Ok(());
+}
+
+#[derive(Aargvark)]
 pub struct HistoryCommand {
     debug: Option<()>,
     /// Get commits starting before this time
@@ -272,11 +295,11 @@ pub struct HistoryCommand {
     /// Get commits no earlier than this time
     until: Option<StrDatetime>,
     /// Restrict to history affecting this subject
-    subject: Option<StrNode>,
+    subject: Option<AargvarkStrNode>,
     /// Restrict to history involving relations with this predicate
     predicate: Option<String>,
     /// Restrict to history affecting this object
-    object: Option<StrNode>,
+    object: Option<AargvarkStrNode>,
 }
 
 pub async fn handle_history(args: HistoryCommand) -> Result<(), loga::Error> {
@@ -300,12 +323,10 @@ pub async fn handle_history(args: HistoryCommand) -> Result<(), loga::Error> {
     }
 
     let mut commits = HashMap::new();
-    let mut before_commit = args.before.map(|x| x.0);
-    let mut after_triple = None;
+    let mut page_key = None;
     'paginate : loop {
         let res = req::req_simple(&log, ReqHistory {
-            before_commit: before_commit,
-            after_triple: after_triple,
+            page_key: page_key,
             filter: match (
                 args.subject.as_ref().map(|x| x.0.clone()),
                 args.object.as_ref().map(|x| x.0.clone()),
@@ -327,8 +348,7 @@ pub async fn handle_history(args: HistoryCommand) -> Result<(), loga::Error> {
         if res.events.is_empty() {
             break 'paginate;
         }
-        before_commit = res.events.last().map(|x| x.commit);
-        after_triple = res.events.last().map(|x| x.triple.clone());
+        page_key = res.events.last().map(|x| (x.commit, x.triple.clone()));
         for c in res.commit_descriptions {
             commits.entry(c.0).or_insert_with(|| HistoryCommit {
                 id_timestmap: c.0,
@@ -336,15 +356,20 @@ pub async fn handle_history(args: HistoryCommand) -> Result<(), loga::Error> {
                 events: Default::default(),
             });
         }
-        for e in res.events {
-            if let Some(until) = &args.until {
-                if e.commit < until.0 {
+        for event in res.events {
+            if let Some(s) = &args.before {
+                if event.commit > s.0 {
+                    continue;
+                }
+            }
+            if let Some(s) = &args.until {
+                if event.commit < s.0 {
                     break 'paginate;
                 }
             }
-            commits.get_mut(&e.commit).unwrap().events.push(HistoryEvent {
-                delete: e.delete,
-                triple: e.triple,
+            commits.get_mut(&event.commit).unwrap().events.push(HistoryEvent {
+                delete: event.delete,
+                triple: event.triple,
             });
         }
     }
@@ -360,7 +385,7 @@ pub async fn handle_history(args: HistoryCommand) -> Result<(), loga::Error> {
 #[derive(Aargvark)]
 pub struct GetNodeCommand {
     debug: Option<()>,
-    node: StrNode,
+    node: AargvarkStrNode,
 }
 
 pub async fn handle_get_node(c: GetNodeCommand) -> Result<(), loga::Error> {

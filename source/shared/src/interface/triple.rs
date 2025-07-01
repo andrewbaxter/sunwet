@@ -13,7 +13,10 @@ use {
         },
         Sha256,
     },
-    std::hash::Hash,
+    std::{
+        hash::Hash,
+        str::FromStr,
+    },
 };
 
 const HASH_PREFIX_SHA256: &'static str = "sha256";
@@ -353,6 +356,44 @@ impl<'de> Deserialize<'de> for Node {
             },
             SerdeNodeType::V => {
                 return Ok(Node::Value(n.0.v));
+            },
+        }
+    }
+}
+
+pub struct StrNode(pub Node);
+
+impl ToString for StrNode {
+    fn to_string(&self) -> String {
+        match &self.0 {
+            Node::File(v) => return format!("f={}", v.to_string()),
+            Node::Value(v) => return format!("v={}", serde_json::to_string(v).unwrap()),
+        }
+    }
+}
+
+impl FromStr for StrNode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, String> {
+        let Some((k, v)) = s.split_once("=") else {
+            return Err(format!("Invalid node format: [{}]", s));
+        };
+        match k {
+            "f" => {
+                return Ok(StrNode(Node::File(
+                    //. .
+                    FileHash::from_str(v).map_err(|e| format!("File node [{}] isn't in a valid format: {}", v, e))?,
+                )));
+            },
+            "v" => {
+                return Ok(StrNode(Node::Value(
+                    //. .
+                    serde_json::from_str(v).map_err(|e| format!("Value node has invalid json [{}]: {}", v, e))?,
+                )));
+            },
+            _ => {
+                return Err(format!("Unknown node prefix [{}]", k));
             },
         }
     }

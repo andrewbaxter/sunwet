@@ -1,6 +1,7 @@
 search $artist -< "sunwet/1/name" -< "sunwet/1/artist"
-    -& (
+    &(
         ?(-> "sunwet/1/is" == "sunwet/1/album")
         ?(-> "sunwet/1/media" == "sunwet/1/book")
+        !(-> "sunwet/1/delete")
     )
     include "query_book_albums_suffix.txt"

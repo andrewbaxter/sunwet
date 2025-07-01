@@ -109,9 +109,9 @@ async fn commit(
         }
         incomplete.push(info.hash.clone());
         let path = staged_file_path(&state, &info.hash)?;
-        if let Some(parent) = path.parent() {
-            create_dir_all(&parent).await.stack_context(&state.log, "Failed to create upload staging dirs")?;
-        }
+        create_dir_all(&path.parent().unwrap())
+            .await
+            .stack_context(&state.log, "Failed to create upload staging dirs")?;
         let f = File::create(&path).await.stack_context(&state.log, "Failed to create upload staged file")?;
         f.set_len(info.size).await.stack_context(&state.log, "Error preallocating disk space for upload")?;
     }
@@ -140,23 +140,15 @@ async fn commit(
         let mut modified = false;
         let stamp = Utc::now();
         for t in c.remove {
-            if let Some(t) =
-                db::triple_get(txn, &DbNode(t.subject.clone()), &t.predicate, &DbNode(t.object.clone()))? {
-                if !t.exists {
-                    continue;
-                }
-            } else {
+            if db::triple_get(txn, &DbNode(t.subject.clone()), &t.predicate, &DbNode(t.object.clone()))?.is_none() {
                 continue;
             }
             db::triple_insert(txn, &DbNode(t.subject), &t.predicate, &DbNode(t.object), stamp, false)?;
             modified = true;
         }
         for t in c.add {
-            if let Some(t) =
-                db::triple_get(txn, &DbNode(t.subject.clone()), &t.predicate, &DbNode(t.object.clone()))? {
-                if t.exists {
-                    continue;
-                }
+            if db::triple_get(txn, &DbNode(t.subject.clone()), &t.predicate, &DbNode(t.object.clone()))?.is_some() {
+                continue;
             }
 
             fn update_fulltext(txn: &rusqlite::Transaction, node: &Node) -> Result<(), loga::Error> {
@@ -453,6 +445,7 @@ pub async fn handle_file_post(
     let mut file =
         File::options()
             .write(true)
+            .create(true)
             .open(&file_path)
             .await
             .stack_context_with(

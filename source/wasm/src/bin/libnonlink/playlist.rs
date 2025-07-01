@@ -626,6 +626,12 @@ pub fn playlist_extend(
 }
 
 pub fn playlist_clear(pc: &mut ProcessingContext, state: &PlaylistState) {
+    if *state.0.playing.borrow() {
+        let playing_i = state.0.playing_i.get().unwrap();
+        let playlist = state.0.playlist.borrow();
+        let entry = playlist.get(&*playing_i).unwrap();
+        entry.media.pm_stop();
+    }
     state.0.playing.set(pc, false);
     state.0.playing_i.set(pc, None);
     state.0.media_max_time.set(pc, None);

@@ -121,7 +121,7 @@ pub struct Pagination {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub seed: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub after: Option<Node>,
+    pub key: Option<Node>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -150,7 +150,7 @@ pub enum TreeNode {
 pub struct RespQuery {
     pub records: Vec<BTreeMap<String, TreeNode>>,
     pub meta: Vec<(Node, NodeMeta)>,
-    pub page_end: Option<Node>,
+    pub next_page_key: Option<Node>,
 }
 
 impl Into<C2SReq> for ReqQuery {
@@ -234,8 +234,7 @@ impl C2SReqTrait for ReqGetNodeMeta {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqHistory {
-    pub before_commit: Option<DateTime<Utc>>,
-    pub after_triple: Option<Triple>,
+    pub page_key: Option<(DateTime<Utc>, Triple)>,
     pub filter: Option<ReqHistoryFilter>,
 }
 

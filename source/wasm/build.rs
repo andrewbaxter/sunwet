@@ -508,7 +508,8 @@ fn main() {
                 ("text", &string_),
                 ("fontSize", &optstring_),
                 ("maxSize", &optstring_),
-                ("link", &optstring_)
+                ("link", &optstring_),
+                ("color", &optstring_),
             ],
             returns: vec![("root", &el_)],
         },

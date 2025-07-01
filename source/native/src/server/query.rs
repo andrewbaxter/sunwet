@@ -5,6 +5,10 @@ use {
         exenum,
         superif,
     },
+    htwrap::htserve::viserr::{
+        ResultVisErr,
+        VisErr,
+    },
     loga::{
         ea,
         ResultContext,
@@ -165,7 +169,7 @@ fn build_filter(
     parent_end_col: &ColumnRef,
     previous: BuildStepRes,
     expr: &FilterExpr,
-) -> Result<sea_query::SimpleExpr, loga::Error> {
+) -> Result<sea_query::SimpleExpr, VisErr<loga::Error>> {
     match expr {
         FilterExpr::Exists(expr) => {
             let mut sql_sel = sea_query::Query::select();
@@ -234,7 +238,7 @@ fn build_step(
     query_state: &mut QueryBuildState,
     previous: Option<BuildStepRes>,
     step: &Step,
-) -> Result<BuildStepRes, loga::Error> {
+) -> Result<BuildStepRes, VisErr<loga::Error>> {
     if let Some(r) = query_state.reuse_steps.get(&(previous.clone(), step.clone())) {
         return Ok(r.clone());
     }
@@ -393,7 +397,11 @@ fn build_step(
             let seg_name = format!("seg{}_recurse", query_state.global_unique);
             query_state.global_unique += 1;
             {
-                let previous = previous.as_ref().unwrap();
+                let Some(previous) = previous.as_ref() else {
+                    return Err(
+                        loga::err("Recursion requires a previous step/root for the base case, but none such exists"),
+                    ).err_external();
+                };
                 let global_ident_table_cte = SeaRc::new(Alias::new(seg_name.clone()));
                 let table_cte = sea_query::TableRef::Table(global_ident_table_cte.clone());
 
@@ -486,14 +494,17 @@ fn build_step(
             let global_ident_table_cte = SeaRc::new(Alias::new(seg_name));
             let ident_col_start = query_state.ident_col_start.clone();
             let ident_col_end = query_state.ident_col_end.clone();
-            let mut build_subchain = |subchain: &ChainBody| -> Result<sea_query::SelectStatement, loga::Error> {
-                let mut sql_sel = sea_query::Query::select();
-                let subchain = build_subchain(query_state, previous.clone(), subchain)?;
-                sql_sel.from(sea_query::TableRef::Table(subchain.ident_table.clone()));
-                sql_sel.column(sea_query::ColumnRef::TableColumn(subchain.ident_table.clone(), subchain.col_start));
-                sql_sel.column(sea_query::ColumnRef::TableColumn(subchain.ident_table, subchain.col_end));
-                return Ok(sql_sel);
-            };
+            let mut build_subchain =
+                |subchain: &ChainBody| -> Result<sea_query::SelectStatement, VisErr<loga::Error>> {
+                    let mut sql_sel = sea_query::Query::select();
+                    let subchain = build_subchain(query_state, previous.clone(), subchain)?;
+                    sql_sel.from(sea_query::TableRef::Table(subchain.ident_table.clone()));
+                    sql_sel.column(
+                        sea_query::ColumnRef::TableColumn(subchain.ident_table.clone(), subchain.col_start),
+                    );
+                    sql_sel.column(sea_query::ColumnRef::TableColumn(subchain.ident_table, subchain.col_end));
+                    return Ok(sql_sel);
+                };
             let mut sql_sel = build_subchain(&step.subchains[0])?;
             for subchain in &step.subchains[1..] {
                 sql_sel.union(match step.type_ {
@@ -521,14 +532,14 @@ fn build_step(
     return Ok(out);
 }
 
-fn build_value_str(query_state: &mut QueryBuildState, param: &StrValue) -> Result<String, loga::Error> {
+fn build_value_str(query_state: &mut QueryBuildState, param: &StrValue) -> Result<String, VisErr<loga::Error>> {
     match param {
         StrValue::Literal(r) => {
             return Ok(r.clone());
         },
         StrValue::Parameter(p) => {
             let Some(v) = query_state.parameters.get(p) else {
-                return Err(loga::err_with("Missing value for parameter", ea!(parameter = p)));
+                return Err(loga::err_with("Missing value for parameter", ea!(parameter = p))).err_external();
             };
             let Node::Value(serde_json::Value::String(v)) = v else {
                 return Err(
@@ -536,20 +547,24 @@ fn build_value_str(query_state: &mut QueryBuildState, param: &StrValue) -> Resul
                         "Parameter used in context requiring string but supplied value was not a string",
                         ea!(parameter = p, value = serde_json::to_string(&v).unwrap()),
                     ),
-                );
+                ).err_external();
             };
             return Ok(v.clone());
         },
     }
 }
 
-fn build_value_json(query_state: &mut QueryBuildState, param: &Value) -> Result<serde_json::Value, loga::Error> {
+fn build_value_json(
+    query_state: &mut QueryBuildState,
+    param: &Value,
+) -> Result<serde_json::Value, VisErr<loga::Error>> {
     let param = match param {
         Value::Literal(r) => r,
         Value::Parameter(p) => query_state
             .parameters
             .get(p)
-            .context_with("Missing value for parameter", ea!(parameter = p))?,
+            .context_with("Missing value for parameter", ea!(parameter = p))
+            .err_external()?,
     };
     return Ok(serde_json::to_value(param).unwrap());
 }
@@ -557,12 +572,11 @@ fn build_value_json(query_state: &mut QueryBuildState, param: &Value) -> Result<
 fn build_split_value(
     query_state: &mut QueryBuildState,
     param: &Value,
-) -> Result<(sea_query::Value, sea_query::FunctionCall), loga::Error> {
+) -> Result<(sea_query::Value, sea_query::FunctionCall), VisErr<loga::Error>> {
     let mut j =
-        exenum!(
-            build_value_json(query_state, param)?,
-            serde_json:: Value:: Object(j) => j
-        ).context("Expected json object, but got another json type")?;
+        exenum!(build_value_json(query_state, param)?, serde_json:: Value:: Object(j) => j)
+            .context("Expected json object, but got another json type")
+            .err_internal()?;
     let type_ = exenum!(j.remove("t").unwrap(), serde_json:: Value:: String(type_) => type_).unwrap();
     let value =
         query_state
@@ -573,7 +587,7 @@ fn build_split_value(
     return Ok((sea_query::Value::from(type_), value));
 }
 
-fn build_value(query_state: &mut QueryBuildState, param: &Value) -> Result<sea_query::Value, loga::Error> {
+fn build_value(query_state: &mut QueryBuildState, param: &Value) -> Result<sea_query::Value, VisErr<loga::Error>> {
     return Ok(sea_query::Value::Json(Some(Box::new(build_value_json(query_state, param)?))));
 }
 
@@ -583,7 +597,7 @@ fn build_subchain(
     query_state: &mut QueryBuildState,
     mut prev_subchain_seg: Option<BuildStepRes>,
     subchain: &ChainBody,
-) -> Result<BuildStepRes, loga::Error> {
+) -> Result<BuildStepRes, VisErr<loga::Error>> {
     if let Some(root) = &subchain.root {
         let new_root_seg;
         match root {
@@ -647,7 +661,52 @@ fn build_subchain(
                             let mut sql_sel = sea_query::Query::select();
                             sql_sel.from(TableRef::Table(ident_meta_fts.clone()));
                             sql_sel.column(ident_rowid.clone());
-                            let match_str = build_value_str(query_state, &root)?;
+                            let raw = build_value_str(query_state, &root)?;
+                            let match_str;
+                            if let Some(raw) = raw.strip_prefix("raw:") {
+                                match_str = raw.to_string();
+                            } else {
+                                let mut match_terms = vec![];
+                                let mut quoted = false;
+                                let mut escaped = false;
+                                let mut buf = vec![];
+                                for c in raw.chars() {
+                                    let mut flush = false;
+                                    if escaped {
+                                        escaped = false;
+                                        buf.push(c);
+                                    } else {
+                                        match c {
+                                            '\\' => {
+                                                escaped = true;
+                                            },
+                                            '"' => {
+                                                flush = true;
+                                                quoted = !quoted;
+                                            },
+                                            ' ' | '\t' | '\n' | '\r' if !quoted => {
+                                                flush = true;
+                                            },
+                                            c => {
+                                                buf.push(c);
+                                            },
+                                        }
+                                    }
+                                    if flush && !buf.is_empty() {
+                                        match_terms.push(
+                                            format!(
+                                                "\"{}\"",
+                                                buf
+                                                    .split_off(0)
+                                                    .into_iter()
+                                                    .collect::<String>()
+                                                    .replace("\"", "\"\"")
+                                            ),
+                                        );
+                                    }
+                                }
+                                match_str = match_terms.join(" AND ");
+                            }
                             sql_sel.and_where(
                                 Expr::col(
                                     ColumnRef::TableColumn(ident_meta_fts.clone(), ident_fulltext.clone()),
@@ -672,11 +731,53 @@ fn build_subchain(
         }
         prev_subchain_seg = Some(new_root_seg);
     }
-    let mut prev_subchain_seg = build_step(query_state, prev_subchain_seg, &subchain.steps[0])?;
-    for step in &subchain.steps[1..] {
-        prev_subchain_seg = build_step(query_state, Some(prev_subchain_seg), step)?;
+    for step in &subchain.steps {
+        prev_subchain_seg = Some(build_step(query_state, prev_subchain_seg, step)?);
     }
-    return Ok(prev_subchain_seg);
+    if let Some(s) = prev_subchain_seg {
+        return Ok(s);
+    } else {
+        let ident_table_root = SeaRc::new(Alias::new(format!("root{}", query_state.global_unique)));
+        query_state.global_unique += 1;
+        let mut sql_cte = sea_query::CommonTableExpression::new();
+        sql_cte.table_name(ident_table_root.clone());
+        let mut sql_sel = sea_query::Query::select();
+
+        // Data
+        let root_expr = sea_query::Value::Int(Some(0));
+
+        // Output start
+        sql_cte.column(query_state.ident_col_start.clone());
+        sql_sel.expr(root_expr.clone());
+
+        // Output end
+        sql_cte.column(query_state.ident_col_end.clone());
+        sql_sel.expr(root_expr.clone());
+
+        // Output rowid
+        sql_cte.column(query_state.ident_rowid.clone());
+        sql_sel.expr_window(sql_fn("row_number", vec![]), WindowStatement::new());
+
+        // Actually, output nothing
+        sql_sel.and_where(
+            sea_query::SimpleExpr::Binary(
+                Box::new(sea_query::Value::Int(Some(0)).into()),
+                sea_query::BinOper::Equal,
+                Box::new(sea_query::Value::Int(Some(1)).into()),
+            ),
+        );
+
+        // Assemble
+        sql_cte.query(sql_sel);
+        query_state.ctes.push(sql_cte);
+        let root_res = BuildStepRes {
+            ident_table: ident_table_root,
+            col_start: query_state.ident_col_start.clone(),
+            col_end: query_state.ident_col_end.clone(),
+            plural: false,
+        };
+        return Ok(root_res);
+    }
 }
 
 /// Produces CTE with `_` selects, no aggregation.
@@ -684,7 +785,7 @@ fn build_chain(
     query_state: &mut QueryBuildState,
     prev_subchain_seg: Option<BuildStepRes>,
     chain: Chain,
-) -> Result<BuildChainRes, loga::Error> {
+) -> Result<BuildChainRes, VisErr<loga::Error>> {
     let cte_name = format!("chain{}", query_state.global_unique);
     query_state.global_unique += 1;
     let mut sql_sel = sea_query::Query::select();
@@ -768,7 +869,7 @@ const COL_PAGE_KEY: &str = "page_key";
 pub fn build_root_chain(
     root_chain: Chain,
     parameters: HashMap<String, Node>,
-) -> Result<(String, sea_query_rusqlite::RusqliteValues), loga::Error> {
+) -> Result<(String, sea_query_rusqlite::RusqliteValues), VisErr<loga::Error>> {
     // Prep
     let mut query_state = QueryBuildState {
         parameters: parameters,
@@ -908,6 +1009,11 @@ pub fn build_root_chain(
         sea_query::ColumnRef::TableColumn(cte.cte_name.clone(), query_state.ident_col_end.clone()),
         SeaRc::new(Alias::new(COL_PAGE_KEY.to_string())),
     );
+    sel_root.group_by_col(
+        // Prevent 0-rec results from turning into 1-rec results owing to sql's vast
+        // orthogonality and aggregate function myseries
+        sea_query::ColumnRef::TableColumn(cte.cte_name.clone(), query_state.ident_col_end.clone()),
+    );
     for (name, plural) in cte.selects {
         let user_name = SeaRc::new(Alias::new(format!("_{}", name)));
         let expr = sql_fn("json_object", vec![
@@ -1035,8 +1141,8 @@ pub fn execute_sql_query(
         }
     }
     if let Some(p) = paginate {
-        if let Some(after) = p.after {
-            return Ok(out.into_iter().skip_while(|x| x.pagination_key < after).take(p.count).collect());
+        if let Some(after) = p.key {
+            return Ok(out.into_iter().skip_while(|x| x.pagination_key != after).skip(1).take(p.count).collect());
         } else {
             return Ok(out.into_iter().take(p.count).collect());
         }
@@ -1050,12 +1156,12 @@ pub async fn execute_query(
     query: Query,
     parameters: HashMap<String, Node>,
     paginate: Option<Pagination>,
-) -> Result<Vec<Row>, loga::Error> {
+) -> Result<Vec<Row>, VisErr<loga::Error>> {
     // Sorting currently happens in rust because sql does string sorting on json
     // fields, not value-based sorting (ex: numbers). Therefore pagination also has to
     // happen in rust.
     let (sql_query, sql_parameters) = build_root_chain(query.chain, parameters)?;
     return Ok(tx(&db, move |txn| {
         return Ok(execute_sql_query(txn, sql_query, sql_parameters, query.sort, paginate)?);
-    }).await?);
+    }).await.err_internal()?);
 }

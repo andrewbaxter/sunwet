@@ -190,6 +190,17 @@ fn unwrap_value_string(data_at: &TreeNode) -> String {
             Node::File(v) => return v.to_string(),
             Node::Value(v) => match v {
                 serde_json::Value::String(v) => return v.clone(),
+                serde_json::Value::Number(v) => {
+                    if let Some(v) = v.as_i64() {
+                        return v.to_string();
+                    } else if let Some(v) = v.as_u64() {
+                        return v.to_string();
+                    } else if let Some(v) = v.as_f64() {
+                        return v.to_string();
+                    } else {
+                        return v.to_string();
+                    }
+                },
                 _ => return serde_json::to_string(v).unwrap(),
             },
         },
@@ -545,7 +556,7 @@ impl Build {
                             chunked_data.push(Default::default());
                         }
                         let mut chunked_data = chunked_data.into_iter();
-                        build_infinite(body.clone(), chunked_data.next().unwrap(), {
+                        body.ref_push(build_infinite(chunked_data.next().unwrap(), {
                             let build_infinite_page = build_infinite_page.clone();
                             move |chunk| {
                                 let children = build_infinite_page(chunk, Default::default());
@@ -554,7 +565,7 @@ impl Build {
                                     Ok((next_key, children))
                                 }
                             }
-                        });
+                        }));
                     },
                     QueryOrField::Query(query_id) => {
                         let mut params = HashMap::new();
@@ -571,16 +582,17 @@ impl Build {
                                 params.insert(k.clone(), v);
                             }
                         }
-                        build_infinite(body.clone(), None, {
+                        body.ref_push(build_infinite(None, {
                             let seed = (random() * u64::MAX as f64) as u64;
                             let view_id = view_id.clone();
                             let query_id = query_id.clone();
-                            let mut count = 0usize;
+                            let count = Rc::new(Cell::new(0usize));
                             move |key| {
                                 let view_id = view_id.clone();
                                 let query_id = query_id.clone();
                                 let params = params.clone();
                                 let build_infinite_page = build_infinite_page.clone();
+                                let count = count.clone();
                                 async move {
                                     let res = req_post_json(&state().env.base_url, ReqViewQuery {
                                         view_id: view_id.clone(),
@@ -589,17 +601,17 @@ impl Build {
                                         pagination: Some(Pagination {
                                             count: 20,
                                             seed: Some(seed),
-                                            after: key,
+                                            key: key,
                                         }),
                                     }).await?;
                                     let mut chunk = vec![];
                                     for v in res.records {
-                                        chunk.push((count, TreeNode::Record(v)));
-                                        count += 1;
+                                        chunk.push((count.get(), TreeNode::Record(v)));
+                                        count.set(count.get() + 1);
                                     }
                                     Ok(
                                         (
-                                            res.page_end.map(|x| Some(x)),
+                                            res.next_page_key.map(|x| Some(x)),
                                             build_infinite_page(
                                                 chunk,
                                                 Rc::new(res.meta.into_iter().collect::<HashMap<_, _>>()),
@@ -608,7 +620,7 @@ impl Build {
                                     )
                                 }
                             }
-                        });
+                        }));
                     },
                 }
                 return Ok(vec![body]);
@@ -632,6 +644,7 @@ impl Build {
                     config_at.suffix
                 ),
                 font_size: config_at.font_size.clone(),
+                color: config_at.color.clone(),
                 max_size: config_at.cons_size_max.clone(),
                 link: shed!{
                     let Some(link) = config_at.link.as_ref() else {

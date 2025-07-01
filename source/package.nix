@@ -105,6 +105,7 @@ let
         pkgs.ffmpeg
         pkgs.pandoc
         pkgs._7zz
+        pkgs.mkvtoolnix
       ];
     };
   };

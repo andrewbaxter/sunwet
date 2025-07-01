@@ -3,139 +3,84 @@ use {
         Gather,
         GatherTrackType,
     },
-    loga::ResultContext,
-    serde::Deserialize,
+    image::EncodableLayout,
+    loga::{
+        ea,
+        DebugDisplay,
+        ResultContext,
+    },
     std::{
         path::Path,
+        process::Command,
         str::FromStr,
     },
 };
 
-#[derive(Deserialize)]
-struct MkvNode {
-    #[serde(default)]
-    id: String,
-    #[serde(default)]
-    children: Vec<MkvNode>,
-    #[serde(default)]
-    value: Option<String>,
-}
-
-impl MkvNode {
-    fn find_child_with_id(&self, id: &str) -> Option<&MkvNode> {
-        for child in &self.children {
-            if child.id == id {
-                return Some(child);
-            }
-        }
-        return None;
-    }
-}
-
 pub fn gather(path: &Path) -> Result<Gather, loga::Error> {
     let mut g = Gather::new(GatherTrackType::Video);
-    let elements = match mkvdump::parse_elements_from_file(path, false) {
-        Ok(e) => e,
-        Err(e) => {
-            return Err(loga::err(e.to_string()).context("Unable to read metadata in video file"));
-        },
-    };
-
-    // Must access untyped json values due to
-    // (https://github.com/cadubentzen/mkvdump/issues/138)
-    let root =
-        serde_json::from_value::<MkvNode>(
-            serde_json::to_value(&mkvparser::tree::build_element_trees(&elements)).unwrap(),
-        ).context("Mkv metadata not in anticipated structure")?;
-    let segment = root.find_child_with_id("Segment").context("Mkvdump root missing Segment node")?;
-
-    // Read tags
-    for tag in &segment.find_child_with_id("Tags").context("Mkvdump Segment missing Tags node")?.children {
-        let mut levels = vec![];
-        let mut tags = vec![];
-
-        // Unify tag data from multiple schemas
-        for tag_prop in &tag.children {
-            match tag_prop.id.as_str() {
-                "Targets" => {
-                    for prop_kv in &tag_prop.children {
-                        let Some(value) = &prop_kv.value else {
-                            continue;
-                        };
-                        levels.push(value.clone());
-                    }
-                },
-                "SimpleTag" => {
-                    fn read_simpletag<'a>(prop: &'a MkvNode) -> Option<(&'a String, &'a String)> {
-                        return Option::zip(
-                            prop.find_child_with_id("TagName").and_then(|x| x.value.as_ref()),
-                            prop.find_child_with_id("TagString").and_then(|x| x.value.as_ref()),
-                        );
-                    }
-
-                    let Some((k, v)) = read_simpletag(tag_prop) else {
-                        continue;
-                    };
-                    let parent_tag = k.clone();
-                    tags.push((k.clone(), v.clone()));
-
-                    // Looks like an encoder bug? Or mkvdump bug?
-                    for subprop in &tag_prop.children {
-                        if subprop.id != "SimpleTag" {
-                            continue;
-                        }
-                        let Some((k, v)) = read_simpletag(subprop) else {
-                            continue;
-                        };
-                        tags.push((format!("{}__{}", parent_tag, k), v.clone()));
-                    }
-                },
-                _ => {
-                    continue;
-                },
+    let mut cmd = Command::new("mkvextract");
+    cmd.arg(path).arg("tags").arg("-");
+    let elements = cmd.output().context_with("Error extracting mkv tags", ea!(command = cmd.dbg_str()))?;
+    if !elements.status.success() {
+        return Err(loga::err_with("Error extracting mkv tags", ea!(command = cmd.dbg_str())));
+    }
+    let elements =
+        xmltree::Element::parse(&mut elements.stdout.as_bytes()).context("Malformed mkvextract output xml")?;
+    for tag in elements.children {
+        let Some(tag) = tag.as_element() else {
+            continue;
+        };
+        let Some(targets) = tag.get_child("Targets") else {
+            continue;
+        };
+        let Some(target_type) = targets.get_child("TargetType") else {
+            continue;
+        };
+        let Some(level) = target_type.get_text() else {
+            continue;
+        };
+        for child in &tag.children {
+            let Some(child) = child.as_element() else {
+                continue;
+            };
+            if child.name != "Simple" {
+                continue;
             }
-        }
-
-        // Parse tags
-        for level in &levels {
-            match level.as_str() {
+            let Some(k) = child.get_child("Name").and_then(|x| x.get_text()) else {
+                continue;
+            };
+            let Some(v) = child.get_child("String").and_then(|x| x.get_text()) else {
+                continue;
+            };
+            match level.as_ref() {
                 "COLLECTION" => {
-                    for (k, v) in &tags {
-                        match k.as_str() {
-                            "TITLE" => {
-                                g.album_name = Some(v.clone());
-                            },
-                            "ARTIST" => {
-                                g.album_artist.insert(v.clone());
-                            },
-                            _ => { },
-                        }
+                    match k.as_ref() {
+                        "TITLE" => {
+                            g.album_name = Some(v.to_string());
+                        },
+                        "ARTIST" => {
+                            g.album_artist.insert(v.to_string());
+                        },
+                        _ => { },
                     }
                 },
                 "ALBUM" | "OPERA" | "CONCERT" | "MOVIE" | "EPISODE" => {
-                    for (k, v) in &tags {
-                        match k.as_str() {
-                            "TITLE" => {
-                                g.track_name = Some(v.clone());
-                            },
-                            "ARTIST" => {
-                                g.track_artist.push(v.clone());
-                            },
-                            "PART_NUMBER" => {
-                                g.track_index = Some(f64::from_str(&v)?);
-                            },
-                            _ => { },
-                        }
+                    match k.as_ref() {
+                        "TITLE" => {
+                            g.track_name = Some(v.to_string());
+                        },
+                        "ARTIST" => {
+                            g.track_artist.push(v.to_string());
+                        },
+                        "PART_NUMBER" => {
+                            g.track_index = Some(f64::from_str(&v)?);
+                        },
+                        _ => { },
                     }
                 },
                 _ => { },
             }
         }
     }
-
-    // Read cover art
-    //
-    // Note: Can't, mkvdump skips all binary fields atm
-    // https://github.com/cadubentzen/mkvdump/issues/149
     return Ok(g);
 }

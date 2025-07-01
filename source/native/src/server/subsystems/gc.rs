@@ -40,7 +40,6 @@ use {
             Mutex,
         },
         time::{
-            Duration,
             SystemTime,
         },
     },
@@ -148,6 +147,7 @@ pub async fn handle_gc(state: &Arc<State>, log: &Log) -> Result<(), loga::Error>
 
     // Clean up stale partially-uploaded files
     soft_read_dir(log, &state.stage_dir, |entry| async move {
+        let day = std::time::Duration::from_secs(60 * 60 * 24);
         let path = entry.path();
         let log = log.fork(ea!(path = path.to_string_lossy()));
         let meta = entry.metadata().await.context_with("Error reading metadata", ea!(path = path.dbg_str()))?;
@@ -167,8 +167,7 @@ pub async fn handle_gc(state: &Arc<State>, log: &Log) -> Result<(), loga::Error>
                 SystemTime::UNIX_EPOCH
             },
         };
-        if SystemTime::now().duration_since(modified_time).unwrap_or(Duration::from_secs(60 * 60 * 24 * 100)) >
-            std::time::Duration::from_secs(60 * 60 * 24 * 3) {
+        if SystemTime::now().duration_since(modified_time).unwrap_or(day * 100) > day * 3 {
             log.log_with(loga::DEBUG, "Garbage collecting stale partial upload", ea!(file = path.dbg_str()));
             remove_file(&path)
                 .await

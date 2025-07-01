@@ -6,6 +6,7 @@ use {
         interface::triple::DbNode,
         server::{
             db,
+            defaultviews::node_media_audio,
             query::{
                 build_root_chain,
                 execute_sql_query,
@@ -18,13 +19,14 @@ use {
         TimeZone,
         Utc,
     },
+    htwrap::htserve::viserr::VisErr,
     shared::{
-        query_parser::compile_query,
         interface::{
             ont::{
                 PREDICATE_ADD_TIMESTAMP,
                 PREDICATE_ARTIST,
                 PREDICATE_IS,
+                PREDICATE_MEDIA,
                 PREDICATE_NAME,
                 PREDICATE_TRACK,
             },
@@ -50,6 +52,7 @@ use {
             triple::Node,
             wire::TreeNode,
         },
+        query_parser::compile_query,
     },
     std::{
         collections::{
@@ -75,7 +78,10 @@ fn n() -> Node {
 
 fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, TreeNode)]], query: Query) {
     let sort = query.sort;
-    let (query, query_values) = build_root_chain(query.chain, HashMap::new()).unwrap();
+    let (query, query_values) = build_root_chain(query.chain, HashMap::new()).map_err(|e| panic!("{}", match e {
+        VisErr::Internal(e) => e.to_string(),
+        VisErr::External(e) => e,
+    })).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
     db::migrate(&mut db).unwrap();
     for (s, p, o) in triples {
@@ -103,16 +109,17 @@ fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, TreeNode)]], query
     //.        println!("Query: {}", String::from_utf8(output.stdout).unwrap());
     //.    }
     println!("Query: {}", query);
-    {
-        let mut s = db.prepare(&format!("explain query plan {}", query)).unwrap();
-        let mut results = s.query(&*query_values.as_params()).unwrap();
-        loop {
-            let Some(row) = results.next().unwrap() else {
-                break;
-            };
-            println!("explain row: {:?}", row);
-        }
-    }
+
+    //.    {
+    //.        let mut s = db.prepare(&format!("explain query plan {}", query)).unwrap();
+    //.        let mut results = s.query(&*query_values.as_params()).unwrap();
+    //.        loop {
+    //.            let Some(row) = results.next().unwrap() else {
+    //.                break;
+    //.            };
+    //.            println!("explain row: {:?}", row);
+    //.        }
+    //.    }
     let got =
         execute_sql_query(&db, query, query_values, sort, None)
             .unwrap()
@@ -128,7 +135,7 @@ fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, TreeNode)]], query
 }
 
 fn src_query_dir() -> PathBuf {
-    return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/server");
+    return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../queries");
 }
 
 #[test]
@@ -137,6 +144,7 @@ fn test_base() {
     execute(
         &[
             (&s("a"), PREDICATE_IS, &node_is_album()),
+            (&s("a"), PREDICATE_MEDIA, &node_media_audio()),
             (&s("a"), PREDICATE_ADD_TIMESTAMP, &s(DateTime::UNIX_EPOCH.to_rfc3339())),
             (&s("a"), PREDICATE_NAME, &s("a_name")),
             (&s("a"), PREDICATE_ARTIST, &s("a_a")),
@@ -162,7 +170,10 @@ fn test_base() {
 #[test]
 fn test_versions() {
     let query = compile_query(None, "\"x\" -> \"y\" { => y }").unwrap();
-    let (query, query_values) = build_root_chain(query.chain, HashMap::new()).unwrap();
+    let (query, query_values) = build_root_chain(query.chain, HashMap::new()).map_err(|e| panic!("{}", match e {
+        VisErr::Internal(e) => e.to_string(),
+        VisErr::External(e) => e,
+    })).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
     db::migrate(&mut db).unwrap();
     db::triple_insert(
@@ -207,7 +218,10 @@ fn test_versions() {
 #[test]
 fn test_delete() {
     let query = compile_query(None, "\"x\" -> \"y\" { => y }").unwrap();
-    let (query, query_values) = build_root_chain(query.chain, HashMap::new()).unwrap();
+    let (query, query_values) = build_root_chain(query.chain, HashMap::new()).map_err(|e| panic!("{}", match e {
+        VisErr::Internal(e) => e.to_string(),
+        VisErr::External(e) => e,
+    })).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
     db::migrate(&mut db).unwrap();
     db::triple_insert(
@@ -249,7 +263,10 @@ fn test_delete() {
 #[test]
 fn test_undelete() {
     let query = compile_query(None, "\"x\" -> \"y\" { => y }").unwrap();
-    let (query, query_values) = build_root_chain(query.chain, HashMap::new()).unwrap();
+    let (query, query_values) = build_root_chain(query.chain, HashMap::new()).map_err(|e| panic!("{}", match e {
+        VisErr::Internal(e) => e.to_string(),
+        VisErr::External(e) => e,
+    })).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
     db::migrate(&mut db).unwrap();
     db::triple_insert(
@@ -304,8 +321,10 @@ fn test_recurse() {
     execute(
         &[
             (&s("a"), PREDICATE_IS, &node_is_album()),
+            (&s("a"), PREDICATE_MEDIA, &node_media_audio()),
             (&s("a"), PREDICATE_NAME, &s("a_name")),
             (&s("b"), PREDICATE_IS, &node_is_album()),
+            (&s("b"), PREDICATE_MEDIA, &node_media_audio()),
             (&s("b_p"), PREDICATE_TRACK, &s("b")),
             (&s("b_p"), PREDICATE_NAME, &s("b_name")),
         ],
@@ -502,6 +521,7 @@ fn test_gc() {
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
     db::migrate(&mut db).unwrap();
     let stamp1 = chrono::Local.with_ymd_and_hms(2014, 10, 1, 1, 1, 1).unwrap().into();
+    let stamp1b = stamp1 + Duration::seconds(1);
     let stamp2 = chrono::Local.with_ymd_and_hms(2014, 11, 1, 1, 1, 1).unwrap().into();
     let stamp3 = chrono::Local.with_ymd_and_hms(2014, 12, 1, 1, 1, 1).unwrap().into();
 
@@ -516,7 +536,7 @@ fn test_gc() {
 
     // Newest is before epoch, but doesn't exist
     db::triple_insert(&db, &DbNode(s("g")), "h", &DbNode(s("i")), stamp1, true).unwrap();
-    db::triple_insert(&db, &DbNode(s("g")), "h", &DbNode(s("i")), stamp1, false).unwrap();
+    db::triple_insert(&db, &DbNode(s("g")), "h", &DbNode(s("i")), stamp1b, false).unwrap();
 
     // Gc
     db::triple_gc_deleted(&db, stamp2 + Duration::seconds(1)).unwrap();
@@ -526,13 +546,7 @@ fn test_gc() {
         format!("{:?}", (s("d"), "e".to_string(), s("f"), stamp2, true))
     ];
     let mut have =
-        db::triple_list_all(
-            &db,
-            DateTime::<Utc>::MAX_UTC,
-            &DbNode(Node::Value(serde_json::Value::Null)),
-            "",
-            &DbNode(Node::Value(serde_json::Value::Null)),
-        )
+        db::hist_list_all(&db)
             .unwrap()
             .into_iter()
             .map(|r| format!("{:?}", (r.subject.0, r.predicate, r.object.0, r.commit_, r.exists)))
@@ -541,13 +555,7 @@ fn test_gc() {
     pretty_assertions::assert_eq!(want, have);
     db::triple_gc_deleted(&db, stamp2 + Duration::seconds(1)).unwrap();
     let mut have =
-        db::triple_list_all(
-            &db,
-            DateTime::<Utc>::MAX_UTC,
-            &DbNode(Node::Value(serde_json::Value::Null)),
-            "",
-            &DbNode(Node::Value(serde_json::Value::Null)),
-        )
+        db::hist_list_all(&db)
             .unwrap()
             .into_iter()
             .map(|r| format!("{:?}", (r.subject.0, r.predicate, r.object.0, r.commit_, r.exists)))

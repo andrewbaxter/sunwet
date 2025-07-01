@@ -199,6 +199,7 @@
   const varSColWidth = `min(100%, 12cm)`;
   const varSMenuIndent = "0.6cm";
   const varSLinkIcon = "3cm";
+  const varSButtonSmallIcon = "0.7cm";
   const varSButtonBigIcon = "0.6cm";
 
   const varPSmall = "0.2cm";
@@ -427,11 +428,25 @@
   });
 
   presentation.contStack = /** @type {Presentation["contStack"]} */ (args) => ({
-    root: e("div", {}, { styles_: [contStackStyle], children_: args.children }),
+    root: e(
+      "div",
+      {},
+      { styles_: [contStyle, contStackStyle], children_: args.children }
+    ),
   });
 
   presentation.contVbox = /** @type {Presentation["contVbox"]} */ (args) => ({
-    root: e("div", {}, { styles_: [contVboxStyle], children_: args.children }),
+    root: e(
+      "div",
+      {},
+      { styles_: [contStyle, contVboxStyle], children_: args.children }
+    ),
+  });
+
+  const contStyle = ss(uniq("cont"), {
+    "": (s) => {
+      s.overflow = "hidden";
+    },
   });
 
   presentation.contRootStack = /** @type {Presentation["contRootStack"]} */ (
@@ -442,6 +457,7 @@
       {},
       {
         styles_: [
+          contStyle,
           contStackStyle,
           ss(uniq("cont_root_stack"), {
             ">*:not(:last-child)": (s) => {
@@ -474,7 +490,7 @@
         "div",
         {},
         {
-          styles_: [contTitleStyle],
+          styles_: [contStyle, contTitleStyle],
           children_: children,
         }
       ),
@@ -548,6 +564,7 @@
         {},
         {
           styles_: [
+            contStyle,
             contHboxStyle,
             ss(uniq("cont_bar_hbox"), {
               "": (s) => {
@@ -567,6 +584,7 @@
         {},
         {
           styles_: [
+            contStyle,
             ss(uniq("cont_bar"), {
               "": (s) => {
                 s.zIndex = "2";
@@ -916,6 +934,12 @@
               s.padding = `${varPButtonSmall} ${varPButtonBig}`;
               s.color = varCForegroundFade;
             },
+            ">svg": (s) => {
+              s.width = varSButtonSmallIcon;
+              s.minWidth = varSButtonSmallIcon;
+              s.height = varSButtonSmallIcon;
+              s.minHeight = varSButtonSmallIcon;
+            },
           }),
         ],
       });
@@ -1039,6 +1063,7 @@
       {},
       {
         styles_: [
+          contStyle,
           classMenuWantStateOpen,
           contHboxStyle,
           ss(uniq("cont_page_home"), {
@@ -1704,7 +1729,7 @@
                 s.top = "0";
                 s.bottom = "0";
                 s.backgroundColor = varCBackground;
-                s.opacity = "0.3";
+                s.opacity = "0.5";
               },
             }),
           ],
@@ -1738,6 +1763,7 @@
           {},
           {
             styles_: [
+              contStyle,
               ss(uniq("view_list_params"), {
                 "": (s) => {
                   s.display = "grid";
@@ -1760,6 +1786,7 @@
         {},
         {
           styles_: [
+            contStyle,
             contVboxStyle,
             ss(uniq("view_list_body"), {
               "": (s) => {
@@ -1776,7 +1803,12 @@
         "div",
         {},
         {
-          styles_: [classMenuWantStateOpen, contVboxStyle, contBodyStyle],
+          styles_: [
+            contStyle,
+            classMenuWantStateOpen,
+            contVboxStyle,
+            contBodyStyle,
+          ],
           children_: children,
         }
       ),
@@ -1790,6 +1822,7 @@
         {},
         {
           styles_: [
+            contStyle,
             contVboxStyle,
             ss(uniq("cont_view_root_rows"), {
               "": (s) => {
@@ -1811,6 +1844,7 @@
       {},
       {
         styles_: [
+          contStyle,
           contHboxStyle,
           ss(uniq("cont_view_row"), {
             "": (s) => {
@@ -1818,6 +1852,7 @@
               s.columnGap = varPViewCol;
               s.rowGap = varPViewList;
               s.justifyContent = "space-around";
+              s.maxWidth = "100%";
             },
           }),
         ],
@@ -1834,17 +1869,24 @@
       {},
       {
         styles_: [
+          contStyle,
           ss(uniq("cont_view_block"), {
-            "": (s) => {},
+            "": (s) => {
+              s.maxWidth = "100%";
+              s.flexBasis = "0";
+              s.flexGrow = "1";
+              s.minWidth = `5cm`;
+            },
           }),
         ],
         children_: args.children,
       }
     );
     if (args.width != null) {
-      out.style.width = `max(2cm, min(${args.width}, 100%))`;
-    } else {
-      out.style.flexGrow = "1";
+      const w = `max(5cm, min(${args.width}, 100%))`;
+      out.style.width = w;
+      out.style.maxWidth = w;
+      out.style.minWidth = `min(5cm, ${args.width})`;
     }
     return {
       root: out,
@@ -1895,6 +1937,7 @@
           {},
           {
             styles_: [
+              contStyle,
               contVboxStyle,
               ss(uniq("cont_fullscreen"), {
                 "": (s) => {
@@ -1916,6 +1959,7 @@
                 {},
                 {
                   styles_: [
+                    contStyle,
                     contHboxStyle,
                     ss(uniq("cont_media_fullscreen_close_bar"), {
                       "": (s) => {
@@ -1988,6 +2032,7 @@
         {},
         {
           styles_: [
+            contStyle,
             contStackStyle,
             ss(uniq("cont_modal_outer"), {
               "": (s) => {
@@ -2007,6 +2052,7 @@
               {},
               {
                 styles_: [
+                  contStyle,
                   contVboxStyle,
                   ss(uniq("cont_modal"), {
                     "": (s) => {
@@ -2029,6 +2075,7 @@
                     {},
                     {
                       styles_: [
+                        contStyle,
                         contHboxStyle,
                         ss(uniq("cont_modal_title_bar"), {
                           "": (s) => {
@@ -2151,6 +2198,7 @@
           {},
           {
             styles_: [
+              contStyle,
               contVboxStyle,
               ss(uniq("cont_modal_share_vbox"), {
                 "": (s) => {
@@ -2164,6 +2212,7 @@
                 {},
                 {
                   styles_: [
+                    contStyle,
                     contStackStyle,
                     ss(uniq("cont_modal_share_qr"), {
                       "": (s) => {
@@ -2256,6 +2305,8 @@
     "": (s) => {
       s.display = "flex";
       s.gap = varPViewList;
+      s.pointerEvents = "initial";
+      s.maxWidth = "100%";
     },
     ".root": (s) => {
       s.gap = varPViewRows;
@@ -2289,6 +2340,7 @@
       {},
       {
         styles_: [
+          contStyle,
           contViewListStyle,
           contViewListStyleWrap(args.wrap),
           ss(
@@ -2328,7 +2380,7 @@
         children_: args.children,
       }
     );
-    if (args.xScroll != null) {
+    if (args.xScroll) {
       out.style.overflowX = "scroll";
     }
     if (args.gap != null) {
@@ -2385,9 +2437,12 @@
         {},
         {
           styles_: [
+            contStyle,
             ss(uniq("cont_view_table"), {
               "": (s) => {
                 s.display = "grid";
+                s.pointerEvents = "initial";
+                s.maxWidth = "100%";
               },
               [`>.${contViewListStyle}`]: (s) => {
                 s.display = "contents";
@@ -2756,6 +2811,9 @@
     if (args.fontSize != null) {
       out.style.fontSize = args.fontSize;
     }
+    if (args.color != null) {
+      out.style.color = args.color;
+    }
     if (args.maxSize != null) {
       switch (conv(args.orientation)) {
         case "up":
@@ -3013,6 +3071,7 @@
         {},
         {
           styles_: [
+            contStyle,
             ss(uniq("cont_media_comic_outer2"), {
               "": (s) => {
                 s.width = "100%";
@@ -3050,6 +3109,7 @@
         {},
         {
           styles_: [
+            contStyle,
             ss(uniq("cont_media_comic_inner_strut"), {
               "": (s) => {
                 s.maxWidth = "100%";
@@ -3194,6 +3254,7 @@
           {},
           {
             styles_: [
+              contStyle,
               classMenuWantStateOpen,
               contBodyStyle,
               contBodyNarrowStyle,
@@ -3260,6 +3321,7 @@
       {},
       {
         styles_: [
+          contStyle,
           contBodyNarrowStyle,
           contVboxStyle,
           ss(uniq("page_node"), {
@@ -3285,7 +3347,12 @@
             "div",
             {},
             {
-              styles_: [classMenuWantStateOpen, contVboxStyle, contBodyStyle],
+              styles_: [
+                contStyle,
+                classMenuWantStateOpen,
+                contVboxStyle,
+                contBodyStyle,
+              ],
               children_: [
                 e(
                   "div",
@@ -3358,6 +3425,7 @@
         {},
         {
           styles_: [
+            contStyle,
             contVboxStyle,
             ss(uniq("cont_page_edit_section_rel"), {
               "": (s) => {
@@ -3371,7 +3439,7 @@
     });
   presentation.contNodeRowIncoming =
     /** @type {Presentation["contNodeRowIncoming"]} */ (args) => {
-      const vboxStyles = [contVboxStyle, leafNodeVboxStyle];
+      const vboxStyles = [contStyle, contVboxStyle, leafNodeVboxStyle];
       if (args.new) {
         vboxStyles.push(leafNodeVBoxNewStyle);
       }
@@ -3380,7 +3448,7 @@
           "div",
           {},
           {
-            styles_: [contHboxStyle, leafNodeHboxStyle],
+            styles_: [contStyle, contHboxStyle, leafNodeHboxStyle],
             children_: [
               e(
                 "div",
@@ -3406,7 +3474,7 @@
 
   presentation.contNodeRowOutgoing =
     /** @type {Presentation["contNodeRowOutgoing"]} */ (args) => {
-      const vboxStyles = [contVboxStyle, leafNodeVboxStyle];
+      const vboxStyles = [contStyle, contVboxStyle, leafNodeVboxStyle];
       if (args.new) {
         vboxStyles.push(leafNodeVBoxNewStyle);
       }
@@ -3415,7 +3483,7 @@
           "div",
           {},
           {
-            styles_: [contHboxStyle, leafNodeHboxStyle],
+            styles_: [contStyle, contHboxStyle, leafNodeHboxStyle],
             children_: [
               leafIcon({
                 text: textIconRelOut,
@@ -3446,6 +3514,7 @@
         {},
         {
           styles_: [
+            contStyle,
             contVboxStyle,
             leafNodeVboxStyle,
             ss(uniq("cont_page_edit_center"), {
@@ -3725,7 +3794,7 @@
         "div",
         {},
         {
-          styles_: [contBodyNarrowStyle, contVboxStyle],
+          styles_: [contStyle, contBodyNarrowStyle, contVboxStyle],
           children_: args.children,
         }
       );
@@ -3743,13 +3812,18 @@
               "div",
               {},
               {
-                styles_: [classMenuWantStateOpen, contVboxStyle, contBodyStyle],
+                styles_: [
+                  contStyle,
+                  classMenuWantStateOpen,
+                  contVboxStyle,
+                  contBodyStyle,
+                ],
                 children_: [
                   e(
                     "div",
                     {},
                     {
-                      styles_: [contHboxStyle, pageButtonsStyle],
+                      styles_: [contStyle, contHboxStyle, pageButtonsStyle],
                       children_: args.pageButtonChildren,
                     }
                   ),
@@ -3770,6 +3844,7 @@
         {},
         {
           styles_: [
+            contStyle,
             contVboxStyle,
             ss(uniq("cont_history_commit"), {
               "": (s) => {
@@ -3806,6 +3881,7 @@
         {},
         {
           styles_: [
+            contStyle,
             contVboxStyle,
             ss(uniq("cont_history_subject"), {
               "": (s) => {
@@ -3819,6 +3895,7 @@
               {},
               {
                 styles_: [
+                  contStyle,
                   contVboxStyle,
                   ss(uniq("leaf_history_subject"), {
                     "": (s) => {
@@ -3834,6 +3911,7 @@
               {},
               {
                 styles_: [
+                  contStyle,
                   contVboxStyle,
                   ss(uniq("cont_history_subject_rows"), {
                     "": (s) => {
@@ -3858,6 +3936,7 @@
           {},
           {
             styles_: [
+              contStyle,
               contVboxStyle,
               ss(uniq("cont_history_rel_center"), {
                 "": (s) => {
@@ -3879,6 +3958,7 @@
           {},
           {
             styles_: [
+              contStyle,
               contHboxStyle,
               ss(uniq("cont_history_row_hbox"), {
                 "": (s) => {
@@ -3987,10 +4067,11 @@
             "": (s) => {
               s.minWidth = blockWidth;
               s.pointerEvents = "initial";
+              s.flexBasis = "1cm";
               s.flexGrow = "1";
               s.fontFamily = "monospace";
               s.fontSize = varFCode;
-              s.whiteSpace = "pre";
+              s.whiteSpace = "pre-wrap";
             },
           }),
         ],
@@ -4001,14 +4082,27 @@
       {},
       {
         styles_: [
+          contStyle,
           contVboxStyle,
           ss(uniq("cont_page_query_results"), {
             "": (s) => {
               s.minWidth = blockWidth;
+              s.flexBasis = "1cm";
               s.flexGrow = "1";
               s.fontFamily = "monospace";
               s.fontSize = varFCode;
               s.gap = varPSmall;
+            },
+            ":empty::before": (s) => {
+              s.display = "grid";
+              s.gridTemplateRows = "1fr";
+              s.gridTemplateColumns = "1fr";
+              s.justifyItems = "center";
+              s.alignItems = "center";
+
+              s.opacity = varONoninteractive;
+              s.content = '"No results"';
+              s.flexGrow = "1";
             },
           }),
         ],
@@ -4020,6 +4114,7 @@
         {},
         {
           styles_: [
+            contStyle,
             contBodyStyle,
             ss(uniq("cont_page_query"), {
               "": (s) => {
@@ -4082,6 +4177,7 @@
         {},
         {
           styles_: [
+            contStyle,
             contVboxStyle,
             contMenuGroupVBoxStyle,
             ss(uniq("cont_body_menu"), {
@@ -4141,6 +4237,7 @@
       {},
       {
         styles_: [
+          contStyle,
           ss(uniq("cont_menu_group"), {
             [`>.${contMenuGroupVBoxStyle}`]: (s) => {
               s.padding = `${varPMenu} 0`;
@@ -4178,6 +4275,7 @@
             "summary",
             {},
             {
+              styles_: [contStyle],
               children_: [
                 leafIcon({
                   text: textIconFoldClosed,
@@ -4195,7 +4293,7 @@
             "div",
             {},
             {
-              styles_: [contVboxStyle, contMenuGroupVBoxStyle],
+              styles_: [contStyle, contVboxStyle, contMenuGroupVBoxStyle],
               children_: args.children,
             }
           ),
@@ -4252,6 +4350,7 @@
       {},
       {
         styles_: [
+          contStyle,
           ss(uniq("cont_menu1"), {
             "": (s) => {
               s.gridColumn = "1/3";
@@ -4267,6 +4366,7 @@
             {},
             {
               styles_: [
+                contStyle,
                 classMenuWantStateOpen,
                 contVboxStyle,
                 contMenuGroupVBoxStyle,
@@ -4298,6 +4398,7 @@
                 },
                 {
                   styles_: [
+                    contStyle,
                     ss(uniq("cont_bar_menu_user"), {
                       "": (s) => {
                         s.opacity = varOMenuBar;
@@ -4363,6 +4464,7 @@
               },
               {
                 styles_: [
+                  contStyle,
                   classMenuWantStateOpen,
                   ss(uniq("cont_menu"), {
                     "": (s) => {
@@ -4395,6 +4497,7 @@
                       {},
                       {
                         styles_: [
+                          contStyle,
                           contHboxStyle,
                           ss(uniq("menu_title"), {
                             "": (s) => {
@@ -4411,6 +4514,7 @@
                             { textContent: "sunwet" },
                             {
                               styles_: [
+                                contStyle,
                                 ss(uniq("menu_title_text"), {
                                   "": (s) => {
                                     s.fontSize = varFTitle;
@@ -4509,6 +4613,7 @@
         {},
         {
           styles_: [
+            contStyle,
             contStackStyle,
             ss(uniq("app_link_perms_bg"), {
               "": (s) => {
@@ -4529,6 +4634,7 @@
       {},
       {
         styles_: [
+          contStyle,
           ss(uniq("cont_app_link_display"), {
             ">*": (s) => {
               s.objectFit = "contain";
@@ -4546,6 +4652,7 @@
       {},
       {
         styles_: [
+          contStyle,
           ss(uniq("leaf_app_display_under2"), {
             "": (s) => {
               s.aspectRatio = "1/1";
@@ -4570,6 +4677,7 @@
       `,
       {
         styles_: [
+          contStyle,
           hideableStyle,
           classStateHide,
           ss(uniq("leaf_app_display_under"), {
@@ -4601,6 +4709,7 @@
       {},
       {
         styles_: [
+          contStyle,
           contStackStyle,
           ss(uniq("app_link_display_stack"), {
             "": (s) => {
@@ -4648,6 +4757,7 @@
         {},
         {
           styles_: [
+            contStyle,
             contVboxStyle,
             ss(uniq("app_link"), {
               "": (s) => {
@@ -4669,6 +4779,7 @@
               {},
               {
                 styles_: [
+                  contStyle,
                   contVboxStyle,
                   ss(uniq("cont_app_link_vert"), {
                     "": (s) => {

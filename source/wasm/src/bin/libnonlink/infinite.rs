@@ -20,6 +20,7 @@ use {
     tokio::sync::mpsc,
     wasm::js::{
         el_async,
+        style_export,
     },
 };
 
@@ -67,8 +68,10 @@ pub fn build_infinite<
     K: 'static,
     T: Future<Output = Result<(Option<K>, Vec<El>), String>>,
     F: 'static + FnMut(K) -> T,
->(out: El, initial_key: K, cb: F) {
+>(initial_key: K, cb: F) -> El {
+    let out = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
     let bg = Rc::new(RefCell::new(None));
     out.ref_own(|_| bg.clone());
-    build_infinite_(out, bg, initial_key, cb);
+    build_infinite_(out.clone(), bg, initial_key, cb);
+    return out;
 }

@@ -38,6 +38,61 @@
       user: "Guest",
       barChildren: [presentation.leafMenuBarButtonLogin({}).root],
     }).root;
+    const lotsOfTracks = [];
+    for (let i = 0; i < 100; i++) {
+      lotsOfTracks.push([
+        presentation.leafViewPlayButton({
+          transAlign: "start",
+          orientation: "down_left",
+        }).root,
+        presentation.leafViewText({
+          transAlign: "start",
+          orientation: "down_left",
+          text: `${i}. `,
+        }).root,
+        presentation.leafViewText({
+          transAlign: "start",
+          orientation: "down_left",
+          text: "Fabiano do Nascimento and Shin Sasakubo",
+          link: "abcd-xyzg",
+          maxSize: "6cm",
+        }).root,
+        presentation.leafViewText({
+          transAlign: "start",
+          orientation: "down_left",
+          text: " - ",
+        }).root,
+        presentation.leafViewText({
+          transAlign: "start",
+          orientation: "down_left",
+          text: "Primeiro Encontro",
+          maxSize: "6cm",
+        }).root,
+      ]);
+    }
+    const lotsOfTracks2 = [];
+    for (let i = 0; i < 100; i++) {
+      lotsOfTracks2.push(
+        presentation.contViewList({
+          direction: "down",
+          transAlign: "middle",
+          xScroll: false,
+          wrap: false,
+          children: [
+            presentation.leafViewImage({
+              src: "testcover.jpg",
+              height: "5cm",
+              transAlign: "middle",
+            }).root,
+            presentation.leafViewText({
+              text: "ex",
+              transAlign: "middle",
+              orientation: "right_down",
+            }).root,
+          ],
+        }).root
+      );
+    }
     const stagingPageView = presentation.appMain({
       mainTitle: presentation.leafTitle({ text: "Music" }).root,
       mainBody: presentation.contPageView({
@@ -87,6 +142,43 @@
                           orientation: "right_down",
                           xScroll: true,
                           gap: "0.2cm",
+                          children: lotsOfTracks,
+                        }).root,
+                      ],
+                    }).root,
+                  ],
+                }).root,
+              ],
+            }).root,
+            presentation.contViewRow({
+              blocks: [
+                presentation.contViewBlock({
+                  width: "6cm",
+                  children: [
+                    presentation.leafViewImage({
+                      transAlign: "start",
+                      src: "testcover.jpg",
+                      width: "100%",
+                    }).root,
+                  ],
+                }).root,
+                presentation.contViewBlock({
+                  children: [
+                    presentation.contViewList({
+                      direction: "down",
+                      transAlign: "start",
+                      wrap: false,
+                      xScroll: false,
+                      children: [
+                        presentation.leafViewText({
+                          transAlign: "start",
+                          orientation: "right_down",
+                          text: "Harmônicos",
+                        }).root,
+                        presentation.contViewTable({
+                          orientation: "right_down",
+                          xScroll: true,
+                          gap: "0.2cm",
                           children: [
                             [
                               presentation.leafViewPlayButton({
@@ -114,39 +206,6 @@
                                 transAlign: "start",
                                 orientation: "down_left",
                                 text: "Primeiro Encontro",
-                                maxSize: "6cm",
-                              }).root,
-                            ],
-                            [
-                              presentation.leafViewPlayButton({
-                                image: "testcover.jpg",
-                                width: "1.5cm",
-                                height: "1.5cm",
-                                transAlign: "start",
-                                orientation: "down_left",
-                              }).root,
-                              presentation.leafViewText({
-                                transAlign: "start",
-                                orientation: "down_left",
-                                text: "2. ",
-                              }).root,
-                              presentation.leafViewText({
-                                transAlign: "start",
-                                orientation: "down_left",
-                                text: "Fabiano do Nascimento and Shin Sasakubo",
-                                link: "abcd-xyzg",
-                                maxSize: "6cm",
-                              }).root,
-                              presentation.leafViewText({
-                                transAlign: "start",
-                                orientation: "down_left",
-                                text: " - ",
-                              }).root,
-                              presentation.leafViewText({
-                                transAlign: "start",
-                                orientation: "down_left",
-                                text: "Primeiro Encontro",
-                                maxSize: "6cm",
                               }).root,
                             ],
                           ],
@@ -216,6 +275,41 @@
                               }).root,
                             ],
                           ],
+                        }).root,
+                      ],
+                    }).root,
+                  ],
+                }).root,
+              ],
+            }).root,
+            presentation.contViewRow({
+              blocks: [
+                presentation.contViewBlock({
+                  children: [
+                    presentation.contViewList({
+                      direction: "down",
+                      wrap: false,
+                      transAlign: "start",
+                      xScroll: false,
+                      children: [
+                        presentation.leafViewText({
+                          transAlign: "start",
+                          orientation: "right_down",
+                          text: "Harmônicos",
+                          fontSize: "20pt",
+                        }).root,
+                        presentation.leafViewDatetime({
+                          transAlign: "start",
+                          orientation: "right_down",
+                          value: new Date().toISOString(),
+                          fontSize: "14pt",
+                        }).root,
+                        presentation.contViewList({
+                          direction: "right",
+                          xScroll: true,
+                          transAlign: "middle",
+                          children: lotsOfTracks2,
+                          wrap: false,
                         }).root,
                       ],
                     }).root,

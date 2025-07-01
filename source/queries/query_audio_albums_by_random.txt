@@ -1,4 +1,7 @@
 "sunwet/1/album" -< "sunwet/1/is"
-    ?( -> "sunwet/1/media" == "sunwet/1/audio" )
+    &(
+        ?( -> "sunwet/1/media" == "sunwet/1/audio" )
+        !( -> "sunwet/1/delete")
+    )
     include "query_audio_albums_suffix.txt"
     shuffle

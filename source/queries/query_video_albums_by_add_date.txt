@@ -1,0 +1,7 @@
+"sunwet/1/album" -< "sunwet/1/is"
+    &(
+        ?(-> "sunwet/1/media" == "sunwet/1/video")
+        !(-> "sunwet/1/delete")
+    )
+    include "query_video_albums_suffix.txt"
+    desc album_add_timestamp desc album_name

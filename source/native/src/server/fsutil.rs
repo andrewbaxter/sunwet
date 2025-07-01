@@ -29,7 +29,7 @@ pub async fn delete_tree(path: &Path) -> Result<(), loga::Error> {
             return Ok(());
         },
         Err(e) => match e.kind() {
-            std::io::ErrorKind::NotFound => {
+            std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory => {
                 return Ok(());
             },
             _ => {

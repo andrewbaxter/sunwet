@@ -1,2 +1,6 @@
-search $text -< "sunwet/1/topic" ?( -> "sunwet/1/is" == "sunwet/1/note" )
+search $text -< "sunwet/1/topic"
+    &(
+        ?(-> "sunwet/1/is" == "sunwet/1/note")
+        !(-> "sunwet/1/delete")
+    )
     include "query_notes_suffix.txt"

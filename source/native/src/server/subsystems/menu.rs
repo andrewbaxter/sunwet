@@ -91,6 +91,9 @@ pub async fn handle_get_filtered_client_config(
                     MenuItemPage::History => {
                         ClientMenuItemDetail::Page(ClientPage::History)
                     },
+                    MenuItemPage::Query => {
+                        ClientMenuItemDetail::Page(ClientPage::Query)
+                    },
                 }
             },
         };

@@ -2,6 +2,7 @@ use {
     crate::libnonlink::ministate::{
         MinistateForm,
         MinistateHistory,
+        MinistateQuery,
         MinistateView,
     },
     flowcontrol::{
@@ -173,6 +174,14 @@ pub fn main() {
                                         title: "History".to_string(),
                                         href: ministate_octothorpe(
                                             &Ministate::History(MinistateHistory::default()),
+                                        ),
+                                    }).root;
+                                },
+                                ClientPage::Query => {
+                                    return style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
+                                        title: "Query".to_string(),
+                                        href: ministate_octothorpe(
+                                            &Ministate::Query(MinistateQuery { query: None }),
                                         ),
                                     }).root;
                                 },

@@ -134,6 +134,8 @@ pub struct WidgetText {
     #[serde(default)]
     pub font_size: Option<String>,
     #[serde(default)]
+    pub color: Option<String>,
+    #[serde(default)]
     pub cons_size_mode: TextSizeMode,
     #[serde(default)]
     pub cons_size_max: Option<String>,
@@ -291,8 +293,6 @@ pub struct WidgetDataRows {
     pub row_widget: DataRowsLayout,
     #[serde(default)]
     pub trans_align: TransAlign,
-    #[serde(default)]
-    pub x_scroll: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]

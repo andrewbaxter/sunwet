@@ -1088,12 +1088,12 @@ fn build_edit_triple(pc: &mut ProcessingContext, triple: &TripleState, new: bool
     };
     if triple.0.incoming {
         return style_export::cont_node_row_incoming(style_export::ContNodeRowIncomingArgs {
-            children: vec![buttons_el, node_el, predicate_el],
+            children: vec![node_el, predicate_el, buttons_el],
             new: new,
         }).root;
     } else {
         return style_export::cont_node_row_outgoing(style_export::ContNodeRowOutgoingArgs {
-            children: vec![buttons_el, predicate_el, node_el],
+            children: vec![predicate_el, node_el, buttons_el],
             new: new,
         }).root;
     }

@@ -62,7 +62,7 @@ async-trait = "0.1"
 flowcontrol = "0.2"
 structre = "0.2"
 by_address = "1"
-tokio-stream = { version = "0.1.17", features = ["sync"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
 
 [build-dependencies]
 convert_case = "0.8.0"

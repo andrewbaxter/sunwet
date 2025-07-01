@@ -107,17 +107,27 @@ use {
 
 pub async fn node_id(
     log: &Log,
+    query_cache: &mut HashMap<&'static str, Query>,
     query: &'static str,
     parameters: HashMap<String, Node>,
 ) -> Result<Node, loga::Error> {
-    return node_id_direct(log, compile_query(None, query).map_err(loga::err)?, parameters).await;
+    let query = match query_cache.entry(query) {
+        Entry::Occupied(en) => en.get().clone(),
+        Entry::Vacant(en) => en.insert(compile_query(None, query).map_err(loga::err)?).clone(),
+    };
+    return node_id_direct(log, query, parameters).await;
 }
 
-pub async fn node_id_artist(log: &Log, name: &str) -> Result<Node, loga::Error> {
+pub async fn node_id_artist(
+    log: &Log,
+    query_cache: &mut HashMap<&'static str, Query>,
+    name: &str,
+) -> Result<Node, loga::Error> {
     return node_id(
         log,
-        r#"$name -< "sunwet/1/name" ?( -> "sunwet/1/is" == "sunwet/1/artist" ) { => id }"#,
-        [(format!("artist"), Node::from_str(name))].into_iter().collect(),
+        query_cache,
+        r#"$artist_name -< "sunwet/1/name" ?( -> "sunwet/1/is" == "sunwet/1/artist" ) { => id }"#,
+        [(format!("artist_name"), Node::from_str(name))].into_iter().collect(),
     ).await;
 }
 
@@ -251,7 +261,7 @@ fn is_video(p: &[u8]) -> bool {
 
 fn is_comic(p: &[u8]) -> bool {
     match p {
-        b"cbz" | b"cbr" => true,
+        b"cbz" | b"cbr" | b"cb7" => true,
         _ => false,
     }
 }
@@ -415,8 +425,10 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
     struct AlbumKey {
         album_artist: BTreeSet<ByAddress<Rc<RefCell<GatherArtist>>>>,
         name: String,
+        lang: Option<String>,
     }
 
+    let mut query_cache = HashMap::new();
     let mut albums = HashMap::<AlbumKey, Rc<RefCell<GatherAlbum>>>::new();
     let mut artists = HashMap::<String, Rc<RefCell<GatherArtist>>>::new();
     let mut leftover_files = vec![];
@@ -463,7 +475,7 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
                 ),
             );
         }
-        if g.track_artist.is_empty() {
+        if g.track_type != GatherTrackType::Video && g.track_artist.is_empty() {
             return Err(loga::err_with("File missing track artist", ea!(path = file.path().dbg_str())));
         }
 
@@ -476,7 +488,7 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
                 },
                 Entry::Vacant(e) => {
                     e.insert(Rc::new(RefCell::new(GatherArtist {
-                        id: node_id_artist(&log, artist_name).await?,
+                        id: node_id_artist(&log, &mut query_cache, artist_name).await?,
                         name: artist_name.clone(),
                     }))).clone()
                 },
@@ -489,6 +501,7 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
         let album = match albums.entry(AlbumKey {
             album_artist: album_artist2.clone(),
             name: album_name.clone(),
+            lang: g.track_language.clone(),
         }) {
             Entry::Occupied(e) => {
                 e.get().clone()
@@ -498,29 +511,31 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
                     id: match album_artist2.iter().next() {
                         Some(a) => node_id(
                             &log,
+                            &mut query_cache,
                             concat!(
-                                r#"$artist -< "sunwet/1/artist" "#,
+                                r#"$artist_id -< "sunwet/1/artist" "#,
                                 r#"  &( "#,
                                 r#"    ?(-> "sunwet/1/is" == "sunwet/1/album") "#,
-                                r#"    ?(-> "sunwet/1/name" == $name )"#,
+                                r#"    ?(-> "sunwet/1/name" == $album_name )"#,
                                 r#"  )"#,
                                 r#"  { => id } "#,
                             ),
                             [
-                                (format!("artist"), a.0.borrow().id.clone()),
-                                (format!("name"), Node::from_str(&album_name)),
+                                (format!("artist_id"), a.0.borrow().id.clone()),
+                                (format!("album_name"), Node::from_str(&album_name)),
                             ]
                                 .into_iter()
                                 .collect(),
                         ).await?,
                         None => node_id(
                             &log,
+                            &mut query_cache,
                             concat!(
-                                r#"$name -< "sunwet/1/name" "#,
+                                r#"$album_name -< "sunwet/1/name" "#,
                                 r#"  ?(-> "sunwet/1/is" == "sunwet/1/album") "#,
                                 r#"  { => id } "#,
                             ),
-                            [(format!("name"), Node::from_str(&album_name))].into_iter().collect(),
+                            [(format!("album_name"), Node::from_str(&album_name))].into_iter().collect(),
                         ).await?,
                     },
                     name: album_name,
@@ -547,7 +562,7 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
                 Entry::Occupied(e) => e.get().clone(),
                 Entry::Vacant(e) => {
                     e.insert(Rc::new(RefCell::new(GatherArtist {
-                        id: node_id_artist(&log, &artist_name).await?,
+                        id: node_id_artist(&log, &mut query_cache, &artist_name).await?,
                         name: artist_name.clone(),
                     }))).clone()
                 },
@@ -687,12 +702,13 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
             let doc_id =
                 node_id(
                     &log,
+                    &mut query_cache,
                     concat!(
-                        r#"$name -< "sunwet/1/name" "#,
+                        r#"$document_name -< "sunwet/1/name" "#,
                         r#"  ?( -> "sunwet/1/is" == "sunwet/1/document" ) "#,
                         r#"  { => id } "#,
                     ),
-                    [(format!("name"), Node::from_str(&name))].into_iter().collect(),
+                    [(format!("document_name"), Node::from_str(&name))].into_iter().collect(),
                 ).await?;
             triples.push(triple(&node_node(&doc_id), PREDICATE_IS, &obj_is_document()));
             triples.push(triple(&node_node(&doc_id), PREDICATE_NAME, &node_value_str(&name)));

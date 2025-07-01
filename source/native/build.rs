@@ -14,13 +14,12 @@ use {
                 expr_and,
                 expr_field_eq,
                 expr_field_lt,
+                expr_or,
                 fn_max,
                 set_field,
             },
             insert::InsertConflict,
-            select_body::{
-                Order,
-            },
+            select_body::Order,
             utils::{
                 CteBuilder,
                 With,
@@ -86,6 +85,54 @@ fn main() {
         t.index("zBZVX51AR", "triple_index_pred_subj", &[&predicate, &subject, &commit]).build(&mut latest_version);
         t.index("zTVLKA6GQ", "triple_index_pred_obj", &[&predicate, &object, &commit]).build(&mut latest_version);
         t.index("woeehiw2a9lszj", "triple_commit_exists", &[&commit, &exist]).build(&mut latest_version);
+        let view_current_subject;
+        let view_current_predicate;
+        let view_current_object;
+        let view_current_commit;
+        let view_current_table;
+        let view_current_ctes;
+        {
+            let mut view_current0 =
+                CteBuilder::new(
+                    "current0",
+                    new_select_body(&t)
+                        .group(vec![Expr::field(&subject), Expr::field(&predicate), Expr::field(&object)])
+                        .return_field(&subject)
+                        .return_field(&predicate)
+                        .return_field(&object)
+                        .return_named("commit_", fn_max(Expr::field(&commit)))
+                        .return_field(&exist)
+                        .build(),
+                );
+            let view_current0_subject = view_current0.field("subject", subject.type_.type_.clone());
+            let view_current0_predicate = view_current0.field("predicate", predicate.type_.type_.clone());
+            let view_current0_object = view_current0.field("object", object.type_.type_.clone());
+            let view_current0_commit = view_current0.field("commit_", commit.type_.type_.clone());
+            let view_current0_exist = view_current0.field("exist", exist.type_.type_.clone());
+            let (view_current0_table, view_current0_cte) = view_current0.build();
+            let mut view_current =
+                CteBuilder::new(
+                    "current",
+                    new_select_body(&view_current0_table)
+                        .where_(Expr::BinOp {
+                            left: Box::new(Expr::field(&view_current0_exist)),
+                            op: BinOp::Equals,
+                            right: Box::new(Expr::LitBool(true)),
+                        })
+                        .return_field(&view_current0_subject)
+                        .return_field(&view_current0_predicate)
+                        .return_field(&view_current0_object)
+                        .return_field(&view_current0_commit)
+                        .build(),
+                );
+            view_current_subject = view_current.field("subject", subject.type_.type_.clone());
+            view_current_predicate = view_current.field("predicate", predicate.type_.type_.clone());
+            view_current_object = view_current.field("object", object.type_.type_.clone());
+            view_current_commit = view_current.field("commit_", commit.type_.type_.clone());
+            let (view_current_table1, view_current_cte) = view_current.build();
+            view_current_table = view_current_table1;
+            view_current_ctes = vec![view_current0_cte, view_current_cte];
+        }
         queries.push(
             new_insert(
                 &t,
@@ -101,23 +148,25 @@ fn main() {
                 .build_query("triple_insert", QueryResCount::None),
         );
         queries.push(
-            new_select(&t)
-                .return_field(&subject)
-                .return_field(&predicate)
-                .return_field(&object)
-                .return_field(&commit)
-                .return_field(&exist)
+            new_select(&view_current_table)
+                .with(With {
+                    recursive: false,
+                    ctes: view_current_ctes.clone(),
+                })
+                .return_field(&view_current_subject)
+                .return_field(&view_current_predicate)
+                .return_field(&view_current_object)
+                .return_field(&view_current_commit)
                 .where_(
                     expr_and(
                         vec![
-                            expr_field_eq("subject", &subject),
-                            expr_field_eq("predicate", &predicate),
-                            expr_field_eq("object", &object)
+                            expr_field_eq("subject", &view_current_subject),
+                            expr_field_eq("predicate", &view_current_predicate),
+                            expr_field_eq("object", &view_current_object),
                         ],
                     ),
                 )
                 .limit(Expr::LitI32(1))
-                .order(Expr::field(&commit), Order::Desc)
                 .build_query("triple_get", QueryResCount::MaybeOne),
         );
         for (name0, where0) in [
@@ -139,125 +188,137 @@ fn main() {
                 ),
             ),
         ] {
-            let mut where_exprs = vec![expr_field_lt("time", &commit), Expr::BinOp {
-                left: Box::new(Expr::LitArray(vec![
-                    //. .
-                    Expr::field(&subject),
-                    Expr::field(&predicate),
-                    Expr::field(&object)
-                ])),
-                op: BinOp::GreaterThan,
-                right: Box::new(Expr::LitArray(vec![
-                    //. .
-                    Expr::Param {
-                        name: format!("page_subject"),
-                        type_: subject.type_.type_.clone(),
-                    },
-                    Expr::Param {
-                        name: format!("page_predicate"),
-                        type_: predicate.type_.type_.clone(),
-                    },
-                    Expr::Param {
-                        name: format!("page_object"),
-                        type_: object.type_.type_.clone(),
-                    }
-                ])),
-            }];
-            if let Some(where_) = where0 {
-                where_exprs.push(where_);
-            }
-            queries.push(
-                new_select(&t)
-                    .return_field(&subject)
-                    .return_field(&predicate)
-                    .return_field(&object)
-                    .return_field(&commit)
-                    .return_field(&exist)
-                    .where_(expr_and(where_exprs))
-                    .order(Expr::field(&commit), Order::Desc)
-                    .order(Expr::field(&exist), Order::Asc)
-                    .order(Expr::field(&subject), Order::Asc)
-                    .order(Expr::field(&predicate), Order::Asc)
-                    .order(Expr::field(&object), Order::Asc)
-                    .limit(Expr::LitI32(500))
-                    .build_query_named_res(&format!("triple_list_{}", name0), QueryResCount::Many, "DbResTriple"),
-            );
-        }
-        queries.push(
-            new_select(&t)
-                .return_field(&subject)
-                .return_field(&predicate)
-                .return_field(&object)
-                .where_(expr_and(vec![Expr::BinOpChain {
-                    op: BinOp::Or,
-                    exprs: vec![expr_field_eq("node", &subject), expr_field_eq("node", &object)],
-                }, Expr::BinOp {
-                    left: Box::new(Expr::field(&exist)),
-                    op: BinOp::Equals,
-                    right: Box::new(Expr::LitBool(true)),
-                }]))
-                .build_query("triple_list_exist_around", QueryResCount::Many),
-        );
-        queries.push({
-            let mut current =
-                CteBuilder::new(
-                    "current",
-                    new_select_body(&t)
-                        .group(vec![Expr::field(&subject), Expr::field(&predicate), Expr::field(&object)])
+            for after in [false, true] {
+                let suffix = if after {
+                    "_after"
+                } else {
+                    ""
+                };
+                let mut where_exprs = vec![];
+                if after {
+                    where_exprs.push(expr_field_lt("time", &commit));
+                    where_exprs.push(Expr::BinOp {
+                        left: Box::new(Expr::LitArray(vec![
+                            //. .
+                            Expr::field(&subject),
+                            Expr::field(&predicate),
+                            Expr::field(&object)
+                        ])),
+                        op: BinOp::GreaterThan,
+                        right: Box::new(Expr::LitArray(vec![
+                            //. .
+                            Expr::Param {
+                                name: format!("page_subject"),
+                                type_: subject.type_.type_.clone(),
+                            },
+                            Expr::Param {
+                                name: format!("page_predicate"),
+                                type_: predicate.type_.type_.clone(),
+                            },
+                            Expr::Param {
+                                name: format!("page_object"),
+                                type_: object.type_.type_.clone(),
+                            }
+                        ])),
+                    });
+                }
+                if let Some(where_) = where0.clone() {
+                    where_exprs.push(where_);
+                }
+                let mut sel =
+                    new_select(&t)
                         .return_field(&subject)
                         .return_field(&predicate)
                         .return_field(&object)
-                        .return_named("commit_", fn_max(Expr::field(&commit)))
-                        .build(),
+                        .return_field(&exist)
+                        .return_field(&commit);
+                if !where_exprs.is_empty() {
+                    sel = sel.where_(expr_and(where_exprs));
+                }
+                sel =
+                    sel
+                        .order(Expr::field(&commit), Order::Desc)
+                        .order(Expr::field(&exist), Order::Asc)
+                        .order(Expr::field(&subject), Order::Asc)
+                        .order(Expr::field(&predicate), Order::Asc)
+                        .order(Expr::field(&object), Order::Asc)
+                        .limit(Expr::LitI32(500));
+                queries.push(
+                    sel.build_query_named_res(
+                        &format!("hist_list_{}{}", name0, suffix),
+                        QueryResCount::Many,
+                        "DbResTriple",
+                    ),
                 );
-            let current_subject = current.field("subject", subject.type_.type_.clone());
-            let current_predicate = current.field("predicate", predicate.type_.type_.clone());
-            let current_object = current.field("object", object.type_.type_.clone());
-            let current_commit = current.field("commit_", commit.type_.type_.clone());
-            let (current_table, current_cte) = current.build();
+            }
+        }
+        queries.push(
+            new_select(&view_current_table)
+                .with(With {
+                    recursive: false,
+                    ctes: view_current_ctes.clone(),
+                })
+                .return_field(&view_current_subject)
+                .return_field(&view_current_predicate)
+                .return_field(&view_current_object)
+                .where_(
+                    expr_or(
+                        vec![
+                            expr_field_eq("node", &view_current_subject),
+                            expr_field_eq("node", &view_current_object)
+                        ],
+                    ),
+                )
+                .build_query("triple_list_around", QueryResCount::Many),
+        );
+        queries.push({
             new_delete(&t).with(With {
                 recursive: false,
-                ctes: vec![current_cte],
+                ctes: view_current_ctes.clone(),
             }).where_(expr_and(vec![
-                //. .
+                // All old commits
                 expr_field_lt("epoch", &commit),
-                Expr::BinOp {
-                    left: Box::new(Expr::BinOp {
+                expr_or(vec![
+                    // Delete
+                    Expr::BinOp {
                         left: Box::new(Expr::Binding(Binding::field(&exist))),
                         op: BinOp::Equals,
                         right: Box::new(Expr::LitBool(false)),
-                    }),
-                    op: BinOp::Or,
-                    right: Box::new(Expr::Exists {
+                    },
+                    // Or non-latest non-delete
+                    Expr::Exists {
                         not: true,
                         body: Box::new(
-                            new_select_body(&current_table).return_named("x", Expr::LitI32(1)).where_(expr_and(vec![
-                                //. .
-                                Expr::BinOp {
-                                    left: Box::new(Expr::Binding(Binding::field(&subject))),
-                                    op: BinOp::Equals,
-                                    right: Box::new(Expr::Binding(Binding::field(&current_subject))),
-                                },
-                                Expr::BinOp {
-                                    left: Box::new(Expr::Binding(Binding::field(&predicate))),
-                                    op: BinOp::Equals,
-                                    right: Box::new(Expr::Binding(Binding::field(&current_predicate))),
-                                },
-                                Expr::BinOp {
-                                    left: Box::new(Expr::Binding(Binding::field(&object))),
-                                    op: BinOp::Equals,
-                                    right: Box::new(Expr::Binding(Binding::field(&current_object))),
-                                },
-                                Expr::BinOp {
-                                    left: Box::new(Expr::Binding(Binding::field(&commit))),
-                                    op: BinOp::Equals,
-                                    right: Box::new(Expr::Binding(Binding::field(&current_commit))),
-                                }
-                            ])).build(),
+                            new_select_body(&view_current_table)
+                                .return_named("x", Expr::LitI32(1))
+                                .where_(expr_and(vec![
+                                    //. .
+                                    Expr::BinOp {
+                                        left: Box::new(Expr::Binding(Binding::field(&subject))),
+                                        op: BinOp::Equals,
+                                        right: Box::new(Expr::Binding(Binding::field(&view_current_subject))),
+                                    },
+                                    Expr::BinOp {
+                                        left: Box::new(Expr::Binding(Binding::field(&predicate))),
+                                        op: BinOp::Equals,
+                                        right: Box::new(Expr::Binding(Binding::field(&view_current_predicate))),
+                                    },
+                                    Expr::BinOp {
+                                        left: Box::new(Expr::Binding(Binding::field(&object))),
+                                        op: BinOp::Equals,
+                                        right: Box::new(Expr::Binding(Binding::field(&view_current_object))),
+                                    },
+                                    Expr::BinOp {
+                                        left: Box::new(Expr::Binding(Binding::field(&commit))),
+                                        op: BinOp::Equals,
+                                        right: Box::new(Expr::Binding(Binding::field(&view_current_commit))),
+                                    }
+                                ]))
+                                .build(),
                         ),
                         body_junctions: vec![],
-                    }),
-                }
+                    }
+                ])
             ])).build_query("triple_gc_deleted", QueryResCount::None)
         });
         triple_table = t;
