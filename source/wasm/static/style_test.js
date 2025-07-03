@@ -17,8 +17,66 @@
           title: "Thing 3",
           href: "x",
         }).root,
+        presentation.leafMenuLink({
+          title: "Thing 3",
+          href: "x",
+        }).root,
+        presentation.leafMenuLink({
+          title: "Thing 3",
+          href: "x",
+        }).root,
+        presentation.leafMenuLink({
+          title: "Thing 3",
+          href: "x",
+        }).root,
+        presentation.leafMenuLink({
+          title: "Thing 3",
+          href: "x",
+        }).root,
         presentation.contMenuGroup({
           title: "Group 1",
+          children: [
+            presentation.leafMenuLink({
+              title: "Thing 1",
+              href: "x",
+            }).root,
+            presentation.leafMenuLink({
+              title: "Thing 2",
+              href: "x",
+            }).root,
+            presentation.leafMenuLink({
+              title: "Thing 3",
+              href: "x",
+            }).root,
+          ],
+        }).root,
+        presentation.leafMenuLink({
+          title: "Thing 3",
+          href: "x",
+        }).root,
+        presentation.leafMenuLink({
+          title: "Thing 3",
+          href: "x",
+        }).root,
+        presentation.contMenuGroup({
+          title: "Group 2",
+          children: [
+            presentation.leafMenuLink({
+              title: "Thing 1",
+              href: "x",
+            }).root,
+            presentation.leafMenuLink({
+              title: "Thing 2",
+              href: "x",
+            }).root,
+            presentation.leafMenuLink({
+              title: "Thing 3",
+              href: "x",
+            }).root,
+          ],
+        }).root,
+        presentation.contMenuGroup({
+          title: "Group 3",
           children: [
             presentation.leafMenuLink({
               title: "Thing 1",
@@ -323,9 +381,9 @@
       menuBody: stagingMenu,
     }).root;
 
-    const buildRoot = /** @type {(e: Element)=>void} */ (e) => {
+    const buildRoot = /** @type {(e: Element[])=>void} */ (e) => {
       document.body.appendChild(
-        presentation.contRootStack({ children: [e] }).root
+        presentation.contRootStack({ children: e }).root
       );
     };
 
@@ -333,20 +391,20 @@
     switch (hash) {
       case "#main_async":
         {
-          buildRoot(
+          buildRoot([
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "" }).root,
               mainBody: presentation.leafAsyncBlock({
                 inRoot: true,
               }).root,
               menuBody: stagingMenu,
-            }).root
-          );
+            }).root,
+          ]);
         }
         break;
       case "#main_err":
         {
-          buildRoot(
+          buildRoot([
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "" }).root,
               mainBody: presentation.leafErrBlock({
@@ -354,29 +412,29 @@
                 inRoot: true,
               }).root,
               menuBody: stagingMenu,
-            }).root
-          );
+            }).root,
+          ]);
         }
         break;
       case "#home":
         {
-          buildRoot(
+          buildRoot([
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "" }).root,
               mainBody: presentation.contPageHome({}).root,
               menuBody: stagingMenu,
-            }).root
-          );
+            }).root,
+          ]);
         }
         break;
       case "#view":
         {
-          buildRoot(stagingPageView);
+          buildRoot([stagingPageView]);
         }
         break;
       case "#menu":
         {
-          buildRoot(stagingPageView);
+          buildRoot([stagingPageView]);
           for (const e of document.getElementsByClassName(
             presentation.classMenuWantStateOpen({}).value
           )) {
@@ -386,8 +444,8 @@
         break;
       case "#view_modal_share":
         {
-          buildRoot(stagingPageView);
-          buildRoot(
+          buildRoot([
+            stagingPageView,
             presentation.contModalViewShare({
               qr: /** @type {HTMLElement} */ (
                 new DOMParser().parseFromString(
@@ -404,19 +462,20 @@
                 ).body.firstElementChild
               ),
               link: "https://a.b.c",
-            }).root
-          );
+            }).root,
+          ]);
         }
         break;
       case "#fullscreen":
         {
           const media = document.createElement("div");
           media.style.border = "1px solid blue";
-          buildRoot(
+          buildRoot([
+            stagingPageView,
             presentation.contMediaFullscreen({
               media: media,
-            }).root
-          );
+            }).root,
+          ]);
         }
         break;
       case "#form":
@@ -437,7 +496,7 @@
           modInput.input.classList.add(
             presentation.classStateModified({}).value
           );
-          buildRoot(
+          buildRoot([
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "Music" }).root,
               mainBody: presentation.contPageForm({
@@ -495,13 +554,13 @@
                 barChildren: [presentation.leafButtonBigCommit({}).root],
               }).root,
               menuBody: stagingMenu,
-            }).root
-          );
+            }).root,
+          ]);
         }
         break;
       case "#node_view":
         {
-          buildRoot(
+          buildRoot([
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "Music" }).root,
               mainBody: presentation.contPageNode({
@@ -590,8 +649,8 @@
                 ],
               }).root,
               menuBody: stagingMenu,
-            }).root
-          );
+            }).root,
+          ]);
         }
         break;
       case "#node_edit":
@@ -609,7 +668,7 @@
                 json: "JSON",
               },
             }).root;
-          buildRoot(
+          buildRoot([
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "Music" }).root,
               mainBody: presentation.contPageNode({
@@ -728,13 +787,13 @@
                 barChildren: [presentation.leafButtonBigCommit({}).root],
               }).root,
               menuBody: stagingMenu,
-            }).root
-          );
+            }).root,
+          ]);
         }
         break;
       case "#history":
         {
-          buildRoot(
+          buildRoot([
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "History" }).root,
               mainBody: presentation.contPageHistory({
@@ -873,8 +932,8 @@
                 ],
               }).root,
               menuBody: stagingMenu,
-            }).root
-          );
+            }).root,
+          ]);
         }
         break;
       case "#query":
@@ -897,23 +956,23 @@
               data: JSON.stringify({ a: 4, b: 6, c: -7 }, null, 4),
             }).root
           );
-          buildRoot(
+          buildRoot([
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "Query" }).root,
               mainBody: root.root,
               menuBody: stagingMenu,
-            }).root
-          );
+            }).root,
+          ]);
         }
         break;
       case "#link_perms":
         {
-          buildRoot(presentation.appLinkPerms({}).root);
+          buildRoot([presentation.appLinkPerms({}).root]);
         }
         break;
       case "#link_waiting":
         {
-          buildRoot(presentation.appLink({}).root);
+          buildRoot([presentation.appLink({}).root]);
         }
         break;
       case "#link":
@@ -923,7 +982,7 @@
           cover.src = "testcover.jpg";
           a.displayOver.innerHTML = "";
           a.display.appendChild(cover);
-          buildRoot(a.root);
+          buildRoot([a.root]);
         }
         break;
       case "#media_comic":
@@ -958,7 +1017,7 @@
               children.push(presentation.leafMediaComicEndPad({}).root);
             }
           }
-          buildRoot(
+          buildRoot([
             presentation.contMediaFullscreen({
               media: presentation.contMediaComicOuter({
                 children: [
@@ -970,8 +1029,8 @@
                   }).root,
                 ],
               }).root,
-            }).root
-          );
+            }).root,
+          ]);
         }
         break;
       default:

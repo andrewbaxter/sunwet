@@ -29,10 +29,9 @@ Baseline un-styling.
     min-height: 100dvh;
     width: 100dvw;
     max-width: 100dvw;
-    overflow-x: hidden;
+    overflow: hidden;
     display: grid;
     grid-template-columns: 1fr;
-    overflow-y: auto;
 
     &>* {
       grid-column: 1;

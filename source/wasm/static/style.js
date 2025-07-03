@@ -196,7 +196,8 @@
   const varSRelIcon = "min(10dvw, 1.5cm)";
   const varSNodeButton = "min(10dvw, 1cm)";
   const varSHistPredObj = "min(10dvw, 1cm)";
-  const varSColWidth = `min(100%, 12cm)`;
+  const varSColWidthRaw = `12cm`;
+  const varSColWidth = `min(100%, ${varSColWidthRaw})`;
   const varSMenuIndent = "0.6cm";
   const varSLinkIcon = "3cm";
   const varSButtonSmallIcon = "0.7cm";
@@ -428,25 +429,11 @@
   });
 
   presentation.contStack = /** @type {Presentation["contStack"]} */ (args) => ({
-    root: e(
-      "div",
-      {},
-      { styles_: [contStyle, contStackStyle], children_: args.children }
-    ),
+    root: e("div", {}, { styles_: [contStackStyle], children_: args.children }),
   });
 
   presentation.contVbox = /** @type {Presentation["contVbox"]} */ (args) => ({
-    root: e(
-      "div",
-      {},
-      { styles_: [contStyle, contVboxStyle], children_: args.children }
-    ),
-  });
-
-  const contStyle = ss(uniq("cont"), {
-    "": (s) => {
-      s.overflow = "hidden";
-    },
+    root: e("div", {}, { styles_: [contVboxStyle], children_: args.children }),
   });
 
   presentation.contRootStack = /** @type {Presentation["contRootStack"]} */ (
@@ -457,11 +444,34 @@
       {},
       {
         styles_: [
-          contStyle,
           contStackStyle,
           ss(uniq("cont_root_stack"), {
+            ">*": (s) => {
+              s.width = "100dvw";
+              s.height = "100dvh";
+            },
             ">*:not(:last-child)": (s) => {
-              s.display = "none";
+              s.pointerEvents = "none";
+            },
+          }),
+        ],
+        children_: args.children,
+      }
+    ),
+  });
+  presentation.contMainStack = /** @type {Presentation["contMainStack"]} */ (
+    args
+  ) => ({
+    root: e(
+      "div",
+      {},
+      {
+        styles_: [
+          contStackStyle,
+          ss(uniq("cont_root_stack"), {
+            ">*": (s) => {
+              s.width = "100dvw";
+              s.height = "100dvh";
             },
           }),
         ],
@@ -490,7 +500,7 @@
         "div",
         {},
         {
-          styles_: [contStyle, contTitleStyle],
+          styles_: [contTitleStyle],
           children_: children,
         }
       ),
@@ -564,7 +574,6 @@
         {},
         {
           styles_: [
-            contStyle,
             contHboxStyle,
             ss(uniq("cont_bar_hbox"), {
               "": (s) => {
@@ -584,7 +593,6 @@
         {},
         {
           styles_: [
-            contStyle,
             ss(uniq("cont_bar"), {
               "": (s) => {
                 s.zIndex = "2";
@@ -965,10 +973,11 @@
     "": (s) => {
       s.gridRow = "2";
       s.gridColumn = "1/4";
+
       s.marginBottom = varPPageBottom;
     },
     [`.${classMenuStateOpen}`]: (s) => {
-      s.display = "none";
+      s.visibility = "hidden";
     },
   });
   const contBodyNarrowStyle = ss(uniq("cont_body_narrow"), {
@@ -1063,7 +1072,6 @@
       {},
       {
         styles_: [
-          contStyle,
           classMenuWantStateOpen,
           contHboxStyle,
           ss(uniq("cont_page_home"), {
@@ -1763,7 +1771,6 @@
           {},
           {
             styles_: [
-              contStyle,
               ss(uniq("view_list_params"), {
                 "": (s) => {
                   s.display = "grid";
@@ -1786,7 +1793,6 @@
         {},
         {
           styles_: [
-            contStyle,
             contVboxStyle,
             ss(uniq("view_list_body"), {
               "": (s) => {
@@ -1803,12 +1809,7 @@
         "div",
         {},
         {
-          styles_: [
-            contStyle,
-            classMenuWantStateOpen,
-            contVboxStyle,
-            contBodyStyle,
-          ],
+          styles_: [classMenuWantStateOpen, contVboxStyle, contBodyStyle],
           children_: children,
         }
       ),
@@ -1822,7 +1823,6 @@
         {},
         {
           styles_: [
-            contStyle,
             contVboxStyle,
             ss(uniq("cont_view_root_rows"), {
               "": (s) => {
@@ -1844,7 +1844,6 @@
       {},
       {
         styles_: [
-          contStyle,
           contHboxStyle,
           ss(uniq("cont_view_row"), {
             "": (s) => {
@@ -1869,7 +1868,6 @@
       {},
       {
         styles_: [
-          contStyle,
           ss(uniq("cont_view_block"), {
             "": (s) => {
               s.maxWidth = "100%";
@@ -1937,7 +1935,6 @@
           {},
           {
             styles_: [
-              contStyle,
               contVboxStyle,
               ss(uniq("cont_fullscreen"), {
                 "": (s) => {
@@ -1959,7 +1956,6 @@
                 {},
                 {
                   styles_: [
-                    contStyle,
                     contHboxStyle,
                     ss(uniq("cont_media_fullscreen_close_bar"), {
                       "": (s) => {
@@ -2032,7 +2028,6 @@
         {},
         {
           styles_: [
-            contStyle,
             contStackStyle,
             ss(uniq("cont_modal_outer"), {
               "": (s) => {
@@ -2052,7 +2047,6 @@
               {},
               {
                 styles_: [
-                  contStyle,
                   contVboxStyle,
                   ss(uniq("cont_modal"), {
                     "": (s) => {
@@ -2075,7 +2069,6 @@
                     {},
                     {
                       styles_: [
-                        contStyle,
                         contHboxStyle,
                         ss(uniq("cont_modal_title_bar"), {
                           "": (s) => {
@@ -2198,7 +2191,6 @@
           {},
           {
             styles_: [
-              contStyle,
               contVboxStyle,
               ss(uniq("cont_modal_share_vbox"), {
                 "": (s) => {
@@ -2212,7 +2204,6 @@
                 {},
                 {
                   styles_: [
-                    contStyle,
                     contStackStyle,
                     ss(uniq("cont_modal_share_qr"), {
                       "": (s) => {
@@ -2303,10 +2294,12 @@
 
   const contViewListStyle = ss(uniq("cont_view_list"), {
     "": (s) => {
-      s.display = "flex";
-      s.gap = varPViewList;
       s.pointerEvents = "initial";
       s.maxWidth = "100%";
+
+      s.display = "flex";
+      s.gap = varPViewList;
+      s.overflow = "hidden";
     },
     ".root": (s) => {
       s.gap = varPViewRows;
@@ -2340,7 +2333,6 @@
       {},
       {
         styles_: [
-          contStyle,
           contViewListStyle,
           contViewListStyleWrap(args.wrap),
           ss(
@@ -2381,7 +2373,7 @@
       }
     );
     if (args.xScroll) {
-      out.style.overflowX = "scroll";
+      out.style.overflowX = "auto";
     }
     if (args.gap != null) {
       out.style.gap = args.gap;
@@ -2437,7 +2429,6 @@
         {},
         {
           styles_: [
-            contStyle,
             ss(uniq("cont_view_table"), {
               "": (s) => {
                 s.display = "grid";
@@ -2479,7 +2470,7 @@
         }
       }
       if (args.xScroll) {
-        out.style.overflowX = "scroll";
+        out.style.overflowX = "auto";
       }
       return { root: out };
     };
@@ -3071,7 +3062,6 @@
         {},
         {
           styles_: [
-            contStyle,
             ss(uniq("cont_media_comic_outer2"), {
               "": (s) => {
                 s.width = "100%";
@@ -3109,7 +3099,6 @@
         {},
         {
           styles_: [
-            contStyle,
             ss(uniq("cont_media_comic_inner_strut"), {
               "": (s) => {
                 s.maxWidth = "100%";
@@ -3138,7 +3127,7 @@
                 s.top = "0";
                 s.bottom = "0";
 
-                s.overflowX = "scroll";
+                s.overflowX = "auto";
                 s.display = "flex";
 
                 // For user scrollbar interaction
@@ -3254,7 +3243,6 @@
           {},
           {
             styles_: [
-              contStyle,
               classMenuWantStateOpen,
               contBodyStyle,
               contBodyNarrowStyle,
@@ -3321,7 +3309,6 @@
       {},
       {
         styles_: [
-          contStyle,
           contBodyNarrowStyle,
           contVboxStyle,
           ss(uniq("page_node"), {
@@ -3347,12 +3334,7 @@
             "div",
             {},
             {
-              styles_: [
-                contStyle,
-                classMenuWantStateOpen,
-                contVboxStyle,
-                contBodyStyle,
-              ],
+              styles_: [classMenuWantStateOpen, contVboxStyle, contBodyStyle],
               children_: [
                 e(
                   "div",
@@ -3389,6 +3371,7 @@
       s.border = `${varLThick} solid ${varCNodeCenterLine}`;
       s.borderRadius = varRNode;
       s.padding = varPSmall;
+      s.overflow = "hidden";
     },
   });
   const leafNodeVBoxNewStyle = ss(uniq("leaf_edit_vbox_new"), {
@@ -3428,7 +3411,6 @@
         {},
         {
           styles_: [
-            contStyle,
             contVboxStyle,
             ss(uniq("cont_page_edit_section_rel"), {
               "": (s) => {
@@ -3442,7 +3424,7 @@
     });
   presentation.contNodeRowIncoming =
     /** @type {Presentation["contNodeRowIncoming"]} */ (args) => {
-      const vboxStyles = [contStyle, contVboxStyle, leafNodeVboxStyle];
+      const vboxStyles = [contVboxStyle, leafNodeVboxStyle];
       if (args.new) {
         vboxStyles.push(leafNodeVBoxNewStyle);
       }
@@ -3451,7 +3433,7 @@
           "div",
           {},
           {
-            styles_: [contStyle, contHboxStyle, leafNodeHboxStyle],
+            styles_: [contHboxStyle, leafNodeHboxStyle],
             children_: [
               e(
                 "div",
@@ -3477,7 +3459,7 @@
 
   presentation.contNodeRowOutgoing =
     /** @type {Presentation["contNodeRowOutgoing"]} */ (args) => {
-      const vboxStyles = [contStyle, contVboxStyle, leafNodeVboxStyle];
+      const vboxStyles = [contVboxStyle, leafNodeVboxStyle];
       if (args.new) {
         vboxStyles.push(leafNodeVBoxNewStyle);
       }
@@ -3486,7 +3468,7 @@
           "div",
           {},
           {
-            styles_: [contStyle, contHboxStyle, leafNodeHboxStyle],
+            styles_: [contHboxStyle, leafNodeHboxStyle],
             children_: [
               leafIcon({
                 text: textIconRelOut,
@@ -3517,7 +3499,6 @@
         {},
         {
           styles_: [
-            contStyle,
             contVboxStyle,
             leafNodeVboxStyle,
             ss(uniq("cont_page_edit_center"), {
@@ -3797,7 +3778,7 @@
         "div",
         {},
         {
-          styles_: [contStyle, contBodyNarrowStyle, contVboxStyle],
+          styles_: [contBodyNarrowStyle, contVboxStyle],
           children_: args.children,
         }
       );
@@ -3815,18 +3796,13 @@
               "div",
               {},
               {
-                styles_: [
-                  contStyle,
-                  classMenuWantStateOpen,
-                  contVboxStyle,
-                  contBodyStyle,
-                ],
+                styles_: [classMenuWantStateOpen, contVboxStyle, contBodyStyle],
                 children_: [
                   e(
                     "div",
                     {},
                     {
-                      styles_: [contStyle, contHboxStyle, pageButtonsStyle],
+                      styles_: [contHboxStyle, pageButtonsStyle],
                       children_: args.pageButtonChildren,
                     }
                   ),
@@ -3847,7 +3823,6 @@
         {},
         {
           styles_: [
-            contStyle,
             contVboxStyle,
             ss(uniq("cont_history_commit"), {
               "": (s) => {
@@ -3884,7 +3859,6 @@
         {},
         {
           styles_: [
-            contStyle,
             contVboxStyle,
             ss(uniq("cont_history_subject"), {
               "": (s) => {
@@ -3898,7 +3872,6 @@
               {},
               {
                 styles_: [
-                  contStyle,
                   contVboxStyle,
                   ss(uniq("leaf_history_subject"), {
                     "": (s) => {
@@ -3914,7 +3887,6 @@
               {},
               {
                 styles_: [
-                  contStyle,
                   contVboxStyle,
                   ss(uniq("cont_history_subject_rows"), {
                     "": (s) => {
@@ -3939,7 +3911,6 @@
           {},
           {
             styles_: [
-              contStyle,
               contVboxStyle,
               ss(uniq("cont_history_rel_center"), {
                 "": (s) => {
@@ -3961,7 +3932,6 @@
           {},
           {
             styles_: [
-              contStyle,
               contHboxStyle,
               ss(uniq("cont_history_row_hbox"), {
                 "": (s) => {
@@ -4085,7 +4055,6 @@
       {},
       {
         styles_: [
-          contStyle,
           contVboxStyle,
           ss(uniq("cont_page_query_results"), {
             "": (s) => {
@@ -4117,7 +4086,6 @@
         {},
         {
           styles_: [
-            contStyle,
             contBodyStyle,
             ss(uniq("cont_page_query"), {
               "": (s) => {
@@ -4173,30 +4141,6 @@
     },
   });
 
-  presentation.contBodyMenu =
-    /** @type {Presentation["contMenuBody"]} */ () => ({
-      root: e(
-        "div",
-        {},
-        {
-          styles_: [
-            contStyle,
-            contVboxStyle,
-            contMenuGroupVBoxStyle,
-            ss(uniq("cont_body_menu"), {
-              "": (s) => {
-                s.gridColumn = "2";
-                s.gridRow = "2";
-                s.columns = varSColWidth;
-                s.columnGap = varPMenu;
-                s.justifyContent = "start";
-              },
-            }),
-          ],
-        }
-      ),
-    });
-
   presentation.contBarMenu = /** @type {Presentation["contBarMenu"]} */ (
     args
   ) =>
@@ -4240,7 +4184,6 @@
       {},
       {
         styles_: [
-          contStyle,
           ss(uniq("cont_menu_group"), {
             [`>.${contMenuGroupVBoxStyle}`]: (s) => {
               s.padding = `${varPMenu} 0`;
@@ -4278,7 +4221,7 @@
             "summary",
             {},
             {
-              styles_: [contStyle],
+              styles_: [],
               children_: [
                 leafIcon({
                   text: textIconFoldClosed,
@@ -4296,7 +4239,7 @@
             "div",
             {},
             {
-              styles_: [contStyle, contVboxStyle, contMenuGroupVBoxStyle],
+              styles_: [contVboxStyle, contMenuGroupVBoxStyle],
               children_: args.children,
             }
           ),
@@ -4353,12 +4296,10 @@
       {},
       {
         styles_: [
-          contStyle,
           ss(uniq("cont_menu1"), {
             "": (s) => {
-              s.gridColumn = "1/3";
               s.display = "grid";
-              s.gridTemplateColumns = "subgrid";
+              s.gridTemplateColumns = `${varSCol1Width} 1fr`;
               s.gridTemplateRows = "auto auto 1fr";
             },
           }),
@@ -4369,15 +4310,13 @@
             {},
             {
               styles_: [
-                contStyle,
                 classMenuWantStateOpen,
                 contVboxStyle,
                 contMenuGroupVBoxStyle,
                 ss(uniq("cont_menu_body"), {
                   "": (s) => {
                     s.gridColumn = "2";
-                    s.columns = varSColWidth;
-                    s.columnGap = varPMenu;
+
                     s.justifyContent = "start";
                     s.minHeight = `calc(100dvh - 5cm)`;
                   },
@@ -4401,7 +4340,6 @@
                 },
                 {
                   styles_: [
-                    contStyle,
                     ss(uniq("cont_bar_menu_user"), {
                       "": (s) => {
                         s.opacity = varOMenuBar;
@@ -4443,23 +4381,37 @@
         "div",
         {},
         {
-          styles_: [
-            ss(uniq("body"), {
-              "": (s) => {
-                s.display = "grid";
-                s.overflowX = "hidden";
-                s.maxWidth = "100dvw";
-                s.gridTemplateColumns = `${varSCol1Width} 1fr auto`;
-                s.gridTemplateRows = "auto 1fr";
-              },
-            }),
-          ],
+          styles_: [contStackStyle],
           children_: [
-            presentation.contTitle({
-              left: args.mainTitle,
-              right: admenuButton,
-            }).root,
-            args.mainBody,
+            e(
+              "div",
+              {},
+              {
+                styles_: [
+                  ss(uniq("body"), {
+                    "": (s) => {
+                      s.display = "grid";
+                      s.width = "100dvw";
+                      s.maxWidth = "100dvw";
+                      s.height = "100dvh";
+                      s.pointerEvents = "initial";
+
+                      s.overflowX = "hidden";
+                      s.overflowY = "auto";
+                      s.gridTemplateColumns = `${varSCol1Width} 1fr auto`;
+                      s.gridTemplateRows = "auto 1fr";
+                    },
+                  }),
+                ],
+                children_: [
+                  presentation.contTitle({
+                    left: args.mainTitle,
+                    right: admenuButton,
+                  }).root,
+                  args.mainBody,
+                ],
+              }
+            ),
             e(
               "div",
               {
@@ -4467,20 +4419,18 @@
               },
               {
                 styles_: [
-                  contStyle,
                   classMenuWantStateOpen,
+                  contVboxStyle,
                   ss(uniq("cont_menu"), {
                     "": (s) => {
                       s.zIndex = "3";
-                      s.gridRow = "1/4";
-                      s.gridColumn = "1/3";
+                      s.width = `calc(100dvw - ${varSCol3Width})`;
                       s.backgroundColor = varCBackgroundMenu;
                       s.filter =
                         "drop-shadow(0.05cm 0px 0.05cm rgba(0, 0, 0, 0.06))";
-                      s.overflow = "hidden";
-                      s.display = "grid";
-                      s.gridTemplateColumns = "subgrid";
-                      s.gridTemplateRows = "subgrid";
+
+                      s.overflowX = "hidden";
+                      s.overflowY = "auto";
                       s.position = "relative";
                       s.transition = "0.03s left";
                       s.pointerEvents = "initial";
@@ -4500,12 +4450,10 @@
                       {},
                       {
                         styles_: [
-                          contStyle,
                           contHboxStyle,
                           ss(uniq("menu_title"), {
                             "": (s) => {
-                              s.gridColumn = "2";
-                              s.gridRow = "1";
+                              s.paddingLeft = varSCol1Width;
                               s.alignItems = "center";
                               s.gap = varPAppTitle;
                             },
@@ -4517,7 +4465,6 @@
                             { textContent: "sunwet" },
                             {
                               styles_: [
-                                contStyle,
                                 ss(uniq("menu_title_text"), {
                                   "": (s) => {
                                     s.fontSize = varFTitle;
@@ -4616,7 +4563,6 @@
         {},
         {
           styles_: [
-            contStyle,
             contStackStyle,
             ss(uniq("app_link_perms_bg"), {
               "": (s) => {
@@ -4637,8 +4583,11 @@
       {},
       {
         styles_: [
-          contStyle,
           ss(uniq("cont_app_link_display"), {
+            "": (s) => {
+              // Fit/width/height ignored otherwise...
+              s.overflow = "hidden";
+            },
             ">*": (s) => {
               s.objectFit = "contain";
               s.aspectRatio = "auto";
@@ -4648,23 +4597,6 @@
           }),
         ],
         children_: [],
-      }
-    );
-    const displayUnder2 = e(
-      "div",
-      {},
-      {
-        styles_: [
-          contStyle,
-          ss(uniq("leaf_app_display_under2"), {
-            "": (s) => {
-              s.aspectRatio = "1/1";
-              s.objectFit = "contain";
-              s.width = "100%";
-              s.height = "100%";
-            },
-          }),
-        ],
       }
     );
     const hideableStyle = ss(uniq("app_link_display_hideable"), {
@@ -4680,7 +4612,6 @@
       `,
       {
         styles_: [
-          contStyle,
           hideableStyle,
           classStateHide,
           ss(uniq("leaf_app_display_under"), {
@@ -4712,18 +4643,43 @@
       {},
       {
         styles_: [
-          contStyle,
           contStackStyle,
           ss(uniq("app_link_display_stack"), {
             "": (s) => {
               s.flexShrink = "1";
+
               s.backgroundColor = varCLinkDisplayBg;
+
               s.paddingTop = varPSmall;
               s.paddingBottom = varPSmall;
+              s.overflow = "hidden";
             },
           }),
         ],
-        children_: [displayUnder2, displayUnder, display, displayOver],
+        children_: [
+          e(
+            "div",
+            {},
+            {
+              styles_: [
+                ss(uniq("leaf_app_display_under2"), {
+                  "": (s) => {
+                    s.aspectRatio = "1/1";
+                    // Ignores max height/width otherwise... why?
+                    s.overflow = "hidden";
+                    s.width = "100%";
+                    s.maxWidth = "100%";
+                    s.height = "100%";
+                    s.maxHeight = "100%";
+                  },
+                }),
+              ],
+            }
+          ),
+          displayUnder,
+          display,
+          displayOver,
+        ],
       }
     );
     const textStyle = ss(uniq("leaf_app_link_text"), {
@@ -4760,7 +4716,6 @@
         {},
         {
           styles_: [
-            contStyle,
             contVboxStyle,
             ss(uniq("app_link"), {
               "": (s) => {
@@ -4782,7 +4737,6 @@
               {},
               {
                 styles_: [
-                  contStyle,
                   contVboxStyle,
                   ss(uniq("cont_app_link_vert"), {
                     "": (s) => {
