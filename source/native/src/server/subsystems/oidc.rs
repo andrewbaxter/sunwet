@@ -100,7 +100,7 @@ async fn oidc_http_client(
     req: openidconnect::HttpRequest,
 ) -> Result<openidconnect::HttpResponse, loga::Error> {
     let log = log.clone();
-    let mut conn = htreq::connect(&Uri::try_from(&req.url.to_string()).unwrap()).await?;
+    let mut conn = htreq::connect(htreq::Limits::default(), &Uri::try_from(&req.url.to_string()).unwrap()).await?;
     let mut req1 = Request::builder();
     req1 = req1.uri(req.url.to_string());
     req1 = req1.method(match req.method {
@@ -117,8 +117,8 @@ async fn oidc_http_client(
         req1 = req1.header(k.to_string(), http::HeaderValue::from_bytes(v.as_bytes()).unwrap());
     }
     let req1 = req1.body(body_full(req.body)).unwrap();
-    let (code, headers, continue_) = htreq::send(&log, &mut conn, Duration::from_secs(10), req1).await?;
-    let body = htreq::receive(continue_, 10000, Duration::from_secs(10)).await?;
+    let (code, headers, continue_) = htreq::send(&log, htreq::Limits::default(), &mut conn, req1).await?;
+    let body = htreq::receive(htreq::Limits::default(), continue_).await?;
     return Ok(openidconnect::HttpResponse {
         status_code: openidconnect::http::StatusCode::from_u16(code.as_u16()).unwrap(),
         headers: {

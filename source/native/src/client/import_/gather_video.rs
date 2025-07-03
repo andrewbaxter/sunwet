@@ -1,7 +1,7 @@
 use {
     super::gather::{
         Gather,
-        GatherTrackType,
+        GatherMedia,
     },
     image::EncodableLayout,
     loga::{
@@ -17,7 +17,7 @@ use {
 };
 
 pub fn gather(path: &Path) -> Result<Gather, loga::Error> {
-    let mut g = Gather::new(GatherTrackType::Video);
+    let mut g = Gather::new(GatherMedia::Video);
     let mut cmd = Command::new("mkvextract");
     cmd.arg(path).arg("tags").arg("-");
     let elements = cmd.output().context_with("Error extracting mkv tags", ea!(command = cmd.dbg_str()))?;

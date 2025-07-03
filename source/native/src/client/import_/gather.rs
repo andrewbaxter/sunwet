@@ -17,7 +17,7 @@ use {
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum GatherTrackType {
+pub enum GatherMedia {
     Audio,
     Video,
     Comic,
@@ -30,14 +30,14 @@ pub struct Gather {
     pub track_artist: Vec<String>,
     pub track_name: Option<String>,
     pub track_index: Option<f64>,
-    pub track_type: GatherTrackType,
+    pub track_type: GatherMedia,
     pub track_superindex: Option<f64>,
     pub track_language: Option<String>,
     pub track_cover: HashMap<usize, PathBuf>,
 }
 
 impl Gather {
-    pub fn new(type_: GatherTrackType) -> Gather {
+    pub fn new(type_: GatherMedia) -> Gather {
         return Gather {
             album_name: Default::default(),
             album_artist: Default::default(),

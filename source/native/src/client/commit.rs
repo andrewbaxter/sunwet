@@ -1,6 +1,7 @@
 use {
     crate::{
         client::req::{
+            http_limits,
             req,
             server_headers,
             server_url,
@@ -220,7 +221,7 @@ pub async fn handle_commit(c: CommitCommand) -> Result<(), loga::Error> {
     // # Send commit
     async fn reconnect(log: &Log, url: &Uri) -> Conn {
         loop {
-            match htreq::connect(&url).await {
+            match htreq::connect(http_limits(), &url).await {
                 Ok(c) => return c,
                 Err(e) => {
                     log.log_err(loga::WARN, e.stack_context(&log, "Error connecting to server"));
@@ -270,7 +271,7 @@ pub async fn handle_commit(c: CommitCommand) -> Result<(), loga::Error> {
                 headers
             };
             loop {
-                match htreq::post(&log, &mut conn, &url, &headers, chunk.clone(), 1024).await {
+                match htreq::post(&log, http_limits(), &mut conn, &url, &headers, chunk.clone()).await {
                     Ok(_) => {
                         break;
                     },

@@ -526,16 +526,18 @@
                       }).root,
                       presentation.contNodeRowIncoming({
                         children: [
-                          presentation.leafNodeViewNodeButtons({
-                            history: "https://abcd",
-                            download: "https://abcd",
-                          }).root,
                           presentation.leafNodeViewNodeText({
                             value: "ABCD-1234",
                             link: "abcd",
                           }).root,
                           presentation.leafNodeViewPredicate({
                             value: "sunwet/1/has",
+                          }).root,
+                          presentation.leafMediaImg({ src: "testcover.jpg" })
+                            .root,
+                          presentation.leafNodeViewNodeButtons({
+                            history: "https://abcd",
+                            download: "https://abcd",
                           }).root,
                         ],
                         new: false,
@@ -622,7 +624,6 @@
                     children: [
                       presentation.contNodeRowIncoming({
                         children: [
-                          presentation.leafNodeEditButtons({}).root,
                           presentation.leafNodeEditNode({
                             inputType: nodeTypeSel({
                               hint: "Subject",
@@ -636,6 +637,9 @@
                           presentation.leafNodeEditPredicate({
                             value: "sunwet/1/is",
                           }).root,
+                          presentation.leafMediaImg({ src: "testcover.jpg" })
+                            .root,
+                          presentation.leafNodeEditButtons({}).root,
                         ],
                         new: true,
                       }).root,

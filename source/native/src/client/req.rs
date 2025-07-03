@@ -21,6 +21,8 @@ use {
         collections::HashMap,
         env,
         str::FromStr,
+        time::Duration,
+        usize,
     },
 };
 
@@ -37,15 +39,27 @@ pub fn server_headers() -> Result<HashMap<String, String>, loga::Error> {
     return Ok([(AUTHORIZATION.to_string(), format!("{}{}", HEADER_BEARER_PREFIX, token))].into_iter().collect());
 }
 
+pub fn http_limits() -> htreq::Limits {
+    return htreq::Limits {
+        resolve_time: Duration::from_secs(60),
+        connect_time: Duration::from_secs(60),
+        read_header_time: Duration::from_secs(300),
+        read_body_time: Duration::from_secs(300),
+        read_body_size: usize::MAX,
+    };
+}
+
 pub async fn req<
     T: C2SReqTrait,
 >(log: &Log, conn: &mut Conn, headers: &HashMap<String, String>, url: &Uri, req: T) -> Result<T::Resp, loga::Error> {
-    return Ok(htreq::post_json::<T::Resp>(log, conn, &url.join("api"), headers, req.into(), usize::MAX).await?);
+    return Ok(
+        htreq::post_json::<T::Resp>(log, http_limits(), conn, &url.join("api"), headers, req.into()).await?,
+    );
 }
 
 pub async fn req_simple<T: C2SReqTrait>(log: &Log, req0: T) -> Result<T::Resp, loga::Error> {
     let url = server_url()?;
     let headers = server_headers()?;
-    let mut conn = htreq::connect(&url).await?;
+    let mut conn = htreq::connect(http_limits(), &url).await?;
     return Ok(req(log, &mut conn, &headers, &url, req0).await?);
 }

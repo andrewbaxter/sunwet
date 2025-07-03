@@ -13,7 +13,7 @@ use {
     by_address::ByAddress,
     chrono::Utc,
     flowcontrol::shed,
-    gather::GatherTrackType,
+    gather::GatherMedia,
     loga::{
         ea,
         DebugDisplay,
@@ -240,7 +240,7 @@ pub fn obj_is_document() -> CliNode {
 
 fn is_image(p: &[u8]) -> bool {
     match p {
-        b"png" | b"jpg" | b"bmp" | b"tif" | b"gif" | b"webp" | b"webm" => true,
+        b"png" | b"jpg" | b"jfif" | b"bmp" | b"tif" | b"gif" | b"webp" | b"webm" => true,
         _ => false,
     }
 }
@@ -394,7 +394,7 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
     struct GatherTrack {
         id: Node,
         file: PathBuf,
-        type_: GatherTrackType,
+        type_: GatherMedia,
         index: Option<f64>,
         superindex: Option<f64>,
         artist: Vec<Rc<RefCell<GatherArtist>>>,
@@ -423,6 +423,7 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
 
     #[derive(Hash, PartialEq, Eq, Clone)]
     struct AlbumKey {
+        media: GatherMedia,
         album_artist: BTreeSet<ByAddress<Rc<RefCell<GatherArtist>>>>,
         name: String,
         lang: Option<String>,
@@ -475,7 +476,7 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
                 ),
             );
         }
-        if g.track_type != GatherTrackType::Video && g.track_artist.is_empty() {
+        if g.track_type != GatherMedia::Video && g.track_artist.is_empty() {
             return Err(loga::err_with("File missing track artist", ea!(path = file.path().dbg_str())));
         }
 
@@ -499,6 +500,7 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
             return Err(loga::err_with("File missing track and album name", ea!(ath = file.path().dbg_str())));
         };
         let album = match albums.entry(AlbumKey {
+            media: g.track_type,
             album_artist: album_artist2.clone(),
             name: album_name.clone(),
             lang: g.track_language.clone(),
@@ -640,10 +642,10 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
         triples.push(triple(&node_node(&album.id), PREDICATE_IS, &obj_is_album()));
         triples.push(
             triple(&node_node(&album.id), PREDICATE_MEDIA, &match album.tracks.iter().next().unwrap().borrow().type_ {
-                GatherTrackType::Audio => obj_media_audio(),
-                GatherTrackType::Video => obj_media_video(),
-                GatherTrackType::Comic => obj_media_comic(),
-                GatherTrackType::Book => obj_media_book(),
+                GatherMedia::Audio => obj_media_audio(),
+                GatherMedia::Video => obj_media_video(),
+                GatherMedia::Comic => obj_media_comic(),
+                GatherMedia::Book => obj_media_book(),
             }),
         );
         if let Some(lang) = &album.tracks.iter().next().unwrap().borrow().lang {

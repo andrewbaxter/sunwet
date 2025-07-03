@@ -2,7 +2,7 @@ use {
     super::gather::{
         prep_cover,
         Gather,
-        GatherTrackType,
+        GatherMedia,
     },
     loga::{
         ea,
@@ -57,7 +57,7 @@ fn text(e: &xmltree::Element, k: &str) -> Option<String> {
 }
 
 pub fn gather(sunwet_dir: &Path, path: &Path) -> Result<Gather, loga::Error> {
-    let mut g = Gather::new(GatherTrackType::Comic);
+    let mut g = Gather::new(GatherMedia::Comic);
     let mut list_cmd = Command::new("7zz");
     list_cmd.arg("l");
     list_cmd.arg("-ba");

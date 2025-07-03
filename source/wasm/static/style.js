@@ -3378,6 +3378,9 @@
       s.alignItems = "stretch";
       s.position = "relative";
     },
+    ">*": (s) => {
+      s.flexBasis = "0";
+    },
   });
   const leafNodeVboxStyle = ss(uniq("leaf_edit_vbox"), {
     "": (s) => {

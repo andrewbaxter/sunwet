@@ -2,12 +2,12 @@ use {
     super::gather::{
         prep_cover,
         Gather,
-        GatherTrackType,
+        GatherMedia,
     },
-    epub::doc::EpubDoc,
-    loga::{
-        ResultContext,
+    epub::doc::{
+        EpubDoc,
     },
+    loga::ResultContext,
     std::{
         path::Path,
         str::FromStr,
@@ -15,7 +15,7 @@ use {
 };
 
 pub fn gather(sunwet_dir: &Path, path: &Path) -> Result<Gather, loga::Error> {
-    let mut g = Gather::new(GatherTrackType::Book);
+    let mut g = Gather::new(GatherMedia::Book);
     let mut epub = EpubDoc::new(path).context("Failed to read epub")?;
     if let Some(title) = epub.mdata("title") {
         g.track_name = Some(title.value.clone());
@@ -28,6 +28,15 @@ pub fn gather(sunwet_dir: &Path, path: &Path) -> Result<Gather, loga::Error> {
     }
     if let Some(artist) = epub.mdata("creator") {
         g.track_artist.push(artist.value.clone());
+    }
+    if let Some(artist) = epub.mdata("calibre:series") {
+        g.album_name = Some(artist.value.clone());
+    }
+    if let Some(idx) = epub.mdata("calibre:series_index") {
+        let Ok(i) = f64::from_str(&idx.value) else {
+            return Err(loga::err(format!("Epub has invalid index (calibre:series_index): [{}]", idx.value)));
+        };
+        g.track_index = Some(i);
     }
     if let Some(album) = epub.mdata("belongs-to-collection") {
         g.album_name = Some(album.value.clone());

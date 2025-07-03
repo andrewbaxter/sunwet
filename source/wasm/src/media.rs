@@ -507,7 +507,7 @@ impl PlaylistMedia for PlaylistMediaComic {
                             }
                         }
                         let internal_at = Prim::new(*at.borrow());
-                        state.inner.ref_on("fullscreenchange", {
+                        state.inner.ref_own(|_| EventListener::new(&window(), "fullscreenchange", {
                             let state = Rc::downgrade(&state);
                             let internal_at = internal_at.clone();
                             move |_| {
@@ -538,7 +538,7 @@ impl PlaylistMedia for PlaylistMediaComic {
                                     }
                                 }));
                             }
-                        });
+                        }));
                         state.inner.ref_on("scroll", {
                             let visible = visible.clone();
                             let state = Rc::downgrade(&state);

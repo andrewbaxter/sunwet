@@ -2,7 +2,7 @@ use {
     super::gather::{
         prep_cover,
         Gather,
-        GatherTrackType,
+        GatherMedia,
     },
     flowcontrol::shed,
     loga::{
@@ -19,7 +19,7 @@ use {
 };
 
 pub fn gather(sunwet_dir: &Path, path: &Path, e: &OsStr) -> Result<Gather, loga::Error> {
-    let mut g = Gather::new(GatherTrackType::Audio);
+    let mut g = Gather::new(GatherMedia::Audio);
     let mut info =
         match symphonia
         ::default
