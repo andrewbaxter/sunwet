@@ -17,17 +17,18 @@ use {
         hash::Hash,
         str::FromStr,
     },
+    ts_rs::TS,
 };
 
 const HASH_PREFIX_SHA256: &'static str = "sha256";
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum FileHash_ {
     Sha256(String),
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, JsonSchema)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, JsonSchema, TS)]
 pub struct FileHash(pub FileHash_);
 
 impl FileHash {
@@ -308,22 +309,23 @@ impl Ord for Node {
     }
 }
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "lowercase")]
 enum SerdeNodeType {
     F,
     V,
 }
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "lowercase")]
 struct SerdeNode_ {
     t: SerdeNodeType,
     v: serde_json::Value,
 }
 
-#[derive(JsonSchema)]
-struct SerdeNode(SerdeNode_);
+#[derive(JsonSchema, TS)]
+#[doc(hidden)]
+pub struct SerdeNode(SerdeNode_);
 
 derive_canonical_serde!(SerdeNode);
 
@@ -358,6 +360,31 @@ impl<'de> Deserialize<'de> for Node {
                 return Ok(Node::Value(n.0.v));
             },
         }
+    }
+}
+
+impl TS for Node {
+    type WithoutGenerics = <SerdeNode as TS>::WithoutGenerics;
+    type OptionInnerType = <SerdeNode as TS>::OptionInnerType;
+
+    fn decl() -> String {
+        return SerdeNode::decl();
+    }
+
+    fn decl_concrete() -> String {
+        return SerdeNode::decl_concrete();
+    }
+
+    fn name() -> String {
+        return SerdeNode::name();
+    }
+
+    fn inline() -> String {
+        return SerdeNode::inline();
+    }
+
+    fn inline_flattened() -> String {
+        return SerdeNode::inline_flattened();
     }
 }
 

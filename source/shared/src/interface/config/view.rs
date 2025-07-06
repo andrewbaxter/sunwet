@@ -9,10 +9,14 @@ use {
         Serialize,
     },
     std::collections::BTreeMap,
+    ts_rs::TS,
 };
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema, PartialEq, Eq, PartialOrd, Ord)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema, TS, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(
+    //. rename_all = "snake_case",
+    deny_unknown_fields
+)]
 pub struct ViewId(pub String);
 
 impl std::fmt::Display for ViewId {
@@ -21,7 +25,7 @@ impl std::fmt::Display for ViewId {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Direction {
     Up,
@@ -30,7 +34,7 @@ pub enum Direction {
     Right,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Orientation {
     UpLeft,
@@ -63,7 +67,7 @@ impl Orientation {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, JsonSchema, Hash, Default)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, JsonSchema, TS, Hash, Default)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum TransAlign {
     #[default]
@@ -72,7 +76,7 @@ pub enum TransAlign {
     End,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, JsonSchema, Hash, Default)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, JsonSchema, TS, Hash, Default)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum TextSizeMode {
     #[default]
@@ -80,28 +84,28 @@ pub enum TextSizeMode {
     Ellipsize,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum FieldOrLiteral {
     Field(String),
     Literal(Node),
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum FieldOrLiteralString {
     Field(String),
     Literal(String),
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum QueryOrField {
     Field(String),
     Query(String),
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct LinkDestView {
     pub id: ViewId,
@@ -110,7 +114,7 @@ pub struct LinkDestView {
     pub parameters: BTreeMap<String, FieldOrLiteral>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct LinkDestForm {
     pub id: FormId,
@@ -118,7 +122,7 @@ pub struct LinkDestForm {
     pub parameters: BTreeMap<String, FieldOrLiteral>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum LinkDest {
     Plain(FieldOrLiteral),
@@ -127,14 +131,14 @@ pub enum LinkDest {
     Node(FieldOrLiteral),
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct Link {
     pub title: FieldOrLiteral,
     pub dest: LinkDest,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct WidgetText {
     pub data: FieldOrLiteralString,
@@ -157,7 +161,7 @@ pub struct WidgetText {
     pub link: Option<Link>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct WidgetDate {
     pub data: FieldOrLiteralString,
@@ -172,7 +176,7 @@ pub struct WidgetDate {
     pub trans_align: TransAlign,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct WidgetTime {
     pub data: FieldOrLiteralString,
@@ -187,7 +191,7 @@ pub struct WidgetTime {
     pub trans_align: TransAlign,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct WidgetDatetime {
     pub data: FieldOrLiteralString,
@@ -202,7 +206,7 @@ pub struct WidgetDatetime {
     pub trans_align: TransAlign,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct WidgetColor {
     pub data: FieldOrLiteralString,
@@ -215,7 +219,7 @@ pub struct WidgetColor {
     pub trans_align: TransAlign,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct WidgetMedia {
     pub data: FieldOrLiteral,
@@ -236,7 +240,7 @@ pub struct WidgetMedia {
     pub link: Option<Link>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct WidgetPlayButton {
     pub media_file_field: String,
@@ -260,7 +264,7 @@ pub struct WidgetPlayButton {
     pub trans_align: TransAlign,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct DataRowsLayoutUnaligned {
     #[serde(default)]
@@ -277,7 +281,7 @@ pub struct DataRowsLayoutUnaligned {
     pub wrap: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct DataRowsLayoutTable {
     #[serde(default)]
@@ -288,14 +292,14 @@ pub struct DataRowsLayoutTable {
     pub elements: Vec<Widget>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum DataRowsLayout {
     Unaligned(DataRowsLayoutUnaligned),
     Table(DataRowsLayoutTable),
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct WidgetDataRows {
     /// Where to get the data for the sublist.
@@ -306,7 +310,7 @@ pub struct WidgetDataRows {
     pub trans_align: TransAlign,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct Block {
     /// Sets the default width of the block. If not specified, space will be divided
@@ -316,7 +320,7 @@ pub struct Block {
     pub widget: Widget,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct WidgetRootDataRows {
     /// Where to get the data for the sublist.
@@ -325,7 +329,7 @@ pub struct WidgetRootDataRows {
     pub row_blocks: Vec<Block>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct WidgetLayout {
     pub direction: Direction,
@@ -344,7 +348,7 @@ pub struct WidgetLayout {
     pub wrap: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Widget {
     Layout(WidgetLayout),
@@ -359,7 +363,7 @@ pub enum Widget {
     Space,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum ClientViewParam {
     /// A simple text box.
@@ -370,7 +374,7 @@ pub enum ClientViewParam {
     Text,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ClientView {
     pub root: WidgetRootDataRows,

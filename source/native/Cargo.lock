@@ -2523,6 +2523,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util",
+ "ts-rs",
  "urlencoding",
  "uuid",
  "walkdir",
@@ -3826,6 +3827,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "ts-rs",
 ]
 
 [[package]]
@@ -4612,6 +4614,29 @@ name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
+
+[[package]]
+name = "ts-rs"
+version = "11.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ef1b7a6d914a34127ed8e1fa927eb7088903787bcded4fa3eef8f85ee1568be"
+dependencies = [
+ "serde_json",
+ "thiserror 2.0.12",
+ "ts-rs-macros",
+]
+
+[[package]]
+name = "ts-rs-macros"
+version = "11.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9d4ed7b4c18cc150a6a0a1e9ea1ecfa688791220781af6e119f9599a8502a0a"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.101",
+ "termcolor",
+]
 
 [[package]]
 name = "tungstenite"

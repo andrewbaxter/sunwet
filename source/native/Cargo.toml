@@ -67,6 +67,7 @@ symphonia = { version = "0.5", features = ["all"] }
 uuid = { version = "1", features = ["v4"] }
 epub = { git = "https://github.com/danigm/epub-rs", rev = "27eeef34a8987dbbd86260deff994cfde34a4846" }
 xmltree = "0.11"
+ts-rs = { version = "11", features = ["serde-json-impl"] }
 
 [build-dependencies]
 good-ormning = { version = "0.3", features = ["sqlite", "chrono"] }

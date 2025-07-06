@@ -1,11 +1,12 @@
 use {
-    flowcontrol::ta_return,
+    flowcontrol::{
+        shed,
+        ta_return,
+    },
     gloo::{
         events::EventListener,
-        utils::{
-            document,
-            window,
-        },
+        timers::future::TimeoutFuture,
+        utils::window,
     },
     rooting::{
         spawn_rooted,
@@ -20,8 +21,12 @@ use {
     tokio::sync::mpsc,
     wasm::js::{
         el_async,
+        log,
         style_export,
+        ElExt,
     },
+    wasm_bindgen::JsCast,
+    web_sys::Element,
 };
 
 fn build_infinite_<
@@ -40,17 +45,45 @@ fn build_infinite_<
                     async move {
                         let (tx, mut rx) = mpsc::unbounded_channel();
                         _ = tx.send(());
-                        let listener = EventListener::new(&window(), "scroll", move |_| {
+                        TimeoutFuture::new(500).await;
+                        let scroll_parent = {
+                            let Some(at) = out.upgrade() else {
+                                return;
+                            };
+                            let mut at = at.html().dyn_into::<Element>().unwrap();
+                            loop {
+                                if window()
+                                    .get_computed_style(&at)
+                                    .unwrap()
+                                    .unwrap()
+                                    .get_property_value("overflow-y")
+                                    .as_ref()
+                                    .map(|x| x.as_str()) ==
+                                    Ok("auto") {
+                                    break;
+                                };
+                                let Some(at1) = at.parent_element() else {
+                                    log("Couldn't find scroll parent for infinite!");
+                                    panic!();
+                                };
+                                at = at1;
+                            }
+                            at
+                        };
+                        let listener = EventListener::new(&scroll_parent, "scroll", move |_| {
                             _ = tx.send(());
                         });
-                        while let Some(_) = rx.recv().await {
-                            let html = document().body().unwrap().parent_element().unwrap();
-                            let scroll = html.scroll_top();
-                            let view_height = html.client_height();
-                            let full_height = html.scroll_height();
-                            if scroll + view_height * 3 / 2 > full_height {
-                                break;
+                        shed!{
+                            'trigger _;
+                            while let Some(_) = rx.recv().await {
+                                let scroll = scroll_parent.scroll_top();
+                                let view_height = scroll_parent.client_height();
+                                let full_height = scroll_parent.scroll_height();
+                                if scroll + view_height * 3 / 2 > full_height {
+                                    break 'trigger;
+                                }
                             }
+                            return;
                         }
                         drop(listener);
                         if let Some(out) = out.upgrade() {

@@ -8,10 +8,14 @@ use {
         Deserialize,
         Serialize,
     },
+    ts_rs::TS,
 };
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema, PartialEq, Eq, PartialOrd, Ord)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema, TS, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(
+    //. TS bug https://github.com/Aleph-Alpha/ts-rs/issues/421: rename_all = "snake_case",
+    deny_unknown_fields
+)]
 pub struct FormId(pub String);
 
 impl std::fmt::Display for FormId {
@@ -20,53 +24,53 @@ impl std::fmt::Display for FormId {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FormFieldComment {
     pub text: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FormFieldText {
     #[serde(default)]
     pub placeholder: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FormFieldNumber {
     #[serde(default)]
     pub placeholder: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FormFieldBool {
     #[serde(default)]
     pub initial_on: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FormFieldRgbU8 {
     #[serde(default)]
     pub initial: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FormFieldConstEnum {
     pub choices: Vec<(String, Node)>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FormFieldQueryEnum {
     pub query: Query,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum FormFieldType {
     /// Generate a unique id (uuid) - no visible entry.
@@ -89,7 +93,7 @@ pub enum FormFieldType {
     File,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FormField {
     pub id: String,
@@ -97,21 +101,21 @@ pub struct FormField {
     pub r#type: FormFieldType,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum InputOrInlineText {
     Input(String),
     Inline(String),
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum InputOrInline {
     Input(String),
     Inline(Node),
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FormOutput {
     pub subject: InputOrInline,
@@ -119,7 +123,7 @@ pub struct FormOutput {
     pub object: InputOrInline,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ClientForm {
     /// Form fields and generated data (ids)

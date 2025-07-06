@@ -12,7 +12,7 @@
     "api_tokens": {
       "type": "object",
       "additionalProperties": {
-        "$ref": "#/definitions/IamGrants"
+        "$ref": "#/definitions/ConfigIamGrants"
       }
     },
     "forms": {
@@ -36,7 +36,7 @@
       },
       "allOf": [
         {
-          "$ref": "#/definitions/IamGrantsLimited"
+          "$ref": "#/definitions/ConfigIamGrantsLimited"
         }
       ]
     },
@@ -161,6 +161,61 @@
           ]
         }
       ]
+    },
+    "ConfigIamGrants": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "admin"
+          ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "limited"
+          ],
+          "properties": {
+            "limited": {
+              "$ref": "#/definitions/ConfigIamGrantsLimited"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ConfigIamGrantsLimited": {
+      "type": "object",
+      "properties": {
+        "forms": {
+          "description": "Give the user access to all these forms.",
+          "default": [],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FormId"
+          },
+          "uniqueItems": true
+        },
+        "menu_items": {
+          "description": "For every menu item id listed here, give the user access to the menu item, all child menu items (if a section) transitively, and any forms or views directly linked by leaf menu items.",
+          "default": [],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MenuItemId"
+          },
+          "uniqueItems": true
+        },
+        "views": {
+          "description": "Give the user access to all these views.",
+          "default": [],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ViewId"
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
     },
     "DataRowsLayout": {
       "oneOf": [
@@ -724,6 +779,9 @@
         }
       ]
     },
+    "FormId": {
+      "type": "string"
+    },
     "FormLink": {
       "type": "object",
       "required": [
@@ -731,7 +789,7 @@
       ],
       "properties": {
         "form_id": {
-          "type": "string"
+          "$ref": "#/definitions/FormId"
         },
         "parameters": {
           "description": "Provide initial parameters for fields, by field id.",
@@ -760,61 +818,6 @@
         },
         "subject": {
           "$ref": "#/definitions/InputOrInline"
-        }
-      },
-      "additionalProperties": false
-    },
-    "IamGrants": {
-      "oneOf": [
-        {
-          "type": "string",
-          "enum": [
-            "admin"
-          ]
-        },
-        {
-          "type": "object",
-          "required": [
-            "limited"
-          ],
-          "properties": {
-            "limited": {
-              "$ref": "#/definitions/IamGrantsLimited"
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
-    },
-    "IamGrantsLimited": {
-      "type": "object",
-      "properties": {
-        "forms": {
-          "description": "Give the user access to all these forms.",
-          "default": [],
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "uniqueItems": true
-        },
-        "menu_items": {
-          "description": "For every menu item id listed here, give the user access to the menu item, all child menu items (if a section) transitively, and any forms or views directly linked by leaf menu items.",
-          "default": [],
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "uniqueItems": true
-        },
-        "views": {
-          "description": "Give the user access to all these views.",
-          "default": [],
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "uniqueItems": true
         }
       },
       "additionalProperties": false
@@ -958,7 +961,7 @@
       ],
       "properties": {
         "id": {
-          "type": "string"
+          "$ref": "#/definitions/FormId"
         },
         "parameters": {
           "description": "Provide other initial parameters for fields, by field id.",
@@ -977,7 +980,7 @@
       ],
       "properties": {
         "id": {
-          "type": "string"
+          "$ref": "#/definitions/ViewId"
         },
         "parameters": {
           "description": "Provide initial query parameters.",
@@ -989,6 +992,9 @@
         }
       },
       "additionalProperties": false
+    },
+    "MenuItemId": {
+      "type": "string"
     },
     "MenuItemPage": {
       "oneOf": [
@@ -1189,7 +1195,11 @@
         },
         "id": {
           "description": "The id of a menu item is used for permissions.",
-          "type": "string"
+          "allOf": [
+            {
+              "$ref": "#/definitions/MenuItemId"
+            }
+          ]
         },
         "name": {
           "type": "string"
@@ -1425,6 +1435,9 @@
       },
       "additionalProperties": false
     },
+    "ViewId": {
+      "type": "string"
+    },
     "ViewLink": {
       "type": "object",
       "required": [
@@ -1440,7 +1453,7 @@
           }
         },
         "view_id": {
-          "type": "string"
+          "$ref": "#/definitions/ViewId"
         }
       },
       "additionalProperties": false

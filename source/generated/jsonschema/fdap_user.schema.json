@@ -7,12 +7,12 @@
   ],
   "properties": {
     "iam_grants": {
-      "$ref": "#/definitions/IamGrants"
+      "$ref": "#/definitions/ConfigIamGrants"
     }
   },
   "additionalProperties": false,
   "definitions": {
-    "IamGrants": {
+    "ConfigIamGrants": {
       "oneOf": [
         {
           "type": "string",
@@ -27,14 +27,14 @@
           ],
           "properties": {
             "limited": {
-              "$ref": "#/definitions/IamGrantsLimited"
+              "$ref": "#/definitions/ConfigIamGrantsLimited"
             }
           },
           "additionalProperties": false
         }
       ]
     },
-    "IamGrantsLimited": {
+    "ConfigIamGrantsLimited": {
       "type": "object",
       "properties": {
         "forms": {
@@ -42,7 +42,7 @@
           "default": [],
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/definitions/FormId"
           },
           "uniqueItems": true
         },
@@ -51,7 +51,7 @@
           "default": [],
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/definitions/MenuItemId"
           },
           "uniqueItems": true
         },
@@ -60,12 +60,21 @@
           "default": [],
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/definitions/ViewId"
           },
           "uniqueItems": true
         }
       },
       "additionalProperties": false
+    },
+    "FormId": {
+      "type": "string"
+    },
+    "MenuItemId": {
+      "type": "string"
+    },
+    "ViewId": {
+      "type": "string"
     }
   }
 }
