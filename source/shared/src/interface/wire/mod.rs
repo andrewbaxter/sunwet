@@ -3,9 +3,15 @@ use {
         config::ClientConfig,
         query::Query,
     },
-    crate::interface::triple::{
-        FileHash,
-        Node,
+    crate::interface::{
+        config::{
+            form::FormId,
+            view::ViewId,
+        },
+        triple::{
+            FileHash,
+            Node,
+        },
     },
     chrono::{
         DateTime,
@@ -16,11 +22,9 @@ use {
         Deserialize,
         Serialize,
     },
-    std::{
-        collections::{
-            BTreeMap,
-            HashMap,
-        },
+    std::collections::{
+        BTreeMap,
+        HashMap,
     },
 };
 
@@ -75,10 +79,11 @@ impl C2SReqTrait for ReqCommit {
 }
 
 // # Form commit
-#[derive(Serialize, Deserialize, Default, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqFormCommit {
-    pub form_id: String,
+    pub form_id: FormId,
+    #[serde(default)]
     pub parameters: HashMap<String, TreeNode>,
 }
 
@@ -167,7 +172,7 @@ impl C2SReqTrait for ReqQuery {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqViewQuery {
-    pub view_id: String,
+    pub view_id: ViewId,
     pub query: String,
     pub parameters: HashMap<String, Node>,
     pub pagination: Option<Pagination>,

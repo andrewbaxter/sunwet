@@ -6,4 +6,4 @@
         !(-> "sunwet/1/delete")
     )
     include "query_comic_albums_suffix.txt"
-    desc album_name
+    asc album_name

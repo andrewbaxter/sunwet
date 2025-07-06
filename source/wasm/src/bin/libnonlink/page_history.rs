@@ -85,7 +85,6 @@ pub fn build_page_history(pc: &mut ProcessingContext, ministate: &MinistateHisto
     let button_commit = style_export::leaf_button_big_commit().root;
     button_commit.ref_classes(&[&style_export::class_state_disabled().value]);
     let page_res = style_export::cont_page_node(style_export::ContPageNodeArgs {
-        page_button_children: vec![],
         bar_children: vec![button_commit.clone()],
         children: vec![error_slot.clone()],
     });

@@ -56,7 +56,7 @@ fn main() {
     let node_type = type_str().custom("crate::interface::triple::DbNode").build();
     let node_array_type = type_str().custom("crate::interface::triple::DbNode").array().build();
     let filehash_type = type_str().custom("crate::interface::triple::DbFileHash").build();
-    let file_access_type = type_str().build();
+    let access_source_type = type_str().custom("crate::server::access::DbAccessSourceId").build();
 
     // Triple
     let triple_table;
@@ -487,39 +487,41 @@ fn main() {
     {
         let t = latest_version.table("zFFF18JKY", "file_access");
         let file = t.field(&mut latest_version, "zLQI9HQUQ", "file", FieldType::with(&filehash_type));
-        let menu_item_id =
-            t.field(&mut latest_version, "zSZVNBP0E", "menu_item_id", FieldType::with(&file_access_type));
+        let access_source =
+            t.field(&mut latest_version, "zSZVNBP0E", "access_source", FieldType::with(&access_source_type));
         let spec_hash = t.field(&mut latest_version, "zWZT5PZHR", "spec_hash", field_i64().build());
         t.constraint(
             &mut latest_version,
             "zCW5WMK7U",
             "file_access_pk",
-            PrimaryKey(PrimaryKeyDef { fields: vec![file.clone(), menu_item_id.clone(), spec_hash.clone()] }),
+            PrimaryKey(PrimaryKeyDef { fields: vec![file.clone(), access_source.clone(), spec_hash.clone()] }),
         );
         queries.push(
             new_insert(
                 &t,
                 vec![
                     set_field("file", &file),
-                    set_field("menu_item_id", &menu_item_id),
+                    set_field("access_source", &access_source),
                     set_field("spec_hash", &spec_hash)
                 ],
             )
                 .on_conflict(InsertConflict::DoNothing)
                 .build_query("file_access_insert", QueryResCount::None),
         );
-        queries.push(new_delete(&t).where_(expr_and(vec![expr_field_eq("menu_item_id", &menu_item_id), Expr::BinOp {
-            left: Box::new(Expr::Binding(Binding::field(&spec_hash))),
-            op: BinOp::NotEquals,
-            right: Box::new(Expr::Param {
-                name: "version_hash".into(),
-                type_: spec_hash.type_.type_.clone(),
-            }),
-        }])).build_query("file_access_clear_nonversion", QueryResCount::None));
+        queries.push(
+            new_delete(&t).where_(expr_and(vec![expr_field_eq("access_source", &access_source), Expr::BinOp {
+                left: Box::new(Expr::Binding(Binding::field(&spec_hash))),
+                op: BinOp::NotEquals,
+                right: Box::new(Expr::Param {
+                    name: "version_hash".into(),
+                    type_: spec_hash.type_.type_.clone(),
+                }),
+            }])).build_query("file_access_clear_nonversion", QueryResCount::None),
+        );
         queries.push(
             new_select(&t)
                 .where_(expr_field_eq("file", &file))
-                .return_field(&menu_item_id)
+                .return_field(&access_source)
                 .build_query("file_access_get", QueryResCount::Many),
         );
     }

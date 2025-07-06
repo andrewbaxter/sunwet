@@ -7,14 +7,15 @@ use {
         interface::{
             self,
             config::{
-                IamGrants,
-                IamGrantsLimited,
+                ConfigIamGrants,
+                ConfigIamGrantsLimited,
                 MenuItemPage,
                 ServerConfigMenuItem,
                 ServerConfigMenuItemDetail,
                 UserConfig,
             },
         },
+        server::access::AccessSourceId,
         ScopeValue,
     },
     by_address::ByAddress,
@@ -23,12 +24,20 @@ use {
     http::HeaderMap,
     loga::{
         ea,
+        DebugDisplay,
         Log,
         ResultContext,
     },
     moka::future::Cache,
     shared::interface::{
-        config::view,
+        config::{
+            form::FormId,
+            view::{
+                self,
+                ViewId,
+            },
+            MenuItemId,
+        },
         iam::UserIdentityId,
         query,
         triple::FileHash,
@@ -71,31 +80,27 @@ pub struct FdapState {
 }
 
 pub struct ServerForm {
-    pub menu_self_and_ancestors: HashSet<String>,
     pub item: interface::config::Form,
 }
 
 pub struct ServerView {
-    pub menu_self_and_ancestors: HashSet<String>,
     pub item: interface::config::View,
     pub query_parameters: BTreeMap<String, Vec<String>>,
 }
 
 pub struct GlobalConfig {
-    pub public_iam_grants: IamGrantsLimited,
     pub menu: Vec<ServerConfigMenuItem>,
-    pub forms: HashMap<String, ServerForm>,
-    pub views: HashMap<String, ServerView>,
-    pub api_tokens: HashMap<String, IamGrants>,
+    pub menu_transitive_access: HashMap<MenuItemId, HashSet<AccessSourceId>>,
+    pub forms: HashMap<FormId, ServerForm>,
+    pub views: HashMap<ViewId, ServerView>,
+    pub public_iam_grants: ConfigIamGrantsLimited,
+    pub api_tokens_iam_grants: HashMap<String, ConfigIamGrants>,
 }
 
 pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<Arc<GlobalConfig>, loga::Error> {
     let mut forms = HashMap::new();
     for (k, v) in &config0.forms {
-        forms.insert(k.to_string(), ServerForm {
-            menu_self_and_ancestors: Default::default(),
-            item: v.clone(),
-        });
+        forms.insert(k.clone(), ServerForm { item: v.clone() });
     }
     let mut views = HashMap::new();
     for (k, v) in &config0.views {
@@ -244,69 +249,67 @@ pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<
                 &mut query_parameters,
             ).context(format!("Error extracting query parameters in view [{}]", k))?;
         }
-        views.insert(k.to_string(), ServerView {
-            menu_self_and_ancestors: Default::default(),
+        views.insert(k.clone(), ServerView {
             item: v.clone(),
             query_parameters: query_parameters,
         });
     }
 
-    fn build_menu_items(
+    fn build_menu_item_access<
+        'a,
+    >(
         config0: &interface::config::GlobalConfig,
-        views_out: &mut HashMap<String, ServerView>,
-        forms_out: &mut HashMap<String, ServerForm>,
-        ancestry: &mut Vec<String>,
-        seen: &mut HashSet<String>,
+        menu_item_access_out: &mut HashMap<MenuItemId, HashSet<AccessSourceId>>,
+        views_out: &mut HashMap<ViewId, ServerView>,
+        forms_out: &mut HashMap<FormId, ServerForm>,
+        seen: &mut HashSet<MenuItemId>,
         at: &interface::config::ServerConfigMenuItem,
-    ) -> Result<(), loga::Error> {
+    ) -> Result<HashSet<AccessSourceId>, loga::Error> {
         if !seen.insert(at.id.clone()) {
             return Err(loga::err(format!("Multiple menu items with id {}", at.id)));
         }
-        ancestry.push(at.id.clone());
+        let mut access = HashSet::new();
         match &at.detail {
             ServerConfigMenuItemDetail::Section(d) => {
-                for child in &d.children {
-                    build_menu_items(config0, views_out, forms_out, ancestry, seen, child)?;
+                for config_child in &d.children {
+                    let child_access =
+                        build_menu_item_access(
+                            config0,
+                            menu_item_access_out,
+                            views_out,
+                            forms_out,
+                            seen,
+                            config_child,
+                        )?;
+                    access.extend(child_access.clone());
                 }
             },
             ServerConfigMenuItemDetail::Page(d) => match d {
                 MenuItemPage::View(d) => {
-                    let view =
-                        views_out
-                            .get_mut(&d.view_id)
-                            .context_with(
-                                "Menu item refers to nonexistent view",
-                                ea!(menu_item = at.id, view = d.view_id),
-                            )?;
-                    view.menu_self_and_ancestors.extend(ancestry.iter().cloned());
+                    access.insert(AccessSourceId::ViewId(d.view_id.clone()));
                 },
                 MenuItemPage::Form(d) => {
-                    let form =
-                        forms_out
-                            .get_mut(&d.form_id)
-                            .context_with(
-                                "Menu item refers to nonexistent form",
-                                ea!(menu_item = at.id, form = d.form_id),
-                            )?;
-                    form.menu_self_and_ancestors.extend(ancestry.iter().cloned());
+                    access.insert(AccessSourceId::FormId(d.form_id.clone()));
                 },
                 MenuItemPage::History => { },
                 MenuItemPage::Query => { },
             },
         }
-        ancestry.pop();
-        return Ok(());
+        menu_item_access_out.insert(at.id.clone(), access.clone());
+        return Ok(access);
     }
 
+    let mut menu_item_access = HashMap::new();
     for item in &config0.menu {
-        build_menu_items(&config0, &mut views, &mut forms, &mut vec![], &mut HashSet::new(), item)?;
+        build_menu_item_access(&config0, &mut menu_item_access, &mut views, &mut forms, &mut HashSet::new(), item)?;
     }
     return Ok(Arc::new(GlobalConfig {
-        public_iam_grants: config0.public_iam_grants.clone(),
         menu: config0.menu.clone(),
+        menu_transitive_access: menu_item_access,
         forms: forms,
         views: views,
-        api_tokens: config0.api_tokens.clone(),
+        public_iam_grants: config0.public_iam_grants.clone(),
+        api_tokens_iam_grants: config0.api_tokens.clone(),
     }));
 }
 
@@ -324,11 +327,11 @@ pub enum GlobalState {
 pub struct FdapUsersState {
     pub fdap: FdapState,
     pub user_subpath: Vec<String>,
-    pub cache: Cache<UserIdentityId, Option<Arc<UserConfig>>>,
+    pub cache: Cache<UserIdentityId, Option<Arc<interface::config::UserConfig>>>,
 }
 
 pub struct LocalUsersState {
-    pub users: HashMap<UserIdentityId, Arc<UserConfig>>,
+    pub users: HashMap<UserIdentityId, Arc<interface::config::UserConfig>>,
 }
 
 pub enum UsersState {
@@ -437,31 +440,85 @@ pub async fn get_user_config(state: &State, user: &UserIdentityId) -> Result<Arc
     }
 }
 
+#[derive(Debug)]
+pub struct IamGrantsLimited {
+    pub menu_items: HashSet<MenuItemId>,
+    pub views: HashSet<ViewId>,
+    pub forms: HashSet<FormId>,
+}
+
+#[derive(Debug)]
+pub enum IamGrants {
+    Admin,
+    Limited(IamGrantsLimited),
+}
+
+fn build_iam_grants_limited(
+    global_config: &GlobalConfig,
+    identity: &Identity,
+    access: &ConfigIamGrantsLimited,
+) -> Result<IamGrantsLimited, loga::Error> {
+    let mut views = access.views.clone();
+    let mut forms = access.forms.clone();
+    for id in &access.menu_items {
+        let Some(access) = global_config.menu_transitive_access.get(id) else {
+            return Err(
+                loga::err_with(
+                    format!("Missing menu item [{}] referred to by user identity", id),
+                    ea!(identity = identity.dbg_str()),
+                ),
+            );
+        };
+        for id in access {
+            match id {
+                AccessSourceId::FormId(id) => {
+                    forms.insert(id.clone());
+                },
+                AccessSourceId::ViewId(id) => {
+                    views.insert(id.clone());
+                },
+            }
+        }
+    }
+    return Ok(IamGrantsLimited {
+        menu_items: access.menu_items.clone(),
+        views: views,
+        forms: forms,
+    });
+}
+
 pub async fn get_iam_grants(state: &State, identity: &Identity) -> Result<IamGrants, loga::Error> {
     match identity {
         Identity::Token(grants) => {
             match &grants {
-                IamGrants::Admin => {
+                ConfigIamGrants::Admin => {
                     return Ok(IamGrants::Admin);
                 },
-                IamGrants::Limited(access) => {
-                    return Ok(IamGrants::Limited(access.clone()));
+                ConfigIamGrants::Limited(access) => {
+                    let global_config = get_global_config(state).await?;
+                    return Ok(IamGrants::Limited(build_iam_grants_limited(&global_config, identity, access)?));
                 },
             }
         },
-        Identity::User(identity) => {
-            let user_config = get_user_config(state, identity).await?;
+        Identity::User(identity1) => {
+            let user_config = get_user_config(state, identity1).await?;
             match &user_config.iam_grants {
-                IamGrants::Admin => {
+                ConfigIamGrants::Admin => {
                     return Ok(IamGrants::Admin);
                 },
-                IamGrants::Limited(access) => {
-                    return Ok(IamGrants::Limited(access.clone()));
+                ConfigIamGrants::Limited(access) => {
+                    let global_config = get_global_config(state).await?;
+                    return Ok(IamGrants::Limited(build_iam_grants_limited(&global_config, identity, access)?));
                 },
             }
         },
         Identity::Public | Identity::Link(_) => {
-            return Ok(IamGrants::Limited(get_global_config(state).await?.public_iam_grants.clone()));
+            let global_config = get_global_config(state).await?;
+            return Ok(
+                IamGrants::Limited(
+                    build_iam_grants_limited(&global_config, identity, &global_config.public_iam_grants)?,
+                ),
+            );
         },
     }
 }

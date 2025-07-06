@@ -1,5 +1,6 @@
 use {
     crate::interface::{
+        config::form::FormId,
         triple::Node,
     },
     schemars::JsonSchema,
@@ -9,6 +10,16 @@ use {
     },
     std::collections::BTreeMap,
 };
+
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct ViewId(pub String);
+
+impl std::fmt::Display for ViewId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return self.0.fmt(f);
+    }
+}
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, JsonSchema, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
@@ -93,7 +104,7 @@ pub enum QueryOrField {
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct LinkDestView {
-    pub id: String,
+    pub id: ViewId,
     /// Provide initial query parameters.
     #[serde(default)]
     pub parameters: BTreeMap<String, FieldOrLiteral>,
@@ -102,7 +113,7 @@ pub struct LinkDestView {
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct LinkDestForm {
-    pub id: String,
+    pub id: FormId,
     /// Provide other initial parameters for fields, by field id.
     pub parameters: BTreeMap<String, FieldOrLiteral>,
 }

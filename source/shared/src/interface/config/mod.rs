@@ -2,7 +2,13 @@ pub mod form;
 pub mod view;
 
 use {
-    crate::interface::triple::Node,
+    crate::interface::{
+        config::{
+            form::FormId,
+            view::ViewId,
+        },
+        triple::Node,
+    },
     form::ClientForm,
     schemars::JsonSchema,
     serde::{
@@ -16,6 +22,16 @@ use {
     view::ClientView,
 };
 
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct MenuItemId(pub String);
+
+impl std::fmt::Display for MenuItemId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return self.0.fmt(f);
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ClientMenuSection {
@@ -25,7 +41,7 @@ pub struct ClientMenuSection {
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ClientViewLink {
-    pub view_id: String,
+    pub view_id: ViewId,
     /// Provide initial query parameters. These can be modified by the user.
     pub parameters: BTreeMap<String, Node>,
 }
@@ -33,7 +49,7 @@ pub struct ClientViewLink {
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ClientFormLink {
-    pub form_id: String,
+    pub form_id: FormId,
     /// Provide initial parameters for fields, by field id.
     pub parameters: BTreeMap<String, Node>,
 }
@@ -58,7 +74,7 @@ pub enum ClientMenuItemDetail {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ClientMenuItem {
     /// The id of a menu item is used for permissions.
-    pub id: String,
+    pub id: MenuItemId,
     pub name: String,
     pub detail: ClientMenuItemDetail,
 }
@@ -68,7 +84,7 @@ pub struct ClientMenuItem {
 pub struct ClientConfig {
     pub menu: Vec<ClientMenuItem>,
     /// View ids to view definitions
-    pub views: HashMap<String, ClientView>,
+    pub views: HashMap<ViewId, ClientView>,
     /// Form ids to form definitions
-    pub forms: HashMap<String, ClientForm>,
+    pub forms: HashMap<FormId, ClientForm>,
 }

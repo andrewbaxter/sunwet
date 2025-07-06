@@ -8,12 +8,15 @@ use {
         config::{
             form::{
                 FormField,
+                FormId,
                 FormOutput,
             },
             view::{
                 ClientViewParam,
+                ViewId,
                 WidgetRootDataRows,
             },
+            MenuItemId,
         },
         iam::UserIdentityId,
         query::Query,
@@ -30,8 +33,6 @@ use {
     },
 };
 
-pub type MenuItemId = String;
-
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct MenuItemSection {
@@ -41,7 +42,7 @@ pub struct MenuItemSection {
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ViewLink {
-    pub view_id: String,
+    pub view_id: ViewId,
     /// Provide initial query parameters. These can be modified by the user.
     #[serde(default)]
     pub parameters: BTreeMap<String, Node>,
@@ -50,7 +51,7 @@ pub struct ViewLink {
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FormLink {
-    pub form_id: String,
+    pub form_id: FormId,
     /// Provide initial parameters for fields, by field id.
     #[serde(default)]
     pub parameters: BTreeMap<String, Node>,
@@ -82,7 +83,8 @@ pub enum ServerConfigMenuItemDetail {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ServerConfigMenuItem {
     /// The id of a menu item is used for permissions.
-    pub id: String,
+    // More perms
+    pub id: MenuItemId,
     pub name: String,
     pub detail: ServerConfigMenuItemDetail,
 }
@@ -105,7 +107,7 @@ pub struct Form {
 
 #[derive(Serialize, Deserialize, Clone, JsonSchema, Debug, Default)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct IamGrantsLimited {
+pub struct ConfigIamGrantsLimited {
     /// For every menu item id listed here, give the user access to the menu item, all
     /// child menu items (if a section) transitively, and any forms or views directly
     /// linked by leaf menu items.
@@ -113,36 +115,36 @@ pub struct IamGrantsLimited {
     pub menu_items: HashSet<MenuItemId>,
     /// Give the user access to all these views.
     #[serde(default)]
-    pub views: HashSet<String>,
+    pub views: HashSet<ViewId>,
     /// Give the user access to all these forms.
     #[serde(default)]
-    pub forms: HashSet<String>,
+    pub forms: HashSet<FormId>,
+}
+
+#[derive(Serialize, Deserialize, Clone, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum ConfigIamGrants {
+    Admin,
+    Limited(ConfigIamGrantsLimited),
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct GlobalConfig {
-    pub api_tokens: HashMap<String, IamGrants>,
+    pub api_tokens: HashMap<String, ConfigIamGrants>,
     #[serde(default)]
-    pub public_iam_grants: IamGrantsLimited,
+    pub public_iam_grants: ConfigIamGrantsLimited,
     pub menu: Vec<ServerConfigMenuItem>,
     /// View ids to view definitions
-    pub views: HashMap<String, View>,
+    pub views: HashMap<ViewId, View>,
     /// Form ids to form definitions
-    pub forms: HashMap<String, Form>,
-}
-
-#[derive(Serialize, Deserialize, Clone, JsonSchema, Debug)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub enum IamGrants {
-    Admin,
-    Limited(IamGrantsLimited),
+    pub forms: HashMap<FormId, Form>,
 }
 
 #[derive(Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct UserConfig {
-    pub iam_grants: IamGrants,
+    pub iam_grants: ConfigIamGrants,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]

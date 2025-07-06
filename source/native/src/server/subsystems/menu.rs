@@ -1,7 +1,6 @@
 use {
     crate::{
         interface::config::{
-            IamGrants,
             MenuItemPage,
             ServerConfigMenuItem,
             ServerConfigMenuItemDetail,
@@ -12,6 +11,7 @@ use {
                 get_global_config,
                 get_iam_grants,
                 GlobalConfig,
+                IamGrants,
                 State,
             },
         },

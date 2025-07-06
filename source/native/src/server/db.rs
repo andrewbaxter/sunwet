@@ -67,7 +67,7 @@ pub fn migrate(db: &mut rusqlite::Connection) -> Result<(), GoodError> {
                 };
                 {
                     let query =
-                        "create table \"file_access\" ( \"spec_hash\" integer not null , \"menu_item_id\" text not null , \"file\" text not null , constraint \"file_access_pk\" primary key ( \"file\" , \"menu_item_id\" , \"spec_hash\" ) )";
+                        "create table \"file_access\" ( \"spec_hash\" integer not null , \"access_source\" text not null , \"file\" text not null , constraint \"file_access_pk\" primary key ( \"file\" , \"access_source\" , \"spec_hash\" ) )";
                     txn.execute(query, ()).to_good_error_query(query)?
                 };
                 {
@@ -1147,11 +1147,11 @@ pub fn gen_gc(db: &rusqlite::Connection) -> Result<(), GoodError> {
 pub fn file_access_insert(
     db: &rusqlite::Connection,
     file: &crate::interface::triple::DbFileHash,
-    menu_item_id: &str,
+    access_source: &crate::server::access::DbAccessSourceId,
     spec_hash: i64,
 ) -> Result<(), GoodError> {
     let query =
-        "insert into \"file_access\" ( \"file\" , \"menu_item_id\" , \"spec_hash\" ) values ( $1 , $2 , $3 ) on conflict do nothing";
+        "insert into \"file_access\" ( \"file\" , \"access_source\" , \"spec_hash\" ) values ( $1 , $2 , $3 ) on conflict do nothing";
     db
         .execute(
             query,
@@ -1161,7 +1161,11 @@ pub fn file_access_insert(
                 ::GoodOrmningCustomString<crate::interface::triple::DbFileHash>>::to_sql(
                     &file,
                 ),
-                menu_item_id,
+                <crate::server::access::DbAccessSourceId as good_ormning_runtime
+                ::sqlite
+                ::GoodOrmningCustomString<crate::server::access::DbAccessSourceId>>::to_sql(
+                    &access_source,
+                ),
                 spec_hash
             ],
         )
@@ -1171,22 +1175,34 @@ pub fn file_access_insert(
 
 pub fn file_access_clear_nonversion(
     db: &rusqlite::Connection,
-    menu_item_id: &str,
+    access_source: &crate::server::access::DbAccessSourceId,
     version_hash: i64,
 ) -> Result<(), GoodError> {
     let query =
-        "delete from \"file_access\" where ( ( \"file_access\" . \"menu_item_id\" = $1 ) and ( \"file_access\" . \"spec_hash\" != $2 ) )";
-    db.execute(query, rusqlite::params![menu_item_id, version_hash]).to_good_error_query(query)?;
+        "delete from \"file_access\" where ( ( \"file_access\" . \"access_source\" = $1 ) and ( \"file_access\" . \"spec_hash\" != $2 ) )";
+    db
+        .execute(
+            query,
+            rusqlite::params![
+                <crate::server::access::DbAccessSourceId as good_ormning_runtime
+                ::sqlite
+                ::GoodOrmningCustomString<crate::server::access::DbAccessSourceId>>::to_sql(
+                    &access_source,
+                ),
+                version_hash
+            ],
+        )
+        .to_good_error_query(query)?;
     Ok(())
 }
 
 pub fn file_access_get(
     db: &rusqlite::Connection,
     file: &crate::interface::triple::DbFileHash,
-) -> Result<Vec<String>, GoodError> {
+) -> Result<Vec<crate::server::access::DbAccessSourceId>, GoodError> {
     let mut out = vec![];
     let query =
-        "select \"file_access\" . \"menu_item_id\" from \"file_access\" where ( \"file_access\" . \"file\" = $1 ) ";
+        "select \"file_access\" . \"access_source\" from \"file_access\" where ( \"file_access\" . \"file\" = $1 ) ";
     let mut stmt = db.prepare(query).to_good_error_query(query)?;
     let mut rows =
         stmt
@@ -1203,6 +1219,12 @@ pub fn file_access_get(
     while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
         out.push({
             let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
+            let x =
+                <crate::server::access::DbAccessSourceId as good_ormning_runtime
+                ::sqlite
+                ::GoodOrmningCustomString<crate::server::access::DbAccessSourceId>>::from_sql(
+                    x,
+                ).to_good_error(|| format!("Parsing result {}", 0usize))?;
             x
         });
     }

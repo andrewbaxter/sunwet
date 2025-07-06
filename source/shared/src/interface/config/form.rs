@@ -10,6 +10,16 @@ use {
     },
 };
 
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct FormId(pub String);
+
+impl std::fmt::Display for FormId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return self.0.fmt(f);
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FormFieldComment {

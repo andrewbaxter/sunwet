@@ -258,18 +258,13 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         Func {
-            name: "leafButtonBigCommit",
+            name: "leafButtonBigView",
             args: vec![],
             returns: vec![("root", &el_)],
         },
         Func {
-            name: "leafButtonSmallEdit",
-            args: vec![("link", &string_)],
-            returns: vec![("root", &el_)],
-        },
-        Func {
-            name: "leafButtonSmallView",
-            args: vec![("link", &string_)],
+            name: "leafButtonBigCommit",
+            args: vec![],
             returns: vec![("root", &el_)],
         },
         Func {
@@ -607,7 +602,7 @@ fn main() {
         // xx Components, styles: page, view/edit/history node
         Func {
             name: "contPageNode",
-            args: vec![("pageButtonChildren", &arrel_), ("barChildren", &arrel_), ("children", &arrel_)],
+            args: vec![("barChildren", &arrel_), ("children", &arrel_)],
             returns: vec![("root", &el_), ("body", &el_)],
         },
         Func {
@@ -634,7 +629,7 @@ fn main() {
         // xx Components, styles: page, node view, history
         Func {
             name: "leafNodeViewNodeButtons",
-            args: vec![("download", &optstring_), ("history", &optstring_)],
+            args: vec![("download", &optstring_), ("history", &optstring_), ("edit", &optstring_)],
             returns: vec![("root", &el_)],
         },
         Func {
@@ -678,7 +673,7 @@ fn main() {
         // xx Components, styles: page, history
         Func {
             name: "contPageHistory",
-            args: vec![("pageButtonChildren", &arrel_), ("barChildren", &arrel_), ("children", &arrel_)],
+            args: vec![("barChildren", &arrel_), ("children", &arrel_)],
             returns: vec![("root", &el_), ("body", &el_)],
         },
         Func {

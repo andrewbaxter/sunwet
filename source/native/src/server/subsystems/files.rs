@@ -1,13 +1,14 @@
 use {
     crate::{
-        interface::{
-            config::MenuItemId,
-            triple::{
-                DbFileHash,
-                DbNode,
-            },
+        interface::triple::{
+            DbFileHash,
+            DbNode,
         },
         server::{
+            access::{
+                AccessSourceId,
+                DbAccessSourceId,
+            },
             db::{
                 self,
             },
@@ -54,9 +55,12 @@ use {
         ResultContext,
     },
     shared::interface::{
-        config::form::{
-            InputOrInline,
-            InputOrInlineText,
+        config::{
+            form::{
+                FormId,
+                InputOrInline,
+                InputOrInlineText,
+            },
         },
         triple::{
             FileHash,
@@ -99,7 +103,7 @@ use {
 async fn commit(
     state: Arc<State>,
     c: ReqCommit,
-    update_access_reqs: Option<(MenuItemId, u64)>,
+    update_access_reqs: Option<(FormId, u64)>,
 ) -> Result<RespCommit, loga::Error> {
     // Preallocate files for upload, confirm already present files
     let mut incomplete = vec![];
@@ -118,8 +122,10 @@ async fn commit(
 
     // Write new triples, commit (no-op if all triples already committed)
     tx(&state.db, move |txn| {
-        // Update access if writing as non-admin
-        if let Some((page_access, form_version_hash)) = update_access_reqs {
+        // Update access if writing as non-admin - this is because multi-part uploads get
+        // re-accessed checked so need to establish chain of trust for writing from commit
+        if let Some((form_id, form_version_hash)) = update_access_reqs {
+            let page_access = DbAccessSourceId(AccessSourceId::FormId(form_id));
             db::file_access_clear_nonversion(txn, &page_access, form_version_hash as i64)?;
             for file in &c.files {
                 db::file_access_insert(
@@ -295,7 +301,7 @@ pub async fn handle_form_commit(state: Arc<State>, c: ReqFormCommit) -> Result<R
         add: add,
         remove: vec![],
         files: vec![],
-    }, Some((c.form_id, form_hash.finish()))).await.err_internal()?);
+    }, Some((c.form_id.clone(), form_hash.finish()))).await.err_internal()?);
 }
 
 pub async fn handle_finish_upload(

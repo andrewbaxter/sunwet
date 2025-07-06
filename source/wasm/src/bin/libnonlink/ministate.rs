@@ -6,7 +6,13 @@ use {
         Deserialize,
         Serialize,
     },
-    shared::interface::triple::Node,
+    shared::interface::{
+        config::{
+            form::FormId,
+            view::ViewId,
+        },
+        triple::Node,
+    },
     std::collections::HashMap,
     wasm::js::{
         get_dom_octothorpe,
@@ -27,7 +33,7 @@ pub struct PlaylistRestorePos {
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct MinistateView {
-    pub id: String,
+    pub id: ViewId,
     pub title: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pos: Option<PlaylistRestorePos>,
@@ -38,7 +44,7 @@ pub struct MinistateView {
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct MinistateForm {
-    pub id: String,
+    pub id: FormId,
     pub title: String,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub params: HashMap<String, Node>,

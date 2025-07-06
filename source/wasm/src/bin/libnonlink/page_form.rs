@@ -33,11 +33,10 @@ use {
         El,
     },
     shared::interface::{
-        config::{
-            form::{
-                ClientForm,
-                FormFieldType,
-            },
+        config::form::{
+            ClientForm,
+            FormFieldType,
+            FormId,
         },
         triple::Node,
         wire::{
@@ -142,7 +141,7 @@ fn build_field_enum(
 
 pub fn build_page_form(
     eg: EventGraph,
-    id: String,
+    id: FormId,
     title: String,
     form: ClientForm,
     initial_params: HashMap<String, Node>,

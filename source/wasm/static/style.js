@@ -459,26 +459,6 @@
       }
     ),
   });
-  presentation.contMainStack = /** @type {Presentation["contMainStack"]} */ (
-    args
-  ) => ({
-    root: e(
-      "div",
-      {},
-      {
-        styles_: [
-          contStackStyle,
-          ss(uniq("cont_root_stack"), {
-            ">*": (s) => {
-              s.width = "100dvw";
-              s.height = "100dvh";
-            },
-          }),
-        ],
-        children_: args.children,
-      }
-    ),
-  });
 
   const contTitleStyle = ss(uniq("cont_title"), {
     "": (s) => {
@@ -919,6 +899,14 @@
           }),
         ],
       });
+  presentation.leafButtonBigView =
+    /** @type { Presentation["leafButtonBigView"] } */
+    (args) =>
+      presentation.leafButtonBig({
+        title: "View",
+        icon: textIconView,
+        text: "View",
+      });
   presentation.leafButtonBigCommit =
     /** @type { Presentation["leafButtonBigCommit"] } */
     (args) =>
@@ -950,23 +938,6 @@
             },
           }),
         ],
-      });
-
-  presentation.leafButtonSmallEdit =
-    /** @type {Presentation["leafButtonSmallEdit"]} */ (args) =>
-      leafButtonLinkSmall({
-        title: "Edit",
-        icon: textIconEdit,
-        text: "Edit",
-        url: args.link,
-      });
-  presentation.leafButtonSmallView =
-    /** @type {Presentation["leafButtonSmallView"]} */ (args) =>
-      leafButtonLinkSmall({
-        title: "View",
-        icon: textIconView,
-        text: "View",
-        url: args.link,
       });
 
   const contBodyStyle = ss(uniq("cont_body"), {
@@ -1682,6 +1653,8 @@
                 // Hack around https://github.com/w3c/csswg-drafts/issues/12081 to
                 // set a default size without affecting min-content
                 s.gridTemplateColumns = "minmax(min-content, 8cm)";
+                s.flexBasis = "0";
+                s.flexGrow = "1";
 
                 s.pointerEvents = "initial";
 
@@ -3335,17 +3308,7 @@
             {},
             {
               styles_: [classMenuWantStateOpen, contVboxStyle, contBodyStyle],
-              children_: [
-                e(
-                  "div",
-                  {},
-                  {
-                    styles_: [contHboxStyle, pageButtonsStyle],
-                    children_: args.pageButtonChildren,
-                  }
-                ),
-                body,
-              ],
+              children_: [body],
             }
           ),
         ],
@@ -3578,6 +3541,16 @@
   presentation.leafNodeViewNodeButtons =
     /** @type {Presentation["leafNodeViewNodeButtons"]} */ (args) => {
       const children = [presentation.leafSpace({}).root];
+      if (args.edit != null) {
+        children.push(
+          leafButtonEditFreeLink({
+            icon: textIconEdit,
+            hint: "Edit",
+            url: args.edit,
+            download: false,
+          }).root
+        );
+      }
       if (args.history != null) {
         children.push(
           leafButtonEditFreeLink({
@@ -3797,17 +3770,7 @@
               {},
               {
                 styles_: [classMenuWantStateOpen, contVboxStyle, contBodyStyle],
-                children_: [
-                  e(
-                    "div",
-                    {},
-                    {
-                      styles_: [contHboxStyle, pageButtonsStyle],
-                      children_: args.pageButtonChildren,
-                    }
-                  ),
-                  body,
-                ],
+                children_: [body],
               }
             ),
           ],
@@ -3914,6 +3877,7 @@
               contVboxStyle,
               ss(uniq("cont_history_rel_center"), {
                 "": (s) => {
+                  s.flexBasis = "0";
                   s.flexGrow = "1";
                   s.gap = varPSmall;
                 },
@@ -4269,6 +4233,7 @@
                     "": (s) => {
                       s.marginLeft = varSMenuIndent;
                       s.fontSize = varFMenu;
+
                       s.display = "flex";
                       s.flexDirection = "row";
                       s.alignItems = "center";
@@ -4276,7 +4241,22 @@
                     },
                   }),
                 ],
-                children_: [e("span", { textContent: args.title }, {})],
+                children_: [
+                  e(
+                    "span",
+                    { textContent: args.title },
+                    {
+                      styles_: [
+                        ss(uniq("leaf_menu_link_text"), {
+                          "": (s) => {
+                            s.flexBasis = "0";
+                            s.flexGrow = "1";
+                          },
+                        }),
+                      ],
+                    }
+                  ),
+                ],
               }
             ),
           ],

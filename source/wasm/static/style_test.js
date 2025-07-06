@@ -14,23 +14,23 @@
           href: "x",
         }).root,
         presentation.leafMenuLink({
-          title: "Thing 3",
+          title: "Thing is a little longer",
           href: "x",
         }).root,
         presentation.leafMenuLink({
-          title: "Thing 3",
+          title: "Thing is a little longer",
           href: "x",
         }).root,
         presentation.leafMenuLink({
-          title: "Thing 3",
+          title: "Thing is a little longer",
           href: "x",
         }).root,
         presentation.leafMenuLink({
-          title: "Thing 3",
+          title: "Thing is a little longer",
           href: "x",
         }).root,
         presentation.leafMenuLink({
-          title: "Thing 3",
+          title: "Thing is a little longer",
           href: "x",
         }).root,
         presentation.contMenuGroup({
@@ -45,17 +45,17 @@
               href: "x",
             }).root,
             presentation.leafMenuLink({
-              title: "Thing 3",
+              title: "Thing is a little longer",
               href: "x",
             }).root,
           ],
         }).root,
         presentation.leafMenuLink({
-          title: "Thing 3",
+          title: "Thing is a little longer",
           href: "x",
         }).root,
         presentation.leafMenuLink({
-          title: "Thing 3",
+          title: "Thing is a little longer",
           href: "x",
         }).root,
         presentation.contMenuGroup({
@@ -70,7 +70,7 @@
               href: "x",
             }).root,
             presentation.leafMenuLink({
-              title: "Thing 3",
+              title: "Thing is a little longer",
               href: "x",
             }).root,
           ],
@@ -87,7 +87,7 @@
               href: "x",
             }).root,
             presentation.leafMenuLink({
-              title: "Thing 3",
+              title: "Thing is a little longer",
               href: "x",
             }).root,
           ],
@@ -551,7 +551,10 @@
                   }).root,
                   presentation.leafSpace({}).root,
                 ],
-                barChildren: [presentation.leafButtonBigCommit({}).root],
+                barChildren: [
+                  presentation.leafButtonBigView({}).root,
+                  presentation.leafButtonBigCommit({}).root,
+                ],
               }).root,
               menuBody: stagingMenu,
             }).root,
@@ -564,9 +567,6 @@
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "Music" }).root,
               mainBody: presentation.contPageNode({
-                pageButtonChildren: [
-                  presentation.leafButtonSmallEdit({ link: "abcd" }).root,
-                ],
                 barChildren: [],
                 children: [
                   presentation.contPageNodeSectionRel({
@@ -607,6 +607,7 @@
                     children: [
                       presentation.leafNodeViewNodeButtons({
                         history: "https://abcd",
+                        edit: "https://1234",
                       }).root,
                       presentation.leafNodeViewNodeText({
                         value: "ABCD-1234",
@@ -672,9 +673,6 @@
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "Music" }).root,
               mainBody: presentation.contPageNode({
-                pageButtonChildren: [
-                  presentation.leafButtonSmallView({ link: "abcd" }).root,
-                ],
                 children: [
                   presentation.contNodeRowIncomingAdd({
                     hint: "Add incoming triple",
@@ -797,7 +795,6 @@
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "History" }).root,
               mainBody: presentation.contPageHistory({
-                pageButtonChildren: [],
                 barChildren: [presentation.leafButtonBigCommit({}).root],
                 children: [
                   presentation.contHistoryCommit({

@@ -117,21 +117,6 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
             return eg.event(|_pc| {
                 let mut out = vec![];
 
-                // Top buttons
-                let mut buttons_out = vec![];
-                {
-                    let style_res =
-                        style_export::leaf_button_small_edit(
-                            style_export::LeafButtonSmallEditArgs {
-                                link: ministate_octothorpe(&Ministate::NodeEdit(MinistateNodeEdit {
-                                    title: title.clone(),
-                                    node: node.clone(),
-                                })),
-                            },
-                        );
-                    buttons_out.push(style_res.root);
-                }
-
                 // Incoming triples
                 {
                     let mut triples_els = vec![];
@@ -148,6 +133,7 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                         };
                         triple_els.push(
                             style_export::leaf_node_view_node_buttons(style_export::LeafNodeViewNodeButtonsArgs {
+                                edit: None,
                                 download: match &t.subject {
                                     Node::File(n) => Some(file_url(&state().env, n)),
                                     _ => None,
@@ -185,6 +171,10 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                         build_node_el(&node, false),
                         style_export::leaf_node_view_node_buttons(style_export::LeafNodeViewNodeButtonsArgs {
                             download: None,
+                            edit: Some(ministate_octothorpe(&Ministate::NodeEdit(MinistateNodeEdit {
+                                title: title.clone(),
+                                node: node.clone(),
+                            }))),
                             history: Some(
                                 ministate_octothorpe(
                                     &Ministate::History(MinistateHistory { filter: Some(MinistateHistoryFilter {
@@ -233,6 +223,7 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                                     Node::File(n) => Some(file_url(&state().env, n)),
                                     _ => None,
                                 },
+                                edit: None,
                                 history: Some(
                                     ministate_octothorpe(
                                         &Ministate::History(MinistateHistory { filter: Some(MinistateHistoryFilter {
@@ -259,7 +250,6 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                     );
                 }
                 return Ok(vec![style_export::cont_page_node(style_export::ContPageNodeArgs {
-                    page_button_children: buttons_out,
                     bar_children: vec![],
                     children: out,
                 }).root]);

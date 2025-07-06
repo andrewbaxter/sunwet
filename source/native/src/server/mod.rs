@@ -15,7 +15,6 @@ use {
         interface::{
             config::{
                 Config,
-                IamGrants,
                 MaybeFdap,
             },
             triple::{
@@ -23,10 +22,15 @@ use {
                 DbNode,
             },
         },
-        server::access::{
-            can_access_file,
-            AccessRes,
-            Identity,
+        server::{
+            access::{
+                can_access_file,
+                AccessRes,
+                AccessSourceId,
+                DbAccessSourceId,
+                Identity,
+            },
+            state::IamGrants,
         },
     },
     aargvark::{
@@ -320,12 +324,6 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                             },
                             C2SReq::FormCommit(req) => {
                                 let responder = req.respond();
-                                let global_config = get_global_config(&state).await.err_internal()?;
-                                let Some(form) = global_config.forms.get(&req.form_id) else {
-                                    return Err(
-                                        loga::err_with("No known form with id", ea!(form = req.form_id)),
-                                    ).err_external();
-                                };
                                 {
                                     // Check access
                                     let grants = get_iam_grants(&state, &identity).await.err_internal()?;
@@ -338,11 +336,6 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                             IamGrants::Limited(grants) => {
                                                 if grants.forms.contains(&req.form_id) {
                                                     break 'ok AccessRes::Yes;
-                                                }
-                                                for id in &form.menu_self_and_ancestors {
-                                                    if grants.menu_items.contains(id) {
-                                                        break 'ok AccessRes::Yes;
-                                                    }
                                                 }
                                             },
                                         }
@@ -363,7 +356,6 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                 identity = identity.dbg_str(),
                                                 grants = grants.dbg_str(),
                                                 form_id = req.form_id,
-                                                menu_ids = form.menu_self_and_ancestors.dbg_str(),
                                                 result = res.dbg_str()
                                             ),
                                         );
@@ -459,13 +451,8 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                 break 'ok AccessRes::Yes;
                                             },
                                             IamGrants::Limited(grants) => {
-                                                if grants.forms.contains(&req.view_id) {
+                                                if grants.views.contains(&req.view_id) {
                                                     break 'ok AccessRes::Yes;
-                                                }
-                                                for id in &view.menu_self_and_ancestors {
-                                                    if grants.menu_items.contains(id) {
-                                                        break 'ok AccessRes::Yes;
-                                                    }
                                                 }
                                             },
                                         }
@@ -486,7 +473,6 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                 identity = identity.dbg_str(),
                                                 grants = grants.dbg_str(),
                                                 view_id = req.view_id,
-                                                menu_ids = view.menu_self_and_ancestors.dbg_str(),
                                                 result = res.dbg_str()
                                             ),
                                         );
@@ -534,13 +520,15 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 }
                                 let meta = tx(&state.db, {
                                     move |txn| {
-                                        db::file_access_clear_nonversion(txn, &req.view_id, view_hash as i64)?;
+                                        let access_source_id =
+                                            DbAccessSourceId(AccessSourceId::ViewId(req.view_id.clone()));
+                                        db::file_access_clear_nonversion(txn, &access_source_id, view_hash as i64)?;
                                         let mut meta = HashMap::new();
                                         for file in files {
                                             db::file_access_insert(
                                                 txn,
                                                 &DbFileHash(file.clone()),
-                                                &req.view_id,
+                                                &access_source_id,
                                                 view_hash as i64,
                                             )?;
                                             let node = Node::File(file);

@@ -28,7 +28,10 @@ use {
     },
     rooting::El,
     shared::interface::{
-        config::ClientConfig,
+        config::{
+            view::ViewId,
+            ClientConfig,
+        },
         triple::Node,
     },
     std::{
@@ -147,7 +150,7 @@ pub fn change_ministate(pc: &mut ProcessingContext, s: &Ministate) {
 }
 
 pub struct MinistateViewState_ {
-    pub view_id: String,
+    pub view_id: ViewId,
     pub title: String,
     pub pos: Option<PlaylistRestorePos>,
     pub params: HashMap<String, Node>,

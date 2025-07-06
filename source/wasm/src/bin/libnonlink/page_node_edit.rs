@@ -10,10 +10,13 @@ use {
             CommitTriple,
         },
         ministate::{
-            ministate_octothorpe,
+            Ministate,
             MinistateNodeView,
         },
-        state::state,
+        state::{
+            change_ministate,
+            state,
+        },
     },
     by_address::ByAddress,
     flowcontrol::{
@@ -1115,23 +1118,6 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                 let pivot_state = new_pivot_state(pc, &draft_data, &node);
                 let triple_states = Rc::new(RefCell::new(vec![] as Vec<TripleState>));
 
-                // Top buttons
-                let mut buttons_out = vec![];
-                {
-                    let style_res =
-                        style_export::leaf_button_small_view(
-                            style_export::LeafButtonSmallViewArgs {
-                                link: ministate_octothorpe(
-                                    &crate::libnonlink::ministate::Ministate::NodeView(MinistateNodeView {
-                                        title: title.clone(),
-                                        node: node.clone(),
-                                    }),
-                                ),
-                            },
-                        ).root;
-                    buttons_out.push(style_res);
-                }
-
                 // Incoming triples
                 {
                     let triples_box =
@@ -1209,7 +1195,7 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                         let style_res = style_export::leaf_node_edit_buttons();
                         let button_revert = style_res.button_revert;
                         button_revert.ref_on("click", {
-                            let pivot_original = node;
+                            let pivot_original = node.clone();
                             let pivot = pivot_state.clone();
                             let eg = pc.eg();
                             move |_| eg.event(|pc| {
@@ -1325,6 +1311,18 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                 }
 
                 // Edit form controls
+                let button_view = style_export::leaf_button_big_view().root;
+                button_view.ref_on("click", {
+                    let eg = pc.eg();
+                    let title = title.clone();
+                    let node = node.clone();
+                    move |_| eg.event(|pc| {
+                        change_ministate(pc, &Ministate::NodeView(MinistateNodeView {
+                            title: title.clone(),
+                            node: node.clone(),
+                        }));
+                    }).unwrap()
+                });
                 let button_commit = style_export::leaf_button_big_commit().root;
                 button_commit.ref_on("click", {
                     let triple_states = triple_states.clone();
@@ -1555,7 +1553,6 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                 });
                 bar_out.push(button_commit);
                 return Ok(vec![style_export::cont_page_node(style_export::ContPageNodeArgs {
-                    page_button_children: buttons_out,
                     children: out,
                     bar_children: bar_out,
                 }).root]);

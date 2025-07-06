@@ -73,6 +73,7 @@ use {
             LinkDest,
             Orientation,
             QueryOrField,
+            ViewId,
             Widget,
             WidgetColor,
             WidgetDataRows,
@@ -281,7 +282,7 @@ fn unwrap_value_move_url(data_stack: &Vec<DataStackLevel>, link: &Link) -> Resul
 }
 
 struct Build {
-    view_id: String,
+    view_id: ViewId,
     param_data: HashMap<String, Node>,
     restore_playlist_pos: Option<PlaylistRestorePos>,
     playlist_add: Vec<(PlaylistIndex, PlaylistPushArg)>,
@@ -1240,7 +1241,7 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
 
 #[derive(Clone)]
 struct BuildViewBodyCommon {
-    id: String,
+    id: ViewId,
     config_at: WidgetRootDataRows,
     config_query_params: BTreeMap<String, Vec<String>>,
     body: WeakEl,
@@ -1298,7 +1299,7 @@ fn build_page_view_body(
 
 pub fn build_page_view(
     eg: EventGraph,
-    id: String,
+    id: ViewId,
     title: String,
     view: ClientView,
     params: HashMap<String, Node>,

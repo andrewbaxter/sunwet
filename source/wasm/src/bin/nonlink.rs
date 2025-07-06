@@ -159,7 +159,7 @@ pub fn main() {
                                     return style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
                                         title: item.name.clone(),
                                         href: ministate_octothorpe(&Ministate::Form(MinistateForm {
-                                            id: item.id.clone(),
+                                            id: page.form_id.clone(),
                                             title: format!("{}, {}", carry_titles.join(", "), item.name),
                                             params: page
                                                 .parameters
