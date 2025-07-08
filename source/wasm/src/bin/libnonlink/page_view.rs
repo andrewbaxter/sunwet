@@ -600,7 +600,7 @@ impl Build {
                                         query: query_id.clone(),
                                         parameters: params,
                                         pagination: Some(Pagination {
-                                            count: 20,
+                                            count: 10,
                                             seed: Some(seed),
                                             key: key,
                                         }),

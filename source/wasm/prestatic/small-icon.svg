@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 252.41724 252.41723"
+   version="1.1"
+   id="svg3"
+   sodipodi:docname="small-icon.svg"
+   width="252.41724"
+   height="252.41724"
+   inkscape:version="1.4.2 (ebf0e940d0, 2025-05-08)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs3" />
+  <sodipodi:namedview
+     id="namedview3"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="2.0755556"
+     inkscape:cx="229.57709"
+     inkscape:cy="160.67987"
+     inkscape:window-width="1750"
+     inkscape:window-height="1058"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg3" />
+  <rect
+     style="fill:#46494d;fill-opacity:1;stroke:none;stroke-width:21.3883;stroke-dasharray:1711.06, 42.7765, 106.941, 42.7765, 85.5532, 42.7765, 64.1649, 42.7765, 42.7765, 42.7765, 21.3883;paint-order:fill markers stroke"
+     id="rect3"
+     width="252.41724"
+     height="252.41724"
+     x="0"
+     y="0"
+     ry="43.385063" />
+  <circle
+     style="fill:none;fill-opacity:1;stroke:#fefefe;stroke-width:23.057;stroke-linecap:round;stroke-dasharray:none;stroke-opacity:1;paint-order:fill markers stroke"
+     id="path4"
+     cx="127.24639"
+     cy="126.21304"
+     r="57.576237" />
+  <path
+     class="blue"
+     fill="none"
+     stroke-linecap="round"
+     stroke-width="10"
+     d="m 29.301863,131.85003 c 17.56601,-10.12782 35.132021,-20.25563 58.296179,-16.23615 23.164158,4.01947 51.935028,22.19679 75.442108,26.37451 23.50708,4.18828 41.75892,-5.61249 60.01077,-15.40271"
+     id="path2"
+     style="stroke:#7ca7db;stroke-width:35.3206;stroke-dasharray:none;stroke-opacity:1" />
+  <path
+     class="white2"
+     fill="none"
+     stroke-linecap="square"
+     stroke-width="10"
+     d="m 42.696395,64.973611 12.13,8.81 m 39.949996,-46.66 4.64,14.27 m 59.759999,-14.27 -4.64,14.27 m 56.72,23.58 -12.13,8.81 m 12.13,113.659999 -12.13,-8.82 m -39.95,46.66 -4.64,-14.26 m -59.759999,14.26 4.64,-14.26 m -56.719996,-23.58 12.13,-8.82"
+     id="path3"
+     style="stroke:#fefefe;stroke-opacity:1;stroke-linecap:round;stroke-width:20.58330709;stroke-dasharray:none" />
+</svg>
