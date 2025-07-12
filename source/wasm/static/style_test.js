@@ -964,12 +964,12 @@
         break;
       case "#link_perms":
         {
-          buildRoot([presentation.appLinkPerms({}).root]);
+          document.body.appendChild(presentation.appLinkPerms({}).root);
         }
         break;
       case "#link_waiting":
         {
-          buildRoot([presentation.appLink({}).root]);
+          document.body.appendChild(presentation.appLink({}).root);
         }
         break;
       case "#link":
@@ -979,7 +979,7 @@
           cover.src = "testcover.jpg";
           a.displayOver.innerHTML = "";
           a.display.appendChild(cover);
-          buildRoot([a.root]);
+          document.body.appendChild(a.root);
         }
         break;
       case "#media_comic":

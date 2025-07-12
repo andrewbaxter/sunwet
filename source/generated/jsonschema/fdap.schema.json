@@ -1649,6 +1649,13 @@
         "orientation"
       ],
       "properties": {
+        "color": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "data": {
           "$ref": "#/definitions/FieldOrLiteralString"
         },
@@ -1688,6 +1695,13 @@
         "orientation"
       ],
       "properties": {
+        "color": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "data": {
           "$ref": "#/definitions/FieldOrLiteralString"
         },
@@ -2011,6 +2025,13 @@
         "orientation"
       ],
       "properties": {
+        "color": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "data": {
           "$ref": "#/definitions/FieldOrLiteralString"
         },

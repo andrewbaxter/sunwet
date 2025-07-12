@@ -801,6 +801,7 @@ impl Build {
                 orientation: config_at.orientation,
                 value: src,
                 font_size: config_at.font_size.clone(),
+                color: config_at.color.clone(),
             }).root);
         })() {
             Ok(e) => return e,
@@ -823,6 +824,7 @@ impl Build {
                 orientation: config_at.orientation,
                 value: src,
                 font_size: config_at.font_size.clone(),
+                color: config_at.color.clone(),
             }).root);
         })() {
             Ok(e) => return e,
@@ -845,6 +847,7 @@ impl Build {
                 orientation: config_at.orientation,
                 value: src,
                 font_size: config_at.font_size.clone(),
+                color: config_at.color.clone(),
             }).root);
         })() {
             Ok(e) => return e,
@@ -1108,7 +1111,7 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
                     modal_el.ref_replace(vec![]);
                 }).unwrap()
             });
-            modal_res.bg.ref_on("click", {
+            modal_res.root.ref_on("click", {
                 let modal_el = modal_res.root.weak();
                 let eg = pc.eg();
                 move |_| eg.event(|_pc| {

@@ -450,9 +450,6 @@
               s.width = "100dvw";
               s.height = "100dvh";
             },
-            ">*:not(:last-child)": (s) => {
-              s.pointerEvents = "none";
-            },
           }),
         ],
         children_: args.children,
@@ -651,25 +648,6 @@
       s.opacity = "0";
     },
   });
-
-  presentation.contBarMainForm =
-    /** @type {Presentation["contBarMainForm"]} */ (args) =>
-      presentation.contBar({
-        extraStyles: [
-          classMenuWantStateOpen,
-          contBarMainStyle,
-          ss(uniq("cont_bar_main_form"), {
-            "": (s) => {
-              s.backdropFilter = "brightness(1.06) blur(0.2cm)";
-            },
-          }),
-        ],
-        leftChildren: args.leftChildren,
-        leftMidChildren: args.leftMidChildren,
-        midChildren: args.midChildren,
-        rightMidChildren: args.rightMidChildren,
-        rightChildren: args.rightChildren,
-      });
 
   presentation.leafSpinner = /** @type {Presentation["leafSpinner"]} */ (
     args
@@ -897,6 +875,7 @@
               s.minHeight = varSButtonBigIcon;
             },
           }),
+          ...args.extraStyles,
         ],
       });
   presentation.leafButtonBigView =
@@ -906,6 +885,7 @@
         title: "View",
         icon: textIconView,
         text: "View",
+        extraStyles: [],
       });
   presentation.leafButtonBigCommit =
     /** @type { Presentation["leafButtonBigCommit"] } */
@@ -914,6 +894,7 @@
         title: "Commit",
         icon: textIconCommit,
         text: "Commit",
+        extraStyles: [],
       });
   const leafButtonLinkSmall =
     /** @type {(args: { title: string, icon?: string, text?: string, url: string }) => { root: HTMLElement }} */ (
@@ -1154,9 +1135,11 @@
           ss(uniq("leaf_input_text"), {
             "": (s) => {
               s.whiteSpace = "pre-wrap";
+              s.overflowWrap = "anywhere";
             },
             ":empty::before": (s) => {
               s.whiteSpace = "pre-wrap";
+              s.overflowWrap = "anywhere";
               s.opacity = varONoninteractive;
             },
           }),
@@ -1692,28 +1675,7 @@
         icons: { "": textIconPlay, [attrStatePlaying]: textIconPause },
       });
       return {
-        root: presentation.contBar({
-          extraStyles: [
-            classMenuWantStateOpen,
-            contBarMainStyle,
-            ss(uniq("cont_bar_main_transport"), {
-              "": (s) => {
-                s.position = "relative";
-                s.backdropFilter = "blur(0.2cm)";
-              },
-              "::before": (s) => {
-                s.display = "block";
-                s.content = '""';
-                s.position = "absolute";
-                s.left = "0";
-                s.right = "0";
-                s.top = "0";
-                s.bottom = "0";
-                s.backgroundColor = varCBackground;
-                s.opacity = "0.5";
-              },
-            }),
-          ],
+        root: presentation.contBarMain({
           leftChildren: [buttonShare.root],
           leftMidChildren: [],
           midChildren: [buttonPrev.root, seekbar, buttonNext.root],
@@ -1956,7 +1918,6 @@
       child: HTMLElement
     }) => { 
       root: HTMLElement, 
-      bg: HTMLElement,
       buttonClose: HTMLElement,
     }
   } */ (args) => {
@@ -1981,20 +1942,6 @@
         ],
       }
     );
-    const bg = e(
-      "div",
-      {},
-      {
-        styles_: [
-          ss(uniq("cont_modal_bg"), {
-            "": (s) => {
-              s.backgroundColor = varCModalVeil;
-              s.pointerEvents = "initial";
-            },
-          }),
-        ],
-      }
-    );
     return {
       root: e(
         "div",
@@ -2005,16 +1952,18 @@
             ss(uniq("cont_modal_outer"), {
               "": (s) => {
                 s.position = "fixed";
-                s.zIndex = "4";
                 s.top = "0";
                 s.bottom = "0";
                 s.left = "0";
                 s.right = "0";
+
+                s.zIndex = "4";
+                s.backgroundColor = varCModalVeil;
+                s.pointerEvents = "initial";
               },
             }),
           ],
           children_: [
-            bg,
             e(
               "div",
               {},
@@ -2078,7 +2027,6 @@
           ],
         }
       ),
-      bg: bg,
       buttonClose: buttonClose,
     };
   };
@@ -2156,6 +2104,14 @@
         title: "Unlink",
         icon: textIconUnlink,
         text: `Unlink`,
+        extraStyles: [
+          ss(uniq("cont_modal_view_share_unlink_button"), {
+            "": (s) => {
+              s.borderBottomLeftRadius = varRModal;
+              s.borderBottomRightRadius = varRModal;
+            },
+          }),
+        ],
       });
       const out = newContModal({
         title: "Link",
@@ -2219,7 +2175,6 @@
       });
       return {
         root: out.root,
-        bg: out.bg,
         buttonClose: out.buttonClose,
         buttonUnshare: buttonUnshare.root,
       };
@@ -2703,6 +2658,8 @@
     "": (s) => {
       s.pointerEvents = "initial";
       s.whiteSpace = "pre-wrap";
+      s.overflowWrap = "anywhere";
+      s.flexShrink = "1";
     },
   });
   const viewTextOrientationStyle = /** @type {(dir:Orientation)=>string} */ (
@@ -2821,6 +2778,9 @@
       if (args.fontSize != null) {
         out.style.fontSize = args.fontSize;
       }
+      if (args.color != null) {
+        out.style.color = args.color;
+      }
       return { root: out };
     };
   presentation.leafViewDate = /** @type { Presentation["leafViewDate"] } */ (
@@ -2852,6 +2812,9 @@
     })();
     if (args.fontSize != null) {
       out.style.fontSize = args.fontSize;
+    }
+    if (args.color != null) {
+      out.style.color = args.color;
     }
     return { root: out };
   };
@@ -2887,6 +2850,9 @@
     })();
     if (args.fontSize != null) {
       out.style.fontSize = args.fontSize;
+    }
+    if (args.color != null) {
+      out.style.color = args.color;
     }
     return { root: out };
   };
@@ -3204,7 +3170,7 @@
   ) => ({
     root: presentation.contGroup({
       children: [
-        presentation.contBarMainForm({
+        presentation.contBarMain({
           leftChildren: [],
           leftMidChildren: [],
           midChildren: [],
@@ -3296,7 +3262,7 @@
     return {
       root: presentation.contGroup({
         children: [
-          presentation.contBarMainForm({
+          presentation.contBarMain({
             leftChildren: [],
             leftMidChildren: [],
             midChildren: [],
@@ -3592,6 +3558,8 @@
             ss(uniq("leaf_node_view_node_text"), {
               "": (s) => {
                 s.whiteSpace = "pre-wrap";
+                s.overflowWrap = "anywhere";
+                s.flexShrink = "1";
               },
             }),
             leafLinkStyle,
@@ -3617,6 +3585,7 @@
               "": (s) => {
                 s.opacity = varONodePredicate;
                 s.whiteSpace = "pre-wrap";
+                s.overflowWrap = "anywhere";
               },
             }),
           ],
@@ -3758,7 +3727,7 @@
       return {
         root: presentation.contGroup({
           children: [
-            presentation.contBarMainForm({
+            presentation.contBarMain({
               leftChildren: [],
               leftMidChildren: [],
               midChildren: [],
@@ -4009,6 +3978,7 @@
               s.fontFamily = "monospace";
               s.fontSize = varFCode;
               s.whiteSpace = "pre-wrap";
+              s.overflowWrap = "anywhere";
             },
           }),
         ],
@@ -4131,6 +4101,7 @@
         title: "Login",
         icon: textIconLogin,
         text: "Login",
+        extraStyles: [],
       });
   presentation.leafMenuBarButtonLogout =
     /** @type {Presentation["leafMenuBarButtonLogout"]} */ (args) =>
@@ -4138,6 +4109,7 @@
         title: "Logout",
         icon: textIconLogout,
         text: "Logout",
+        extraStyles: [],
       });
 
   presentation.contMenuGroup = /** @type {Presentation["contMenuGroup"]} */ (
@@ -4249,8 +4221,7 @@
                       styles_: [
                         ss(uniq("leaf_menu_link_text"), {
                           "": (s) => {
-                            s.flexBasis = "0";
-                            s.flexGrow = "1";
+                            s.flexShrink = "1";
                           },
                         }),
                       ],
@@ -4469,6 +4440,37 @@
       admenuButton: admenuButton,
     };
   };
+  presentation.contBarMain = /** @type {Presentation["contBarMain"]} */ (
+    args
+  ) =>
+    presentation.contBar({
+      extraStyles: [
+        classMenuWantStateOpen,
+        contBarMainStyle,
+        ss(uniq("cont_bar_main"), {
+          "": (s) => {
+            s.position = "relative";
+            s.backdropFilter = "blur(0.2cm)";
+          },
+          "::before": (s) => {
+            s.display = "block";
+            s.content = '""';
+            s.position = "absolute";
+            s.left = "0";
+            s.right = "0";
+            s.top = "0";
+            s.bottom = "0";
+            s.backgroundColor = varCBackground;
+            s.opacity = "0.5";
+          },
+        }),
+      ],
+      leftChildren: args.leftChildren,
+      leftMidChildren: args.leftMidChildren,
+      midChildren: args.midChildren,
+      rightMidChildren: args.rightMidChildren,
+      rightChildren: args.rightChildren,
+    });
 
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: Main

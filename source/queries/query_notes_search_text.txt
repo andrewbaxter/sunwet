@@ -4,3 +4,4 @@ search $text -< "sunwet/1/text"
         !(-> "sunwet/1/delete")
     )
     include "query_notes_suffix.txt"
+    desc add_timestamp

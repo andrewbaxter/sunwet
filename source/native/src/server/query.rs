@@ -693,19 +693,23 @@ fn build_subchain(
                                         }
                                     }
                                     if flush && !buf.is_empty() {
-                                        match_terms.push(
-                                            format!(
-                                                "\"{}\"",
-                                                buf
-                                                    .split_off(0)
-                                                    .into_iter()
-                                                    .collect::<String>()
-                                                    .replace("\"", "\"\"")
-                                            ),
-                                        );
+                                        match_terms.push(buf.split_off(0));
                                     }
                                 }
-                                match_str = match_terms.join(" AND ");
+                                if !buf.is_empty() || match_terms.is_empty() {
+                                    match_terms.push(buf);
+                                }
+                                match_str =
+                                    match_terms
+                                        .into_iter()
+                                        .map(
+                                            |x| format!(
+                                                "\"{}\"",
+                                                x.into_iter().collect::<String>().replace("\"", "\"\"")
+                                            ),
+                                        )
+                                        .collect::<Vec<_>>()
+                                        .join(" AND ");
                             }
                             sql_sel.and_where(
                                 Expr::col(

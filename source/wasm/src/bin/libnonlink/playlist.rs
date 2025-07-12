@@ -7,11 +7,7 @@ use {
         },
     },
     crate::libnonlink::api::req_file,
-    chrono::{
-        DateTime,
-        Duration,
-        Utc,
-    },
+    chrono::Utc,
     futures::FutureExt,
     gloo::{
         timers::{
@@ -61,16 +57,9 @@ use {
         },
     },
     wasm::{
-        js::{
-            el_audio,
-            el_video,
-            env_preferred_audio_url,
-            env_preferred_video_url,
-            file_derivation_subtitles_url,
-            Env,
-        },
+        js::Env,
         media::{
-            pm_ready_prep,
+            pm_share_ready_prep,
             PlaylistMedia,
             PlaylistMediaAudioVideo,
             PlaylistMediaBook,
@@ -89,7 +78,6 @@ use {
         JsValue,
     },
     web_sys::{
-        console::log_1,
         HtmlMediaElement,
         MediaMetadata,
     },
@@ -119,7 +107,6 @@ pub struct PlaylistEntry {
 pub struct PlaylistState_ {
     pub view_ministate_state: RefCell<Option<MinistateViewState>>,
     pub env: Env,
-    pub debounce: Cell<DateTime<Utc>>,
     pub playlist: RefCell<BTreeMap<PlaylistIndex, Rc<PlaylistEntry>>>,
     pub playing: HistPrim<bool>,
     // Must be Some if playing, otherwise may be Some.
@@ -128,6 +115,9 @@ pub struct PlaylistState_ {
     pub playing_time: Prim<f64>,
     pub media_max_time: Prim<Option<f64>>,
     pub share: Prim<Option<(String, Ws<WsC2S, WsS2C>)>>,
+    pub media_el_audio: El,
+    pub media_el_video: El,
+    pub media_el_image: El,
 }
 
 #[derive(Clone)]
@@ -165,8 +155,37 @@ fn playlist_first_index(state: &PlaylistState) -> Option<PlaylistIndex> {
 }
 
 pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rooting::ScopeValue) {
+    let setup_media_element = |pc: &mut ProcessingContext, media: &El| {
+        media.ref_on("ended", {
+            let eg = pc.eg();
+            move |_| eg.event(|pc| {
+                playlist_next(pc, &state().playlist, None);
+            }).unwrap()
+        });
+        media.ref_on("loadedmetadata", {
+            move |ev| {
+                let state = state();
+                let ministate = state.playlist.0.view_ministate_state.borrow();
+                let Some(ministate) = &*ministate else {
+                    return;
+                };
+                let ministate = ministate.0.borrow();
+                let Some(restore) = ministate.pos.as_ref() else {
+                    return;
+                };
+                if state.playlist.0.playing_i.get().as_ref() != Some(&restore.index) {
+                    return;
+                }
+                ev.target().unwrap().dyn_into::<HtmlMediaElement>().unwrap().set_current_time(restore.time);
+            }
+        });
+    };
+    let media_el_audio = el("audio").attr("preload", "metadata").attr("controls", "true");
+    setup_media_element(pc, &media_el_audio);
+    let media_el_video = el("video").attr("preload", "metadata").attr("controls", "true");
+    setup_media_element(pc, &media_el_video);
+    let media_el_image = el("img").attr("loading", "lazy");
     let playlist_state = PlaylistState(Rc::new(PlaylistState_ {
-        debounce: Cell::new(Utc::now()),
         env: env.clone(),
         playlist: RefCell::new(Default::default()),
         playing: HistPrim::new(pc, false),
@@ -176,6 +195,9 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
         media_max_time: Prim::new(None),
         view_ministate_state: Default::default(),
         share: Prim::new(None),
+        media_el_audio: media_el_audio,
+        media_el_video: media_el_video,
+        media_el_image: media_el_image,
     }));
     let media_session = window().navigator().media_session();
 
@@ -297,9 +319,6 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
                                     }
                                 })));
                             }
-
-                            // Debounce: stop
-                            playlist_state.0.debounce.set(Utc::now());
                             e.media.pm_stop();
                         }
                     }
@@ -308,9 +327,6 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
                     if let Some(i) = playing_i.get_old().as_ref() {
                         if Some(i) != playing_i.get().as_ref() {
                             let e = playlist_state.0.playlist.borrow().get(i).cloned().unwrap();
-
-                            // Debounce: stop
-                            playlist_state.0.debounce.set(Utc::now());
                             e.media.pm_stop();
                             e.media.pm_seek(pc, 0.);
                             e.media.pm_unpreload();
@@ -327,6 +343,7 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
                         bg.set(Some(spawn_rooted({
                             let ws = ws.clone();
                             let eg = pc.eg();
+                            let env = playlist_state.0.env.clone();
                             async move {
                                 let new_time = e.media.pm_get_time();
                                 ws.send(WsC2S::Prepare(Prepare {
@@ -345,13 +362,12 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
                                     },
                                     media_time: e.media.pm_get_time(),
                                 })).await;
-                                pm_ready_prep(eg, e.media.as_ref(), new_time).await;
+                                pm_share_ready_prep(eg, &env, e.media.as_ref(), new_time).await;
                                 ws.send(WsC2S::Ready(Utc::now())).await;
                             }
                         })));
                     } else {
-                        // Debounce: play
-                        playlist_state.0.debounce.set(Utc::now());
+                        e.media.pm_preload(&playlist_state.0.env);
                         e.media.pm_play();
                     }
                 }
@@ -413,9 +429,8 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
                 if *playlist_state.0.playing.borrow() {
                     let i = playlist_state.0.playing_i.get().unwrap();
                     let e = playlist_state.0.playlist.borrow().get(&i).cloned().unwrap();
+                    let env = playlist_state.0.env.clone();
                     if let Some((_, ws)) = &*playlist_state.0.share.borrow() {
-                        // Debounce: stop, not actually stopping
-                        playlist_state.0.debounce.set(Utc::now());
                         e.media.pm_stop();
                         bg.set(Some(spawn_rooted({
                             let ws = ws.clone();
@@ -437,13 +452,11 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
                                     },
                                     media_time: new_time,
                                 })).await;
-                                pm_ready_prep(eg, e.media.as_ref(), new_time).await;
+                                pm_share_ready_prep(eg, &env, e.media.as_ref(), new_time).await;
                                 ws.send(WsC2S::Ready(Utc::now())).await;
                             }
                         })));
                     } else {
-                        // Debounce: ?
-                        playlist_state.0.debounce.set(Utc::now());
                         e.media.pm_seek(pc, new_time);
                     }
                 }
@@ -474,9 +487,6 @@ pub fn playlist_set_link(pc: &mut ProcessingContext, playlist_state: &PlaylistSt
                             if !playlist_state.0.playing.get() {
                                 return;
                             }
-
-                            // Debounce: play
-                            playlist_state.0.debounce.set(Utc::now());
                             e.media.pm_play();
                         }
                     })));
@@ -488,10 +498,6 @@ pub fn playlist_set_link(pc: &mut ProcessingContext, playlist_state: &PlaylistSt
 
 pub fn playlist_len(state: &PlaylistState) -> usize {
     return state.0.playlist.borrow().len();
-}
-
-fn debounce_pass(state: &PlaylistState) -> bool {
-    return Utc::now() - state.0.debounce.get() >= Duration::milliseconds(200);
 }
 
 pub struct PlaylistPushArg {
@@ -512,87 +518,31 @@ pub fn playlist_extend(
 ) {
     *playlist_state.0.view_ministate_state.borrow_mut() = Some(vs);
     for (entry_index, entry) in entries {
-        let setup_media_element = |pc: &mut ProcessingContext, media: &El| {
-            media.ref_on("ended", {
-                let eg = pc.eg();
-                let entry_index = entry_index.clone();
-                move |_| eg.event(|pc| {
-                    log_1(&JsValue::from("got media ended"));
-                    playlist_next(pc, &state().playlist, Some(entry_index.clone()));
-                }).unwrap()
-            });
-            media.ref_on("pause", {
-                let eg = pc.eg();
-                move |_| eg.event(|pc| {
-                    log_1(&JsValue::from("got media pause"));
-                    if !debounce_pass(&state().playlist) {
-                        return;
-                    }
-                    state().playlist.0.playing.set(pc, false);
-                }).unwrap()
-            });
-            media.ref_on("play", {
-                let eg = pc.eg();
-                move |_| eg.event(|pc| {
-                    if !debounce_pass(&state().playlist) {
-                        return;
-                    }
-                    state().playlist.0.playing.set(pc, true);
-                }).unwrap()
-            });
-            if let Some(restore_pos) = restore_pos {
-                if restore_pos.index == entry_index {
-                    media.ref_on("loadedmetadata", {
-                        let time = restore_pos.time;
-                        move |e| {
-                            e.target().unwrap().dyn_into::<HtmlMediaElement>().unwrap().set_current_time(time);
-                        }
-                    });
-                    playlist_state.0.playing_i.set(pc, Some(entry_index.clone()));
-                }
-            }
-        };
         let box_media: Box<dyn PlaylistMedia>;
         match entry.media_type {
             PlaylistEntryMediaType::Audio => {
-                let media = el_audio(&match &entry.source_url {
-                    SourceUrl::Url(v) => v.clone(),
-                    SourceUrl::File(v) => env_preferred_audio_url(&state().env, v),
-                }).attr("controls", "true");
-                setup_media_element(pc, &media);
-                box_media = Box::new(PlaylistMediaAudioVideo::new_audio(media));
+                box_media =
+                    Box::new(
+                        PlaylistMediaAudioVideo::new_audio(
+                            playlist_state.0.media_el_audio.clone(),
+                            entry.source_url.clone(),
+                        ),
+                    );
             },
             PlaylistEntryMediaType::Video => {
-                let media;
-                match &entry.source_url {
-                    SourceUrl::Url(v) => {
-                        media = el_video(v);
-                    },
-                    SourceUrl::File(v) => {
-                        media = el_video(&env_preferred_video_url(&state().env, v));
-                        for (i, lang) in state().env.languages.iter().enumerate() {
-                            let track =
-                                el("track")
-                                    .attr("kind", "subtitles")
-                                    .attr("src", &file_derivation_subtitles_url(&state().env, lang, v))
-                                    .attr("srclang", &lang);
-                            if i == 0 {
-                                track.ref_attr("default", "default");
-                            }
-                            media.ref_push(track);
-                        }
-                    },
-                }
-                media.ref_attr("controls", "true");
-                setup_media_element(pc, &media);
-                box_media = Box::new(PlaylistMediaAudioVideo::new_video(media));
+                box_media =
+                    Box::new(
+                        PlaylistMediaAudioVideo::new_video(
+                            playlist_state.0.media_el_video.clone(),
+                            entry.source_url.clone(),
+                        ),
+                    );
             },
             PlaylistEntryMediaType::Image => {
-                let media = el("img").attr("src", &match &entry.source_url {
-                    SourceUrl::Url(v) => v.clone(),
-                    SourceUrl::File(v) => file_url(&state().env, v),
-                }).attr("loading", "lazy");
-                box_media = Box::new(PlaylistMediaImage { element: media.clone() });
+                box_media = Box::new(PlaylistMediaImage {
+                    element: playlist_state.0.media_el_image.clone(),
+                    src: entry.source_url.clone(),
+                });
             },
             PlaylistEntryMediaType::Comic => {
                 box_media = Box::new(PlaylistMediaComic::new(&match &entry.source_url {
@@ -612,6 +562,11 @@ pub fn playlist_extend(
                     SourceUrl::File(h) => generated_file_url(&state().env, h, GENTYPE_DIR, ""),
                 }, 0));
             },
+        }
+        if let Some(restore_pos) = restore_pos {
+            if restore_pos.index == entry_index {
+                playlist_state.0.playing_i.set(pc, Some(entry_index.clone()));
+            }
         }
         playlist_state.0.playlist.borrow_mut().insert(entry_index, Rc::new(PlaylistEntry {
             name: entry.name,

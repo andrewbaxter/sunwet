@@ -171,6 +171,8 @@ pub struct WidgetDate {
     pub suffix: String,
     #[serde(default)]
     pub font_size: Option<String>,
+    #[serde(default)]
+    pub color: Option<String>,
     pub orientation: Orientation,
     #[serde(default)]
     pub trans_align: TransAlign,
@@ -186,6 +188,8 @@ pub struct WidgetTime {
     pub suffix: String,
     #[serde(default)]
     pub font_size: Option<String>,
+    #[serde(default)]
+    pub color: Option<String>,
     pub orientation: Orientation,
     #[serde(default)]
     pub trans_align: TransAlign,
@@ -201,6 +205,8 @@ pub struct WidgetDatetime {
     pub suffix: String,
     #[serde(default)]
     pub font_size: Option<String>,
+    #[serde(default)]
+    pub color: Option<String>,
     pub orientation: Orientation,
     #[serde(default)]
     pub trans_align: TransAlign,

@@ -78,7 +78,6 @@ pub fn set_page_(pc: &mut ProcessingContext, title: &str, no_main_title: bool, b
     playlist_clear(pc, &state().playlist);
     document().set_title(&format!("{} - Sunwet", title));
     let state = state();
-    state.modal_stack.ref_clear();
     if no_main_title {
         state.main_title.ref_text("");
     } else {

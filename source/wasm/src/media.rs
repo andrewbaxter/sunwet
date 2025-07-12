@@ -1,12 +1,19 @@
 use {
-    crate::js::{
-        self,
-        async_event,
-        el_async,
-        log,
-        style_export,
-        ElExt,
-        LogJsErr,
+    crate::{
+        js::{
+            self,
+            async_event,
+            el_async,
+            env_preferred_audio_url,
+            env_preferred_video_url,
+            file_derivation_subtitles_url,
+            log,
+            style_export,
+            ElExt,
+            Env,
+            LogJsErr,
+        },
+        world::file_url,
     },
     flowcontrol::ta_return,
     futures::{
@@ -38,7 +45,10 @@ use {
         El,
         ScopeValue,
     },
-    shared::interface::derived::ComicManifest,
+    shared::interface::{
+        derived::ComicManifest,
+        wire::link::SourceUrl,
+    },
     std::{
         cell::{
             Cell,
@@ -87,7 +97,7 @@ pub trait PlaylistMedia {
     fn pm_get_max_time(&self) -> Option<f64>;
     fn pm_format_time(&self, time: f64) -> String;
     fn pm_seek(&self, pc: &mut ProcessingContext, time: f64);
-    fn pm_preload(&self);
+    fn pm_preload(&self, env: &Env);
     fn pm_unpreload(&self);
     fn pm_el(&self, pc: &mut ProcessingContext) -> El;
     fn pm_wait_until_seekable(&self) -> Pin<Box<dyn Future<Output = ()>>>;
@@ -95,27 +105,30 @@ pub trait PlaylistMedia {
 }
 
 pub struct PlaylistMediaAudioVideo {
-    pub display: bool,
+    pub video: bool,
     pub media_el: HtmlMediaElement,
     pub el: El,
+    pub src: SourceUrl,
     pub loaded_src: RefCell<Option<String>>,
 }
 
 impl PlaylistMediaAudioVideo {
-    pub fn new_audio(el: El) -> PlaylistMediaAudioVideo {
+    pub fn new_audio(el: El, src: SourceUrl) -> PlaylistMediaAudioVideo {
         return PlaylistMediaAudioVideo {
-            display: false,
+            video: false,
             media_el: el.raw().dyn_into().unwrap(),
             el: el,
+            src: src,
             loaded_src: RefCell::new(None),
         };
     }
 
-    pub fn new_video(el: El) -> PlaylistMediaAudioVideo {
+    pub fn new_video(el: El, src: SourceUrl) -> PlaylistMediaAudioVideo {
         return PlaylistMediaAudioVideo {
-            display: true,
+            video: true,
             media_el: el.raw().dyn_into().unwrap(),
             el: el,
+            src: src,
             loaded_src: RefCell::new(None),
         };
     }
@@ -123,7 +136,7 @@ impl PlaylistMediaAudioVideo {
 
 impl PlaylistMedia for PlaylistMediaAudioVideo {
     fn pm_display(&self) -> bool {
-        return self.display;
+        return self.video;
     }
 
     fn pm_el(&self, _pc: &mut ProcessingContext) -> El {
@@ -172,14 +185,45 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
         self.media_el.set_current_time(time);
     }
 
-    fn pm_preload(&self) {
+    fn pm_preload(&self, env: &Env) {
         self.media_el.set_attribute("preload", "auto").log("Error setting preload attribute");
-        let current_src = self.media_el.current_src();
-        if self.loaded_src.borrow_mut().as_ref() != Some(&current_src) {
+        let src = if self.video {
+            match &self.src {
+                SourceUrl::Url(v) => v.clone(),
+                SourceUrl::File(v) => env_preferred_video_url(&env, &v),
+            }
+        } else {
+            match &self.src {
+                SourceUrl::Url(v) => v.clone(),
+                SourceUrl::File(v) => env_preferred_audio_url(&env, &v),
+            }
+        };
+        if src != self.media_el.current_src() {
+            if self.video {
+                match &self.src {
+                    SourceUrl::Url(_) => { },
+                    SourceUrl::File(v) => {
+                        self.media_el.set_inner_html("");
+                        for (i, lang) in env.languages.iter().enumerate() {
+                            let track =
+                                el("track")
+                                    .attr("kind", "subtitles")
+                                    .attr("src", &file_derivation_subtitles_url(&env, lang, &v))
+                                    .attr("srclang", &lang);
+                            if i == 0 {
+                                track.ref_attr("default", "default");
+                            }
+                            self.media_el.append_child(&track.raw()).log("Error adding track to video element");
+                        }
+                    },
+                }
+            }
+            self.media_el.set_src(&src);
+
             // iOS doesn't load unless load called. Load resets currentTime to 0 on chrome
-            // (desktop/android).
+            // (desktop/android). Avoid calling load again unless the url changes (to avoid
+            // time reset).
             self.media_el.load();
-            *self.loaded_src.borrow_mut() = Some(current_src);
         }
     }
 
@@ -210,6 +254,7 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
 
 pub struct PlaylistMediaImage {
     pub element: El,
+    pub src: SourceUrl,
 }
 
 impl PlaylistMediaImage { }
@@ -241,12 +286,16 @@ impl PlaylistMedia for PlaylistMediaImage {
 
     fn pm_seek(&self, _pc: &mut ProcessingContext, _time: f64) { }
 
-    fn pm_preload(&self) {
+    fn pm_preload(&self, env: &Env) {
         self.element.ref_attr("loading", "eager");
+        self.element.ref_attr("src", &match &self.src {
+            SourceUrl::Url(v) => v.clone(),
+            SourceUrl::File(v) => file_url(&env, &v),
+        });
     }
 
     fn pm_unpreload(&self) {
-        self.element.ref_attr("loading", "auto");
+        self.element.ref_attr("loading", "lazy");
     }
 
     fn pm_wait_until_seekable(&self) -> Pin<Box<dyn Future<Output = ()>>> {
@@ -698,7 +747,7 @@ impl PlaylistMedia for PlaylistMediaComic {
         self.at.set(pc, time as usize);
     }
 
-    fn pm_preload(&self) { }
+    fn pm_preload(&self, _env: &Env) { }
 
     fn pm_unpreload(&self) { }
 
@@ -1010,7 +1059,7 @@ impl PlaylistMedia for PlaylistMediaBook {
         self.at.set(pc, time as usize);
     }
 
-    fn pm_preload(&self) { }
+    fn pm_preload(&self, _env: &Env) { }
 
     fn pm_unpreload(&self) { }
 
@@ -1026,8 +1075,8 @@ impl PlaylistMedia for PlaylistMediaBook {
     }
 }
 
-pub async fn pm_ready_prep(eg: EventGraph, media: &dyn PlaylistMedia, new_time: f64) {
-    media.pm_preload();
+pub async fn pm_share_ready_prep(eg: EventGraph, env: &Env, media: &dyn PlaylistMedia, new_time: f64) {
+    media.pm_preload(env);
     media.pm_wait_until_seekable().await;
     eg.event(|pc| {
         media.pm_seek(pc, new_time);

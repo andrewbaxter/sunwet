@@ -232,17 +232,6 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         Func {
-            name: "contBarMainForm",
-            args: vec![
-                ("leftChildren", &arrel_),
-                ("leftMidChildren", &arrel_),
-                ("midChildren", &arrel_),
-                ("rightMidChildren", &arrel_),
-                ("rightChildren", &arrel_),
-            ],
-            returns: vec![("root", &el_)],
-        },
-        Func {
             name: "leafSpinner",
             args: vec![("extraStyles", &arrstring_)],
             returns: vec![("root", &el_)],
@@ -254,7 +243,12 @@ fn main() {
         },
         Func {
             name: "leafButtonBig",
-            args: vec![("title", &string_), ("icon", &optstring_), ("text", &optstring_)],
+            args: vec![
+                ("title", &string_),
+                ("icon", &optstring_),
+                ("text", &optstring_),
+                ("extraStyles", &arrstring_)
+            ],
             returns: vec![("root", &el_)],
         },
         Func {
@@ -435,7 +429,7 @@ fn main() {
         Func {
             name: "contModalViewShare",
             args: vec![("qr", &el_), ("link", &string_)],
-            returns: vec![("root", &el_), ("bg", &el_), ("buttonClose", &el_), ("buttonUnshare", &el_)],
+            returns: vec![("root", &el_), ("buttonClose", &el_), ("buttonUnshare", &el_)],
         },
         Func {
             name: "contViewList",
@@ -536,6 +530,7 @@ fn main() {
                 ("orientation", &orientation),
                 ("value", &string_),
                 ("fontSize", &optstring_),
+                ("color", &optstring_),
             ],
             returns: vec![("root", &el_)],
         },
@@ -546,6 +541,7 @@ fn main() {
                 ("orientation", &orientation),
                 ("value", &string_),
                 ("fontSize", &optstring_),
+                ("color", &optstring_),
             ],
             returns: vec![("root", &el_)],
         },
@@ -556,6 +552,7 @@ fn main() {
                 ("orientation", &orientation),
                 ("value", &string_),
                 ("fontSize", &optstring_),
+                ("color", &optstring_),
             ],
             returns: vec![("root", &el_)],
         },
@@ -746,6 +743,17 @@ fn main() {
             name: "appMain",
             args: vec![("mainTitle", &el_), ("mainBody", &el_), ("menuBody", &el_)],
             returns: vec![("root", &el_), ("admenuButton", &el_)],
+        },
+        Func {
+            name: "contBarMain",
+            args: vec![
+                ("leftChildren", &arrel_),
+                ("leftMidChildren", &arrel_),
+                ("midChildren", &arrel_),
+                ("rightMidChildren", &arrel_),
+                ("rightChildren", &arrel_),
+            ],
+            returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: Link

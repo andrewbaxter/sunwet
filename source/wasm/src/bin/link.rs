@@ -44,16 +44,13 @@ use {
     wasm::{
         constants::LINK_HASH_PREFIX,
         js::{
-            env_preferred_audio_url,
-            env_preferred_video_url,
-            file_derivation_subtitles_url,
             get_dom_octothorpe,
             log_js,
             scan_env,
             style_export,
         },
         media::{
-            pm_ready_prep,
+            pm_share_ready_prep,
             PlaylistMedia,
             PlaylistMediaAudioVideo,
             PlaylistMediaBook,
@@ -80,8 +77,9 @@ use {
 };
 
 struct State_ {
-    media_audio_el: El,
-    media_video_el: El,
+    media_el_audio: El,
+    media_el_video: El,
+    media_el_image: El,
     display: El,
     display_over: El,
     display_under: El,
@@ -108,8 +106,16 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
             .unwrap();
         let style_res = style_export::app_link();
         let state = State(Rc::new(State_ {
-            media_audio_el: el_from_raw(media_audio_el.clone().into()),
-            media_video_el: el_from_raw(media_video_el.into()),
+            media_el_audio: el_from_raw(media_audio_el.clone().into()),
+            media_el_video: el_from_raw(media_video_el.into()),
+            media_el_image: el("img").on("click", |ev| {
+                if document().fullscreen_element().is_none() {
+                    let img = ev.target().unwrap().dyn_ref::<HtmlElement>().unwrap().clone();
+                    _ = img.request_fullscreen().unwrap();
+                } else {
+                    document().exit_fullscreen();
+                }
+            }),
             display: style_res.display,
             display_under: style_res.display_under.clone(),
             display_over: style_res.display_over.clone(),
@@ -161,61 +167,28 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
                                                     .ref_modify_classes(&[(&class_state_hide, false)]);
                                             },
                                         }
-                                        let media_el = state.0.media_audio_el.clone();
-                                        media_el.ref_attr("src", &match audio.source_url {
-                                            SourceUrl::Url(v) => v,
-                                            SourceUrl::File(v) => env_preferred_audio_url(&env, &v),
-                                        });
-                                        media = Rc::new(PlaylistMediaAudioVideo::new_audio(media_el));
+                                        media =
+                                            Rc::new(
+                                                PlaylistMediaAudioVideo::new_audio(
+                                                    state.0.media_el_audio.clone(),
+                                                    audio.source_url.clone(),
+                                                ),
+                                            );
                                     },
                                     PrepareMedia::Video(source_url) => {
                                         state.0.display_under.ref_modify_classes(&[(&class_state_hide, true)]);
-                                        let media_el = state.0.media_video_el.clone();
-                                        media_el.ref_clear();
-                                        let src;
-                                        match source_url {
-                                            SourceUrl::Url(v) => {
-                                                src = v;
-                                            },
-                                            SourceUrl::File(v) => {
-                                                src = env_preferred_video_url(&env, &v);
-                                                for (i, lang) in env.languages.iter().enumerate() {
-                                                    let track =
-                                                        el("track")
-                                                            .attr("kind", "subtitles")
-                                                            .attr(
-                                                                "src",
-                                                                &file_derivation_subtitles_url(&env, lang, &v),
-                                                            )
-                                                            .attr("srclang", &lang);
-                                                    if i == 0 {
-                                                        track.ref_attr("default", "default");
-                                                    }
-                                                    media_el.ref_push(track);
-                                                }
-                                            },
-                                        }
-                                        media_el.ref_attr("src", &src);
-                                        state.0.media_video_el.ref_attr("preload", "auto");
+                                        let media_el = state.0.media_el_video.clone();
                                         state.0.display.ref_push(media_el.clone());
-                                        media = Rc::new(PlaylistMediaAudioVideo::new_video(media_el));
+                                        media = Rc::new(PlaylistMediaAudioVideo::new_video(media_el, source_url));
                                     },
                                     PrepareMedia::Image(source_url) => {
                                         state.0.display_under.ref_modify_classes(&[(&class_state_hide, true)]);
-                                        let media_el = el("img").attr("src", &match source_url {
-                                            SourceUrl::Url(v) => v,
-                                            SourceUrl::File(v) => file_url(&env, &v),
-                                        }).on("click", |ev| {
-                                            if document().fullscreen_element().is_none() {
-                                                let img =
-                                                    ev.target().unwrap().dyn_ref::<HtmlElement>().unwrap().clone();
-                                                _ = img.request_fullscreen().unwrap();
-                                            } else {
-                                                document().exit_fullscreen();
-                                            }
-                                        });
+                                        let media_el = state.0.media_el_image.clone();
                                         state.0.display.ref_push(media_el.clone());
-                                        media = Rc::new(PlaylistMediaImage { element: media_el });
+                                        media = Rc::new(PlaylistMediaImage {
+                                            element: media_el,
+                                            src: source_url.clone(),
+                                        });
                                     },
                                     PrepareMedia::Comic(source_url) => {
                                         state.0.display_under.ref_modify_classes(&[(&class_state_hide, true)]);
@@ -260,7 +233,7 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
                                     state.0.media.set(pc, Some(media.clone()));
                                 });
                                 state.0.display_over.ref_modify_classes(&[(&class_state_hide, false)]);
-                                pm_ready_prep(eg, media.as_ref(), prepare.media_time).await;
+                                pm_share_ready_prep(eg, &env, media.as_ref(), prepare.media_time).await;
                                 ws.send(WsL2S::Ready(Utc::now())).await;
                                 state.0.display_over.ref_modify_classes(&[(&class_state_hide, true)]);
                             },
