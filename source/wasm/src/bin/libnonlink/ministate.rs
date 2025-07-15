@@ -1,6 +1,12 @@
 use {
     super::playlist::PlaylistIndex,
-    gloo::utils::window,
+    gloo::{
+        storage::{
+            LocalStorage,
+            Storage,
+        },
+        utils::window,
+    },
     js_sys::decode_uri,
     serde::{
         Deserialize,
@@ -17,11 +23,13 @@ use {
     wasm::js::{
         get_dom_octothorpe,
         log,
+        LogJsErr,
     },
     wasm_bindgen::JsValue,
 };
 
-pub const SESSIONSTORAGE_POST_REDIRECT: &str = "post_redirect";
+pub const LOCALSTORAGE_PWA_MINISTATE: &str = "pwa_ministate";
+pub const SESSIONSTORAGE_POST_REDIRECT_MINISTATE: &str = "post_redirect";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
@@ -128,6 +136,7 @@ pub fn record_new_ministate(s: &Ministate) {
             Some(&ministate_octothorpe(s)),
         )
         .unwrap();
+    LocalStorage::set(LOCALSTORAGE_PWA_MINISTATE, s).log("Error storing PWA ministate");
 }
 
 pub fn record_replace_ministate(s: &Ministate) {
@@ -136,6 +145,7 @@ pub fn record_replace_ministate(s: &Ministate) {
         .unwrap()
         .replace_state_with_url(&JsValue::null(), "", Some(&ministate_octothorpe(s)))
         .unwrap();
+    LocalStorage::set(LOCALSTORAGE_PWA_MINISTATE, s).log("Error storing PWA ministate");
 }
 
 pub fn read_ministate() -> Ministate {

@@ -194,7 +194,7 @@
   const varSCol3Width = "1.4cm";
   const varSTransportGutterRadius = "0.05cm";
   const varSRelIcon = "min(10dvw, 1.5cm)";
-  const varSNodeButton = "min(10dvw, 1cm)";
+  const varSNodeButton = "min(10dvw, 0.8cm)";
   const varSHistPredObj = "min(10dvw, 1cm)";
   const varSColWidthRaw = `12cm`;
   const varSColWidth = `min(100%, ${varSColWidthRaw})`;
@@ -338,7 +338,7 @@
   );
   const varCHighlightBold = vs(
     uniq("highlight"),
-    "rgb(62, 119, 251)",
+    "rgb(140, 172, 245)",
     "rgb(78, 129, 183)"
   );
   const varCRemove = vs(uniq("remove"), "rgb(136, 136, 136)", "rgb(0,0,0)");
@@ -4462,6 +4462,7 @@
             s.bottom = "0";
             s.backgroundColor = varCBackground;
             s.opacity = "0.5";
+            s.zIndex = "-1";
           },
         }),
       ],

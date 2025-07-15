@@ -564,7 +564,7 @@ pub fn playlist_extend(
             },
         }
         if let Some(restore_pos) = restore_pos {
-            if restore_pos.index == entry_index {
+            if restore_pos.index == entry_index && !playlist_state.0.playing.get() {
                 playlist_state.0.playing_i.set(pc, Some(entry_index.clone()));
             }
         }

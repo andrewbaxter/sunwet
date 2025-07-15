@@ -8,6 +8,7 @@ use {
             env_preferred_video_url,
             file_derivation_subtitles_url,
             log,
+            log_js,
             style_export,
             ElExt,
             Env,
@@ -31,7 +32,9 @@ use {
             window,
         },
     },
-    js_sys::Array,
+    js_sys::{
+        Array,
+    },
     lunk::{
         link,
         EventGraph,
@@ -69,6 +72,9 @@ use {
         prelude::Closure,
         JsCast,
         JsValue,
+    },
+    wasm_bindgen_futures::{
+        JsFuture,
     },
     web_sys::{
         Document,
@@ -110,6 +116,7 @@ pub struct PlaylistMediaAudioVideo {
     pub el: El,
     pub src: SourceUrl,
     pub loaded_src: RefCell<Option<String>>,
+    pub play_bg: Rc<RefCell<Option<ScopeValue>>>,
 }
 
 impl PlaylistMediaAudioVideo {
@@ -120,6 +127,7 @@ impl PlaylistMediaAudioVideo {
             el: el,
             src: src,
             loaded_src: RefCell::new(None),
+            play_bg: Default::default(),
         };
     }
 
@@ -130,6 +138,7 @@ impl PlaylistMediaAudioVideo {
             el: el,
             src: src,
             loaded_src: RefCell::new(None),
+            play_bg: Default::default(),
         };
     }
 }
@@ -144,11 +153,39 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
     }
 
     fn pm_play(&self) {
-        self.media_el.play().log("Error playing video");
+        fn do_play(bg: Rc<RefCell<Option<ScopeValue>>>, media_el: HtmlMediaElement) {
+            let f = match media_el.play() {
+                Ok(f) => f,
+                Err(e) => {
+                    log_js("Error playing video", &e);
+                    return;
+                },
+            };
+            let f1 = {
+                let bg = bg.clone();
+                async move {
+                    match JsFuture::from(f).await {
+                        Ok(_) => { },
+                        Err(e) => {
+                            log_js("Error playing media, retrying in 1s", &e);
+                            let src = media_el.src();
+                            media_el.set_src("");
+                            TimeoutFuture::new(1000).await;
+                            media_el.set_src(&src);
+                            do_play(bg, media_el);
+                        },
+                    };
+                }
+            };
+            *bg.borrow_mut() = Some(spawn_rooted(f1));
+        }
+
+        do_play(self.play_bg.clone(), self.media_el.clone());
     }
 
     fn pm_stop(&self) {
         self.media_el.pause().unwrap();
+        *self.play_bg.borrow_mut() = None;
     }
 
     fn pm_get_max_time(&self) -> Option<f64> {

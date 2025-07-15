@@ -61,7 +61,7 @@ let
     ${pkgs.ffmpeg}/bin/ffmpeg -f lavfi -i anullsrc=r=11025:cl=mono -f lavfi -i "color=c=black:size=1x1" -t 0.1 $out/videotest.webm
     ${pkgs.inkscape}/bin/inkscape --export-filename $out/pwa-icon-512.png --export-width 512 ${./wasm}/prestatic/big-icon.svg
     ${pkgs.inkscape}/bin/inkscape --export-filename $out/pwa-icon-192.png --export-width 192 ${./wasm}/prestatic/big-icon.svg
-    ${pkgs.inkscape}/bin/inkscape --export-filename $out/apple-icon-180.png --export-width 180 ${./wasm}/prestatic/small-icon.svg
+    ${pkgs.inkscape}/bin/inkscape --export-filename $out/apple-icon-180.png --export-width 180 ${./wasm}/prestatic/big-icon.svg
     ${pkgs.inkscape}/bin/inkscape --export-filename $out/favicon.png --export-width 128 ${./wasm}/prestatic/small-icon.svg
   '';
 

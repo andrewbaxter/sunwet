@@ -2,7 +2,7 @@ use {
     super::{
         ministate::{
             Ministate,
-            SESSIONSTORAGE_POST_REDIRECT,
+            SESSIONSTORAGE_POST_REDIRECT_MINISTATE,
         },
         state::state,
     },
@@ -47,9 +47,9 @@ pub fn unset_want_logged_in() {
 }
 
 pub fn redirect_login(base_url: &str) -> ! {
-    if !SessionStorage::get::<Ministate>(SESSIONSTORAGE_POST_REDIRECT).is_ok() {
+    if !SessionStorage::get::<Ministate>(SESSIONSTORAGE_POST_REDIRECT_MINISTATE).is_ok() {
         SessionStorage::set(
-            SESSIONSTORAGE_POST_REDIRECT,
+            SESSIONSTORAGE_POST_REDIRECT_MINISTATE,
             &*state().ministate.borrow(),
         ).log("Error storing post-redirect ministate");
     }
@@ -63,9 +63,9 @@ pub fn redirect_login(base_url: &str) -> ! {
 }
 
 pub fn redirect_logout(base_url: &str) -> ! {
-    if !SessionStorage::get::<Ministate>(SESSIONSTORAGE_POST_REDIRECT).is_ok() {
+    if !SessionStorage::get::<Ministate>(SESSIONSTORAGE_POST_REDIRECT_MINISTATE).is_ok() {
         SessionStorage::set(
-            SESSIONSTORAGE_POST_REDIRECT,
+            SESSIONSTORAGE_POST_REDIRECT_MINISTATE,
             &*state().ministate.borrow(),
         ).log("Error storing post-redirect ministate");
     }

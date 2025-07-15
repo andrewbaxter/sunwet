@@ -1,12 +1,6 @@
 use {
-    crate::libnonlink::ministate::{
-        MinistateForm,
-        MinistateHistory,
-        MinistateQuery,
-        MinistateView,
-    },
     flowcontrol::{
-        superif,
+        shed,
         ta_return,
     },
     gloo::{
@@ -31,11 +25,16 @@ use {
             want_logged_in,
         },
         ministate::{
+            MinistateForm,
+            MinistateHistory,
+            MinistateQuery,
+            MinistateView,
+            LOCALSTORAGE_PWA_MINISTATE,
             ministate_octothorpe,
             read_ministate,
             record_replace_ministate,
             Ministate,
-            SESSIONSTORAGE_POST_REDIRECT,
+            SESSIONSTORAGE_POST_REDIRECT_MINISTATE,
         },
         page_view::LOCALSTORAGE_SHARE_SESSION_ID,
         playlist::{
@@ -118,16 +117,27 @@ pub fn main() {
         let (playlist_state, playlist_root) = playlist::state_new(pc, env.clone());
         STATE.with(|s| *s.borrow_mut() = Some(Rc::new(State_ {
             eg: pc.eg(),
-            ministate: RefCell::new(superif!({
-                let Ok(m) = SessionStorage::get::<Ministate>(SESSIONSTORAGE_POST_REDIRECT) else {
-                    break 'not_redirect;
-                };
-                SessionStorage::delete(SESSIONSTORAGE_POST_REDIRECT);
-                record_replace_ministate(&m);
-                m
-            } 'not_redirect {
-                read_ministate()
-            })),
+            ministate: RefCell::new(shed!{
+                'found _;
+                shed!{
+                    let Ok(m) = SessionStorage::get::<Ministate>(SESSIONSTORAGE_POST_REDIRECT_MINISTATE) else {
+                        break;
+                    };
+                    SessionStorage::delete(SESSIONSTORAGE_POST_REDIRECT_MINISTATE);
+                    record_replace_ministate(&m);
+                    break 'found m;
+                }
+                shed!{
+                    if !env.pwa {
+                        break;
+                    }
+                    let Ok(m) = LocalStorage::get::<Ministate>(LOCALSTORAGE_PWA_MINISTATE) else {
+                        break;
+                    };
+                    record_replace_ministate(&m);
+                }
+                break 'found read_ministate();
+            }),
             menu_open: Prim::new(false),
             env: env.clone(),
             playlist: playlist_state,

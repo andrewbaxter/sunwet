@@ -64,6 +64,7 @@ pub struct Env {
     pub engine: Option<Engine>,
     // Languages as they come from the navigator
     pub languages: Vec<String>,
+    pub pwa: bool,
 }
 
 pub fn scan_env() -> Env {
@@ -104,6 +105,17 @@ pub fn scan_env() -> Env {
                 out.push(nav_lang);
             }
             break out;
+        },
+        pwa: match window().match_media("(display-mode: standalone)") {
+            Ok(v) => if let Some(v) = v {
+                v.matches()
+            } else {
+                false
+            },
+            Err(e) => {
+                log_js("Error running media query to determine if PWA", &e);
+                false
+            },
         },
     }
 }
