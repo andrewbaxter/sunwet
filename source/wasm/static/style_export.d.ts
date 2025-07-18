@@ -2,6 +2,7 @@
 declare type Presentation = {
     attrState: (args: {  }) => { value: string };
     attrStatePlaying: (args: {  }) => { value: string };
+    attrStateSelected: (args: {  }) => { value: string };
     classMenuWantStateOpen: (args: {  }) => { value: string };
     classMenuStateOpen: (args: {  }) => { value: string };
     classStateHide: (args: {  }) => { value: string };

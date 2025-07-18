@@ -913,6 +913,20 @@ impl Build {
                 };
                 break Some(unwrap_value_media_url(&d).map_err(|e| format!("Building cover url: {}", e))?);
             };
+            let out = style_export::leaf_view_play_button(style_export::LeafViewPlayButtonArgs {
+                image: if config_at.show_image {
+                    cover_source_url.as_ref().map(|x| match x {
+                        SourceUrl::Url(u) => u.clone(),
+                        SourceUrl::File(f) => file_url(&state().env, &f),
+                    })
+                } else {
+                    None
+                },
+                width: config_at.width.clone(),
+                height: config_at.height.clone(),
+                trans_align: config_at.trans_align,
+                orientation: config_at.orientation.unwrap_or(Orientation::RightDown),
+            }).root;
             self.playlist_add.push((data_id.clone(), PlaylistPushArg {
                 name: shed!{
                     let Some(config_at) = &config_at.name_field else {
@@ -941,24 +955,11 @@ impl Build {
                     };
                     break Some(unwrap_value_string(&d));
                 },
-                cover_source_url: cover_source_url.clone(),
+                cover_source_url: cover_source_url,
                 source_url: src_url,
                 media_type: media_type,
+                play_buttons: vec![out.raw().dyn_into().unwrap()],
             }));
-            let out = style_export::leaf_view_play_button(style_export::LeafViewPlayButtonArgs {
-                image: if config_at.show_image {
-                    cover_source_url.map(|x| match x {
-                        SourceUrl::Url(u) => u.clone(),
-                        SourceUrl::File(f) => file_url(&state().env, &f),
-                    })
-                } else {
-                    None
-                },
-                width: config_at.width.clone(),
-                height: config_at.height.clone(),
-                trans_align: config_at.trans_align,
-                orientation: config_at.orientation.unwrap_or(Orientation::RightDown),
-            }).root;
             out.ref_on("click", {
                 let data_id = data_id.clone();
                 let eg = pc.eg();

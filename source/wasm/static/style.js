@@ -323,8 +323,13 @@
   );
   const varCModified = vs(
     uniq("border_modified"),
-    "rgb(120, 149, 235)",
-    "rgb(120, 149, 235)"
+    "rgb(120, 235, 187)",
+    "rgb(120, 235, 160)"
+  );
+  const varCSelected = vs(
+    uniq("selected"),
+    "rgb(66, 104, 219)",
+    "rgb(111, 144, 245)"
   );
   const varCBorderError = vs(
     uniq("border_error"),
@@ -363,6 +368,11 @@
   presentation.attrStatePlaying =
     /** @type { Presentation["attrStatePlaying"]} */ () => ({
       value: attrStatePlaying,
+    });
+  const attrStateSelected = "selected";
+  presentation.attrStateSelected =
+    /** @type { Presentation["attrStateSelected"]} */ () => ({
+      value: attrStateSelected,
     });
 
   const classMenuWantStateOpen = "want_state_open";
@@ -2919,6 +2929,9 @@
           },
           [`[data-state="${attrStatePlaying}"]>*:nth-child(2)`]: (s) => {
             s.display = "initial";
+          },
+          [`.${attrStateSelected}`]: (s) => {
+            s.color = varCSelected;
           },
         }),
         viewLeafTransStyle({

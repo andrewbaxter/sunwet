@@ -78,6 +78,7 @@ use {
         JsValue,
     },
     web_sys::{
+        HtmlElement,
         HtmlMediaElement,
         MediaMetadata,
     },
@@ -102,6 +103,7 @@ pub struct PlaylistEntry {
     pub source_url: SourceUrl,
     pub media_type: PlaylistEntryMediaType,
     pub media: Box<dyn PlaylistMedia>,
+    pub play_buttons: Vec<HtmlElement>,
 }
 
 pub struct PlaylistState_ {
@@ -507,6 +509,7 @@ pub struct PlaylistPushArg {
     pub cover_source_url: Option<SourceUrl>,
     pub source_url: SourceUrl,
     pub media_type: PlaylistEntryMediaType,
+    pub play_buttons: Vec<HtmlElement>,
 }
 
 pub fn playlist_extend(
@@ -576,6 +579,7 @@ pub fn playlist_extend(
             source_url: entry.source_url,
             media_type: entry.media_type,
             media: box_media,
+            play_buttons: entry.play_buttons,
         }));
     }
 }

@@ -307,6 +307,27 @@ pub fn main() {
         }, modal_stack.clone()] }).root.own(|_| (
             //. .
             playlist_root,
+            link!((_pc = pc), (playing_i = state().playlist.0.playing_i.clone()), (), () {
+                let class = style_export::attr_state_selected().value;
+                {
+                    let old_focused =
+                        document().get_elements_by_class_name(&style_export::attr_state_selected().value);
+                    for i in 0 .. old_focused.length() {
+                        old_focused
+                            .item(i)
+                            .unwrap()
+                            .class_list()
+                            .remove_1(&class)
+                            .log("Error removing selected class from play button");
+                    }
+                }
+                if let Some(e_i) = playing_i.get() {
+                    let e = state().playlist.0.playlist.borrow().get(&e_i).cloned().unwrap();
+                    for b in &e.play_buttons {
+                        b.class_list().add_1(&class).log("Error setting selected class from play button");
+                    }
+                }
+            }),
             link!(
                 (pc = pc),
                 (playing_i = state().playlist.0.playing_i.clone(), playing = state().playlist.0.playing.clone()),
