@@ -308,10 +308,9 @@ pub fn main() {
             //. .
             playlist_root,
             link!((_pc = pc), (playing_i = state().playlist.0.playing_i.clone()), (), () {
-                let class = style_export::attr_state_selected().value;
+                let class = style_export::class_state_selected().value;
                 {
-                    let old_focused =
-                        document().get_elements_by_class_name(&style_export::attr_state_selected().value);
+                    let old_focused = document().get_elements_by_class_name(&class);
                     for i in 0 .. old_focused.length() {
                         old_focused
                             .item(i)

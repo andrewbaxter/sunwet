@@ -26,6 +26,7 @@ use {
             fsutil::{
                 create_dirs,
                 delete_tree,
+                soft_read_dir,
             },
             state::State,
         },
@@ -36,7 +37,6 @@ use {
     loga::{
         ea,
         DebugDisplay,
-        ErrContext,
         Log,
         ResultContext,
     },
@@ -399,7 +399,12 @@ async fn generate_comic_dir(state: &Arc<State>, file: &FileHash, source: &Path) 
     return Ok(());
 }
 
-async fn generate_files(state: &Arc<State>, log: &Log, file: &FileHash) -> Result<(), loga::Error> {
+async fn generate_files(
+    state: &Arc<State>,
+    log: &Log,
+    file: &FileHash,
+    include_slow: bool,
+) -> Result<(), loga::Error> {
     let Some(meta) = get_meta(&state, &file).await? else {
         return Ok(());
     };
@@ -407,7 +412,7 @@ async fn generate_files(state: &Arc<State>, log: &Log, file: &FileHash) -> Resul
     let mime = meta.mimetype.as_ref().map(|x| x.as_str()).unwrap_or("");
     let mime_slice = mime.split_once("/").unwrap_or((mime, ""));
     match (mime_slice.0, mime_slice.1) {
-        ("video", _) => {
+        ("video", _) if include_slow => {
             generate_subs(&state, &file, &source).await.log(&log, loga::WARN, "Error doing sub file generation");
             if mime_slice.1 != "webm" {
                 generate_webm(&state, &file, &source)
@@ -453,37 +458,42 @@ pub fn start_generate_files(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                 match file {
                     Some(file) => {
                         let log = log.fork(ea!(file = file.to_string()));
-                        generate_files(&state, &log, &file)
+                        generate_files(&state, &log, &file, true)
                             .await
                             .log(&log, loga::WARN, "Error generating derived files");
                     },
                     None => {
                         match async {
                             ta_return!((), loga::Error);
-                            let mut walk = WalkDir::new(&state.files_dir);
-                            while let Some(entry) = walk.next().await {
-                                let entry = match entry {
-                                    Ok(entry) => entry,
-                                    Err(e) => {
-                                        log.log_err(
-                                            loga::WARN,
-                                            e.stack_context(&log, "Unable to scan file in files_dir"),
-                                        );
-                                        continue;
-                                    },
-                                };
-                                let path = entry.path();
-                                if !entry.metadata().await.stack_context(&log, "Error reading metadata")?.is_file() {
-                                    continue;
-                                }
-                                let log = log.fork(ea!(path = path.to_string_lossy()));
-                                let Some(file) = get_hash_from_file_path(&log, &state.files_dir, &path) else {
-                                    continue;
-                                };
-                                let log = state.log.fork(ea!(subsys = "filegen", file = file.to_string()));
-                                generate_files(&state, &log, &file)
-                                    .await
-                                    .log(&log, loga::WARN, "Error generating derived files");
+                            for slow in [false, true] {
+                                soft_read_dir(&log, &state.files_dir, async |hash_type| {
+                                    soft_read_dir(&log, &hash_type.path(), async |hash_part1| {
+                                        soft_read_dir(&log, &hash_part1.path(), async |hash_part2| {
+                                            soft_read_dir(&log, &hash_part2.path(), async |entry| {
+                                                if !entry
+                                                    .metadata()
+                                                    .await
+                                                    .stack_context(&log, "Error reading metadata")?
+                                                    .is_file() {
+                                                    return Ok(());
+                                                }
+                                                let path = entry.path();
+                                                let log = log.fork(ea!(path = path.to_string_lossy()));
+                                                let Some(file) =
+                                                    get_hash_from_file_path(&log, &state.files_dir, &path) else {
+                                                        return Ok(());
+                                                    };
+                                                let log =
+                                                    state.log.fork(ea!(subsys = "filegen", file = file.to_string()));
+                                                generate_files(&state, &log, &file, slow).await?;
+                                                return Ok(());
+                                            }).await;
+                                            return Ok(());
+                                        }).await;
+                                        return Ok(());
+                                    }).await;
+                                    return Ok(());
+                                }).await;
                             }
                             return Ok(());
                         }.await {

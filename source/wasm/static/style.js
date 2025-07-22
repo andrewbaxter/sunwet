@@ -173,6 +173,7 @@
   const textIconEdit = "\ue3c9";
   const textIconView = "\ue8f4";
   const textIconHistory = "\ue889";
+  const textIconCenter = "\ue39e";
 
   // xx Variables
   const varFNormal = "12pt";
@@ -323,8 +324,8 @@
   );
   const varCModified = vs(
     uniq("border_modified"),
-    "rgb(120, 235, 187)",
-    "rgb(120, 235, 160)"
+    "rgb(20, 194, 121)",
+    "rgb(5, 136, 81)"
   );
   const varCSelected = vs(
     uniq("selected"),
@@ -368,11 +369,6 @@
   presentation.attrStatePlaying =
     /** @type { Presentation["attrStatePlaying"]} */ () => ({
       value: attrStatePlaying,
-    });
-  const attrStateSelected = "selected";
-  presentation.attrStateSelected =
-    /** @type { Presentation["attrStateSelected"]} */ () => ({
-      value: attrStateSelected,
     });
 
   const classMenuWantStateOpen = "want_state_open";
@@ -424,6 +420,11 @@
   presentation.classStateSharing =
     /** @type { Presentation["classStateSharing"]} */ () => ({
       value: classStateSharing,
+    });
+  const classStateSelected = "selected";
+  presentation.classStateSelected =
+    /** @type { Presentation["classStateSelected"]} */ () => ({
+      value: classStateSelected,
     });
 
   ///////////////////////////////////////////////////////////////////////////////
@@ -1684,13 +1685,23 @@
         title: "Play",
         icons: { "": textIconPlay, [attrStatePlaying]: textIconPause },
       });
+      const buttonCenter = leafTransportButton({
+        title: "Scroll to",
+        icons: { "": textIconCenter },
+      });
+      buttonCenter.root.addEventListener("click", (_) => {
+        for (const b of document.getElementsByClassName(classStateSelected)) {
+          b.scrollIntoView({ block: "center", inline: "center" });
+          break;
+        }
+      });
       return {
         root: presentation.contBarMain({
           leftChildren: [buttonShare.root],
-          leftMidChildren: [],
-          midChildren: [buttonPrev.root, seekbar, buttonNext.root],
-          rightMidChildren: [buttonPlay.root],
-          rightChildren: [],
+          leftMidChildren: [buttonPrev.root],
+          midChildren: [seekbar, buttonPlay.root],
+          rightMidChildren: [buttonNext.root],
+          rightChildren: [buttonCenter.root],
         }).root,
         buttonShare: buttonShare.root,
         buttonNext: buttonNext.root,
@@ -2930,7 +2941,7 @@
           [`[data-state="${attrStatePlaying}"]>*:nth-child(2)`]: (s) => {
             s.display = "initial";
           },
-          [`.${attrStateSelected}`]: (s) => {
+          [`.${classStateSelected}`]: (s) => {
             s.color = varCSelected;
           },
         }),

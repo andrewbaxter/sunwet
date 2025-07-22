@@ -13,6 +13,10 @@ use {
             MinistateHistoryFilter,
             MinistateNodeEdit,
         },
+        playlist::{
+            categorize_mime_media,
+            PlaylistEntryMediaType,
+        },
         state::state,
     },
     flowcontrol::ta_return,
@@ -20,9 +24,7 @@ use {
     rooting::El,
     shared::interface::{
         ont::PREDICATE_NAME,
-        triple::{
-            Node,
-        },
+        triple::Node,
         wire::{
             ReqGetNodeMeta,
             ReqGetTriplesAround,
@@ -59,24 +61,24 @@ pub fn build_node_media_el(node: &Node) -> Option<El> {
         let meta = req_post_json(&state().env.base_url, ReqGetNodeMeta { node: Node::File(h.clone()) }).await?;
         match meta {
             Some(meta) => {
-                match meta.mime.as_ref().map(|x| x.as_str()).unwrap_or("").split("/").next().unwrap() {
-                    "image" => {
+                match categorize_mime_media(meta.mime.as_ref().map(|x| x.as_str()).unwrap_or("")) {
+                    Some(PlaylistEntryMediaType::Audio) => {
                         return Ok(
-                            vec![style_export::leaf_media_img(style_export::LeafMediaImgArgs { src: src_url }).root],
+                            vec![
+                                style_export::leaf_media_audio(style_export::LeafMediaAudioArgs { src: src_url }).root
+                            ],
                         );
                     },
-                    "video" => {
+                    Some(PlaylistEntryMediaType::Video) => {
                         return Ok(
                             vec![
                                 style_export::leaf_media_video(style_export::LeafMediaVideoArgs { src: src_url }).root
                             ],
                         );
                     },
-                    "audio" => {
+                    Some(PlaylistEntryMediaType::Image) => {
                         return Ok(
-                            vec![
-                                style_export::leaf_media_audio(style_export::LeafMediaAudioArgs { src: src_url }).root
-                            ],
+                            vec![style_export::leaf_media_img(style_export::LeafMediaImgArgs { src: src_url }).root],
                         );
                     },
                     _ => {

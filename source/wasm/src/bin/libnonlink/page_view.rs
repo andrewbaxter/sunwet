@@ -24,13 +24,13 @@ use {
             MinistateView,
         },
         playlist::{
+            categorize_mime_media,
             playlist_extend,
             playlist_next,
             playlist_previous,
             playlist_seek,
             playlist_set_link,
             playlist_toggle_play,
-            PlaylistEntryMediaType,
             PlaylistPushArg,
         },
     },
@@ -877,25 +877,11 @@ impl Build {
             let Some(meta) = maybe_get_meta(data_stack, src) else {
                 return Ok(el("div"));
             };
-            let mime = meta.mime.as_ref().map(|x| x.as_str()).unwrap_or("");
-            let mime = mime.split_once("/").unwrap_or((mime, ""));
-            match mime {
-                ("image", _) => {
-                    media_type = PlaylistEntryMediaType::Image;
+            match categorize_mime_media(meta.mime.as_ref().map(|x| x.as_str()).unwrap_or("")) {
+                Some(m) => {
+                    media_type = m;
                 },
-                ("video", _) => {
-                    media_type = PlaylistEntryMediaType::Video;
-                },
-                ("audio", _) => {
-                    media_type = PlaylistEntryMediaType::Audio;
-                },
-                ("application", "epub+zip") => {
-                    media_type = PlaylistEntryMediaType::Book;
-                },
-                ("application", "x-cbr") | ("application", "x-cbz") | ("application", "x-cb7") => {
-                    media_type = PlaylistEntryMediaType::Comic;
-                },
-                _ => {
+                None => {
                     return Ok(el("div"));
                 },
             }

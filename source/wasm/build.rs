@@ -128,11 +128,6 @@ fn main() {
             returns: vec![("value", &string_)],
         },
         Func {
-            name: "attrStateSelected",
-            args: vec![],
-            returns: vec![("value", &string_)],
-        },
-        Func {
             name: "classMenuWantStateOpen",
             args: vec![],
             returns: vec![("value", &string_)],
@@ -179,6 +174,11 @@ fn main() {
         },
         Func {
             name: "classStateSharing",
+            args: vec![],
+            returns: vec![("value", &string_)],
+        },
+        Func {
+            name: "classStateSelected",
             args: vec![],
             returns: vec![("value", &string_)],
         },

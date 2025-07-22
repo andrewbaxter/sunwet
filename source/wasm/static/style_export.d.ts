@@ -2,7 +2,6 @@
 declare type Presentation = {
     attrState: (args: {  }) => { value: string };
     attrStatePlaying: (args: {  }) => { value: string };
-    attrStateSelected: (args: {  }) => { value: string };
     classMenuWantStateOpen: (args: {  }) => { value: string };
     classMenuStateOpen: (args: {  }) => { value: string };
     classStateHide: (args: {  }) => { value: string };
@@ -13,6 +12,7 @@ declare type Presentation = {
     classStateInvalid: (args: {  }) => { value: string };
     classStateDeleted: (args: {  }) => { value: string };
     classStateSharing: (args: {  }) => { value: string };
+    classStateSelected: (args: {  }) => { value: string };
     contGroup: (args: { children: Element[] }) => { root: Element };
     contStack: (args: { children: Element[] }) => { root: Element };
     contVbox: (args: { children: Element[] }) => { root: Element };

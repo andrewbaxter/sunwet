@@ -95,6 +95,30 @@ pub enum PlaylistEntryMediaType {
     Book,
 }
 
+pub fn categorize_mime_media(mime: &str) -> Option<PlaylistEntryMediaType> {
+    let mime = mime.split_once("/").unwrap_or((mime, ""));
+    match mime {
+        ("image", _) => {
+            return Some(PlaylistEntryMediaType::Image);
+        },
+        ("video", _) => {
+            return Some(PlaylistEntryMediaType::Video);
+        },
+        ("audio", _) | ("application", "ogg") => {
+            return Some(PlaylistEntryMediaType::Audio);
+        },
+        ("application", "epub+zip") => {
+            return Some(PlaylistEntryMediaType::Book);
+        },
+        ("application", "x-cbr") | ("application", "x-cbz") | ("application", "x-cb7") => {
+            return Some(PlaylistEntryMediaType::Comic);
+        },
+        _ => {
+            return None;
+        },
+    }
+}
+
 pub struct PlaylistEntry {
     pub name: Option<String>,
     pub album: Option<String>,

@@ -13,6 +13,10 @@ use {
             Ministate,
             MinistateNodeView,
         },
+        playlist::{
+            categorize_mime_media,
+            PlaylistEntryMediaType,
+        },
         state::{
             change_ministate,
             state,
@@ -807,24 +811,19 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> El {
                                             ).await?;
                                         match meta {
                                             Some(meta) => {
-                                                match meta
-                                                    .mime
-                                                    .as_ref()
-                                                    .map(|x| x.as_str())
-                                                    .unwrap_or("")
-                                                    .split("/")
-                                                    .next()
-                                                    .unwrap() {
-                                                    "image" => {
+                                                match categorize_mime_media(
+                                                    meta.mime.as_ref().map(|x| x.as_str()).unwrap_or(""),
+                                                ) {
+                                                    Some(PlaylistEntryMediaType::Audio) => {
                                                         return Ok(
                                                             vec![
-                                                                style_export::leaf_media_img(
-                                                                    style_export::LeafMediaImgArgs { src: src_url },
+                                                                style_export::leaf_media_audio(
+                                                                    style_export::LeafMediaAudioArgs { src: src_url },
                                                                 ).root
                                                             ],
                                                         );
                                                     },
-                                                    "video" => {
+                                                    Some(PlaylistEntryMediaType::Video) => {
                                                         return Ok(
                                                             vec![
                                                                 style_export::leaf_media_video(
@@ -833,11 +832,11 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> El {
                                                             ],
                                                         );
                                                     },
-                                                    "audio" => {
+                                                    Some(PlaylistEntryMediaType::Image) => {
                                                         return Ok(
                                                             vec![
-                                                                style_export::leaf_media_audio(
-                                                                    style_export::LeafMediaAudioArgs { src: src_url },
+                                                                style_export::leaf_media_img(
+                                                                    style_export::LeafMediaImgArgs { src: src_url },
                                                                 ).root
                                                             ],
                                                         );
