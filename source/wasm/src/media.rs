@@ -1,7 +1,6 @@
 use {
     crate::{
         js::{
-            self,
             async_event,
             el_async,
             env_preferred_audio_url,
@@ -22,7 +21,10 @@ use {
         StreamExt,
     },
     gloo::{
-        events::EventListener,
+        events::{
+            EventListener,
+            EventListenerOptions,
+        },
         timers::{
             callback::Timeout,
             future::TimeoutFuture,
@@ -32,9 +34,7 @@ use {
             window,
         },
     },
-    js_sys::{
-        Array,
-    },
+    js_sys::Array,
     lunk::{
         link,
         EventGraph,
@@ -69,18 +69,19 @@ use {
     tokio::sync::watch,
     tokio_stream::wrappers::WatchStream,
     wasm_bindgen::{
+        convert::{
+            FromWasmAbi,
+            IntoWasmAbi,
+        },
         prelude::Closure,
         JsCast,
         JsValue,
     },
-    wasm_bindgen_futures::{
-        JsFuture,
-    },
+    wasm_bindgen_futures::JsFuture,
     web_sys::{
         Document,
         Element,
         HtmlElement,
-        HtmlHeadingElement,
         HtmlIFrameElement,
         HtmlMediaElement,
         IntersectionObserver,
@@ -593,10 +594,10 @@ impl PlaylistMedia for PlaylistMediaComic {
                             }
                         }
                         let internal_at = Prim::new(*at.borrow());
-                        state.inner.ref_own(|_| EventListener::new(&window(), "fullscreenchange", {
+                        state.inner.ref_on_resize({
                             let state = Rc::downgrade(&state);
                             let internal_at = internal_at.clone();
-                            move |_| {
+                            move |_, _, _| {
                                 let Some(state1) = state.upgrade() else {
                                     return;
                                 };
@@ -624,7 +625,7 @@ impl PlaylistMedia for PlaylistMediaComic {
                                     }
                                 }));
                             }
-                        }));
+                        });
                         state.inner.ref_on("scroll", {
                             let visible = visible.clone();
                             let state = Rc::downgrade(&state);
@@ -685,7 +686,10 @@ impl PlaylistMedia for PlaylistMediaComic {
                                 }
                             ),
                         ));
-                        outer.ref_own(|_| EventListener::new(&window(), "keydown", {
+                        outer.ref_own(|_| EventListener::new_with_options(&window(), "keydown", EventListenerOptions {
+                            passive: false,
+                            ..Default::default()
+                        }, {
                             let eg = eg.clone();
                             let state = state.clone();
                             move |ev| eg.event(|pc| {
@@ -716,6 +720,7 @@ impl PlaylistMedia for PlaylistMediaComic {
                                     },
                                 }
                                 ev.stop_propagation();
+                                ev.prevent_default();
                             }).unwrap()
                         }));
                         outer.ref_on("click", {
@@ -807,6 +812,7 @@ struct MyIntersectionObserver_ {
 
 impl Drop for MyIntersectionObserver_ {
     fn drop(&mut self) {
+        log("Disconnecting intersection observer");
         self.o.disconnect();
     }
 }
@@ -900,19 +906,18 @@ impl PlaylistMedia for PlaylistMediaBook {
                         return;
                     }
                     let mut html_children = vec![];
+
+                    fn to_html_element(n: impl IntoWasmAbi<Abi = u32>) -> HtmlElement {
+                        // https://github.com/rustwasm/wasm-bindgen/issues/4521
+                        // https://stackoverflow.com/questions/59156177/type-safe-way-to-check-instanceof-while-working-with-iframes
+                        // Hack
+                        return unsafe {
+                            HtmlElement::from_abi(n.into_abi())
+                        };
+                    }
+
                     for i in 0 .. html_children0.length() {
-                        let child0 = html_children0.item(i).unwrap();
-                        js::log_js(
-                            format!(
-                                "iframe child {}; is element {}; is htmlelement {}; is headingelement {}",
-                                i,
-                                child0.is_instance_of::<Element>(),
-                                child0.is_instance_of::<HtmlElement>(),
-                                child0.is_instance_of::<HtmlHeadingElement>(),
-                            ),
-                            &child0,
-                        );
-                        let child = child0.dyn_into::<HtmlElement>().unwrap();
+                        let child = to_html_element(html_children0.item(i).unwrap());
                         child.set_attribute(ATTR_INDEX, &format!("{}", i)).log("Error setting book element index");
                         html_children.push(child);
                     }
@@ -968,7 +973,7 @@ impl PlaylistMedia for PlaylistMediaBook {
                                         if !entry.is_intersecting() {
                                             continue;
                                         }
-                                        let e = entry.target().dyn_into::<HtmlElement>().unwrap();
+                                        let e = to_html_element(entry.target());
                                         if get_child_coord(&e) > get_scroll_coord() {
                                             // Not at top
                                             continue;
@@ -992,7 +997,7 @@ impl PlaylistMedia for PlaylistMediaBook {
                                         if entry.is_intersecting() {
                                             continue;
                                         }
-                                        let e = entry.target().dyn_into::<HtmlElement>().unwrap();
+                                        let e = to_html_element(entry.target());
                                         if get_child_coord(&e) > get_scroll_coord() {
                                             // Not at top
                                             continue;
@@ -1013,6 +1018,7 @@ impl PlaylistMedia for PlaylistMediaBook {
                             let Some(iframe) = iframe.upgrade() else {
                                 return;
                             };
+                            iframe.ref_own(|_| (io_near, io_far));
                             iframe.ref_on("click", {
                                 let set_scroll_coord = set_scroll_coord.clone();
                                 let iframe = iframe.raw().dyn_into::<HtmlElement>().unwrap();

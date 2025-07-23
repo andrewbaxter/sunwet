@@ -152,7 +152,9 @@
       );
     }
     const stagingPageView = presentation.appMain({
-      mainTitle: presentation.leafTitle({ text: "Music" }).root,
+      mainTitle: presentation.leafTitle({
+        text: "Music but a slightly longer title",
+      }).root,
       mainBody: presentation.contPageView({
         transport: presentation.contBarViewTransport({}).root,
         params: [

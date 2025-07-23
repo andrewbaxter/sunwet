@@ -173,7 +173,7 @@
   const textIconEdit = "\ue3c9";
   const textIconView = "\ue8f4";
   const textIconHistory = "\ue889";
-  const textIconCenter = "\ue39e";
+  const textIconCenter = "\ue3b5";
 
   // xx Variables
   const varFNormal = "12pt";
@@ -4342,6 +4342,7 @@
           "": (s) => {
             s.gridColumn = "3";
             s.gridRow = "1";
+            s.alignSelf = "start";
           },
           ">svg": (s) => {
             s.width = varSCol3Width;
