@@ -25,15 +25,15 @@ use {
             want_logged_in,
         },
         ministate::{
+            ministate_octothorpe,
+            read_ministate,
+            record_replace_ministate,
+            Ministate,
             MinistateForm,
             MinistateHistory,
             MinistateQuery,
             MinistateView,
             LOCALSTORAGE_PWA_MINISTATE,
-            ministate_octothorpe,
-            read_ministate,
-            record_replace_ministate,
-            Ministate,
             SESSIONSTORAGE_POST_REDIRECT_MINISTATE,
         },
         page_view::LOCALSTORAGE_SHARE_SESSION_ID,
@@ -83,7 +83,9 @@ use {
             style_export::{
                 self,
             },
+            Log,
             LogJsErr,
+            VecLog,
         },
     },
     wasm_bindgen::JsCast,
@@ -95,8 +97,10 @@ pub mod libnonlink;
 pub fn main() {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
     let eg = EventGraph::new();
+    let log1 = Rc::new(VecLog { log: Default::default() });
+    let log = log1.clone() as Rc<dyn Log>;
     eg.event(|pc| {
-        let env = scan_env();
+        let env = scan_env(&log);
         let client_config = bg_val({
             let env = env.clone();
             async move {
@@ -114,7 +118,7 @@ pub fn main() {
         let modal_stack = style_export::cont_root_stack(style_export::ContRootStackArgs { children: vec![] }).root;
 
         // Build app state
-        let (playlist_state, playlist_root) = playlist::state_new(pc, env.clone());
+        let (playlist_state, playlist_root) = playlist::state_new(pc, log.clone(), env.clone());
         STATE.with(|s| *s.borrow_mut() = Some(Rc::new(State_ {
             eg: pc.eg(),
             ministate: RefCell::new(shed!{
@@ -124,7 +128,7 @@ pub fn main() {
                         break;
                     };
                     SessionStorage::delete(SESSIONSTORAGE_POST_REDIRECT_MINISTATE);
-                    record_replace_ministate(&m);
+                    record_replace_ministate(&log, &m);
                     break 'found m;
                 }
                 shed!{
@@ -134,9 +138,9 @@ pub fn main() {
                     let Ok(m) = LocalStorage::get::<Ministate>(LOCALSTORAGE_PWA_MINISTATE) else {
                         break;
                     };
-                    record_replace_ministate(&m);
+                    record_replace_ministate(&log, &m);
                 }
-                break 'found read_ministate();
+                break 'found read_ministate(&log);
             }),
             menu_open: Prim::new(false),
             env: env.clone(),
@@ -145,6 +149,8 @@ pub fn main() {
             main_title: main_title.clone(),
             main_body: main_body.clone(),
             client_config: client_config.clone(),
+            log1: log1,
+            log: log.clone(),
         })));
 
         // Restore share state
@@ -160,9 +166,8 @@ pub fn main() {
         // React to further state changes
         EventListener::new(&window(), "popstate", {
             let eg = pc.eg();
-            let state = state.clone();
             move |_e| eg.event(|pc| {
-                let ministate = read_ministate();
+                let ministate = read_ministate(&state().log);
                 *state().ministate.borrow_mut() = ministate.clone();
                 build_ministate(pc, &ministate);
             }).unwrap()
@@ -249,6 +254,12 @@ pub fn main() {
                                                 ),
                                             }).root;
                                         },
+                                        ClientPage::Logs => {
+                                            return style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
+                                                title: "Logs".to_string(),
+                                                href: ministate_octothorpe(&Ministate::Logs),
+                                            }).root;
+                                        },
                                     }
                                 },
                             }
@@ -317,13 +328,16 @@ pub fn main() {
                             .unwrap()
                             .class_list()
                             .remove_1(&class)
-                            .log("Error removing selected class from play button");
+                            .log(&state().log, "Error removing selected class from play button");
                     }
                 }
                 if let Some(e_i) = playing_i.get() {
                     let e = state().playlist.0.playlist.borrow().get(&e_i).cloned().unwrap();
                     for b in &e.play_buttons {
-                        b.class_list().add_1(&class).log("Error setting selected class from play button");
+                        b
+                            .class_list()
+                            .add_1(&class)
+                            .log(&state().log, "Error setting selected class from play button");
                     }
                 }
             }),
@@ -331,11 +345,7 @@ pub fn main() {
                 (pc = pc),
                 (playing_i = state().playlist.0.playing_i.clone(), playing = state().playlist.0.playing.clone()),
                 (),
-                (
-                    state = state.clone(),
-                    modal_stack = modal_stack.weak(),
-                    current = Rc::new(RefCell::new(None as Option<El>))
-                ) {
+                (modal_stack = modal_stack.weak(), current = Rc::new(RefCell::new(None as Option<El>))) {
                     if !playing.get() {
                         return None;
                     }
@@ -352,14 +362,13 @@ pub fn main() {
                     if let Some(current) = current.borrow_mut().take() {
                         current.ref_replace(vec![]);
                     }
-                    let media_display = e.media.pm_el(pc);
+                    let media_display = e.media.pm_el(&state().log, pc);
                     let media_display_raw = media_display.raw();
                     let modal =
                         style_export::cont_media_fullscreen(
                             style_export::ContMediaFullscreenArgs { media: media_display },
                         );
                     modal.button_close.on("click", {
-                        let state = state.clone();
                         let current = Rc::downgrade(&current);
                         let eg = pc.eg();
                         move |_| eg.event(|pc| {
@@ -375,13 +384,15 @@ pub fn main() {
                     modal.button_fullscreen.on("click", {
                         let media_display_raw = media_display_raw.clone();
                         move |_| {
-                            media_display_raw.request_fullscreen().log("Error making media display fullscreen");
+                            media_display_raw
+                                .request_fullscreen()
+                                .log(&state().log, "Error making media display fullscreen");
                         }
                     });
                     let modal = modal.root;
                     *current.borrow_mut() = Some(modal.clone());
                     modal_stack.ref_push(modal);
-                    media_display_raw.request_fullscreen().log("Error making media display fullscreen");
+                    media_display_raw.request_fullscreen().log(&state().log, "Error making media display fullscreen");
                 }
             ),
             link!((_pc = pc), (menu_open = state().menu_open.clone()), (), () {

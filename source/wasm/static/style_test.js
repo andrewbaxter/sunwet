@@ -429,6 +429,36 @@
           ]);
         }
         break;
+      case "#logs":
+        {
+          buildRoot([
+            presentation.appMain({
+              mainTitle: presentation.leafTitle({ text: "Logs" }).root,
+              mainBody: presentation.contPageLogs({
+                children: [
+                  presentation.leafLogsLine({
+                    stamp: new Date().toISOString(),
+                    text: "short line",
+                  }).root,
+                  presentation.leafLogsLine({
+                    stamp: new Date().toISOString(),
+                    text: "very log line with lots of log in it this may wrap or it might not we'll have to see in practice but it's already wrapping in my editor",
+                  }).root,
+                  presentation.leafLogsLine({
+                    stamp: new Date().toISOString(),
+                    text: "short line",
+                  }).root,
+                  presentation.leafLogsLine({
+                    stamp: new Date().toISOString(),
+                    text: "short line",
+                  }).root,
+                ],
+              }).root,
+              menuBody: stagingMenu,
+            }).root,
+          ]);
+        }
+        break;
       case "#view":
         {
           buildRoot([stagingPageView]);

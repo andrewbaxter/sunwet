@@ -204,7 +204,7 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                         if t.predicate == PREDICATE_NAME {
                             let name = node_to_text(&t.object);
                             state().main_title.ref_text(&name);
-                            record_replace_ministate(&Ministate::NodeView(MinistateNodeView {
+                            record_replace_ministate(&state().log, &Ministate::NodeView(MinistateNodeView {
                                 title: name,
                                 node: t.subject.clone(),
                             }));

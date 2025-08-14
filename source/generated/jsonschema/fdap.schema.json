@@ -1002,7 +1002,8 @@
           "type": "string",
           "enum": [
             "history",
-            "query"
+            "query",
+            "logs"
           ]
         },
         {

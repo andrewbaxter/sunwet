@@ -1,11 +1,7 @@
 use {
     crate::{
         async_::WaitVal,
-        js::{
-            log,
-            log_js,
-            log_js2,
-        },
+        js::Log,
     },
     flowcontrol::shed,
     gloo::{
@@ -40,6 +36,7 @@ pub struct Ws_<S: Serialize + DeserializeOwned, R: Serialize + DeserializeOwned>
     ws: WaitVal<WebSocket>,
     ws_state: Cell<ScopeValue>,
     handler: Box<dyn Fn(&Ws<S, R>, R) -> ()>,
+    log: Rc<dyn Log>,
 }
 
 pub struct Ws<S: Serialize + DeserializeOwned, R: Serialize + DeserializeOwned>(Rc<Ws_<S, R>>);
@@ -55,7 +52,12 @@ impl<S: 'static + Serialize + DeserializeOwned, R: 'static + Serialize + Deseria
         return Rc::downgrade(&self.0);
     }
 
-    pub fn new(base_url: &str, path: impl ToString, notify_handler: impl 'static + Fn(&Ws<S, R>, R) -> ()) -> Self {
+    pub fn new(
+        log: Rc<dyn Log>,
+        base_url: &str,
+        path: impl ToString,
+        notify_handler: impl 'static + Fn(&Ws<S, R>, R) -> (),
+    ) -> Self {
         let path = path.to_string();
         let noschema_base_url = shed!{
             if let Some(u) = base_url.strip_prefix("http://") {
@@ -75,7 +77,7 @@ impl<S: 'static + Serialize + DeserializeOwned, R: 'static + Serialize + Deseria
             let ws = match WebSocket::new(&state.0.url) {
                 Ok(ws) => ws,
                 Err(e) => {
-                    log_js("Error creating websocket", &e);
+                    state.0.log.log_js("Error creating websocket", &e);
                     delay_reconnect(state);
                     return;
                 },
@@ -86,10 +88,10 @@ impl<S: 'static + Serialize + DeserializeOwned, R: 'static + Serialize + Deseria
                     let ws = ws.clone();
                     let state = state.weak();
                     move |ev| {
-                        log_js("DEBUG Got websocket open event", ev);
                         let Some(state) = state.upgrade() else {
                             return;
                         };
+                        state.log.log_js("DEBUG Got websocket open event", ev);
                         let state = Ws(state);
                         state.0.ws.set(Some(ws));
                     }
@@ -97,16 +99,16 @@ impl<S: 'static + Serialize + DeserializeOwned, R: 'static + Serialize + Deseria
                 EventListener::new(&ws, "message", {
                     let state = state.weak();
                     move |e| {
-                        log_js("DEBUG Got websocket message event", e);
                         let Some(state) = state.upgrade() else {
                             return;
                         };
+                        state.log.log_js("DEBUG Got websocket message event", e);
                         let state = Ws(state);
                         let ev = e.dyn_ref::<MessageEvent>().unwrap();
                         let body = match ev.data().dyn_into::<js_sys::JsString>() {
                             Ok(v) => v,
                             Err(e) => {
-                                log_js2("Received non-string message", &e, &ev.data());
+                                state.0.log.log_js2("Received non-string message", &e, &ev.data());
                                 return;
                             },
                         };
@@ -114,7 +116,7 @@ impl<S: 'static + Serialize + DeserializeOwned, R: 'static + Serialize + Deseria
                         let message = match serde_json::from_str::<R>(&body) {
                             Ok(v) => v,
                             Err(e) => {
-                                log(format!("Failed to deserialize message: {}\nMessage: {}", e, body));
+                                state.0.log.log(&format!("Failed to deserialize message: {}\nMessage: {}", e, body));
                                 return;
                             },
                         };
@@ -122,17 +124,21 @@ impl<S: 'static + Serialize + DeserializeOwned, R: 'static + Serialize + Deseria
                     }
                 }),
                 EventListener::once(&ws, "error", {
+                    let state = state.weak();
                     move |e| {
-                        log_js("Websocket closed with error (reconnecting)", e);
+                        let Some(state) = state.upgrade() else {
+                            return;
+                        };
+                        state.log.log_js("Websocket closed with error (reconnecting)", e);
                     }
                 }),
                 EventListener::once(&ws, "close", {
                     let state = state.weak();
                     move |ev| {
-                        log_js("DEBUG Got websocket close event", ev);
                         let Some(state) = state.upgrade() else {
                             return;
                         };
+                        state.log.log_js("DEBUG Got websocket close event", ev);
                         let state = Ws(state);
                         delay_reconnect(state);
                     }
@@ -162,6 +168,7 @@ impl<S: 'static + Serialize + DeserializeOwned, R: 'static + Serialize + Deseria
             ws: WaitVal::new(),
             ws_state: Cell::new(scope_any(())),
             handler: Box::new(notify_handler),
+            log: log.clone(),
         }));
         connect(out.clone());
         return out;
@@ -172,7 +179,7 @@ impl<S: 'static + Serialize + DeserializeOwned, R: 'static + Serialize + Deseria
             match self.0.ws.get().await.send_with_str(&serde_json::to_string(&data).unwrap()) {
                 Ok(_) => break,
                 Err(e) => {
-                    log_js("Error sending notification; retrying", &e);
+                    self.0.log.log_js("Error sending notification; retrying", &e);
                     TimeoutFuture::new(1000).await;
                 },
             }

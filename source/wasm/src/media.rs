@@ -6,11 +6,10 @@ use {
             env_preferred_audio_url,
             env_preferred_video_url,
             file_derivation_subtitles_url,
-            log,
-            log_js,
             style_export,
             ElExt,
             Env,
+            Log,
             LogJsErr,
         },
         world::file_url,
@@ -98,15 +97,15 @@ pub trait PlaylistMedia {
     fn pm_display(&self) -> bool;
 
     /// Transition to auto-advancing
-    fn pm_play(&self);
+    fn pm_play(&self, log: &Rc<dyn Log>);
     fn pm_stop(&self);
     fn pm_get_time(&self) -> f64;
     fn pm_get_max_time(&self) -> Option<f64>;
     fn pm_format_time(&self, time: f64) -> String;
     fn pm_seek(&self, pc: &mut ProcessingContext, time: f64);
-    fn pm_preload(&self, env: &Env);
-    fn pm_unpreload(&self);
-    fn pm_el(&self, pc: &mut ProcessingContext) -> El;
+    fn pm_preload(&self, log: &Rc<dyn Log>, env: &Env);
+    fn pm_unpreload(&self, log: &Rc<dyn Log>);
+    fn pm_el(&self, log: &Rc<dyn Log>, pc: &mut ProcessingContext) -> El;
     fn pm_wait_until_seekable(&self) -> Pin<Box<dyn Future<Output = ()>>>;
     fn pm_wait_until_buffered(&self) -> Pin<Box<dyn Future<Output = ()>>>;
 }
@@ -149,31 +148,32 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
         return self.video;
     }
 
-    fn pm_el(&self, _pc: &mut ProcessingContext) -> El {
+    fn pm_el(&self, _log: &Rc<dyn Log>, _pc: &mut ProcessingContext) -> El {
         return self.el.clone();
     }
 
-    fn pm_play(&self) {
-        fn do_play(bg: Rc<RefCell<Option<ScopeValue>>>, media_el: HtmlMediaElement) {
+    fn pm_play(&self, log: &Rc<dyn Log>) {
+        fn do_play(log: &Rc<dyn Log>, bg: Rc<RefCell<Option<ScopeValue>>>, media_el: HtmlMediaElement) {
             let f = match media_el.play() {
                 Ok(f) => f,
                 Err(e) => {
-                    log_js("Error playing video", &e);
+                    log.log_js("Error playing video", &e);
                     return;
                 },
             };
             let f1 = {
                 let bg = bg.clone();
+                let log = log.clone();
                 async move {
                     match JsFuture::from(f).await {
                         Ok(_) => { },
                         Err(e) => {
-                            log_js("Error playing media, retrying in 1s", &e);
+                            log.log_js("Error playing media, retrying in 1s", &e);
                             let src = media_el.src();
                             media_el.set_src("");
                             TimeoutFuture::new(1000).await;
                             media_el.set_src(&src);
-                            do_play(bg, media_el);
+                            do_play(&log, bg, media_el);
                         },
                     };
                 }
@@ -181,7 +181,7 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
             *bg.borrow_mut() = Some(spawn_rooted(f1));
         }
 
-        do_play(self.play_bg.clone(), self.media_el.clone());
+        do_play(log, self.play_bg.clone(), self.media_el.clone());
     }
 
     fn pm_stop(&self) {
@@ -223,8 +223,8 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
         self.media_el.set_current_time(time);
     }
 
-    fn pm_preload(&self, env: &Env) {
-        self.media_el.set_attribute("preload", "auto").log("Error setting preload attribute");
+    fn pm_preload(&self, log: &Rc<dyn Log>, env: &Env) {
+        self.media_el.set_attribute("preload", "auto").log(log, "Error setting preload attribute");
         let src = if self.video {
             match &self.src {
                 SourceUrl::Url(v) => v.clone(),
@@ -251,7 +251,7 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
                             if i == 0 {
                                 track.ref_attr("default", "default");
                             }
-                            self.media_el.append_child(&track.raw()).log("Error adding track to video element");
+                            self.media_el.append_child(&track.raw()).log(log, "Error adding track to video element");
                         }
                     },
                 }
@@ -265,8 +265,8 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
         }
     }
 
-    fn pm_unpreload(&self) {
-        self.media_el.set_attribute("preload", "metadata").log("Error reducing preload attribute");
+    fn pm_unpreload(&self, log: &Rc<dyn Log>) {
+        self.media_el.set_attribute("preload", "metadata").log(log, "Error reducing preload attribute");
     }
 
     fn pm_wait_until_seekable(&self) -> Pin<Box<dyn Future<Output = ()>>> {
@@ -302,11 +302,11 @@ impl PlaylistMedia for PlaylistMediaImage {
         return true;
     }
 
-    fn pm_el(&self, _pc: &mut ProcessingContext) -> El {
+    fn pm_el(&self, _log: &Rc<dyn Log>, _pc: &mut ProcessingContext) -> El {
         return self.element.clone();
     }
 
-    fn pm_play(&self) { }
+    fn pm_play(&self, _log: &Rc<dyn Log>) { }
 
     fn pm_stop(&self) { }
 
@@ -324,7 +324,7 @@ impl PlaylistMedia for PlaylistMediaImage {
 
     fn pm_seek(&self, _pc: &mut ProcessingContext, _time: f64) { }
 
-    fn pm_preload(&self, env: &Env) {
+    fn pm_preload(&self, _log: &Rc<dyn Log>, env: &Env) {
         self.element.ref_attr("loading", "eager");
         self.element.ref_attr("src", &match &self.src {
             SourceUrl::Url(v) => v.clone(),
@@ -332,7 +332,7 @@ impl PlaylistMedia for PlaylistMediaImage {
         });
     }
 
-    fn pm_unpreload(&self) {
+    fn pm_unpreload(&self, _log: &Rc<dyn Log>) {
         self.element.ref_attr("loading", "lazy");
     }
 
@@ -374,7 +374,7 @@ impl PlaylistMedia for PlaylistMediaComic {
         return true;
     }
 
-    fn pm_el(&self, pc: &mut ProcessingContext) -> El {
+    fn pm_el(&self, _log: &Rc<dyn Log>, pc: &mut ProcessingContext) -> El {
         _ = self.seekable.send(false);
         let req_manifest = self.req_manifest.clone();
         let url = self.url.clone();
@@ -769,7 +769,7 @@ impl PlaylistMedia for PlaylistMediaComic {
         return root;
     }
 
-    fn pm_play(&self) { }
+    fn pm_play(&self, _log: &Rc<dyn Log>) { }
 
     fn pm_stop(&self) { }
 
@@ -789,9 +789,9 @@ impl PlaylistMedia for PlaylistMediaComic {
         self.at.set(pc, time as usize);
     }
 
-    fn pm_preload(&self, _env: &Env) { }
+    fn pm_preload(&self, _log: &Rc<dyn Log>, _env: &Env) { }
 
-    fn pm_unpreload(&self) { }
+    fn pm_unpreload(&self, _log: &Rc<dyn Log>) { }
 
     fn pm_wait_until_seekable(&self) -> Pin<Box<dyn Future<Output = ()>>> {
         let mut seekable = WatchStream::new(self.seekable.subscribe());
@@ -812,7 +812,6 @@ struct MyIntersectionObserver_ {
 
 impl Drop for MyIntersectionObserver_ {
     fn drop(&mut self) {
-        log("Disconnecting intersection observer");
         self.o.disconnect();
     }
 }
@@ -870,26 +869,32 @@ impl PlaylistMedia for PlaylistMediaBook {
         return true;
     }
 
-    fn pm_el(&self, pc: &mut ProcessingContext) -> El {
+    fn pm_el(&self, log: &Rc<dyn Log>, pc: &mut ProcessingContext) -> El {
         _ = self.seekable.send(false);
         let iframe = el("iframe").attr("src", &format!("{}/index.html", self.url));
-        iframe.html().style().set_property("pointer-events", "initial").log("Error setting iframe pointer-events");
+        iframe
+            .html()
+            .style()
+            .set_property("pointer-events", "initial")
+            .log(log, "Error setting iframe pointer-events");
         iframe.ref_own(|_| EventListener::once(&iframe.raw(), "load", {
             let iframe = iframe.weak();
             let length = self.length.clone();
             let seekable = self.seekable.clone();
             let external_at = self.at.clone();
             let eg = pc.eg();
+            let log = log.clone();
             move |_| {
                 let Some(iframe) = iframe.upgrade() else {
                     return;
                 };
                 let Some(idoc) = iframe.raw().dyn_into::<HtmlIFrameElement>().unwrap().content_document() else {
-                    log("Iframe missing contentDocument, can't show book media");
+                    log.log("Iframe missing contentDocument, can't show book media");
                     return;
                 };
 
                 fn setup(
+                    log: &Rc<dyn Log>,
                     eg: EventGraph,
                     iframe: El,
                     idoc: Document,
@@ -902,7 +907,7 @@ impl PlaylistMedia for PlaylistMediaBook {
                     // DOMContentLoaded... but I guess in some cases there might be js doing stuff too
                     let html_children0 = idoc.query_selector_all("h1,h2,h3,h4,h5,h6,p,img").unwrap();
                     if html_children0.length() == 0 {
-                        log("Book iframe body has no typical document elements (h*,p,img), can't integrate");
+                        log.log("Book iframe body has no typical document elements (h*,p,img), can't integrate");
                         return;
                     }
                     let mut html_children = vec![];
@@ -918,7 +923,9 @@ impl PlaylistMedia for PlaylistMediaBook {
 
                     for i in 0 .. html_children0.length() {
                         let child = to_html_element(html_children0.item(i).unwrap());
-                        child.set_attribute(ATTR_INDEX, &format!("{}", i)).log("Error setting book element index");
+                        child
+                            .set_attribute(ATTR_INDEX, &format!("{}", i))
+                            .log(log, "Error setting book element index");
                         html_children.push(child);
                     }
                     length.set(Some(html_children.len()));
@@ -1067,22 +1074,23 @@ impl PlaylistMedia for PlaylistMediaBook {
                     iframe.ref_own(|_| EventListener::once(&idoc, "DOMContentLoaded", {
                         let iframe = iframe.weak();
                         let idoc = idoc.clone();
+                        let log = log.clone();
                         move |_| {
                             let Some(iframe) = iframe.upgrade() else {
                                 return;
                             };
-                            setup(eg, iframe, idoc, external_at, internal_at, length, seekable);
+                            setup(&log, eg, iframe, idoc, external_at, internal_at, length, seekable);
                         }
                     }));
                 } else {
-                    setup(eg, iframe, idoc, external_at, internal_at, length, seekable);
+                    setup(&log, eg, iframe, idoc, external_at, internal_at, length, seekable);
                 }
             }
         }));
         return iframe;
     }
 
-    fn pm_play(&self) { }
+    fn pm_play(&self, _log: &Rc<dyn Log>) { }
 
     fn pm_stop(&self) { }
 
@@ -1102,9 +1110,9 @@ impl PlaylistMedia for PlaylistMediaBook {
         self.at.set(pc, time as usize);
     }
 
-    fn pm_preload(&self, _env: &Env) { }
+    fn pm_preload(&self, _log: &Rc<dyn Log>, _env: &Env) { }
 
-    fn pm_unpreload(&self) { }
+    fn pm_unpreload(&self, _log: &Rc<dyn Log>) { }
 
     fn pm_wait_until_seekable(&self) -> Pin<Box<dyn Future<Output = ()>>> {
         let mut seekable = WatchStream::new(self.seekable.subscribe());
@@ -1118,8 +1126,14 @@ impl PlaylistMedia for PlaylistMediaBook {
     }
 }
 
-pub async fn pm_share_ready_prep(eg: EventGraph, env: &Env, media: &dyn PlaylistMedia, new_time: f64) {
-    media.pm_preload(env);
+pub async fn pm_share_ready_prep(
+    eg: EventGraph,
+    log: &Rc<dyn Log>,
+    env: &Env,
+    media: &dyn PlaylistMedia,
+    new_time: f64,
+) {
+    media.pm_preload(log, env);
     media.pm_wait_until_seekable().await;
     eg.event(|pc| {
         media.pm_seek(pc, new_time);

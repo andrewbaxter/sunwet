@@ -45,9 +45,10 @@ use {
         constants::LINK_HASH_PREFIX,
         js::{
             get_dom_octothorpe,
-            log_js,
             scan_env,
             style_export,
+            ConsoleLog,
+            Log,
         },
         media::{
             pm_share_ready_prep,
@@ -87,17 +88,18 @@ struct State_ {
     name: El,
     message_bg: Cell<ScopeValue>,
     media: Prim<Option<Rc<dyn PlaylistMedia>>>,
+    log: Rc<dyn Log>,
 }
 
 #[derive(Clone)]
 struct State(Rc<State_>);
 
-fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement) {
+fn build_link(log: &Rc<dyn Log>, media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement) {
     let eg = EventGraph::new();
     eg.event(|pc| {
-        let env = scan_env();
+        let env = scan_env(&log);
         let class_state_hide = style_export::class_state_hide().value;
-        let hash = get_dom_octothorpe().unwrap();
+        let hash = get_dom_octothorpe(&log).unwrap();
         let link_id = hash.strip_prefix(LINK_HASH_PREFIX).unwrap();
         document()
             .dyn_into::<HtmlDocument>()
@@ -123,8 +125,9 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
             name: style_res.title.clone(),
             message_bg: Cell::new(scope_any(())),
             media: Prim::new(None),
+            log: log.clone(),
         }));
-        let ws = Ws::<WsL2S, WsS2L>::new(&env.base_url, format!("link/{}", link_id), {
+        let ws = Ws::<WsL2S, WsS2L>::new(log.clone(), &env.base_url, format!("link/{}", link_id), {
             let state = state.clone();
             let eg = pc.eg();
             let env = env.clone();
@@ -215,7 +218,11 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
                                                 ).map_err(|e| format!("Error reading comic manifest: {}", e))?,
                                             );
                                         }.boxed_local()), 0));
-                                        eg.event(|pc| state.0.display.ref_push(media.pm_el(pc).clone())).unwrap();
+                                        eg
+                                            .event(
+                                                |pc| state.0.display.ref_push(media.pm_el(&state.0.log, pc).clone()),
+                                            )
+                                            .unwrap();
                                     },
                                     PrepareMedia::Book(source_url) => {
                                         state.0.display_under.ref_modify_classes(&[(&class_state_hide, true)]);
@@ -223,7 +230,11 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
                                             SourceUrl::Url(u) => u,
                                             SourceUrl::File(h) => generated_file_url(&env, &h, GENTYPE_DIR, ""),
                                         }, 0));
-                                        eg.event(|pc| state.0.display.ref_push(media.pm_el(pc).clone())).unwrap();
+                                        eg
+                                            .event(
+                                                |pc| state.0.display.ref_push(media.pm_el(&state.0.log, pc).clone()),
+                                            )
+                                            .unwrap();
                                     },
                                 }
                                 eg.event(|pc| {
@@ -233,7 +244,7 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
                                     state.0.media.set(pc, Some(media.clone()));
                                 });
                                 state.0.display_over.ref_modify_classes(&[(&class_state_hide, false)]);
-                                pm_share_ready_prep(eg, &env, media.as_ref(), prepare.media_time).await;
+                                pm_share_ready_prep(eg, &state.0.log, &env, media.as_ref(), prepare.media_time).await;
                                 ws.send(WsL2S::Ready(Utc::now())).await;
                                 state.0.display_over.ref_modify_classes(&[(&class_state_hide, true)]);
                             },
@@ -242,7 +253,7 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
                                     TimeoutFuture::new(
                                         (play_at - Utc::now()).num_milliseconds().max(0) as u32,
                                     ).await;
-                                    media.pm_play();
+                                    media.pm_play(&state.0.log);
                                 }
                             },
                             WsS2L::Pause => {
@@ -262,6 +273,8 @@ fn build_link(media_audio_el: HtmlMediaElement, media_video_el: HtmlMediaElement
 fn main() {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
     spawn_local(async move {
+        let log = Rc::new(ConsoleLog {}) as Rc<dyn Log>;
+
         // Work around ios safari alone blocking audio-playing media despite the users'
         // wishes. Supposedly if you keep a single media element around that got
         // permission you don't need to interactively trigger permission again...
@@ -271,7 +284,7 @@ fn main() {
         video_el.set_attribute("src", "videotest.webm").unwrap();
         match JsFuture::from(audio_el.play().unwrap()).await {
             Ok(_) => {
-                build_link(audio_el, video_el);
+                build_link(&log, audio_el, video_el);
             },
             Err(e) => {
                 shed!{
@@ -294,20 +307,21 @@ fn main() {
                         spawn_local({
                             let audio_el = audio_el.clone();
                             let video_el = video_el.clone();
+                            let log = log.clone();
                             async move {
                                 for res in join_all(bg).await {
                                     if let Err(e) = res {
-                                        log_js("Error confirming media element permissions", &e);
+                                        log.log_js("Error confirming media element permissions", &e);
                                     }
                                 }
-                                build_link(audio_el, video_el)
+                                build_link(&log, audio_el, video_el)
                             }
                         });
                     });
                     set_root(vec![style_res.root]);
                     return;
                 }
-                log_js("Error playing media to guage permissions", &e);
+                log.log_js("Error playing media to guage permissions", &e);
                 panic!("");
             },
         }

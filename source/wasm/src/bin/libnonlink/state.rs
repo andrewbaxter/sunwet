@@ -45,6 +45,8 @@ use {
             el_async_,
             style_export,
             Env,
+            Log,
+            VecLog,
         },
     },
 };
@@ -60,6 +62,8 @@ pub struct State_ {
     pub main_title: El,
     pub main_body: El,
     pub modal_stack: El,
+    pub log: Rc<dyn Log>,
+    pub log1: Rc<VecLog>,
 }
 
 thread_local!{
@@ -140,11 +144,31 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
         Ministate::Query(ms) => {
             build_page_query(pc, ms);
         },
+        Ministate::Logs => {
+            set_page(
+                pc,
+                "Logs",
+                style_export::cont_page_logs(
+                    style_export::ContPageLogsArgs {
+                        children: state()
+                            .log1
+                            .log
+                            .borrow()
+                            .iter()
+                            .map(|x| style_export::leaf_logs_line(style_export::LeafLogsLineArgs {
+                                stamp: x.0.to_rfc3339(),
+                                text: x.1.clone(),
+                            }).root)
+                            .collect::<Vec<_>>(),
+                    },
+                ).root,
+            );
+        },
     }
 }
 
 pub fn change_ministate(pc: &mut ProcessingContext, s: &Ministate) {
-    record_new_ministate(s);
+    record_new_ministate(&state().log, s);
     build_ministate(pc, s);
 }
 
@@ -162,7 +186,7 @@ impl MinistateViewState {
     pub fn set_pos(&self, pos: Option<PlaylistRestorePos>) {
         let mut s = self.0.borrow_mut();
         s.pos = pos;
-        record_replace_ministate(&Ministate::View(MinistateView {
+        record_replace_ministate(&state().log, &Ministate::View(MinistateView {
             id: s.view_id.clone(),
             title: s.title.clone(),
             pos: s.pos.clone(),
@@ -173,7 +197,7 @@ impl MinistateViewState {
     pub fn set_param(&self, k: String, v: Node) {
         let mut s = self.0.borrow_mut();
         s.params.insert(k, v);
-        record_replace_ministate(&Ministate::View(MinistateView {
+        record_replace_ministate(&state().log, &Ministate::View(MinistateView {
             id: s.view_id.clone(),
             title: s.title.clone(),
             pos: s.pos.clone(),

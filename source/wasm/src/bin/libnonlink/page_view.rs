@@ -557,7 +557,7 @@ impl Build {
                             chunked_data.push(Default::default());
                         }
                         let mut chunked_data = chunked_data.into_iter();
-                        body.ref_push(build_infinite(chunked_data.next().unwrap(), {
+                        body.ref_push(build_infinite(&state().log, chunked_data.next().unwrap(), {
                             let build_infinite_page = build_infinite_page.clone();
                             move |chunk| {
                                 let children = build_infinite_page(chunk, Default::default());
@@ -583,7 +583,7 @@ impl Build {
                                 params.insert(k.clone(), v);
                             }
                         }
-                        body.ref_push(build_infinite(None, {
+                        body.ref_push(build_infinite(&state().log, None, {
                             let seed = (random() * u64::MAX as f64) as u64;
                             let view_id = view_id.clone();
                             let query_id = query_id.clone();
@@ -1058,7 +1058,7 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
                         LocalStorage::set(
                             LOCALSTORAGE_SHARE_SESSION_ID,
                             &sess_id,
-                        ).log("Error persisting session id");
+                        ).log(&state().log, "Error persisting session id");
                         sess_id
                     };
                     playlist_set_link(pc, &state().playlist, &sess_id);

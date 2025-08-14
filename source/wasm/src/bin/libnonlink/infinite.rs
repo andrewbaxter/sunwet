@@ -21,9 +21,9 @@ use {
     tokio::sync::mpsc,
     wasm::js::{
         el_async,
-        log,
         style_export,
         ElExt,
+        Log,
     },
     wasm_bindgen::JsCast,
     web_sys::Element,
@@ -33,9 +33,10 @@ fn build_infinite_<
     K: 'static,
     T: Future<Output = Result<(Option<K>, Vec<El>), String>>,
     F: 'static + FnMut(K) -> T,
->(out: El, bg: Rc<RefCell<Option<ScopeValue>>>, initial_key: K, mut cb: F) {
+>(log: &Rc<dyn Log>, out: El, bg: Rc<RefCell<Option<ScopeValue>>>, initial_key: K, mut cb: F) {
     out.ref_push(el_async({
         let out = out.weak();
+        let log = log.clone();
         async move {
             ta_return!(Vec < El >, String);
             let (next_key, children) = cb(initial_key).await?;
@@ -63,7 +64,7 @@ fn build_infinite_<
                                     break;
                                 };
                                 let Some(at1) = at.parent_element() else {
-                                    log("Couldn't find scroll parent for infinite!");
+                                    log.log("Couldn't find scroll parent for infinite!");
                                     panic!();
                                 };
                                 at = at1;
@@ -87,7 +88,7 @@ fn build_infinite_<
                         }
                         drop(listener);
                         if let Some(out) = out.upgrade() {
-                            build_infinite_(out, bg, next_key, cb);
+                            build_infinite_(&log, out, bg, next_key, cb);
                         }
                     }
                 }));
@@ -101,10 +102,10 @@ pub fn build_infinite<
     K: 'static,
     T: Future<Output = Result<(Option<K>, Vec<El>), String>>,
     F: 'static + FnMut(K) -> T,
->(initial_key: K, cb: F) -> El {
+>(log: &Rc<dyn Log>, initial_key: K, cb: F) -> El {
     let out = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
     let bg = Rc::new(RefCell::new(None));
     out.ref_own(|_| bg.clone());
-    build_infinite_(out.clone(), bg, initial_key, cb);
+    build_infinite_(log, out.clone(), bg, initial_key, cb);
     return out;
 }

@@ -23,7 +23,6 @@ use {
         },
     },
     std::collections::HashMap,
-    wasm::js::log,
     web_sys::File,
 };
 
@@ -66,7 +65,7 @@ pub async fn prep_node(
             let b = match gloo::file::futures::read_as_bytes(&Blob::from(file.clone())).await {
                 Ok(b) => b,
                 Err(e) => {
-                    log(format!("Error reading file for commit: {}", e));
+                    state().log.log(&format!("Error reading file for commit: {}", e));
                     return None;
                 },
             };

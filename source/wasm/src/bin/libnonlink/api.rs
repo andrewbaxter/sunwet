@@ -27,7 +27,9 @@ use {
             HEADER_OFFSET,
         },
     },
-    wasm::js::LogJsErr,
+    wasm::js::{
+        LogJsErr,
+    },
     wasm_bindgen::UnwrapThrowExt,
     web_sys::Url,
 };
@@ -39,7 +41,7 @@ pub fn want_logged_in() -> bool {
 }
 
 pub fn set_want_logged_in() {
-    LocalStorage::set(LOCALSTORAGE_LOGGED_IN, true).log("Error remembering logged in pref");
+    LocalStorage::set(LOCALSTORAGE_LOGGED_IN, true).log(&state().log, "Error remembering logged in pref");
 }
 
 pub fn unset_want_logged_in() {
@@ -51,7 +53,7 @@ pub fn redirect_login(base_url: &str) -> ! {
         SessionStorage::set(
             SESSIONSTORAGE_POST_REDIRECT_MINISTATE,
             &*state().ministate.borrow(),
-        ).log("Error storing post-redirect ministate");
+        ).log(&state().log, "Error storing post-redirect ministate");
     }
     window()
         .location()
@@ -67,7 +69,7 @@ pub fn redirect_logout(base_url: &str) -> ! {
         SessionStorage::set(
             SESSIONSTORAGE_POST_REDIRECT_MINISTATE,
             &*state().ministate.borrow(),
-        ).log("Error storing post-redirect ministate");
+        ).log(&state().log, "Error storing post-redirect ministate");
     }
     window()
         .location()

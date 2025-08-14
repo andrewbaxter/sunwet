@@ -35,6 +35,7 @@ use {
 
 fn refresh(results_group: El, text: &str) {
     record_replace_ministate(
+        &state().log,
         &super::ministate::Ministate::Query(MinistateQuery { query: Some(text.to_string()) }),
     );
     let query = match compile_query(None, &text) {
@@ -47,7 +48,7 @@ fn refresh(results_group: El, text: &str) {
             return;
         },
     };
-    results_group.ref_push(build_infinite(None, {
+    results_group.ref_push(build_infinite(&state().log, None, {
         let seed = (Math::random() * u64::MAX as f64) as u64;
         move |key| {
             let query = query.clone();

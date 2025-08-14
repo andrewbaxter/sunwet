@@ -289,6 +289,18 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
+        // xx Components, styles: logs
+        Func {
+            name: "leafLogsLine",
+            args: vec![("stamp", &string_), ("text", &string_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "contPageLogs",
+            args: vec![("children", &arrel_)],
+            returns: vec![("root", &el_)],
+        },
+        // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: page, form + edit
         Func {
             name: "leafInputText",

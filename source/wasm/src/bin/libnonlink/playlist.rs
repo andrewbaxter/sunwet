@@ -57,7 +57,10 @@ use {
         },
     },
     wasm::{
-        js::Env,
+        js::{
+            Env,
+            Log,
+        },
         media::{
             pm_share_ready_prep,
             PlaylistMedia,
@@ -144,6 +147,7 @@ pub struct PlaylistState_ {
     pub media_el_audio: El,
     pub media_el_video: El,
     pub media_el_image: El,
+    pub log: Rc<dyn Log>,
 }
 
 #[derive(Clone)]
@@ -180,7 +184,7 @@ fn playlist_first_index(state: &PlaylistState) -> Option<PlaylistIndex> {
     return state.0.playlist.borrow().first_key_value().map(|x| x.0.clone());
 }
 
-pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rooting::ScopeValue) {
+pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (PlaylistState, rooting::ScopeValue) {
     let setup_media_element = |pc: &mut ProcessingContext, media: &El| {
         media.ref_on("ended", {
             let eg = pc.eg();
@@ -224,6 +228,7 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
         media_el_audio: media_el_audio,
         media_el_video: media_el_video,
         media_el_image: media_el_image,
+        log: log.clone(),
     }));
     let media_session = window().navigator().media_session();
 
@@ -355,7 +360,7 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
                             let e = playlist_state.0.playlist.borrow().get(i).cloned().unwrap();
                             e.media.pm_stop();
                             e.media.pm_seek(pc, 0.);
-                            e.media.pm_unpreload();
+                            e.media.pm_unpreload(&playlist_state.0.log);
                         }
                     }
 
@@ -370,6 +375,7 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
                             let ws = ws.clone();
                             let eg = pc.eg();
                             let env = playlist_state.0.env.clone();
+                            let log = playlist_state.0.log.clone();
                             async move {
                                 let new_time = e.media.pm_get_time();
                                 ws.send(WsC2S::Prepare(Prepare {
@@ -388,13 +394,13 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
                                     },
                                     media_time: e.media.pm_get_time(),
                                 })).await;
-                                pm_share_ready_prep(eg, &env, e.media.as_ref(), new_time).await;
+                                pm_share_ready_prep(eg, &log, &env, e.media.as_ref(), new_time).await;
                                 ws.send(WsC2S::Ready(Utc::now())).await;
                             }
                         })));
                     } else {
-                        e.media.pm_preload(&playlist_state.0.env);
-                        e.media.pm_play();
+                        e.media.pm_preload(&playlist_state.0.log, &playlist_state.0.env);
+                        e.media.pm_play(&playlist_state.0.log);
                     }
                 }
             }
@@ -429,6 +435,7 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
                     vs.set_pos(Some(PlaylistRestorePos {
                         index: playing_i.clone(),
                         time: time,
+                        play: state.0.playing.get(),
                     }));
                 }
             }
@@ -461,6 +468,7 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
                         bg.set(Some(spawn_rooted({
                             let ws = ws.clone();
                             let eg = pc.eg();
+                            let log = playlist_state.0.log.clone();
                             async move {
                                 ws.send(WsC2S::Prepare(Prepare {
                                     artist: e.artist.clone().unwrap_or_default(),
@@ -478,7 +486,7 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
                                     },
                                     media_time: new_time,
                                 })).await;
-                                pm_share_ready_prep(eg, &env, e.media.as_ref(), new_time).await;
+                                pm_share_ready_prep(eg, &log, &env, e.media.as_ref(), new_time).await;
                                 ws.send(WsC2S::Ready(Utc::now())).await;
                             }
                         })));
@@ -492,34 +500,44 @@ pub fn state_new(pc: &mut ProcessingContext, env: Env) -> (PlaylistState, rootin
 }
 
 pub fn playlist_set_link(pc: &mut ProcessingContext, playlist_state: &PlaylistState, id: &str) {
-    playlist_state.0.share.set(pc, Some((id.to_string(), Ws::new(&state().env.base_url, format!("main/{}", id), {
-        let playlist_state = playlist_state.clone();
-        let bg = Cell::new(None);
-        move |_, msg| {
-            match msg {
-                WsS2C::Play(play_at) => {
-                    if !playlist_state.0.playing.get() {
-                        return;
-                    }
-                    let i = match playlist_state.0.playing_i.get() {
-                        Some(i) => i,
-                        None => playlist_first_index(&playlist_state).unwrap(),
-                    };
-                    let e = playlist_state.0.playlist.borrow().get(&i).cloned().unwrap();
-                    bg.set(Some(spawn_rooted({
-                        let playlist_state = playlist_state.clone();
-                        async move {
-                            TimeoutFuture::new((play_at - Utc::now()).num_milliseconds().max(0) as u32).await;
-                            if !playlist_state.0.playing.get() {
-                                return;
-                            }
-                            e.media.pm_play();
+    playlist_state
+        .0
+        .share
+        .set(
+            pc,
+            Some(
+                (id.to_string(), Ws::new(playlist_state.0.log.clone(), &state().env.base_url, format!("main/{}", id), {
+                    let playlist_state = playlist_state.clone();
+                    let bg = Cell::new(None);
+                    move |_, msg| {
+                        match msg {
+                            WsS2C::Play(play_at) => {
+                                if !playlist_state.0.playing.get() {
+                                    return;
+                                }
+                                let i = match playlist_state.0.playing_i.get() {
+                                    Some(i) => i,
+                                    None => playlist_first_index(&playlist_state).unwrap(),
+                                };
+                                let e = playlist_state.0.playlist.borrow().get(&i).cloned().unwrap();
+                                bg.set(Some(spawn_rooted({
+                                    let playlist_state = playlist_state.clone();
+                                    async move {
+                                        TimeoutFuture::new(
+                                            (play_at - Utc::now()).num_milliseconds().max(0) as u32,
+                                        ).await;
+                                        if !playlist_state.0.playing.get() {
+                                            return;
+                                        }
+                                        e.media.pm_play(&playlist_state.0.log);
+                                    }
+                                })));
+                            },
                         }
-                    })));
-                },
-            }
-        }
-    }))));
+                    }
+                })),
+            ),
+        );
 }
 
 pub fn playlist_len(state: &PlaylistState) -> usize {

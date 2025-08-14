@@ -74,7 +74,6 @@ use {
         js::{
             el_async,
             el_async_,
-            log,
             style_export,
         },
         world::file_url,
@@ -303,7 +302,7 @@ fn persist_draft(s: &DraftData) {
         }).collect(),
         new_outgoing: s.0.new_outgoing.borrow().iter().filter_map(|x| x.0.0.borrow().clone()).collect(),
     }) {
-        log(format!("Error saving draft: {}", e));
+        state().log.log(&format!("Error saving draft: {}", e));
     }
 }
 

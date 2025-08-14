@@ -3,6 +3,10 @@ use {
         file_url,
         generated_file_url,
     },
+    chrono::{
+        DateTime,
+        Utc,
+    },
     flowcontrol::shed,
     futures::channel::oneshot::channel,
     gloo::{
@@ -11,6 +15,7 @@ use {
         timers::future::TimeoutFuture,
         utils::window,
     },
+    js_sys::JSON,
     rooting::{
         el,
         spawn_rooted,
@@ -25,8 +30,9 @@ use {
         },
     },
     std::{
-        fmt::Display,
+        cell::RefCell,
         future::Future,
+        rc::Rc,
     },
     wasm_bindgen::{
         JsCast,
@@ -34,10 +40,6 @@ use {
         UnwrapThrowExt,
     },
     web_sys::{
-        console::{
-            log_1,
-            log_2,
-        },
         Event,
         EventTarget,
         HtmlElement,
@@ -67,7 +69,7 @@ pub struct Env {
     pub pwa: bool,
 }
 
-pub fn scan_env() -> Env {
+pub fn scan_env(log: &Rc<dyn Log>) -> Env {
     return Env {
         base_url: shed!{
             let loc = window().location();
@@ -83,17 +85,17 @@ pub fn scan_env() -> Env {
                 let user_agent = match window().navigator().user_agent() {
                     Ok(a) => a,
                     Err(e) => {
-                        log_js("Error getting user agent to enable ios workarounds", &e);
+                        log.log_js("Error getting user agent to enable ios workarounds", &e);
                         break;
                     },
                 };
                 if user_agent.contains("iPad") || user_agent.contains("iPhone") || user_agent.contains("iPod") {
-                    log_1(&JsValue::from("Detected mobile ios, activating webkit workarounds."));
+                    log.log("Detected mobile ios, activating webkit workarounds.");
                     break 'found Some(Engine::IosSafari);
                 }
             }
             if js_sys::Reflect::has(&window(), &JsValue::from("chrome")).unwrap() {
-                log_1(&JsValue::from("Detected chrome(ish), activating chrome workarounds."));
+                log.log("Detected chrome(ish), activating chrome workarounds.");
                 break 'found Some(Engine::Chrome);
             }
             break None;
@@ -113,7 +115,7 @@ pub fn scan_env() -> Env {
                 false
             },
             Err(e) => {
-                log_js("Error running media query to determine if PWA", &e);
+                log.log_js("Error running media query to determine if PWA", &e);
                 false
             },
         },
@@ -146,16 +148,58 @@ pub fn env_preferred_video_url(env: &Env, hash: &FileHash) -> String {
     return generated_file_url(env, hash, &gentype_transcode("video/webm"), "");
 }
 
-pub fn log(x: impl Display) {
-    web_sys::console::log_1(&JsValue::from_str(&x.to_string()));
+pub trait Log {
+    fn log(&self, x: &str);
+    fn log_js(&self, x: &str, v: &JsValue);
+    fn log_js2(&self, x: &str, v: &JsValue, v2: &JsValue);
 }
 
-pub fn log_js(x: impl Display, v: &JsValue) {
-    web_sys::console::log_2(&JsValue::from_str(&x.to_string()), v);
+pub struct VecLog {
+    pub log: RefCell<Vec<(DateTime<Utc>, String)>>,
 }
 
-pub fn log_js2(x: impl Display, v: &JsValue, v2: &JsValue) {
-    web_sys::console::log_3(&JsValue::from_str(&x.to_string()), v, v2);
+fn trim_vec_log(log: &mut Vec<(DateTime<Utc>, String)>) {
+    if log.len() > 250 {
+        *log = log.split_off(log.len() - 200);
+    }
+}
+
+impl Log for VecLog {
+    fn log(&self, x: &str) {
+        let mut log = self.log.borrow_mut();
+        log.push((Utc::now(), x.to_string()));
+        trim_vec_log(&mut log);
+    }
+
+    fn log_js(&self, x: &str, v: &JsValue) {
+        let mut log = self.log.borrow_mut();
+        log.push((Utc::now(), format!("{}: {}", x, JSON::stringify(v).unwrap())));
+        trim_vec_log(&mut log);
+    }
+
+    fn log_js2(&self, x: &str, v: &JsValue, v2: &JsValue) {
+        let mut log = self.log.borrow_mut();
+        log.push(
+            (Utc::now(), format!("{}: {}, {}", x, JSON::stringify(v).unwrap(), JSON::stringify(v2).unwrap())),
+        );
+        trim_vec_log(&mut log);
+    }
+}
+
+pub struct ConsoleLog {}
+
+impl Log for ConsoleLog {
+    fn log(&self, x: &str) {
+        web_sys::console::log_1(&JsValue::from(x));
+    }
+
+    fn log_js(&self, x: &str, v: &JsValue) {
+        web_sys::console::log_2(&JsValue::from(x), v);
+    }
+
+    fn log_js2(&self, x: &str, v: &JsValue, v2: &JsValue) {
+        web_sys::console::log_3(&JsValue::from(x), v, v2);
+    }
 }
 
 pub async fn async_event(e: &EventTarget, event: &str) -> Event {
@@ -166,7 +210,7 @@ pub async fn async_event(e: &EventTarget, event: &str) -> Event {
     return rx.await.unwrap();
 }
 
-pub fn get_dom_octothorpe() -> Option<String> {
+pub fn get_dom_octothorpe(log: &Rc<dyn Log>) -> Option<String> {
     let hash = window().location().hash().unwrap();
     let Some(s) = hash.strip_prefix("#") else {
         return None;
@@ -174,7 +218,7 @@ pub fn get_dom_octothorpe() -> Option<String> {
     let s = match urlencoding::decode(s) {
         Ok(s) => s,
         Err(e) => {
-            log(format!("Unable to url-decode anchor state: {:?}\nAnchor: {}", e, s));
+            log.log(&format!("Unable to url-decode anchor state: {:?}\nAnchor: {}", e, s));
             return None;
         },
     };
@@ -466,26 +510,26 @@ pub fn el_audio(src: &str) -> El {
 }
 
 pub trait LogJsErr {
-    fn log(self, msg: &str);
+    fn log(self, log: &Rc<dyn Log>, msg: &str);
 }
 
 impl<T> LogJsErr for Result<T, JsValue> {
-    fn log(self, msg: &str) {
+    fn log(self, log: &Rc<dyn Log>, msg: &str) {
         match self {
             Ok(_) => { },
             Err(e) => {
-                log_2(&JsValue::from(format!("Warning: {}:", msg)), &e);
+                log.log_js(&format!("Warning: {}:", msg), &e);
             },
         }
     }
 }
 
 impl<T> LogJsErr for Result<T, StorageError> {
-    fn log(self, msg: &str) {
+    fn log(self, log: &Rc<dyn Log>, msg: &str) {
         match self {
             Ok(_) => { },
             Err(e) => {
-                log_1(&JsValue::from(format!("Warning: {}: {}", msg, e)));
+                log.log(&format!("Warning: {}: {}", msg, e));
             },
         }
     }

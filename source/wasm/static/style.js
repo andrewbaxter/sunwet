@@ -1063,6 +1063,92 @@
       }
     ),
   });
+
+  // /////////////////////////////////////////////////////////////////////////////
+  // xx Components, styles: logs
+  presentation.leafLogsLine = /** @type {Presentation["leafLogsLine"]} */ (
+    args
+  ) => ({
+    root: e(
+      "div",
+      {},
+      {
+        styles_: [
+          ss(uniq("leaf_logs_line"), {
+            "": (s) => {
+              s.display = "contents";
+            },
+            ">*:nth-child(1)": (s) => {
+              s.gridColumn = "1";
+              s.pointerEvents = "initial";
+            },
+            ">*:nth-child(2)": (s) => {
+              s.gridColumn = "2";
+              s.pointerEvents = "initial";
+            },
+          }),
+        ],
+        children_: [
+          e(
+            "time",
+            {
+              textContent: new Date(args.stamp).toLocaleTimeString(),
+              dateTime: args.stamp,
+            },
+            {}
+          ),
+          e("span", { textContent: args.text }, {}),
+        ],
+      }
+    ),
+  });
+  presentation.contPageLogs = /** @type {Presentation["contPageLogs"]} */ (
+    args
+  ) => ({
+    root: e(
+      "div",
+      {},
+      {
+        styles_: [
+          classMenuWantStateOpen,
+          contVboxStyle,
+          ss(uniq("cont_page_logs"), {
+            "": (s) => {
+              s.gridColumn = "1/4";
+              s.gridRow = "2/3";
+            },
+          }),
+        ],
+        children_: [
+          e(
+            "div",
+            {},
+            {
+              styles_: [
+                ss(uniq("cont_page_logs"), {
+                  "": (s) => {
+                    s.display = "grid";
+                    s.justifyContent = "start";
+                    s.alignItems = "start";
+                    s.gridTemplateColumns = "auto 1fr";
+                    s.padding = `0 ${varPViewHoriz}`;
+                    s.columnGap = varPSmall;
+                    s.rowGap = varPSmall;
+                  },
+                  [`.${classMenuStateOpen}`]: (s) => {
+                    s.display = "none";
+                  },
+                }),
+              ],
+              children_: args.children,
+            }
+          ),
+          leafSpace({}).root,
+        ],
+      }
+    ),
+  });
+
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: page, form + edit
   const leafInputPairStyle = ss(uniq("leaf_form_input_pair"), {

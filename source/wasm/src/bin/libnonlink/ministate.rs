@@ -19,10 +19,13 @@ use {
         },
         triple::Node,
     },
-    std::collections::HashMap,
+    std::{
+        collections::HashMap,
+        rc::Rc,
+    },
     wasm::js::{
         get_dom_octothorpe,
-        log,
+        Log,
         LogJsErr,
     },
     wasm_bindgen::JsValue,
@@ -36,6 +39,8 @@ pub const SESSIONSTORAGE_POST_REDIRECT_MINISTATE: &str = "post_redirect";
 pub struct PlaylistRestorePos {
     pub index: PlaylistIndex,
     pub time: f64,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub play: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -108,6 +113,7 @@ pub enum Ministate {
     NodeView(MinistateNodeView),
     History(MinistateHistory),
     Query(MinistateQuery),
+    Logs,
 }
 
 pub fn ministate_octothorpe(s: &Ministate) -> String {
@@ -123,10 +129,11 @@ pub fn ministate_title(s: &Ministate) -> String {
         Ministate::NodeView(s) => return s.title.clone(),
         Ministate::History(_) => return format!("History"),
         Ministate::Query(_) => return format!("Query"),
+        Ministate::Logs => return format!("Logs"),
     }
 }
 
-pub fn record_new_ministate(s: &Ministate) {
+pub fn record_new_ministate(log: &Rc<dyn Log>, s: &Ministate) {
     window()
         .history()
         .unwrap()
@@ -136,20 +143,20 @@ pub fn record_new_ministate(s: &Ministate) {
             Some(&ministate_octothorpe(s)),
         )
         .unwrap();
-    LocalStorage::set(LOCALSTORAGE_PWA_MINISTATE, s).log("Error storing PWA ministate");
+    LocalStorage::set(LOCALSTORAGE_PWA_MINISTATE, s).log(log, "Error storing PWA ministate");
 }
 
-pub fn record_replace_ministate(s: &Ministate) {
+pub fn record_replace_ministate(log: &Rc<dyn Log>, s: &Ministate) {
     window()
         .history()
         .unwrap()
         .replace_state_with_url(&JsValue::null(), "", Some(&ministate_octothorpe(s)))
         .unwrap();
-    LocalStorage::set(LOCALSTORAGE_PWA_MINISTATE, s).log("Error storing PWA ministate");
+    LocalStorage::set(LOCALSTORAGE_PWA_MINISTATE, s).log(log, "Error storing PWA ministate");
 }
 
-pub fn read_ministate() -> Ministate {
-    let Some(s) = get_dom_octothorpe() else {
+pub fn read_ministate(log: &Rc<dyn Log>) -> Ministate {
+    let Some(s) = get_dom_octothorpe(log) else {
         return Ministate::Home;
     };
     match serde_json::from_str::<Ministate>(s.as_ref()) {
@@ -164,6 +171,6 @@ pub fn read_ministate() -> Ministate {
             // nop
         },
     }
-    log(format!("Unable to parse url anchor state: [{}]", s));
+    log.log(&format!("Unable to parse url anchor state: [{}]", s));
     return Ministate::Home;
 }
