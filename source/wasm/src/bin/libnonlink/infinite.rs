@@ -29,9 +29,15 @@ use {
     web_sys::Element,
 };
 
+pub struct InfPageRes<K> {
+    pub next_key: Option<K>,
+    pub page_els: Vec<El>,
+    pub immediate_advance: bool,
+}
+
 fn build_infinite_<
     K: 'static,
-    T: Future<Output = Result<(Option<K>, Vec<El>), String>>,
+    T: Future<Output = Result<InfPageRes<K>, String>>,
     F: 'static + FnMut(K) -> T,
 >(log: &Rc<dyn Log>, out: El, bg: Rc<RefCell<Option<ScopeValue>>>, initial_key: K, mut cb: F) {
     out.ref_push(el_async({
@@ -39,68 +45,73 @@ fn build_infinite_<
         let log = log.clone();
         async move {
             ta_return!(Vec < El >, String);
-            let (next_key, children) = cb(initial_key).await?;
-            if let Some(next_key) = next_key {
+            let page_res = cb(initial_key).await?;
+            if let Some(next_key) = page_res.next_key {
+                let immediate_advance = page_res.immediate_advance;
                 *bg.borrow_mut() = Some(spawn_rooted({
                     let bg = bg.clone();
                     async move {
-                        let (tx, mut rx) = mpsc::unbounded_channel();
-                        _ = tx.send(());
-                        TimeoutFuture::new(500).await;
-                        let scroll_parent = {
-                            let Some(at) = out.upgrade() else {
-                                return;
-                            };
-                            let mut at = at.html().dyn_into::<Element>().unwrap();
-                            loop {
-                                if window()
-                                    .get_computed_style(&at)
-                                    .unwrap()
-                                    .unwrap()
-                                    .get_property_value("overflow-y")
-                                    .as_ref()
-                                    .map(|x| x.as_str()) ==
-                                    Ok("auto") {
-                                    break;
-                                };
-                                let Some(at1) = at.parent_element() else {
-                                    log.log("Couldn't find scroll parent for infinite!");
-                                    panic!();
-                                };
-                                at = at1;
-                            }
-                            at
-                        };
-                        let listener = EventListener::new(&scroll_parent, "scroll", move |_| {
+                        if immediate_advance {
+                            // nop
+                        } else {
+                            let (tx, mut rx) = mpsc::unbounded_channel();
                             _ = tx.send(());
-                        });
-                        shed!{
-                            'trigger _;
-                            while let Some(_) = rx.recv().await {
-                                let scroll = scroll_parent.scroll_top();
-                                let view_height = scroll_parent.client_height();
-                                let full_height = scroll_parent.scroll_height();
-                                if scroll + view_height * 3 / 2 > full_height {
-                                    break 'trigger;
+                            TimeoutFuture::new(500).await;
+                            let scroll_parent = {
+                                let Some(at) = out.upgrade() else {
+                                    return;
+                                };
+                                let mut at = at.html().dyn_into::<Element>().unwrap();
+                                loop {
+                                    if window()
+                                        .get_computed_style(&at)
+                                        .unwrap()
+                                        .unwrap()
+                                        .get_property_value("overflow-y")
+                                        .as_ref()
+                                        .map(|x| x.as_str()) ==
+                                        Ok("auto") {
+                                        break;
+                                    };
+                                    let Some(at1) = at.parent_element() else {
+                                        log.log("Couldn't find scroll parent for infinite!");
+                                        panic!();
+                                    };
+                                    at = at1;
                                 }
+                                at
+                            };
+                            let listener = EventListener::new(&scroll_parent, "scroll", move |_| {
+                                _ = tx.send(());
+                            });
+                            shed!{
+                                'trigger _;
+                                while let Some(_) = rx.recv().await {
+                                    let scroll = scroll_parent.scroll_top();
+                                    let view_height = scroll_parent.client_height();
+                                    let full_height = scroll_parent.scroll_height();
+                                    if scroll + view_height * 3 / 2 > full_height {
+                                        break 'trigger;
+                                    }
+                                }
+                                return;
                             }
-                            return;
+                            drop(listener);
                         }
-                        drop(listener);
                         if let Some(out) = out.upgrade() {
                             build_infinite_(&log, out, bg, next_key, cb);
                         }
                     }
                 }));
             }
-            return Ok(children);
+            return Ok(page_res.page_els);
         }
     }));
 }
 
 pub fn build_infinite<
     K: 'static,
-    T: Future<Output = Result<(Option<K>, Vec<El>), String>>,
+    T: Future<Output = Result<InfPageRes<K>, String>>,
     F: 'static + FnMut(K) -> T,
 >(log: &Rc<dyn Log>, initial_key: K, cb: F) -> El {
     let out = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;

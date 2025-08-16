@@ -12,6 +12,7 @@ use {
         },
         utils::{
             document,
+            format::JsValueSerdeExt,
             window,
         },
     },
@@ -57,6 +58,7 @@ use {
         set_root,
         El,
     },
+    serde::Deserialize,
     shared::interface::{
         config::{
             ClientConfig,
@@ -89,7 +91,10 @@ use {
         },
     },
     wasm_bindgen::JsCast,
-    web_sys::HtmlElement,
+    web_sys::{
+        HtmlElement,
+        MessageEvent,
+    },
 };
 
 pub mod libnonlink;
@@ -124,8 +129,20 @@ pub fn main() {
             ministate: RefCell::new(shed!{
                 'found _;
                 shed!{
-                    let Ok(m) = SessionStorage::get::<Ministate>(SESSIONSTORAGE_POST_REDIRECT_MINISTATE) else {
-                        break;
+                    let m = match SessionStorage::get::<Ministate>(SESSIONSTORAGE_POST_REDIRECT_MINISTATE) {
+                        Ok(m) => m,
+                        Err(e) => match e {
+                            gloo::storage::errors::StorageError::KeyNotFound(_) => {
+                                break;
+                            },
+                            gloo::storage::errors::StorageError::SerdeError(..) |
+                            gloo::storage::errors::StorageError::JsError(..) => {
+                                log.log(
+                                    &format!("Error reading post-redirect ministate from session storage: {}", e),
+                                );
+                                break;
+                            },
+                        },
                     };
                     SessionStorage::delete(SESSIONSTORAGE_POST_REDIRECT_MINISTATE);
                     record_replace_ministate(&log, &m);
@@ -135,8 +152,18 @@ pub fn main() {
                     if !env.pwa {
                         break;
                     }
-                    let Ok(m) = LocalStorage::get::<Ministate>(LOCALSTORAGE_PWA_MINISTATE) else {
-                        break;
+                    let m = match LocalStorage::get::<Ministate>(LOCALSTORAGE_PWA_MINISTATE) {
+                        Ok(m) => m,
+                        Err(e) => match e {
+                            gloo::storage::errors::StorageError::KeyNotFound(_) => {
+                                break;
+                            },
+                            gloo::storage::errors::StorageError::SerdeError(..) |
+                            gloo::storage::errors::StorageError::JsError(..) => {
+                                log.log(&format!("Error reading pwa ministate from local storage: {}", e));
+                                break;
+                            },
+                        },
                     };
                     record_replace_ministate(&log, &m);
                 }
@@ -318,6 +345,28 @@ pub fn main() {
         }, modal_stack.clone()] }).root.own(|_| (
             //. .
             playlist_root,
+            EventListener::new(&window(), "message", |ev| {
+                let ev = ev.dyn_ref::<MessageEvent>().unwrap();
+
+                #[derive(Deserialize)]
+                #[serde(rename_all = "snake_case", deny_unknown_fields)]
+                enum Message {
+                    Log(String),
+                }
+
+                let message = match JsValueSerdeExt::into_serde::<Message>(&ev.data()) {
+                    Ok(m) => m,
+                    Err(e) => {
+                        state().log.log(&format!("Error parsing js message: {}", e));
+                        return;
+                    },
+                };
+                match message {
+                    Message::Log(m) => {
+                        state().log.log(&format!("From service worker: {}", m));
+                    },
+                }
+            }),
             link!((_pc = pc), (playing_i = state().playlist.0.playing_i.clone()), (), () {
                 let class = style_export::class_state_selected().value;
                 {

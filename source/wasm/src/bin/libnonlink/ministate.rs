@@ -39,7 +39,7 @@ pub const SESSIONSTORAGE_POST_REDIRECT_MINISTATE: &str = "post_redirect";
 pub struct PlaylistRestorePos {
     pub index: PlaylistIndex,
     pub time: f64,
-    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    #[serde(skip_serializing_if = "std::ops::Not::not", default)]
     pub play: bool,
 }
 
@@ -161,16 +161,15 @@ pub fn read_ministate(log: &Rc<dyn Log>) -> Ministate {
     };
     match serde_json::from_str::<Ministate>(s.as_ref()) {
         Ok(s) => return s,
-        Err(_) => {
-            // nop
+        Err(e) => {
+            log.log(&format!("Unable to parse url anchor state (1/2, no urldecode) [{}]: {}", s, e));
         },
     };
     match serde_json::from_str::<Ministate>(&decode_uri(s.as_str()).unwrap().as_string().unwrap()) {
         Ok(s) => return s,
-        Err(_) => {
-            // nop
+        Err(e) => {
+            log.log(&format!("Unable to parse url anchor state (2/2, urldecode) [{}]: {}", s, e));
         },
     }
-    log.log(&format!("Unable to parse url anchor state: [{}]", s));
     return Ministate::Home;
 }

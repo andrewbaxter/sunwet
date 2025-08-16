@@ -17,6 +17,7 @@ use {
     },
     crate::libnonlink::{
         api::req_post_json,
+        infinite::InfPageRes,
         ministate::{
             ministate_octothorpe,
             Ministate,
@@ -466,7 +467,6 @@ impl Build {
         pc: &mut ProcessingContext,
         config_at: &WidgetRootDataRows,
         config_query_params: &BTreeMap<String, Vec<String>>,
-        data_id: &Vec<usize>,
         data_at: &Vec<DataStackLevel>,
     ) -> El {
         let build_infinite_page = {
@@ -479,7 +479,6 @@ impl Build {
             let have_media = self.have_media.clone();
             let config_at = config_at.clone();
             let config_query_params = config_query_params.clone();
-            let data_id = data_id.clone();
             let data_at = data_at.clone();
             move |chunk: Vec<(usize, TreeNode)>, node_meta: Rc<HashMap<Node, NodeMeta>>| -> Vec<El> {
                 return eg.event(|pc| {
@@ -500,12 +499,10 @@ impl Build {
                             data: new_data_at_top,
                             node_meta: node_meta.clone(),
                         });
-                        let mut data_id = data_id.clone();
-                        data_id.push(i);
                         let mut blocks = vec![];
                         for config_at in &config_at.row_blocks {
                             let block_contents =
-                                build.build_widget(pc, &config_at.widget, &config_query_params, &data_id, &data_at);
+                                build.build_widget(pc, &config_at.widget, &config_query_params, &vec![i], &data_at);
                             blocks.push(style_export::cont_view_block(style_export::ContViewBlockArgs {
                                 children: vec![block_contents],
                                 width: config_at.width.clone(),
@@ -524,6 +521,7 @@ impl Build {
                 }).unwrap();
             }
         };
+        let restore = self.restore_playlist_pos.as_ref().and_then(|x| x.index.first().copied());
         return el_async({
             let config_at = config_at.clone();
             let view_id = self.view_id.clone();
@@ -560,10 +558,18 @@ impl Build {
                         body.ref_push(build_infinite(&state().log, chunked_data.next().unwrap(), {
                             let build_infinite_page = build_infinite_page.clone();
                             move |chunk| {
+                                let immediate_advance =
+                                    Option::zip(chunk.last(), restore)
+                                        .map(|(last, restore)| restore > last.0)
+                                        .unwrap_or(false);
                                 let children = build_infinite_page(chunk, Default::default());
                                 let next_key = chunked_data.next();
                                 async move {
-                                    Ok((next_key, children))
+                                    Ok(InfPageRes {
+                                        next_key: next_key,
+                                        page_els: children,
+                                        immediate_advance: immediate_advance,
+                                    })
                                 }
                             }
                         }));
@@ -610,15 +616,17 @@ impl Build {
                                         chunk.push((count.get(), TreeNode::Record(v)));
                                         count.set(count.get() + 1);
                                     }
-                                    Ok(
-                                        (
-                                            res.next_page_key.map(|x| Some(x)),
-                                            build_infinite_page(
-                                                chunk,
-                                                Rc::new(res.meta.into_iter().collect::<HashMap<_, _>>()),
-                                            ),
+                                    Ok(InfPageRes {
+                                        immediate_advance: restore
+                                            .as_ref()
+                                            .map(|restore| *restore >= count.get())
+                                            .unwrap_or(false),
+                                        next_key: res.next_page_key.map(|x| Some(x)),
+                                        page_els: build_infinite_page(
+                                            chunk,
+                                            Rc::new(res.meta.into_iter().collect::<HashMap<_, _>>()),
                                         ),
-                                    )
+                                    })
                                 }
                             }
                         }));
@@ -1265,18 +1273,12 @@ fn build_page_view_body(
         transport_slot: transport_slot,
     };
     body.ref_push(
-        build.build_widget_root_data_rows(
-            pc,
-            &common.config_at,
-            &common.config_query_params,
-            &vec![],
-            &vec![DataStackLevel {
-                data: TreeNode::Record(
-                    param_data.iter().map(|(k, v)| (k.clone(), TreeNode::Scalar(v.clone()))).collect(),
-                ),
-                node_meta: Default::default(),
-            }],
-        ),
+        build.build_widget_root_data_rows(pc, &common.config_at, &common.config_query_params, &vec![DataStackLevel {
+            data: TreeNode::Record(
+                param_data.iter().map(|(k, v)| (k.clone(), TreeNode::Scalar(v.clone()))).collect(),
+            ),
+            node_meta: Default::default(),
+        }]),
     );
     playlist_extend(
         pc,

@@ -5,6 +5,7 @@ use {
     },
     crate::libnonlink::{
         api::req_post_json,
+        infinite::InfPageRes,
         ministate::{
             record_replace_ministate,
             MinistateQuery,
@@ -70,7 +71,11 @@ fn refresh(results_group: El, text: &str) {
                         ).root,
                     );
                 }
-                return Ok((page_data.next_page_key.map(|x| Some(x)), out));
+                return Ok(InfPageRes {
+                    next_key: page_data.next_page_key.map(|x| Some(x)),
+                    page_els: out,
+                    immediate_advance: false,
+                });
             }
         }
     }));

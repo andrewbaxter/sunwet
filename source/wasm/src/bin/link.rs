@@ -175,6 +175,7 @@ fn build_link(log: &Rc<dyn Log>, media_audio_el: HtmlMediaElement, media_video_e
                                                 PlaylistMediaAudioVideo::new_audio(
                                                     state.0.media_el_audio.clone(),
                                                     audio.source_url.clone(),
+                                                    0.,
                                                 ),
                                             );
                                     },
@@ -182,7 +183,8 @@ fn build_link(log: &Rc<dyn Log>, media_audio_el: HtmlMediaElement, media_video_e
                                         state.0.display_under.ref_modify_classes(&[(&class_state_hide, true)]);
                                         let media_el = state.0.media_el_video.clone();
                                         state.0.display.ref_push(media_el.clone());
-                                        media = Rc::new(PlaylistMediaAudioVideo::new_video(media_el, source_url));
+                                        media =
+                                            Rc::new(PlaylistMediaAudioVideo::new_video(media_el, source_url, 0.));
                                     },
                                     PrepareMedia::Image(source_url) => {
                                         state.0.display_under.ref_modify_classes(&[(&class_state_hide, true)]);

@@ -571,6 +571,11 @@ pub fn playlist_extend(
                         PlaylistMediaAudioVideo::new_audio(
                             playlist_state.0.media_el_audio.clone(),
                             entry.source_url.clone(),
+                            if let Some(restore_pos) = restore_pos {
+                                restore_pos.time
+                            } else {
+                                0.
+                            },
                         ),
                     );
             },
@@ -580,6 +585,11 @@ pub fn playlist_extend(
                         PlaylistMediaAudioVideo::new_video(
                             playlist_state.0.media_el_video.clone(),
                             entry.source_url.clone(),
+                            if let Some(restore_pos) = restore_pos {
+                                restore_pos.time
+                            } else {
+                                0.
+                            },
                         ),
                     );
             },
@@ -599,21 +609,24 @@ pub fn playlist_extend(
                             &req_file(&state().env.base_url, &url).await?,
                         ).map_err(|e| format!("Error reading comic manifest: {}", e))?,
                     );
-                }.boxed_local()), 0));
+                }.boxed_local()), if let Some(restore_pos) = restore_pos {
+                    restore_pos.time as usize
+                } else {
+                    0
+                }));
             },
             PlaylistEntryMediaType::Book => {
                 box_media = Box::new(PlaylistMediaBook::new(&match &entry.source_url {
                     SourceUrl::Url(u) => u.to_string(),
                     SourceUrl::File(h) => generated_file_url(&state().env, h, GENTYPE_DIR, ""),
-                }, 0));
+                }, if let Some(restore_pos) = restore_pos {
+                    restore_pos.time as usize
+                } else {
+                    0
+                }));
             },
         }
-        if let Some(restore_pos) = restore_pos {
-            if restore_pos.index == entry_index && !playlist_state.0.playing.get() {
-                playlist_state.0.playing_i.set(pc, Some(entry_index.clone()));
-            }
-        }
-        playlist_state.0.playlist.borrow_mut().insert(entry_index, Rc::new(PlaylistEntry {
+        playlist_state.0.playlist.borrow_mut().insert(entry_index.clone(), Rc::new(PlaylistEntry {
             name: entry.name,
             album: entry.album,
             artist: entry.artist,
@@ -623,6 +636,14 @@ pub fn playlist_extend(
             media: box_media,
             play_buttons: entry.play_buttons,
         }));
+        if let Some(restore_pos) = restore_pos {
+            if restore_pos.index == entry_index && !playlist_state.0.playing.get() {
+                playlist_state.0.playing_i.set(pc, Some(entry_index.clone()));
+                if restore_pos.play {
+                    playlist_state.0.playing.set(pc, true);
+                }
+            }
+        }
     }
 }
 

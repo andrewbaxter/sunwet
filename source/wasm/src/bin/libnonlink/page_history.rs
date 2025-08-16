@@ -6,6 +6,7 @@ use {
     },
     crate::libnonlink::{
         api::req_post_json,
+        infinite::InfPageRes,
         ministate::{
             MinistateHistory,
             MinistateHistoryPredicate,
@@ -120,7 +121,11 @@ pub fn build_page_history(pc: &mut ProcessingContext, ministate: &MinistateHisto
                     },
                 }).await?;
                 if hist_res.events.is_empty() {
-                    return Ok((None, vec![]));
+                    return Ok(InfPageRes {
+                        next_key: None,
+                        page_els: vec![],
+                        immediate_advance: false,
+                    });
                 }
                 let page_key_next = hist_res.events.last().as_ref().map(|x| (x.commit, x.triple.clone()));
                 let mut prev_commit = page_key.as_ref().map(|x| x.0);
@@ -180,7 +185,11 @@ pub fn build_page_history(pc: &mut ProcessingContext, ministate: &MinistateHisto
                         row_res.root
                     });
                 }
-                return Ok((Some(page_key_next), out));
+                return Ok(InfPageRes {
+                    next_key: Some(page_key_next),
+                    page_els: out,
+                    immediate_advance: false,
+                });
             }
         }
     }));

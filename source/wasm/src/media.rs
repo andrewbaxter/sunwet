@@ -115,30 +115,30 @@ pub struct PlaylistMediaAudioVideo {
     pub media_el: HtmlMediaElement,
     pub el: El,
     pub src: SourceUrl,
-    pub loaded_src: RefCell<Option<String>>,
     pub play_bg: Rc<RefCell<Option<ScopeValue>>>,
+    pub time: Cell<f64>,
 }
 
 impl PlaylistMediaAudioVideo {
-    pub fn new_audio(el: El, src: SourceUrl) -> PlaylistMediaAudioVideo {
+    pub fn new_audio(el: El, src: SourceUrl, time: f64) -> PlaylistMediaAudioVideo {
         return PlaylistMediaAudioVideo {
             video: false,
             media_el: el.raw().dyn_into().unwrap(),
             el: el,
             src: src,
-            loaded_src: RefCell::new(None),
             play_bg: Default::default(),
+            time: Cell::new(time),
         };
     }
 
-    pub fn new_video(el: El, src: SourceUrl) -> PlaylistMediaAudioVideo {
+    pub fn new_video(el: El, src: SourceUrl, time: f64) -> PlaylistMediaAudioVideo {
         return PlaylistMediaAudioVideo {
             video: true,
             media_el: el.raw().dyn_into().unwrap(),
             el: el,
             src: src,
-            loaded_src: RefCell::new(None),
             play_bg: Default::default(),
+            time: Cell::new(time),
         };
     }
 }
@@ -186,7 +186,11 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
 
     fn pm_stop(&self) {
         self.media_el.pause().unwrap();
-        *self.play_bg.borrow_mut() = None;
+        let mut play_bg = self.play_bg.borrow_mut();
+        if play_bg.is_some() {
+            self.time.set(self.media_el.current_time());
+        }
+        *play_bg = None;
     }
 
     fn pm_get_max_time(&self) -> Option<f64> {
@@ -199,7 +203,9 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
     }
 
     fn pm_get_time(&self) -> f64 {
-        return self.media_el.current_time();
+        let out = self.media_el.current_time();
+        self.time.set(out);
+        return out;
     }
 
     fn pm_format_time(&self, time: f64) -> String {
@@ -221,6 +227,7 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
 
     fn pm_seek(&self, _pc: &mut ProcessingContext, time: f64) {
         self.media_el.set_current_time(time);
+        self.time.set(time);
     }
 
     fn pm_preload(&self, log: &Rc<dyn Log>, env: &Env) {

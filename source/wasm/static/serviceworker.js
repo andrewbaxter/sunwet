@@ -66,6 +66,15 @@ const doFetch = async (/** @type {Request} */ request) => {
       try {
         const resp = await fetch(request);
         if (resp.status != 304) {
+          if (!wantReload) {
+            window.postMessage({
+              log: `Reloading; static request to [${
+                request.url
+              }] with etag [${cacheEtag}] returned non-304 with etag [${resp.headers.get(
+                etag
+              )}]`,
+            });
+          }
           wantReload = true;
           cache.put(request, resp);
         }

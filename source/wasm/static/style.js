@@ -435,6 +435,33 @@
   const contHboxStyle = "hbox";
   const contStackStyle = "stack";
 
+  const leafImg =
+    /** @type { (args: {src: String, alt?: String, lazy?: boolean, styles_?: string[]})=>HTMLImageElement} */ (
+      args
+    ) => {
+      const out = e("img", { src: args.src }, { styles_: args.styles_ });
+      if (args.alt != null) {
+        out.alt = args.alt;
+      }
+      if (args.lazy != null && args.lazy) {
+        out.loading = "lazy";
+      }
+      const repair = () => {
+        out.addEventListener(
+          "error",
+          async () => {
+            out.src = "";
+            await new Promise((r) => setTimeout(r, 1000));
+            out.src = args.src;
+            repair();
+          },
+          { once: true }
+        );
+      };
+      repair();
+      return out;
+    };
+
   presentation.contGroup = /** @type {Presentation["contGroup"]} */ (args) => ({
     root: e("div", {}, { styles_: [contGroupStyle], children_: args.children }),
   });
@@ -959,7 +986,7 @@
   presentation.leafMediaImg = /** @type {Presentation["leafMediaImg"]} */ (
     args
   ) => ({
-    root: e("img", { src: args.src, loading: "lazy" }, {}),
+    root: leafImg({ src: args.src, lazy: true }),
   });
   presentation.leafMediaAudio = /** @type {Presentation["leafMediaAudio"]} */ (
     args
@@ -2597,16 +2624,12 @@
   ) => {
     const out = (() => {
       if (args.link != null) {
-        const img = e(
-          "img",
-          { src: args.src, loading: "lazy" },
-          {
-            styles_: [viewMediaLinkMediaStyle],
-          }
-        );
-        if (args.text != null) {
-          img.alt = args.text;
-        }
+        const img = leafImg({
+          src: args.src,
+          lazy: true,
+          styles_: [viewMediaLinkMediaStyle],
+          alt: args.text,
+        });
         return e(
           "a",
           { href: args.link },
@@ -2616,16 +2639,12 @@
           }
         );
       } else {
-        const img = e(
-          "img",
-          { src: args.src, loading: "lazy" },
-          {
-            styles_: [viewMediaNonlinkMediaStyle],
-          }
-        );
-        if (args.text != null) {
-          img.alt = args.text;
-        }
+        const img = leafImg({
+          src: args.src,
+          lazy: true,
+          styles_: [viewMediaNonlinkMediaStyle],
+          alt: args.text,
+        });
         return img;
       }
     })();
@@ -3255,20 +3274,18 @@
     });
   presentation.leafMediaComicPage =
     /** @type {Presentation["leafMediaComicPage"]} */ (args) => {
-      const out = e(
-        "img",
-        { src: args.src, loading: "lazy" },
-        {
-          styles_: [
-            ss(uniq("leaf_media_comic_page"), {
-              "": (s) => {
-                s.height = "100%";
-                s.flexShrink = "0";
-              },
-            }),
-          ],
-        }
-      );
+      const out = leafImg({
+        src: args.src,
+        lazy: true,
+        styles_: [
+          ss(uniq("leaf_media_comic_page"), {
+            "": (s) => {
+              s.height = "100%";
+              s.flexShrink = "0";
+            },
+          }),
+        ],
+      });
       out.style.aspectRatio = `${args.aspectX}/${args.aspectY}`;
       return { root: out };
     };
