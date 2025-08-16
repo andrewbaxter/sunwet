@@ -37,6 +37,8 @@ pub const SESSIONSTORAGE_POST_REDIRECT_MINISTATE: &str = "post_redirect";
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct PlaylistRestorePos {
+    #[serde(default)]
+    pub seed: u64,
     pub index: PlaylistIndex,
     pub time: f64,
     #[serde(skip_serializing_if = "std::ops::Not::not", default)]

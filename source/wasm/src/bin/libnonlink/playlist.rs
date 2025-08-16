@@ -131,6 +131,7 @@ pub struct PlaylistEntry {
     pub media_type: PlaylistEntryMediaType,
     pub media: Box<dyn PlaylistMedia>,
     pub play_buttons: Vec<HtmlElement>,
+    pub seed: u64,
 }
 
 pub struct PlaylistState_ {
@@ -416,11 +417,13 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
                 };
                 let time;
                 let max_time;
+                let seed;
                 {
                     let playlist = state.0.playlist.borrow();
                     let entry: &Rc<PlaylistEntry> = playlist.get(&*playing_i).unwrap();
                     time = entry.media.pm_get_time();
                     max_time = entry.media.pm_get_max_time();
+                    seed = entry.seed;
                 }
                 let new_state = (time, max_time);
                 if Some(&new_state) == last_state.get().as_ref() {
@@ -433,6 +436,7 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
                 });
                 if let Some(vs) = state.0.view_ministate_state.borrow().as_ref() {
                     vs.set_pos(Some(PlaylistRestorePos {
+                        seed: seed,
                         index: playing_i.clone(),
                         time: time,
                         play: state.0.playing.get(),
@@ -545,6 +549,8 @@ pub fn playlist_len(state: &PlaylistState) -> usize {
 }
 
 pub struct PlaylistPushArg {
+    pub index: PlaylistIndex,
+    pub seed: u64,
     pub name: Option<String>,
     pub album: Option<String>,
     pub artist: Option<String>,
@@ -558,11 +564,11 @@ pub fn playlist_extend(
     pc: &mut ProcessingContext,
     playlist_state: &PlaylistState,
     vs: MinistateViewState,
-    entries: Vec<(PlaylistIndex, PlaylistPushArg)>,
+    entries: Vec<PlaylistPushArg>,
     restore_pos: &Option<PlaylistRestorePos>,
 ) {
     *playlist_state.0.view_ministate_state.borrow_mut() = Some(vs);
-    for (entry_index, entry) in entries {
+    for entry in entries {
         let box_media: Box<dyn PlaylistMedia>;
         match entry.media_type {
             PlaylistEntryMediaType::Audio => {
@@ -626,7 +632,7 @@ pub fn playlist_extend(
                 }));
             },
         }
-        playlist_state.0.playlist.borrow_mut().insert(entry_index.clone(), Rc::new(PlaylistEntry {
+        playlist_state.0.playlist.borrow_mut().insert(entry.index.clone(), Rc::new(PlaylistEntry {
             name: entry.name,
             album: entry.album,
             artist: entry.artist,
@@ -635,10 +641,11 @@ pub fn playlist_extend(
             media_type: entry.media_type,
             media: box_media,
             play_buttons: entry.play_buttons,
+            seed: entry.seed,
         }));
         if let Some(restore_pos) = restore_pos {
-            if restore_pos.index == entry_index && !playlist_state.0.playing.get() {
-                playlist_state.0.playing_i.set(pc, Some(entry_index.clone()));
+            if restore_pos.seed == entry.seed && restore_pos.index == entry.index && !playlist_state.0.playing.get() {
+                playlist_state.0.playing_i.set(pc, Some(entry.index.clone()));
                 if restore_pos.play {
                     playlist_state.0.playing.set(pc, true);
                 }

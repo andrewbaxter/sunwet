@@ -7,7 +7,6 @@ use {
         },
         playlist::{
             playlist_clear,
-            PlaylistIndex,
         },
         state::{
             state,
@@ -282,11 +281,12 @@ struct Build {
     view_id: ViewId,
     param_data: HashMap<String, Node>,
     restore_playlist_pos: Option<PlaylistRestorePos>,
-    playlist_add: Vec<(PlaylistIndex, PlaylistPushArg)>,
+    playlist_add: Vec<PlaylistPushArg>,
     have_media: Rc<Cell<bool>>,
     want_media: bool,
     transport_slot: El,
     vs: MinistateViewState,
+    seed: u64,
 }
 
 impl Build {
@@ -332,6 +332,7 @@ impl Build {
             let vs = self.vs.clone();
             let data_id = data_id.clone();
             let data_at = data_at.clone();
+            let seed = self.seed;
             async move {
                 let node_meta;
                 let new_data_at_tops;
@@ -387,6 +388,7 @@ impl Build {
                         have_media: have_media,
                         want_media: false,
                         transport_slot: transport_slot,
+                        seed: seed,
                     };
                     let out;
                     match &config_at.row_widget {
@@ -476,6 +478,7 @@ impl Build {
             let config_at = config_at.clone();
             let config_query_params = config_query_params.clone();
             let data_at = data_at.clone();
+            let seed = self.seed;
             move |chunk: Vec<(usize, TreeNode)>, node_meta: Rc<HashMap<Node, NodeMeta>>| -> Vec<El> {
                 return eg.event(|pc| {
                     let mut build = Build {
@@ -487,6 +490,7 @@ impl Build {
                         have_media: have_media.clone(),
                         transport_slot: transport_slot.clone(),
                         vs: vs.clone(),
+                        seed: seed,
                     };
                     let mut children = vec![];
                     for (i, new_data_at_top) in chunk {
@@ -523,6 +527,7 @@ impl Build {
             let view_id = self.view_id.clone();
             let config_query_params = config_query_params.clone();
             let data_at = data_at.clone();
+            let seed = self.seed;
             async move {
                 let body = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
                 match config_at.data {
@@ -586,7 +591,6 @@ impl Build {
                             }
                         }
                         body.ref_push(build_infinite(&state().log, None, {
-                            let seed = (random() * u64::MAX as f64) as u64;
                             let view_id = view_id.clone();
                             let query_id = query_id.clone();
                             let count = Rc::new(Cell::new(0usize));
@@ -917,7 +921,9 @@ impl Build {
                 trans_align: config_at.trans_align,
                 orientation: config_at.orientation.unwrap_or(Orientation::RightDown),
             }).root;
-            self.playlist_add.push((data_id.clone(), PlaylistPushArg {
+            self.playlist_add.push(PlaylistPushArg {
+                index: data_id.clone(),
+                seed: self.seed,
                 name: shed!{
                     let Some(config_at) = &config_at.name_field else {
                         break None;
@@ -949,7 +955,7 @@ impl Build {
                 source_url: src_url,
                 media_type: media_type,
                 play_buttons: vec![out.raw().dyn_into().unwrap()],
-            }));
+            });
             out.ref_on("click", {
                 let data_id = data_id.clone();
                 let eg = pc.eg();
@@ -1187,6 +1193,7 @@ fn build_page_view_body(
     };
     body.ref_clear();
     playlist_clear(pc, &state().playlist);
+    let seed = (random() * u64::MAX as f64) as u64;
     let mut build = Build {
         view_id: common.id.clone(),
         vs: common.view_ministate_state.clone(),
@@ -1196,6 +1203,7 @@ fn build_page_view_body(
         want_media: false,
         have_media: common.have_media.clone(),
         transport_slot: transport_slot,
+        seed: seed,
     };
     body.ref_push(
         build.build_widget_root_data_rows(pc, &common.config_at, &common.config_query_params, &vec![DataStackLevel {

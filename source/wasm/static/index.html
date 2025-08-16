@@ -9,8 +9,8 @@
     <title>Sunwet</title>
     <script>
       if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("/service-worker.js").catch((e) => {
-          console.log(`Error registering service worker: ${e}`);
+        navigator.serviceWorker.register("./serviceworker.js").catch((e) => {
+          console.log(`Error registering service worker`, e);
         });
       }
     </script>
