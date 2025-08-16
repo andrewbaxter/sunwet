@@ -38,7 +38,8 @@ const pathSplits = self.location.pathname.split("/");
 pathSplits.pop();
 const baseUrl = `${self.location.origin}${pathSplits.join("/")}`;
 const doFetch = async (/** @type {Request} */ request) => {
-  // Dynamic requests are cached/downloaded at a different level, don't handle here
+  // Dynamic requests are cached/downloaded at a different level, don't handle here.
+  // I.e. the below filters should only allow root level static files.
   if (!request.url.startsWith(baseUrl) || request.method != "GET") {
     return await fetch(request);
   }
@@ -46,8 +47,10 @@ const doFetch = async (/** @type {Request} */ request) => {
   if (
     !request.url.startsWith(baseUrl) ||
     request.method != "GET" ||
-    relPath.startsWith("api/") ||
-    relPath.startsWith("file/")
+    relPath.startsWith("/api") ||
+    relPath.startsWith("/oidc") ||
+    relPath.startsWith("/logout") ||
+    relPath.startsWith("/file")
   ) {
     return await fetch(request);
   }

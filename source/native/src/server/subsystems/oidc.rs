@@ -279,8 +279,15 @@ pub async fn handle_oidc(state: &OidcState, head: Parts) -> Result<Response<Body
         url: Uri,
     }
 
-    let Ok(params) = serde_urlencoded::from_str::<Params>(query) else {
-        return Ok(response_400("Invalid query params"));
+    let params = match serde_urlencoded::from_str::<Params>(query) {
+        Ok(p) => p,
+        Err(e) => {
+            log.log_err(
+                loga::DEBUG,
+                e.context(format!("Received new auth request with invalid query string: [{}]", query)),
+            );
+            return Ok(response_400("Invalid query params"));
+        },
     };
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
     let (auth_url, csrf_token, nonce) =
@@ -349,8 +356,15 @@ pub async fn handle_logout(
     let Some(query) = head.uri.query() else {
         return Ok(response_400("Missing query"));
     };
-    let Ok(params) = serde_urlencoded::from_str::<Params>(query) else {
-        return Ok(response_400("Invalid query params"));
+    let params = match serde_urlencoded::from_str::<Params>(query) {
+        Ok(p) => p,
+        Err(e) => {
+            log.log_err(
+                loga::DEBUG,
+                e.context(format!("Received logout request with invalid query string: [{}]", query)),
+            );
+            return Ok(response_400("Invalid query params"));
+        },
     };
     return Ok(
         http::Response::builder()
