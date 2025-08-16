@@ -1,4 +1,5 @@
 use {
+    crate::libnonlink::seekbar::setup_seekbar,
     flowcontrol::{
         shed,
         ta_return,
@@ -417,6 +418,7 @@ pub fn main() {
                         style_export::cont_media_fullscreen(
                             style_export::ContMediaFullscreenArgs { media: media_display },
                         );
+                    setup_seekbar(pc, modal.seekbar, modal.seekbar_fill, modal.seekbar_label);
                     modal.button_close.on("click", {
                         let current = Rc::downgrade(&current);
                         let eg = pc.eg();

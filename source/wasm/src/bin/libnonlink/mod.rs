@@ -10,3 +10,4 @@ pub mod api;
 pub mod commit;
 pub mod infinite;
 pub mod page_query;
+pub mod seekbar;

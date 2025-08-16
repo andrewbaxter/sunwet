@@ -1698,6 +1698,89 @@
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: page, view
 
+  const leafSeekbar = () => {
+    const seekbarFill = e(
+      "div",
+      {},
+      {
+        styles_: [
+          ss(uniq("transport_gutter_fill"), {
+            "": (s) => {
+              s.height = "100%";
+              s.width = "30%";
+              s.borderRadius = varSTransportGutterRadius;
+              s.backgroundColor = varCHighlightBold;
+            },
+          }),
+        ],
+      }
+    );
+    const seekbarLabel = e(
+      "span",
+      {
+        textContent: "00:00",
+      },
+      {
+        styles_: [
+          ss(uniq("transport_time"), {
+            "": (s) => {
+              s.opacity = varONoninteractive;
+              s.justifySelf = "end";
+              s.margin = `0 ${varPSmall}`;
+            },
+          }),
+        ],
+      }
+    );
+    const seekbar = e(
+      "div",
+      {},
+      {
+        styles_: [
+          contStackStyle,
+          ss(uniq("transport_seekbar"), {
+            "": (s) => {
+              // Hack around https://github.com/w3c/csswg-drafts/issues/12081 to
+              // set a default size without affecting min-content
+              s.gridTemplateColumns = "minmax(min-content, 8cm)";
+              s.flexBasis = "0";
+              s.flexGrow = "1";
+              s.maxWidth = "max-content";
+
+              s.pointerEvents = "initial";
+
+              s.alignItems = "center";
+            },
+          }),
+        ],
+        children_: [
+          e(
+            "div",
+            {},
+            {
+              styles_: [
+                ss(uniq("transport_gutter"), {
+                  "": (s) => {
+                    s.height = "0.15cm";
+                    s.borderRadius = varSTransportGutterRadius;
+                    s.backgroundColor = varCSeekbarEmpty;
+                  },
+                }),
+              ],
+              children_: [seekbarFill],
+            }
+          ),
+          seekbarLabel,
+        ],
+      }
+    );
+    return {
+      seekbar: seekbar,
+      seekbarFill: seekbarFill,
+      seekbarLabel: seekbarLabel,
+    };
+  };
+
   presentation.contBarViewTransport =
     /** @type {Presentation["contBarViewTransport"]} */ () => {
       const buttonShare = leafTransportButton({
@@ -1716,80 +1799,6 @@
         title: "Previous",
         icons: { "": textIconPrev },
       });
-      const seekbarFill = e(
-        "div",
-        {},
-        {
-          styles_: [
-            ss(uniq("transport_gutter_fill"), {
-              "": (s) => {
-                s.height = "100%";
-                s.width = "30%";
-                s.borderRadius = varSTransportGutterRadius;
-                s.backgroundColor = varCHighlightBold;
-              },
-            }),
-          ],
-        }
-      );
-      const seekbarLabel = e(
-        "span",
-        {
-          textContent: "00:00",
-        },
-        {
-          styles_: [
-            ss(uniq("transport_time"), {
-              "": (s) => {
-                s.opacity = varONoninteractive;
-                s.justifySelf = "end";
-                s.margin = `0 ${varPSmall}`;
-              },
-            }),
-          ],
-        }
-      );
-      const seekbar = e(
-        "div",
-        {},
-        {
-          styles_: [
-            contStackStyle,
-            ss(uniq("transport_seekbar"), {
-              "": (s) => {
-                // Hack around https://github.com/w3c/csswg-drafts/issues/12081 to
-                // set a default size without affecting min-content
-                s.gridTemplateColumns = "minmax(min-content, 8cm)";
-                s.flexBasis = "0";
-                s.flexGrow = "1";
-
-                s.pointerEvents = "initial";
-
-                s.alignItems = "center";
-              },
-            }),
-          ],
-          children_: [
-            e(
-              "div",
-              {},
-              {
-                styles_: [
-                  ss(uniq("transport_gutter"), {
-                    "": (s) => {
-                      s.height = "0.15cm";
-                      s.borderRadius = varSTransportGutterRadius;
-                      s.backgroundColor = varCSeekbarEmpty;
-                    },
-                  }),
-                ],
-                children_: [seekbarFill],
-              }
-            ),
-            seekbarLabel,
-          ],
-        }
-      );
       const buttonNext = leafTransportButton({
         title: "Next",
         icons: { "": textIconNext },
@@ -1808,6 +1817,7 @@
           break;
         }
       });
+      const { seekbar, seekbarFill, seekbarLabel } = leafSeekbar();
       return {
         root: presentation.contBarMain({
           leftChildren: [buttonShare.root],
@@ -1996,6 +2006,7 @@
           children_: [leafIcon({ text: textIconFullscreen })],
         }
       );
+      const { seekbar, seekbarFill, seekbarLabel } = leafSeekbar();
       return {
         buttonClose: buttonClose,
         buttonFullscreen: buttonFullscreen,
@@ -2036,6 +2047,8 @@
                   children_: [
                     buttonClose,
                     leafSpace({}).root,
+                    seekbar,
+                    leafSpace({}).root,
                     buttonFullscreen,
                   ],
                 }
@@ -2043,6 +2056,9 @@
             ],
           }
         ),
+        seekbar: seekbar,
+        seekbarFill: seekbarFill,
+        seekbarLabel: seekbarLabel,
       };
     };
 

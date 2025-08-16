@@ -441,7 +441,14 @@ fn main() {
         Func {
             name: "contMediaFullscreen",
             args: vec![("media", &el_)],
-            returns: vec![("root", &el_), ("buttonClose", &el_), ("buttonFullscreen", &el_)],
+            returns: vec![
+                ("root", &el_),
+                ("buttonClose", &el_),
+                ("buttonFullscreen", &el_),
+                ("seekbar", &el_),
+                ("seekbarFill", &el_),
+                ("seekbarLabel", &el_)
+            ],
         },
         Func {
             name: "contModalViewShare",
