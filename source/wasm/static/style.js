@@ -187,7 +187,7 @@
   const varFRelIcon = "32pt";
   const varFLinkBig = "14pt";
 
-  const varSFullscreenIconClose = "1cm";
+  const varSFullscreenIcon = "0.8cm";
   const varSModalIconClose = "1.4cm";
   const varSNarrow = "20cm";
   const varSModalHeight = "20cm";
@@ -200,7 +200,7 @@
   const varSColWidthRaw = `12cm`;
   const varSColWidth = `min(100%, ${varSColWidthRaw})`;
   const varSMenuIndent = "0.6cm";
-  const varSLinkIcon = "3cm";
+  const varSLinkIcon = "1.5cm";
   const varSButtonSmallIcon = "0.7cm";
   const varSButtonBigIcon = "0.6cm";
 
@@ -1103,15 +1103,26 @@
         styles_: [
           ss(uniq("leaf_logs_line"), {
             "": (s) => {
-              s.display = "contents";
+              s.gridColumn = "1/3";
+
+              s.display = "grid";
+              s.padding = `${varPSmall} ${varPSmall}`;
+
+              s.gridTemplateColumns = "subgrid";
+            },
+            ":nth-child(odd)": (s) => {
+              s.backgroundColor = varCBackground2;
+              s.borderRadius = varRMedia;
             },
             ">*:nth-child(1)": (s) => {
               s.gridColumn = "1";
               s.pointerEvents = "initial";
+              s.opacity = varONoninteractive;
             },
             ">*:nth-child(2)": (s) => {
               s.gridColumn = "2";
               s.pointerEvents = "initial";
+              s.whiteSpace = "pre-wrap";
             },
           }),
         ],
@@ -1160,7 +1171,6 @@
                     s.gridTemplateColumns = "auto 1fr";
                     s.padding = `0 ${varPViewHoriz}`;
                     s.columnGap = varPSmall;
-                    s.rowGap = varPSmall;
                   },
                   [`.${classMenuStateOpen}`]: (s) => {
                     s.display = "none";
@@ -1704,7 +1714,7 @@
       {},
       {
         styles_: [
-          ss(uniq("transport_gutter_fill"), {
+          ss(uniq("seekbar_gutter_fill"), {
             "": (s) => {
               s.height = "100%";
               s.width = "30%";
@@ -1722,7 +1732,7 @@
       },
       {
         styles_: [
-          ss(uniq("transport_time"), {
+          ss(uniq("seekbar_time"), {
             "": (s) => {
               s.opacity = varONoninteractive;
               s.justifySelf = "end";
@@ -1738,7 +1748,7 @@
       {
         styles_: [
           contStackStyle,
-          ss(uniq("transport_seekbar"), {
+          ss(uniq("seekbar"), {
             "": (s) => {
               // Hack around https://github.com/w3c/csswg-drafts/issues/12081 to
               // set a default size without affecting min-content
@@ -1759,7 +1769,7 @@
             {},
             {
               styles_: [
-                ss(uniq("transport_gutter"), {
+                ss(uniq("seekbar_gutter"), {
                   "": (s) => {
                     s.height = "0.15cm";
                     s.borderRadius = varSTransportGutterRadius;
@@ -1806,6 +1816,13 @@
       const buttonPlay = leafTransportButton({
         title: "Play",
         icons: { "": textIconPlay, [attrStatePlaying]: textIconPause },
+        extraStyles: [
+          ss(uniq("leaf_transport_play"), {
+            [`.${classStateSelected}`]: (s) => {
+              s.color = varCSelected;
+            },
+          }),
+        ],
       });
       const buttonCenter = leafTransportButton({
         title: "Scroll to",
@@ -1980,7 +1997,7 @@
             leafButtonStyle,
             ss(uniq("cont_media_fullscreen_close"), {
               "": (s) => {
-                const size = varSFullscreenIconClose;
+                const size = varSFullscreenIcon;
                 s.width = size;
                 s.height = size;
               },
@@ -1997,7 +2014,7 @@
             leafButtonStyle,
             ss(uniq("cont_media_fullscreen_fullscreen"), {
               "": (s) => {
-                const size = varSFullscreenIconClose;
+                const size = varSFullscreenIcon;
                 s.width = size;
                 s.height = size;
               },
@@ -4623,6 +4640,7 @@
   presentation.appLinkPerms = /** @type {Presentation["appLinkPerms"]} */ (
     args
   ) => {
+    const buttonStyle = uniq("app_link_perms_play");
     const button = e(
       "button",
       {},
@@ -4635,13 +4653,11 @@
               s.gridTemplateRows = "1fr auto 1fr";
               s.justifyItems = "center";
               s.margin = varPLink;
-              s.borderRadius = varRLink;
-              s.border = `${varLMid} solid ${varCForegroundFade}`;
             },
-            ":hover": (s) => {
+            [`:hover .${buttonStyle}`]: (s) => {
               s.borderColor = varCButtonHover;
             },
-            ":hover:active": (s) => {
+            [`:hover:active .${buttonStyle}`]: (s) => {
               s.borderColor = varCButtonClick;
             },
             ">*:nth-child(1)": (s) => {
@@ -4666,17 +4682,21 @@
           leafIcon({
             text: textIconPlay,
             extraStyles: [
-              ss(uniq("app_link_perms_play"), {
+              ss(buttonStyle, {
                 "": (s) => {
                   s.width = varSLinkIcon;
                   s.minWidth = varSLinkIcon;
                   s.height = varSLinkIcon;
                   s.minHeight = varSLinkIcon;
                   s.alignSelf = "end";
+                  s.borderRadius = varRLink;
+                  s.border = `${varLMid} solid ${varCForegroundFade}`;
+                  s.margin = "1cm";
                 },
                 " text": (s) => {
                   s.fill = varCLinkForegroundDark;
                   s.fontWeight = varWLight;
+                  s.setProperty("font-size", "150px", "important");
                 },
               }),
             ],

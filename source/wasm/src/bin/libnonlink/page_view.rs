@@ -1141,8 +1141,9 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
             playlist_toggle_play(pc, &state().playlist, None);
         }).unwrap()
     });
-    button_play.ref_own(
-        |out| link!((_pc = pc), (playing = state().playlist.0.playing.clone()), (), (out = out.weak()) {
+    button_play.ref_own(|out| (
+        //. .
+        link!((_pc = pc), (playing = state().playlist.0.playing.clone()), (), (out = out.weak()) {
             let out = out.upgrade()?;
             if playing.get() {
                 out.ref_attr(&style_export::attr_state().value, &style_export::attr_state_playing().value);
@@ -1150,7 +1151,11 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
                 out.ref_attr(&style_export::attr_state().value, "");
             }
         }),
-    );
+        link!((_pc = pc), (active = state().playlist.0.playing_i.clone()), (), (out = out.weak()) {
+            let out = out.upgrade()?;
+            out.ref_modify_classes(&[(&style_export::class_state_selected().value, active.get().is_some())]);
+        }),
+    ));
     setup_seekbar(pc, transport_res.seekbar, transport_res.seekbar_fill, transport_res.seekbar_label);
 
     // Assemble
