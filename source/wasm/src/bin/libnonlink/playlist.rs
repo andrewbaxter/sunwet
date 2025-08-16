@@ -436,7 +436,7 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
                 });
                 if let Some(vs) = state.0.view_ministate_state.borrow().as_ref() {
                     vs.set_pos(Some(PlaylistRestorePos {
-                        seed: seed,
+                        seed: Some(seed),
                         index: playing_i.clone(),
                         time: time,
                         play: state.0.playing.get(),
@@ -644,7 +644,8 @@ pub fn playlist_extend(
             seed: entry.seed,
         }));
         if let Some(restore_pos) = restore_pos {
-            if restore_pos.seed == entry.seed && restore_pos.index == entry.index && !playlist_state.0.playing.get() {
+            if restore_pos.seed.map(|x| x == entry.seed).unwrap_or(true) && restore_pos.index == entry.index &&
+                !playlist_state.0.playing.get() {
                 playlist_state.0.playing_i.set(pc, Some(entry.index.clone()));
                 if restore_pos.play {
                     playlist_state.0.playing.set(pc, true);

@@ -5,9 +5,7 @@ use {
             MinistateNodeView,
             PlaylistRestorePos,
         },
-        playlist::{
-            playlist_clear,
-        },
+        playlist::playlist_clear,
         state::{
             state,
             MinistateViewState,
@@ -37,6 +35,7 @@ use {
     flowcontrol::{
         exenum,
         shed,
+        superif,
         ta_return,
     },
     gloo::{
@@ -119,9 +118,7 @@ use {
         world::file_url,
     },
     wasm_bindgen::JsCast,
-    web_sys::{
-        DomParser,
-    },
+    web_sys::DomParser,
 };
 
 pub const LOCALSTORAGE_SHARE_SESSION_ID: &str = "share_session_id";
@@ -1193,11 +1190,18 @@ fn build_page_view_body(
     };
     body.ref_clear();
     playlist_clear(pc, &state().playlist);
-    let seed = if let Some(p) = &restore_playlist_pos {
-        p.seed
-    } else {
-        (random() * u64::MAX as f64) as u64
-    };
+    let seed;
+    superif!({
+        let Some(p) = &restore_playlist_pos else {
+            break 'noseed;
+        };
+        let Some(s) = p.seed else {
+            break 'noseed;
+        };
+        seed = s;
+    } 'noseed {
+        seed = (random() * u64::MAX as f64) as u64;
+    });
     let mut build = Build {
         view_id: common.id.clone(),
         vs: common.view_ministate_state.clone(),
