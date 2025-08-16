@@ -1193,7 +1193,11 @@ fn build_page_view_body(
     };
     body.ref_clear();
     playlist_clear(pc, &state().playlist);
-    let seed = (random() * u64::MAX as f64) as u64;
+    let seed = if let Some(p) = &restore_playlist_pos {
+        p.seed
+    } else {
+        (random() * u64::MAX as f64) as u64
+    };
     let mut build = Build {
         view_id: common.id.clone(),
         vs: common.view_ministate_state.clone(),
