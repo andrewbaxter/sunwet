@@ -848,10 +848,24 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
                 })))
                 .build()
                 .context("Error creating sqlite pool")?;
-        db.get().await?.interact(|db| {
-            db::migrate(db)?;
-            db.execute_batch(include_str!("setup_fts.sql"))?;
-            return Ok(()) as Result<_, loga::Error>;
+        db.get().await?.interact({
+            let log = log.clone();
+            move |db| {
+                db::migrate(db)?;
+                if db
+                    .prepare("select 1 from sqlite_master where type='table' and name='meta_fts'")
+                    .context("Error preparing statement to check for meta_fts")?
+                    .query([])
+                    .context("Error running query to check for meta_fts")?
+                    .next()
+                    .context("Error reading query to check for meta_fts results")?
+                    .is_none() {
+                    log.log(loga::DEBUG, "Initializing fts table");
+                    db.execute_batch(include_str!("setup_fts.sql")).context("Error setting up meta_fts")?;
+                    log.log(loga::DEBUG, "DOne initializing fts table");
+                }
+                return Ok(()) as Result<_, loga::Error>;
+            }
         }).await?.context_with("Migration failed", ea!(action = "db_init", path = db_path.to_string_lossy()))?;
 
         // Setup state

@@ -113,7 +113,6 @@ pub async fn identify_requester(state: &State, headers: &HeaderMap) -> Result<Id
                 continue;
             };
             if c.name() != COOKIE_LINK_SESSION {
-                eprintln!("link cookie not link session: {} (want {})", c.name(), COOKIE_LINK_SESSION);
                 continue;
             };
             return Ok(Identity::Link(c.value().to_string()));

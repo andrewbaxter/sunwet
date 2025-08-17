@@ -421,6 +421,11 @@
     /** @type { Presentation["classStateSharing"]} */ () => ({
       value: classStateSharing,
     });
+  const classStateElementSelected = "element_selected";
+  presentation.classStateElementSelected =
+    /** @type { Presentation["classStateElementSelected"]} */ () => ({
+      value: classStateElementSelected,
+    });
   const classStateSelected = "selected";
   presentation.classStateSelected =
     /** @type { Presentation["classStateSelected"]} */ () => ({
@@ -1829,7 +1834,9 @@
         icons: { "": textIconCenter },
       });
       buttonCenter.root.addEventListener("click", (_) => {
-        for (const b of document.getElementsByClassName(classStateSelected)) {
+        for (const b of document.getElementsByClassName(
+          classStateElementSelected
+        )) {
           b.scrollIntoView({ block: "center", inline: "center" });
           break;
         }
@@ -3079,7 +3086,7 @@
           [`[data-state="${attrStatePlaying}"]>*:nth-child(2)`]: (s) => {
             s.display = "initial";
           },
-          [`.${classStateSelected}`]: (s) => {
+          [`.${classStateElementSelected}`]: (s) => {
             s.color = varCSelected;
           },
         }),

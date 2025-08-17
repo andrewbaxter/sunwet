@@ -3,7 +3,7 @@ use {
     http::{
         header::{
             ETAG,
-            IF_MATCH,
+            IF_NONE_MATCH,
         },
         HeaderMap,
         Response,
@@ -37,7 +37,7 @@ pub async fn handle_static(
     match f {
         Some(f) => {
             let etag = format!("\"{}\"", hex::encode(f.metadata.sha256_hash()));
-            if let Some(h) = headers.get(IF_MATCH) {
+            if let Some(h) = headers.get(IF_NONE_MATCH) {
                 if h == etag.as_bytes() {
                     return Ok(Response::builder().status(304).body(body_full(vec![])).unwrap());
                 }

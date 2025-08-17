@@ -178,6 +178,11 @@ fn main() {
             returns: vec![("value", &string_)],
         },
         Func {
+            name: "classStateElementSelected",
+            args: vec![],
+            returns: vec![("value", &string_)],
+        },
+        Func {
             name: "classStateSelected",
             args: vec![],
             returns: vec![("value", &string_)],

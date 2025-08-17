@@ -12,6 +12,7 @@ declare type Presentation = {
     classStateInvalid: (args: {  }) => { value: string };
     classStateDeleted: (args: {  }) => { value: string };
     classStateSharing: (args: {  }) => { value: string };
+    classStateElementSelected: (args: {  }) => { value: string };
     classStateSelected: (args: {  }) => { value: string };
     contGroup: (args: { children: Element[] }) => { root: Element };
     contStack: (args: { children: Element[] }) => { root: Element };

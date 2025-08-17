@@ -16,28 +16,15 @@ addEventListener("activate", async (ev) =>
   )
 );
 
-let wantReload = false;
-let outstandingReqs = 0;
-/** @type (number|null) */
-let debounceRefresh = null;
-const incOutstanding = () => {
-  if (debounceRefresh != null) {
-    clearTimeout(debounceRefresh);
-    debounceRefresh = null;
-  }
-};
-const decOutstanding = () => {
-  outstandingReqs -= 1;
-  if (outstandingReqs == 0 && wantReload) {
-    debounceRefresh = setTimeout(() => {
-      window.location.reload();
-    }, 10000);
-  }
-};
 const pathSplits = self.location.pathname.split("/");
 pathSplits.pop();
 const baseUrl = `${self.location.origin}${pathSplits.join("/")}`;
-const doFetch = async (/** @type {Request} */ request) => {
+const doFetch = async (
+  /** @type {Request} */ request0,
+  /** @type {string} */ clientId
+) => {
+  let request = request0;
+
   // Dynamic requests are cached/downloaded at a different level, don't handle here.
   // I.e. the below filters should only allow root level static files.
   if (!request.url.startsWith(baseUrl) || request.method != "GET") {
@@ -56,44 +43,64 @@ const doFetch = async (/** @type {Request} */ request) => {
   }
 
   // Handle caching of app static requests
-  incOutstanding();
   const cache = await caches.open(CACHE);
   const cacheResp = await cache.match(request);
   if (cacheResp != null) {
     (async () => {
-      const etag = "ETag";
-      const cacheEtag = cacheResp.headers.get(etag);
-      if (cacheEtag != null) {
-        request.headers.set("If-None-Match", cacheEtag);
-      }
       try {
-        const resp = await fetch(request);
-        if (resp.status != 304) {
-          if (!wantReload) {
-            window.postMessage({
-              log: `Reloading; static request to [${
-                request.url
-              }] with etag [${cacheEtag}] returned non-304 with etag [${resp.headers.get(
-                etag
-              )}]`,
-            });
+        const etag = "ETag";
+        const cacheEtag = cacheResp.headers.get(etag);
+        if (cacheEtag != null) {
+          const headers = new Headers(request.headers);
+          headers.set("If-None-Match", cacheEtag);
+          request = new Request(request, {
+            headers: headers,
+            mode: "same-origin",
+          });
+          const newHeaders2 = [];
+          for (const h of request.headers) {
+            newHeaders2.push(h[0]);
           }
-          wantReload = true;
+        } else {
+          console.log(
+            `Cached response for ${request.url} has no ETag, requesting as normal`
+          );
+        }
+        const resp = await fetch(request);
+        if (resp.status == 304) {
+          // nop
+        } else {
+          console.log(
+            `Reloading; request to [${
+              request.url
+            }] with etag [${cacheEtag}] returned non-304 with etag [${resp.headers.get(
+              etag
+            )}]`
+          );
+          const client = await self.clients.get(clientId);
+          if (client != null) {
+            client.postMessage("reload");
+          }
           cache.put(request, resp);
         }
-      } finally {
-        decOutstanding();
+      } catch (e) {
+        console.log("Error while doing background request handling", e);
+        throw e;
       }
     })();
     return cacheResp;
   } else {
-    try {
-      const resp = await fetch(request);
-      cache.put(request, resp.clone());
-      return resp;
-    } finally {
-      decOutstanding();
-    }
+    const resp = await fetch(request);
+    cache.put(request, resp.clone());
+    return resp;
   }
 };
-addEventListener("fetch", (ev) => ev.respondWith(doFetch(ev.request)));
+addEventListener("fetch", (ev1) => {
+  try {
+    const ev = /** @type {FetchEvent} */ (ev1);
+    return ev.respondWith(doFetch(ev.request, ev.clientId));
+  } catch (e) {
+    console.log("Error while handling request", e);
+    throw e;
+  }
+});

@@ -169,12 +169,14 @@ impl Log for VecLog {
         let mut log = self.log.borrow_mut();
         log.push((Utc::now(), x.to_string()));
         trim_vec_log(&mut log);
+        web_sys::console::log_1(&JsValue::from(x));
     }
 
     fn log_js(&self, x: &str, v: &JsValue) {
         let mut log = self.log.borrow_mut();
         log.push((Utc::now(), format!("{}: {}", x, JSON::stringify(v).unwrap())));
         trim_vec_log(&mut log);
+        web_sys::console::log_2(&JsValue::from(x), v);
     }
 
     fn log_js2(&self, x: &str, v: &JsValue, v2: &JsValue) {
@@ -183,6 +185,7 @@ impl Log for VecLog {
             (Utc::now(), format!("{}: {}, {}", x, JSON::stringify(v).unwrap(), JSON::stringify(v2).unwrap())),
         );
         trim_vec_log(&mut log);
+        web_sys::console::log_3(&JsValue::from(x), v, v2);
     }
 }
 

@@ -353,6 +353,7 @@ pub fn main() {
                 #[serde(rename_all = "snake_case", deny_unknown_fields)]
                 enum Message {
                     Log(String),
+                    Reload,
                 }
 
                 let message = match JsValueSerdeExt::into_serde::<Message>(&ev.data()) {
@@ -366,16 +367,24 @@ pub fn main() {
                     Message::Log(m) => {
                         state().log.log(&format!("From service worker: {}", m));
                     },
+                    Message::Reload => {
+                        window()
+                            .location()
+                            .reload()
+                            .log(&state().log, "Error executing reload triggered by web worker.");
+                    },
                 }
             }),
             link!((_pc = pc), (playing_i = state().playlist.0.playing_i.clone()), (), () {
-                let class = style_export::class_state_selected().value;
+                let class = style_export::class_state_element_selected().value;
                 {
                     let old_focused = document().get_elements_by_class_name(&class);
+                    let mut old_focused1 = vec![];
                     for i in 0 .. old_focused.length() {
-                        old_focused
-                            .item(i)
-                            .unwrap()
+                        old_focused1.push(old_focused.item(i).unwrap());
+                    }
+                    for o in old_focused1 {
+                        o
                             .class_list()
                             .remove_1(&class)
                             .log(&state().log, "Error removing selected class from play button");
@@ -449,9 +458,12 @@ pub fn main() {
             link!((_pc = pc), (menu_open = state().menu_open.clone()), (), () {
                 let new_open = *menu_open.borrow();
                 let state_open = style_export::class_menu_state_open().value;
-                let x = document().get_elements_by_class_name(&style_export::class_menu_want_state_open().value);
+                let x = document().get_elements_by_class_name(&state_open);
+                let mut y = vec![];
                 for i in 0 .. x.length() {
-                    let ele = x.item(i).unwrap().dyn_into::<HtmlElement>().unwrap();
+                    y.push(x.item(i).unwrap().dyn_into::<HtmlElement>().unwrap());
+                }
+                for ele in y {
                     ele.class_list().toggle_with_force(&state_open, new_open).unwrap();
                 }
             }),
