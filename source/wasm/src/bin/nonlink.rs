@@ -458,7 +458,7 @@ pub fn main() {
             link!((_pc = pc), (menu_open = state().menu_open.clone()), (), () {
                 let new_open = *menu_open.borrow();
                 let state_open = style_export::class_menu_state_open().value;
-                let x = document().get_elements_by_class_name(&state_open);
+                let x = document().get_elements_by_class_name(&style_export::class_menu_want_state_open().value);
                 let mut y = vec![];
                 for i in 0 .. x.length() {
                     y.push(x.item(i).unwrap().dyn_into::<HtmlElement>().unwrap());

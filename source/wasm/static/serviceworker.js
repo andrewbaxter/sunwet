@@ -67,7 +67,7 @@ const doFetch = async (
           );
         }
         const resp = await fetch(request);
-        if (resp.status == 304) {
+        if (resp.status >= 300) {
           // nop
         } else {
           console.log(
