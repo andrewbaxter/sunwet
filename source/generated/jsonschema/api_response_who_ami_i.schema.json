@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RespWhoAmI",
+  "oneOf": [
+    {
+      "type": "string",
+      "enum": [
+        "public",
+        "token"
+      ]
+    },
+    {
+      "type": "object",
+      "required": [
+        "user"
+      ],
+      "properties": {
+        "user": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  ]
+}

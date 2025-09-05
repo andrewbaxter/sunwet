@@ -1,0 +1,99 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CliCommit",
+  "type": "object",
+  "properties": {
+    "add": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/CliTriple"
+      }
+    },
+    "remove": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/CliTriple"
+      }
+    }
+  },
+  "definitions": {
+    "CliNode": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "file"
+          ],
+          "properties": {
+            "file": {
+              "$ref": "#/definitions/FileHash"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": true
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "upload"
+          ],
+          "properties": {
+            "upload": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "CliTriple": {
+      "type": "object",
+      "required": [
+        "object",
+        "predicate",
+        "subject"
+      ],
+      "properties": {
+        "object": {
+          "$ref": "#/definitions/CliNode"
+        },
+        "predicate": {
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/definitions/CliNode"
+        }
+      }
+    },
+    "FileHash": {
+      "$ref": "#/definitions/FileHash_"
+    },
+    "FileHash_": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "sha256"
+          ],
+          "properties": {
+            "sha256": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

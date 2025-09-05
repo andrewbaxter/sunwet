@@ -5,4 +5,4 @@ import type { MaybeFdap } from "./MaybeFdap";
 import type { OidcConfig } from "./OidcConfig";
 import type { UsersConfig } from "./UsersConfig";
 
-export type Config = { debug: boolean, temp_dir: string, graph_dir: string, files_dir: string, cache_dir: string, bind_addr: string, oidc: OidcConfig | null, fdap: FdapConfig | null, global: MaybeFdap<GlobalConfig>, user: MaybeFdap<UsersConfig>, };
+export type Config = { debug?: boolean, temp_dir: string, graph_dir: string, files_dir: string, cache_dir: string, bind_addr: string, oidc: OidcConfig | null, fdap: FdapConfig | null, global: MaybeFdap<GlobalConfig>, user: MaybeFdap<UsersConfig>, };

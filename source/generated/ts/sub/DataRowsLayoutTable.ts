@@ -2,4 +2,4 @@
 import type { Orientation } from "./Orientation";
 import type { Widget } from "./Widget";
 
-export type DataRowsLayoutTable = { gap: string | null, x_scroll: boolean, orientation: Orientation, elements: Array<Widget>, };
+export type DataRowsLayoutTable = { gap?: string | null, x_scroll?: boolean, orientation: Orientation, elements: Array<Widget>, };

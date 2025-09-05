@@ -3,4 +3,4 @@ import type { FilterExpr } from "./FilterExpr";
 import type { MoveDirection } from "./MoveDirection";
 import type { StrValue } from "./StrValue";
 
-export type StepMove = { dir: MoveDirection, predicate: StrValue, filter?: FilterExpr | null, first?: boolean, };
+export type StepMove = { dir: MoveDirection, predicate: StrValue, filter?: FilterExpr | null, };

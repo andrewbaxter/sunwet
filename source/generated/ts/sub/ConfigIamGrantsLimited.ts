@@ -9,12 +9,12 @@ export type ConfigIamGrantsLimited = {
  * child menu items (if a section) transitively, and any forms or views directly
  * linked by leaf menu items.
  */
-menu_items: Array<MenuItemId>, 
+menu_items?: Array<MenuItemId>, 
 /**
  * Give the user access to all these views.
  */
-views: Array<ViewId>, 
+views?: Array<ViewId>, 
 /**
  * Give the user access to all these forms.
  */
-forms: Array<FormId>, };
+forms?: Array<FormId>, };

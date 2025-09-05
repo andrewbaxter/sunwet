@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RespCommit",
+  "type": "object",
+  "required": [
+    "incomplete"
+  ],
+  "properties": {
+    "incomplete": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/FileHash"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "FileHash": {
+      "$ref": "#/definitions/FileHash_"
+    },
+    "FileHash_": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "sha256"
+          ],
+          "properties": {
+            "sha256": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

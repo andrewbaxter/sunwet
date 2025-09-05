@@ -25,10 +25,20 @@ pub const PREDICATE_TOPIC: &str = "sunwet/1/topic";
 
 /// ISO 639-1 2-letter language
 pub const PREDICATE_LANG: &str = "sunwet/1/language";
+
+/// A collection of things.
 pub const OBJ_IS_ALBUM: &str = "sunwet/1/album";
+
+/// A thing.
 pub const OBJ_IS_TRACK: &str = "sunwet/1/track";
+
+/// Someone who created a thing.
 pub const OBJ_IS_ARTIST: &str = "sunwet/1/artist";
+
+/// A document; any non-media file associated with an album.
 pub const OBJ_IS_DOC: &str = "sunwet/1/doc";
+
+/// A note... some text you wrote.
 pub const OBJ_IS_NOTE: &str = "sunwet/1/note";
 pub const OBJ_MEDIA_AUDIO: &str = "sunwet/1/audio";
 pub const OBJ_MEDIA_VIDEO: &str = "sunwet/1/video";

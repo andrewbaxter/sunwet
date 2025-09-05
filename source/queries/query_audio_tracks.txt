@@ -3,5 +3,3 @@
         ?( -< "sunwet/1/track" -> "sunwet/1/media" == "sunwet/1/audio" )
         !( -> "sunwet/1/delete")
     )
-    include "query_audio_tracks_suffix.txt"
-    shuffle

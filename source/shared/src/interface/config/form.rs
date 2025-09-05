@@ -34,6 +34,7 @@ pub struct FormFieldComment {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FormFieldText {
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub placeholder: Option<String>,
 }
 
@@ -41,6 +42,7 @@ pub struct FormFieldText {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FormFieldNumber {
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub placeholder: Option<String>,
 }
 
@@ -48,6 +50,7 @@ pub struct FormFieldNumber {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FormFieldBool {
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub initial_on: bool,
 }
 
@@ -55,6 +58,7 @@ pub struct FormFieldBool {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FormFieldRgbU8 {
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub initial: Option<String>,
 }
 

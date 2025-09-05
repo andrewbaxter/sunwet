@@ -76,6 +76,7 @@
         },
         "width": {
           "description": "Sets the default width of the block. If not specified, space will be divided with other unsized blocks.",
+          "default": null,
           "type": [
             "string",
             "null"
@@ -87,28 +88,20 @@
     "Chain": {
       "type": "object",
       "required": [
-        "body"
+        "head",
+        "tail"
       ],
       "properties": {
-        "bind": {
-          "type": [
-            "string",
-            "null"
-          ]
+        "head": {
+          "$ref": "#/definitions/ChainHead"
         },
-        "body": {
-          "$ref": "#/definitions/ChainBody"
-        },
-        "subchains": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/Chain"
-          }
+        "tail": {
+          "$ref": "#/definitions/ChainTail"
         }
       },
       "additionalProperties": false
     },
-    "ChainBody": {
+    "ChainHead": {
       "type": "object",
       "required": [
         "steps"
@@ -160,6 +153,24 @@
           "additionalProperties": false
         }
       ]
+    },
+    "ChainTail": {
+      "type": "object",
+      "properties": {
+        "bind": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subchains": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Chain"
+          }
+        }
+      },
+      "additionalProperties": false
     },
     "ClientViewParam": {
       "oneOf": [
@@ -447,7 +458,7 @@
       ],
       "properties": {
         "subchain": {
-          "$ref": "#/definitions/ChainBody"
+          "$ref": "#/definitions/ChainHead"
         },
         "suffix": {
           "anyOf": [
@@ -1235,7 +1246,6 @@
       ]
     },
     "Query": {
-      "description": "Right now, all fields are turned into a single top level record - this is useful for recursion which could otherwise lead to large nested objects when a flat list is desired.  A new `nest` step may be introduced later to create intermediate records (as `QueryResType::Record`).",
       "type": "object",
       "required": [
         "chain"
@@ -1247,7 +1257,7 @@
         "sort": {
           "anyOf": [
             {
-              "$ref": "#/definitions/QuerySort"
+              "$ref": "#/definitions/SortQuery"
             },
             {
               "type": "null"
@@ -1283,48 +1293,6 @@
           },
           "additionalProperties": false
         }
-      ]
-    },
-    "QuerySort": {
-      "oneOf": [
-        {
-          "type": "string",
-          "enum": [
-            "random"
-          ]
-        },
-        {
-          "type": "object",
-          "required": [
-            "fields"
-          ],
-          "properties": {
-            "fields": {
-              "type": "array",
-              "items": {
-                "type": "array",
-                "items": [
-                  {
-                    "$ref": "#/definitions/QuerySortDir"
-                  },
-                  {
-                    "type": "string"
-                  }
-                ],
-                "maxItems": 2,
-                "minItems": 2
-              }
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
-    },
-    "QuerySortDir": {
-      "type": "string",
-      "enum": [
-        "asc",
-        "desc"
       ]
     },
     "SerdeNodeType": {
@@ -1400,7 +1368,131 @@
         }
       ]
     },
+    "SortDir": {
+      "type": "string",
+      "enum": [
+        "asc",
+        "desc"
+      ]
+    },
+    "SortQuery": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "shuffle"
+          ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "fields"
+          ],
+          "properties": {
+            "fields": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": [
+                  {
+                    "$ref": "#/definitions/SortDir"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ],
+                "maxItems": 2,
+                "minItems": 2
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "Step": {
+      "type": "object",
+      "required": [
+        "specific"
+      ],
+      "properties": {
+        "first": {
+          "type": "boolean"
+        },
+        "sort": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SortDir"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "specific": {
+          "$ref": "#/definitions/StepSpecific"
+        }
+      },
+      "additionalProperties": false
+    },
+    "StepJunction": {
+      "type": "object",
+      "required": [
+        "subchains",
+        "type_"
+      ],
+      "properties": {
+        "subchains": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ChainHead"
+          }
+        },
+        "type_": {
+          "$ref": "#/definitions/JunctionType"
+        }
+      },
+      "additionalProperties": false
+    },
+    "StepMove": {
+      "type": "object",
+      "required": [
+        "dir",
+        "predicate"
+      ],
+      "properties": {
+        "dir": {
+          "$ref": "#/definitions/MoveDirection"
+        },
+        "filter": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/FilterExpr"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "predicate": {
+          "$ref": "#/definitions/StrValue"
+        }
+      },
+      "additionalProperties": false
+    },
+    "StepRecurse": {
+      "type": "object",
+      "required": [
+        "subchain"
+      ],
+      "properties": {
+        "subchain": {
+          "$ref": "#/definitions/ChainHead"
+        }
+      },
+      "additionalProperties": false
+    },
+    "StepSpecific": {
       "oneOf": [
         {
           "type": "object",
@@ -1439,69 +1531,6 @@
           "additionalProperties": false
         }
       ]
-    },
-    "StepJunction": {
-      "type": "object",
-      "required": [
-        "subchains",
-        "type_"
-      ],
-      "properties": {
-        "subchains": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/ChainBody"
-          }
-        },
-        "type_": {
-          "$ref": "#/definitions/JunctionType"
-        }
-      },
-      "additionalProperties": false
-    },
-    "StepMove": {
-      "type": "object",
-      "required": [
-        "dir",
-        "predicate"
-      ],
-      "properties": {
-        "dir": {
-          "$ref": "#/definitions/MoveDirection"
-        },
-        "filter": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/FilterExpr"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "first": {
-          "type": "boolean"
-        },
-        "predicate": {
-          "$ref": "#/definitions/StrValue"
-        }
-      },
-      "additionalProperties": false
-    },
-    "StepRecurse": {
-      "type": "object",
-      "required": [
-        "subchain"
-      ],
-      "properties": {
-        "first": {
-          "type": "boolean"
-        },
-        "subchain": {
-          "$ref": "#/definitions/ChainBody"
-        }
-      },
-      "additionalProperties": false
     },
     "StrValue": {
       "oneOf": [
@@ -1757,6 +1786,18 @@
         {
           "type": "object",
           "required": [
+            "icon"
+          ],
+          "properties": {
+            "icon": {
+              "$ref": "#/definitions/WidgetIcon"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
             "play_button"
           ],
           "properties": {
@@ -1921,6 +1962,70 @@
             {
               "$ref": "#/definitions/TransAlign"
             }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "WidgetIcon": {
+      "type": "object",
+      "required": [
+        "data"
+      ],
+      "properties": {
+        "color": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "data": {
+          "description": "The unicode string for the google material icon font icon",
+          "type": "string"
+        },
+        "height": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "link": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Link"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "orientation": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Orientation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
+          ]
+        },
+        "width": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
           ]
         }
       },

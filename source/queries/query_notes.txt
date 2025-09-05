@@ -1,0 +1,1 @@
+"sunwet/1/note" -< "sunwet/1/is" !(-> "sunwet/1/delete")

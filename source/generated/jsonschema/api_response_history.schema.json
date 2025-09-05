@@ -1,0 +1,90 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RespHistory",
+  "type": "object",
+  "required": [
+    "commit_descriptions",
+    "events"
+  ],
+  "properties": {
+    "commit_descriptions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/RespHistoryEvent"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "Node": {
+      "$ref": "#/definitions/SerdeNode_"
+    },
+    "RespHistoryEvent": {
+      "type": "object",
+      "required": [
+        "commit",
+        "delete",
+        "triple"
+      ],
+      "properties": {
+        "commit": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "delete": {
+          "type": "boolean"
+        },
+        "triple": {
+          "$ref": "#/definitions/Triple"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SerdeNodeType": {
+      "type": "string",
+      "enum": [
+        "f",
+        "v"
+      ]
+    },
+    "SerdeNode_": {
+      "type": "object",
+      "required": [
+        "t",
+        "v"
+      ],
+      "properties": {
+        "t": {
+          "$ref": "#/definitions/SerdeNodeType"
+        },
+        "v": true
+      }
+    },
+    "Triple": {
+      "type": "object",
+      "required": [
+        "object",
+        "predicate",
+        "subject"
+      ],
+      "properties": {
+        "object": {
+          "$ref": "#/definitions/Node"
+        },
+        "predicate": {
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/definitions/Node"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

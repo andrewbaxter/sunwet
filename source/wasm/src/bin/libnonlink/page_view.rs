@@ -77,6 +77,7 @@ use {
             WidgetDataRows,
             WidgetDate,
             WidgetDatetime,
+            WidgetIcon,
             WidgetLayout,
             WidgetMedia,
             WidgetPlayButton,
@@ -772,6 +773,32 @@ impl Build {
         }
     }
 
+    fn build_widget_icon(&mut self, config_at: &WidgetIcon, data_stack: &Vec<DataStackLevel>) -> El {
+        match (|| {
+            ta_return!(El, String);
+            return Ok(style_export::leaf_view_icon(style_export::LeafViewIconArgs {
+                icon: config_at.data.clone(),
+                link: shed!{
+                    let Some(link) = config_at.link.as_ref() else {
+                        break None;
+                    };
+                    break unwrap_value_move_url(data_stack, &link)?;
+                },
+                width: config_at.width.clone(),
+                height: config_at.height.clone(),
+                color: config_at.color.clone(),
+                orientation: config_at.orientation.unwrap_or(Orientation::RightDown),
+                trans_align: config_at.trans_align.clone(),
+            }).root);
+        })() {
+            Ok(e) => return e,
+            Err(e) => return style_export::leaf_err_block(style_export::LeafErrBlockArgs {
+                in_root: false,
+                data: e,
+            }).root,
+        }
+    }
+
     fn build_widget_color(&mut self, config_at: &WidgetColor, data_stack: &Vec<DataStackLevel>) -> El {
         match (|| {
             ta_return!(El, String);
@@ -1013,6 +1040,7 @@ impl Build {
             ),
             Widget::Text(config_at) => return self.build_widget_text(config_at, data_stack),
             Widget::Media(config_at) => return self.build_widget_media(config_at, data_stack),
+            Widget::Icon(config_at) => return self.build_widget_icon(config_at, data_stack),
             Widget::PlayButton(config_at) => return self.build_widget_play_button(
                 pc,
                 config_at,

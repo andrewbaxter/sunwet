@@ -4,9 +4,9 @@ import type { FieldOrLiteral } from "./FieldOrLiteral";
 import type { Link } from "./Link";
 import type { TransAlign } from "./TransAlign";
 
-export type WidgetMedia = { data: FieldOrLiteral, alt: FieldOrLiteral | null, 
+export type WidgetMedia = { data: FieldOrLiteral, alt?: FieldOrLiteral | null, 
 /**
  * For image/video, the width.  For audio, the length of the controls regardless
  * of direction.
  */
-width: string | null, height: string | null, direction: Direction | null, trans_align: TransAlign, link: Link | null, };
+width?: string | null, height?: string | null, direction?: Direction | null, trans_align?: TransAlign, link?: Link | null, };

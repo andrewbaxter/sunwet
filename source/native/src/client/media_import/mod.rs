@@ -53,8 +53,9 @@ use {
             },
             query::{
                 Chain,
-                ChainBody,
+                ChainHead,
                 ChainRoot,
+                ChainTail,
                 FilterExpr,
                 FilterExprExistance,
                 FilterExprExistsType,
@@ -67,6 +68,7 @@ use {
                 Query,
                 Step,
                 StepMove,
+                StepSpecific,
                 StrValue,
                 Value,
             },
@@ -113,7 +115,7 @@ pub async fn node_id(
 ) -> Result<Node, loga::Error> {
     let query = match query_cache.entry(query) {
         Entry::Occupied(en) => en.get().clone(),
-        Entry::Vacant(en) => en.insert(compile_query(None, query).map_err(loga::err)?).clone(),
+        Entry::Vacant(en) => en.insert(compile_query(query).map_err(loga::err)?).clone(),
     };
     return node_id_direct(log, query, parameters).await;
 }
@@ -283,14 +285,17 @@ fn is_doc(p: &[u8]) -> bool {
 fn query_album_track(album: Node, superindex: Option<f64>, index: Option<f64>, name: &Option<String>) -> Query {
     let mut filter = vec![];
     {
-        let subchain = ChainBody {
+        let subchain = ChainHead {
             root: None,
-            steps: vec![Step::Move(StepMove {
-                dir: MoveDirection::Forward,
-                predicate: StrValue::Literal(PREDICATE_SUPERINDEX.to_string()),
-                filter: None,
+            steps: vec![Step {
+                specific: StepSpecific::Move(StepMove {
+                    dir: MoveDirection::Forward,
+                    predicate: StrValue::Literal(PREDICATE_SUPERINDEX.to_string()),
+                    filter: None,
+                }),
+                sort: None,
                 first: false,
-            })],
+            }],
         };
         if let Some(superindex) = superindex {
             filter.push(FilterExpr::Exists(FilterExprExistance {
@@ -312,14 +317,17 @@ fn query_album_track(album: Node, superindex: Option<f64>, index: Option<f64>, n
         }
     }
     {
-        let subchain = ChainBody {
+        let subchain = ChainHead {
             root: None,
-            steps: vec![Step::Move(StepMove {
-                dir: MoveDirection::Forward,
-                predicate: StrValue::Literal(PREDICATE_INDEX.to_string()),
-                filter: None,
+            steps: vec![Step {
+                specific: StepSpecific::Move(StepMove {
+                    dir: MoveDirection::Forward,
+                    predicate: StrValue::Literal(PREDICATE_INDEX.to_string()),
+                    filter: None,
+                }),
+                sort: None,
                 first: false,
-            })],
+            }],
         };
         if let Some(index) = index {
             filter.push(FilterExpr::Exists(FilterExprExistance {
@@ -343,14 +351,17 @@ fn query_album_track(album: Node, superindex: Option<f64>, index: Option<f64>, n
     if let Some(name) = name {
         filter.push(FilterExpr::Exists(FilterExprExistance {
             type_: FilterExprExistsType::Exists,
-            subchain: ChainBody {
+            subchain: ChainHead {
                 root: None,
-                steps: vec![Step::Move(StepMove {
-                    dir: MoveDirection::Forward,
-                    predicate: StrValue::Literal(PREDICATE_NAME.to_string()),
-                    filter: None,
+                steps: vec![Step {
+                    specific: StepSpecific::Move(StepMove {
+                        dir: MoveDirection::Forward,
+                        predicate: StrValue::Literal(PREDICATE_NAME.to_string()),
+                        filter: None,
+                    }),
+                    sort: None,
                     first: false,
-                })],
+                }],
             },
             suffix: Some(FilterSuffix::Simple(FilterSuffixSimple {
                 op: FilterSuffixSimpleOperator::Eq,
@@ -360,20 +371,25 @@ fn query_album_track(album: Node, superindex: Option<f64>, index: Option<f64>, n
     }
     return Query {
         chain: Chain {
-            body: ChainBody {
+            head: ChainHead {
                 root: Some(ChainRoot::Value(Value::Literal(album))),
-                steps: vec![Step::Move(StepMove {
-                    dir: MoveDirection::Forward,
-                    predicate: StrValue::Literal(PREDICATE_TRACK.to_string()),
-                    filter: Some(FilterExpr::Junction(FilterExprJunction {
-                        type_: JunctionType::And,
-                        subexprs: filter,
-                    })),
+                steps: vec![Step {
+                    specific: StepSpecific::Move(StepMove {
+                        dir: MoveDirection::Forward,
+                        predicate: StrValue::Literal(PREDICATE_TRACK.to_string()),
+                        filter: Some(FilterExpr::Junction(FilterExprJunction {
+                            type_: JunctionType::And,
+                            subexprs: filter,
+                        })),
+                    }),
+                    sort: None,
                     first: false,
-                })],
+                }],
             },
-            bind: Some(format!("id")),
-            subchains: Default::default(),
+            tail: ChainTail {
+                bind: Some(format!("id")),
+                subchains: Default::default(),
+            },
         },
         sort: None,
     };
@@ -736,7 +752,7 @@ pub struct PrepareImportCommitCommand {
     dest: Option<PathBuf>,
 }
 
-pub async fn handle_prepare_import_commit(args: PrepareImportCommitCommand) -> Result<(), loga::Error> {
+pub async fn handle_prepare_media_import_commit(args: PrepareImportCommitCommand) -> Result<(), loga::Error> {
     let log = loga::Log::new_root(loga::INFO);
     let source_meta =
         args

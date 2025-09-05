@@ -2,4 +2,4 @@
 import type { ChainRoot } from "./ChainRoot";
 import type { Step } from "./Step";
 
-export type ChainBody = { root?: ChainRoot | null, steps: Array<Step>, };
+export type ChainHead = { root?: ChainRoot | null, steps: Array<Step>, };

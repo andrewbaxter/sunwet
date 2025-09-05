@@ -3,6 +3,7 @@ use std::mem::swap;
 pub mod interface;
 pub mod query_parser;
 pub mod query_parser_test;
+pub mod query_analysis;
 
 // (Hopefully, mostly) canonical serialization by going to value before
 // serialization; value uses BTreeMap which sorts keys.

@@ -1,0 +1,1026 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "C2SReq",
+  "oneOf": [
+    {
+      "description": "Make changes to the graph",
+      "type": "object",
+      "required": [
+        "commit"
+      ],
+      "properties": {
+        "commit": {
+          "$ref": "#/definitions/ReqCommit"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Make changes to the graph via a form (uses form permissions)",
+      "type": "object",
+      "required": [
+        "form_commit"
+      ],
+      "properties": {
+        "form_commit": {
+          "$ref": "#/definitions/ReqFormCommit"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Tell the server to verify and commit a file after uploading all chunks",
+      "type": "object",
+      "required": [
+        "upload_finish"
+      ],
+      "properties": {
+        "upload_finish": {
+          "$ref": "#/definitions/ReqUploadFinish"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Read from the graph",
+      "type": "object",
+      "required": [
+        "query"
+      ],
+      "properties": {
+        "query": {
+          "$ref": "#/definitions/ReqQuery"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Read from the graph via a view (uses view permissions)",
+      "type": "object",
+      "required": [
+        "view_query"
+      ],
+      "properties": {
+        "view_query": {
+          "$ref": "#/definitions/ReqViewQuery"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Get all triples where the subject/object is a given node",
+      "type": "object",
+      "required": [
+        "get_triples_around"
+      ],
+      "properties": {
+        "get_triples_around": {
+          "$ref": "#/definitions/ReqGetTriplesAround"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Get metadata associated with nodes (ex: mime type for files)",
+      "type": "object",
+      "required": [
+        "get_node_meta"
+      ],
+      "properties": {
+        "get_node_meta": {
+          "$ref": "#/definitions/ReqGetNodeMeta"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "history"
+      ],
+      "properties": {
+        "history": {
+          "$ref": "#/definitions/ReqHistory"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Request the config for the web UI for this user",
+      "type": "object",
+      "required": [
+        "get_client_config"
+      ],
+      "properties": {
+        "get_client_config": {
+          "$ref": "#/definitions/ReqGetClientConfig"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Check authentication status",
+      "type": "object",
+      "required": [
+        "who_am_i"
+      ],
+      "properties": {
+        "who_am_i": {
+          "$ref": "#/definitions/ReqWhoAmI"
+        }
+      },
+      "additionalProperties": false
+    }
+  ],
+  "definitions": {
+    "Chain": {
+      "type": "object",
+      "required": [
+        "head",
+        "tail"
+      ],
+      "properties": {
+        "head": {
+          "$ref": "#/definitions/ChainHead"
+        },
+        "tail": {
+          "$ref": "#/definitions/ChainTail"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ChainHead": {
+      "type": "object",
+      "required": [
+        "steps"
+      ],
+      "properties": {
+        "root": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ChainRoot"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Step"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ChainRoot": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "$ref": "#/definitions/Value"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "search"
+          ],
+          "properties": {
+            "search": {
+              "$ref": "#/definitions/StrValue"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ChainTail": {
+      "type": "object",
+      "properties": {
+        "bind": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subchains": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Chain"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "CommitFile": {
+      "type": "object",
+      "required": [
+        "hash",
+        "mimetype",
+        "size"
+      ],
+      "properties": {
+        "hash": {
+          "$ref": "#/definitions/FileHash"
+        },
+        "mimetype": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "FileHash": {
+      "$ref": "#/definitions/FileHash_"
+    },
+    "FileHash_": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "sha256"
+          ],
+          "properties": {
+            "sha256": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "FilterExpr": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "exists"
+          ],
+          "properties": {
+            "exists": {
+              "$ref": "#/definitions/FilterExprExistance"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "junction"
+          ],
+          "properties": {
+            "junction": {
+              "$ref": "#/definitions/FilterExprJunction"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "FilterExprExistance": {
+      "type": "object",
+      "required": [
+        "subchain",
+        "type_"
+      ],
+      "properties": {
+        "subchain": {
+          "$ref": "#/definitions/ChainHead"
+        },
+        "suffix": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/FilterSuffix"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "type_": {
+          "$ref": "#/definitions/FilterExprExistsType"
+        }
+      },
+      "additionalProperties": false
+    },
+    "FilterExprExistsType": {
+      "type": "string",
+      "enum": [
+        "exists",
+        "doesnt_exist"
+      ]
+    },
+    "FilterExprJunction": {
+      "type": "object",
+      "required": [
+        "subexprs",
+        "type_"
+      ],
+      "properties": {
+        "subexprs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FilterExpr"
+          }
+        },
+        "type_": {
+          "$ref": "#/definitions/JunctionType"
+        }
+      },
+      "additionalProperties": false
+    },
+    "FilterSuffix": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "simple"
+          ],
+          "properties": {
+            "simple": {
+              "$ref": "#/definitions/FilterSuffixSimple"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "like"
+          ],
+          "properties": {
+            "like": {
+              "$ref": "#/definitions/FilterSuffixLike"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "FilterSuffixLike": {
+      "type": "object",
+      "required": [
+        "value"
+      ],
+      "properties": {
+        "value": {
+          "$ref": "#/definitions/StrValue"
+        }
+      },
+      "additionalProperties": false
+    },
+    "FilterSuffixSimple": {
+      "type": "object",
+      "required": [
+        "op",
+        "value"
+      ],
+      "properties": {
+        "op": {
+          "$ref": "#/definitions/FilterSuffixSimpleOperator"
+        },
+        "value": {
+          "$ref": "#/definitions/Value"
+        }
+      },
+      "additionalProperties": false
+    },
+    "FilterSuffixSimpleOperator": {
+      "type": "string",
+      "enum": [
+        "eq",
+        "neq",
+        "lt",
+        "gt",
+        "lte",
+        "gte"
+      ]
+    },
+    "FormId": {
+      "type": "string"
+    },
+    "JunctionType": {
+      "type": "string",
+      "enum": [
+        "and",
+        "or"
+      ]
+    },
+    "MoveDirection": {
+      "type": "string",
+      "enum": [
+        "forward",
+        "backward"
+      ]
+    },
+    "Node": {
+      "$ref": "#/definitions/SerdeNode_"
+    },
+    "Pagination": {
+      "type": "object",
+      "required": [
+        "count"
+      ],
+      "properties": {
+        "count": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "key": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Node"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "seed": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "Query": {
+      "type": "object",
+      "required": [
+        "chain"
+      ],
+      "properties": {
+        "chain": {
+          "$ref": "#/definitions/Chain"
+        },
+        "sort": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SortQuery"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReqCommit": {
+      "type": "object",
+      "required": [
+        "add",
+        "comment",
+        "files",
+        "remove"
+      ],
+      "properties": {
+        "add": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Triple"
+          }
+        },
+        "comment": {
+          "type": "string"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CommitFile"
+          }
+        },
+        "remove": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Triple"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReqFormCommit": {
+      "type": "object",
+      "required": [
+        "form_id"
+      ],
+      "properties": {
+        "form_id": {
+          "$ref": "#/definitions/FormId"
+        },
+        "parameters": {
+          "default": {},
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/TreeNode"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReqGetClientConfig": {
+      "type": "null"
+    },
+    "ReqGetNodeMeta": {
+      "type": "object",
+      "required": [
+        "node"
+      ],
+      "properties": {
+        "node": {
+          "$ref": "#/definitions/Node"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReqGetTriplesAround": {
+      "type": "object",
+      "required": [
+        "node"
+      ],
+      "properties": {
+        "node": {
+          "$ref": "#/definitions/Node"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReqHistory": {
+      "type": "object",
+      "properties": {
+        "filter": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ReqHistoryFilter"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "page_key": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "$ref": "#/definitions/Triple"
+            }
+          ],
+          "maxItems": 2,
+          "minItems": 2
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReqHistoryFilter": {
+      "type": "object",
+      "required": [
+        "node"
+      ],
+      "properties": {
+        "node": {
+          "$ref": "#/definitions/Node"
+        },
+        "predicate": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ReqHistoryFilterPredicate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReqHistoryFilterPredicate": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "incoming"
+          ],
+          "properties": {
+            "incoming": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "outgoing"
+          ],
+          "properties": {
+            "outgoing": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ReqQuery": {
+      "type": "object",
+      "required": [
+        "query"
+      ],
+      "properties": {
+        "pagination": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Pagination"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "parameters": {
+          "default": {},
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Node"
+          }
+        },
+        "query": {
+          "$ref": "#/definitions/Query"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReqUploadFinish": {
+      "$ref": "#/definitions/FileHash"
+    },
+    "ReqViewQuery": {
+      "type": "object",
+      "required": [
+        "parameters",
+        "query",
+        "view_id"
+      ],
+      "properties": {
+        "pagination": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Pagination"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Node"
+          }
+        },
+        "query": {
+          "type": "string"
+        },
+        "view_id": {
+          "$ref": "#/definitions/ViewId"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReqWhoAmI": {
+      "type": "null"
+    },
+    "SerdeNodeType": {
+      "type": "string",
+      "enum": [
+        "f",
+        "v"
+      ]
+    },
+    "SerdeNode_": {
+      "type": "object",
+      "required": [
+        "t",
+        "v"
+      ],
+      "properties": {
+        "t": {
+          "$ref": "#/definitions/SerdeNodeType"
+        },
+        "v": true
+      }
+    },
+    "SortDir": {
+      "type": "string",
+      "enum": [
+        "asc",
+        "desc"
+      ]
+    },
+    "SortQuery": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "shuffle"
+          ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "fields"
+          ],
+          "properties": {
+            "fields": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": [
+                  {
+                    "$ref": "#/definitions/SortDir"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ],
+                "maxItems": 2,
+                "minItems": 2
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Step": {
+      "type": "object",
+      "required": [
+        "specific"
+      ],
+      "properties": {
+        "first": {
+          "type": "boolean"
+        },
+        "sort": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SortDir"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "specific": {
+          "$ref": "#/definitions/StepSpecific"
+        }
+      },
+      "additionalProperties": false
+    },
+    "StepJunction": {
+      "type": "object",
+      "required": [
+        "subchains",
+        "type_"
+      ],
+      "properties": {
+        "subchains": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ChainHead"
+          }
+        },
+        "type_": {
+          "$ref": "#/definitions/JunctionType"
+        }
+      },
+      "additionalProperties": false
+    },
+    "StepMove": {
+      "type": "object",
+      "required": [
+        "dir",
+        "predicate"
+      ],
+      "properties": {
+        "dir": {
+          "$ref": "#/definitions/MoveDirection"
+        },
+        "filter": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/FilterExpr"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "predicate": {
+          "$ref": "#/definitions/StrValue"
+        }
+      },
+      "additionalProperties": false
+    },
+    "StepRecurse": {
+      "type": "object",
+      "required": [
+        "subchain"
+      ],
+      "properties": {
+        "subchain": {
+          "$ref": "#/definitions/ChainHead"
+        }
+      },
+      "additionalProperties": false
+    },
+    "StepSpecific": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "move"
+          ],
+          "properties": {
+            "move": {
+              "$ref": "#/definitions/StepMove"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "recurse"
+          ],
+          "properties": {
+            "recurse": {
+              "$ref": "#/definitions/StepRecurse"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "junction"
+          ],
+          "properties": {
+            "junction": {
+              "$ref": "#/definitions/StepJunction"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "StrValue": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "literal"
+          ],
+          "properties": {
+            "literal": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "parameter"
+          ],
+          "properties": {
+            "parameter": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "TreeNode": {
+      "description": "A tree node is like a json node but it can also encode files.  So the root of the returned query is generic data w/ a file type, then once you reach the nodes it's just generic data. This allows users to select on files directly, rather than try to re-parse json.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "scalar"
+          ],
+          "properties": {
+            "scalar": {
+              "$ref": "#/definitions/Node"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "array"
+          ],
+          "properties": {
+            "array": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/TreeNode"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "record"
+          ],
+          "properties": {
+            "record": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/definitions/TreeNode"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Triple": {
+      "type": "object",
+      "required": [
+        "object",
+        "predicate",
+        "subject"
+      ],
+      "properties": {
+        "object": {
+          "$ref": "#/definitions/Node"
+        },
+        "predicate": {
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/definitions/Node"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Value": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "literal"
+          ],
+          "properties": {
+            "literal": {
+              "$ref": "#/definitions/Node"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "parameter"
+          ],
+          "properties": {
+            "parameter": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ViewId": {
+      "type": "string"
+    }
+  }
+}

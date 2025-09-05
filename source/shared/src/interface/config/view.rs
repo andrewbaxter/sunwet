@@ -111,6 +111,7 @@ pub struct LinkDestView {
     pub id: ViewId,
     /// Provide initial query parameters.
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub parameters: BTreeMap<String, FieldOrLiteral>,
 }
 
@@ -143,21 +144,29 @@ pub struct Link {
 pub struct WidgetText {
     pub data: FieldOrLiteralString,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub prefix: String,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub suffix: String,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub font_size: Option<String>,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub color: Option<String>,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub cons_size_mode: TextSizeMode,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub cons_size_max: Option<String>,
     pub orientation: Orientation,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub trans_align: TransAlign,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub link: Option<Link>,
 }
 
@@ -166,15 +175,20 @@ pub struct WidgetText {
 pub struct WidgetDate {
     pub data: FieldOrLiteralString,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub prefix: String,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub suffix: String,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub font_size: Option<String>,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub color: Option<String>,
     pub orientation: Orientation,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub trans_align: TransAlign,
 }
 
@@ -183,15 +197,20 @@ pub struct WidgetDate {
 pub struct WidgetTime {
     pub data: FieldOrLiteralString,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub prefix: String,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub suffix: String,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub font_size: Option<String>,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub color: Option<String>,
     pub orientation: Orientation,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub trans_align: TransAlign,
 }
 
@@ -200,15 +219,20 @@ pub struct WidgetTime {
 pub struct WidgetDatetime {
     pub data: FieldOrLiteralString,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub prefix: String,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub suffix: String,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub font_size: Option<String>,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub color: Option<String>,
     pub orientation: Orientation,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub trans_align: TransAlign,
 }
 
@@ -217,11 +241,14 @@ pub struct WidgetDatetime {
 pub struct WidgetColor {
     pub data: FieldOrLiteralString,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub width: String,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub height: String,
     pub orientation: Orientation,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub trans_align: TransAlign,
 }
 
@@ -230,20 +257,51 @@ pub struct WidgetColor {
 pub struct WidgetMedia {
     pub data: FieldOrLiteral,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub alt: Option<FieldOrLiteral>,
     /// For image/video, the width.  For audio, the length of the controls regardless
     /// of direction.
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub width: Option<String>,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub height: Option<String>,
     // For audio, the controls orientation direction.
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub direction: Option<Direction>,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub trans_align: TransAlign,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub link: Option<Link>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct WidgetIcon {
+    /// The unicode string for the google material icon font icon
+    pub data: String,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub width: Option<String>,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub height: Option<String>,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub link: Option<Link>,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub color: Option<String>,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub trans_align: TransAlign,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub orientation: Option<Orientation>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
@@ -251,22 +309,31 @@ pub struct WidgetMedia {
 pub struct WidgetPlayButton {
     pub media_file_field: String,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub show_image: bool,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub width: Option<String>,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub height: Option<String>,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub name_field: Option<String>,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub album_field: Option<String>,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub artist_field: Option<String>,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub cover_field: Option<String>,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub orientation: Option<Orientation>,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub trans_align: TransAlign,
 }
 
@@ -274,16 +341,20 @@ pub struct WidgetPlayButton {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct DataRowsLayoutUnaligned {
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub gap: Option<String>,
     pub direction: Option<Direction>,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub trans_align: TransAlign,
     pub widget: Box<Widget>,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub x_scroll: bool,
     // Wrap layout instead of shrinking elements individually first when out of space.
     // Can't be set at the same time as x_scroll or undefined things will happen.
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub wrap: bool,
 }
 
@@ -291,8 +362,10 @@ pub struct DataRowsLayoutUnaligned {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct DataRowsLayoutTable {
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub gap: Option<String>,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub x_scroll: bool,
     pub orientation: Orientation,
     pub elements: Vec<Widget>,
@@ -313,6 +386,7 @@ pub struct WidgetDataRows {
     /// How the data rows are displayed.
     pub row_widget: DataRowsLayout,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub trans_align: TransAlign,
 }
 
@@ -321,6 +395,8 @@ pub struct WidgetDataRows {
 pub struct Block {
     /// Sets the default width of the block. If not specified, space will be divided
     /// with other unsized blocks.
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub width: Option<String>,
     /// The contents of the block.
     pub widget: Widget,
@@ -340,17 +416,21 @@ pub struct WidgetRootDataRows {
 pub struct WidgetLayout {
     pub direction: Direction,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub trans_align: TransAlign,
     pub elements: Vec<Widget>,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub gap: Option<String>,
     // Add a scrollbar to the layout that appears when it exceeds bounds (typically
     // horizontal direction only).
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub x_scroll: bool,
     // Wrap layout instead of shrinking elements individually first when out of space.
     // Can't be set at the same time as x_scroll or undefined things will happen.
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub wrap: bool,
 }
 
@@ -365,6 +445,7 @@ pub enum Widget {
     Datetime(WidgetDatetime),
     Color(WidgetColor),
     Media(WidgetMedia),
+    Icon(WidgetIcon),
     PlayButton(WidgetPlayButton),
     Space,
 }

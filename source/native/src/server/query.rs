@@ -35,7 +35,7 @@ use {
     shared::interface::{
         query::{
             Chain,
-            ChainBody,
+            ChainHead,
             ChainRoot,
             FilterExpr,
             FilterExprExistsType,
@@ -44,9 +44,10 @@ use {
             JunctionType,
             MoveDirection,
             Query,
-            QuerySort,
-            QuerySortDir,
+            SortQuery,
+            SortDir,
             Step,
+            StepSpecific,
             StrValue,
             Value,
         },
@@ -242,13 +243,14 @@ fn build_step(
     if let Some(r) = query_state.reuse_steps.get(&(previous.clone(), step.clone())) {
         return Ok(r.clone());
     }
+    let seg_name;
     let mut out;
-    match step {
-        Step::Move(step) => {
-            let seg_name = format!("seg{}_move", query_state.global_unique);
+    match &step.specific {
+        StepSpecific::Move(step) => {
+            seg_name = format!("seg{}_move", query_state.global_unique);
             query_state.global_unique += 1;
             {
-                let ident_cte = SeaRc::new(Alias::new(seg_name.clone()));
+                let ident_cte = SeaRc::new(Alias::new(&seg_name));
                 let mut sql_cte = sea_query::CommonTableExpression::new();
                 sql_cte.table_name(ident_cte.clone());
 
@@ -332,11 +334,11 @@ fn build_step(
                     ident_table: ident_cte.clone(),
                     col_start: query_state.ident_col_start.clone(),
                     col_end: query_state.ident_col_end.clone(),
-                    plural: !step.first,
+                    plural: true,
                 };
             }
 
-            // Filter + limit
+            // Filter
             if let Some(filter) = &step.filter {
                 let ident_cte = SeaRc::new(Alias::new(format!("{}__filter", seg_name)));
                 let mut sql_cte = sea_query::CommonTableExpression::new();
@@ -360,7 +362,9 @@ fn build_step(
 
                 // Output rowid
                 sql_cte.column(query_state.ident_rowid.clone());
-                sql_sel.expr_window(sql_fn("row_number", vec![]), WindowStatement::new());
+                sql_sel.expr(
+                    sea_query::ColumnRef::TableColumn(primary_table.clone(), query_state.ident_rowid.clone()),
+                );
 
                 // Output start
                 sql_cte.column(query_state.ident_col_start.clone());
@@ -369,18 +373,6 @@ fn build_step(
                 // Output end
                 sql_cte.column(query_state.ident_col_end.clone());
                 sql_sel.column(primary_col_end.clone());
-
-                // Limit/first
-                if step.first {
-                    sql_sel.group_by_col(primary_col_start);
-                    sql_sel.group_by_col(primary_col_end);
-                    sql_cte.column(SeaRc::new(Alias::new("_unused_first")));
-                    sql_sel.expr(
-                        Expr::expr(
-                            sea_query::ColumnRef::TableColumn(primary_table, SeaRc::new(Alias::new("rowid"))),
-                        ).min(),
-                    );
-                }
 
                 // Assemble
                 sql_cte.query(sql_sel);
@@ -393,8 +385,8 @@ fn build_step(
                 };
             }
         },
-        Step::Recurse(step) => {
-            let seg_name = format!("seg{}_recurse", query_state.global_unique);
+        StepSpecific::Recurse(step) => {
+            seg_name = format!("seg{}_recurse", query_state.global_unique);
             query_state.global_unique += 1;
             {
                 let Some(previous) = previous.as_ref() else {
@@ -402,7 +394,7 @@ fn build_step(
                         loga::err("Recursion requires a previous step/root for the base case, but none such exists"),
                     ).err_external();
                 };
-                let global_ident_table_cte = SeaRc::new(Alias::new(seg_name.clone()));
+                let global_ident_table_cte = SeaRc::new(Alias::new(&seg_name));
                 let table_cte = sea_query::TableRef::Table(global_ident_table_cte.clone());
 
                 // Base case
@@ -450,10 +442,16 @@ fn build_step(
                 // Assemble
                 let mut sql_cte = sea_query::CommonTableExpression::new();
                 sql_cte.table_name(global_ident_table_cte.clone());
+
+                // Output start
                 let ident_col_start = query_state.ident_col_start.clone();
-                let ident_col_end = query_state.ident_col_end.clone();
                 sql_cte.column(ident_col_start.clone());
+
+                // Output end
+                let ident_col_end = query_state.ident_col_end.clone();
                 sql_cte.column(ident_col_end.clone());
+
+                // Assemble
                 sql_cte.query(sql_sel);
                 query_state.ctes.push(sql_cte);
                 out = BuildStepRes {
@@ -463,39 +461,15 @@ fn build_step(
                     plural: true,
                 };
             }
-            if step.first {
-                let global_ident_table_cte = SeaRc::new(Alias::new(format!("{}_b", seg_name)));
-                let ident_col_start = query_state.ident_col_start.clone();
-                let ident_col_end = query_state.ident_col_end.clone();
-                let mut sql_sel = sea_query::Query::select();
-                sql_sel.from(sea_query::TableRef::Table(out.ident_table.clone()));
-                sql_sel.column(sea_query::ColumnRef::TableColumn(out.ident_table.clone(), out.col_start));
-                sql_sel.column(sea_query::ColumnRef::TableColumn(out.ident_table.clone(), out.col_end));
-                sql_sel.limit(1);
-
-                // Assemble
-                let mut sql_cte = sea_query::CommonTableExpression::new();
-                sql_cte.table_name(global_ident_table_cte.clone());
-                sql_cte.column(ident_col_start.clone());
-                sql_cte.column(ident_col_end.clone());
-                sql_cte.query(sql_sel);
-                query_state.ctes.push(sql_cte);
-                out = BuildStepRes {
-                    ident_table: global_ident_table_cte.clone(),
-                    col_start: ident_col_start,
-                    col_end: ident_col_end,
-                    plural: false,
-                };
-            }
         },
-        Step::Junction(step) => {
-            let seg_name = format!("seg{}_recurse", query_state.global_unique);
+        StepSpecific::Junction(step) => {
+            seg_name = format!("seg{}_recurse", query_state.global_unique);
             query_state.global_unique += 1;
-            let global_ident_table_cte = SeaRc::new(Alias::new(seg_name));
+            let global_ident_table_cte = SeaRc::new(Alias::new(&seg_name));
             let ident_col_start = query_state.ident_col_start.clone();
             let ident_col_end = query_state.ident_col_end.clone();
             let mut build_subchain =
-                |subchain: &ChainBody| -> Result<sea_query::SelectStatement, VisErr<loga::Error>> {
+                |subchain: &ChainHead| -> Result<sea_query::SelectStatement, VisErr<loga::Error>> {
                     let mut sql_sel = sea_query::Query::select();
                     let subchain = build_subchain(query_state, previous.clone(), subchain)?;
                     sql_sel.from(sea_query::TableRef::Table(subchain.ident_table.clone()));
@@ -524,9 +498,85 @@ fn build_step(
                 ident_table: global_ident_table_cte.clone(),
                 col_start: ident_col_start,
                 col_end: ident_col_end,
-                plural: false,
+                plural: true,
             };
         },
+    }
+
+    // Sort + limit
+    if step.first || step.sort.is_some() {
+        let ident_cte = SeaRc::new(Alias::new(format!("{}__sortlimit", seg_name)));
+        let mut sql_cte = sea_query::CommonTableExpression::new();
+        sql_cte.table_name(ident_cte.clone());
+
+        // Select, from previous
+        let mut sql_sel = sea_query::Query::select();
+        let primary_table = query_state.ident_table_primary.clone();
+        let primary_col_start = sea_query::ColumnRef::TableColumn(primary_table.clone(), out.col_start.clone());
+        let primary_col_end = sea_query::ColumnRef::TableColumn(primary_table.clone(), out.col_end.clone());
+        sql_sel.from_as(out.ident_table.clone(), primary_table.clone());
+
+        // Output rowid
+        sql_cte.column(query_state.ident_rowid.clone());
+        sql_sel.expr(sea_query::ColumnRef::TableColumn(primary_table.clone(), query_state.ident_rowid.clone()));
+
+        // Output start
+        sql_cte.column(query_state.ident_col_start.clone());
+        sql_sel.column(primary_col_start.clone());
+
+        // Output end
+        sql_cte.column(query_state.ident_col_end.clone());
+        sql_sel.column(primary_col_end.clone());
+
+        // First/sort
+        if step.first {
+            sql_sel.group_by_col(primary_col_start.clone());
+            sql_sel.group_by_col(primary_col_end.clone());
+            let ident_agg_col = SeaRc::new(Alias::new(format!("agg")));
+            sql_cte.column(ident_agg_col.clone());
+            if let Some(sort) = &step.sort {
+                let expr =
+                    sea_query::Expr::expr(
+                        query_state
+                            .func_json_extract
+                            .clone()
+                            .arg(primary_col_end.clone())
+                            .arg(sea_query::Expr::val("$")),
+                    );
+                sql_sel.expr_as(match sort {
+                    SortDir::Asc => expr.min(),
+                    SortDir::Desc => expr.max(),
+                }, ident_agg_col.clone());
+            } else {
+                sql_sel.expr_as(
+                    sea_query::Expr::expr(
+                        sea_query::ColumnRef::TableColumn(primary_table.clone(), query_state.ident_rowid.clone()),
+                    ).min(),
+                    ident_agg_col.clone(),
+                );
+            }
+        } else if let Some(sort) = &step.sort {
+            let ident_sort_col = SeaRc::new(Alias::new(format!("sort")));
+            sql_cte.column(ident_sort_col.clone());
+            sql_sel.expr_as(
+                query_state.func_json_extract.clone().arg(primary_col_end.clone()).arg(sea_query::Expr::val("$")),
+                ident_sort_col.clone(),
+            );
+            sql_sel.order_by(ident_sort_col.clone(), match sort {
+                SortDir::Asc => sea_query::Order::Asc,
+                SortDir::Desc => sea_query::Order::Desc,
+            });
+        }
+
+        // Assemble
+        sql_cte.query(sql_sel);
+        query_state.ctes.push(sql_cte);
+        out = BuildStepRes {
+            ident_table: ident_cte.clone(),
+            col_start: query_state.ident_col_start.clone(),
+            col_end: query_state.ident_col_end.clone(),
+            plural: !step.first,
+        };
     }
     query_state.reuse_steps.insert((previous, step.clone()), out.clone());
     return Ok(out);
@@ -596,7 +646,7 @@ fn build_value(query_state: &mut QueryBuildState, param: &Value) -> Result<sea_q
 fn build_subchain(
     query_state: &mut QueryBuildState,
     mut prev_subchain_seg: Option<BuildStepRes>,
-    subchain: &ChainBody,
+    subchain: &ChainHead,
 ) -> Result<BuildStepRes, VisErr<loga::Error>> {
     if let Some(root) = &subchain.root {
         let new_root_seg;
@@ -741,6 +791,7 @@ fn build_subchain(
     if let Some(s) = prev_subchain_seg {
         return Ok(s);
     } else {
+        // No root, no steps, output nothing?
         let ident_table_root = SeaRc::new(Alias::new(format!("root{}", query_state.global_unique)));
         query_state.global_unique += 1;
         let mut sql_cte = sea_query::CommonTableExpression::new();
@@ -762,7 +813,9 @@ fn build_subchain(
         sql_cte.column(query_state.ident_rowid.clone());
         sql_sel.expr_window(sql_fn("row_number", vec![]), WindowStatement::new());
 
-        // Actually, output nothing
+        // Actually, output nothing.
+        //
+        // This is a hack to get a query of the above format that has no rows.
         sql_sel.and_where(
             sea_query::SimpleExpr::Binary(
                 Box::new(sea_query::Value::Int(Some(0)).into()),
@@ -793,7 +846,7 @@ fn build_chain(
     let cte_name = format!("chain{}", query_state.global_unique);
     query_state.global_unique += 1;
     let mut sql_sel = sea_query::Query::select();
-    let primary_subchain = build_subchain(query_state, prev_subchain_seg, &chain.body)?;
+    let primary_subchain = build_subchain(query_state, prev_subchain_seg, &chain.head)?;
     sql_sel.from(sea_query::TableRef::Table(primary_subchain.ident_table.clone()));
     let global_col_primary_start =
         sea_query::ColumnRef::TableColumn(primary_subchain.ident_table.clone(), primary_subchain.col_start.clone());
@@ -806,51 +859,56 @@ fn build_chain(
 
     // Add dest as selection
     let mut selects = vec![];
-    if let Some(name) = chain.bind {
+    if let Some(name) = chain.tail.bind {
         sql_sel.expr_as(global_col_primary_end.clone(), SeaRc::new(Alias::new(format!("_{}", name))));
         selects.push((name, false));
     }
 
     // Process children
-    let child_prev_subchain_seg;
-    {
-        let ident_table_root = SeaRc::new(Alias::new(format!("chain_child_prev{}", query_state.global_unique)));
-        query_state.global_unique += 1;
-        let mut sql_sel = sea_query::Query::select();
-        sql_sel.from(primary_subchain.ident_table.clone());
-        sql_sel.column(primary_subchain.col_end.clone());
-        sql_sel.column(primary_subchain.col_end.clone());
-        let mut sql_cte = sea_query::CommonTableExpression::new();
-        sql_cte.table_name(ident_table_root.clone());
-        sql_cte.query(sql_sel);
-        sql_cte.column(query_state.ident_col_start.clone());
-        sql_cte.column(query_state.ident_col_end.clone());
-        query_state.ctes.push(sql_cte);
-        child_prev_subchain_seg = Some(BuildStepRes {
-            ident_table: ident_table_root,
-            col_start: query_state.ident_col_start.clone(),
-            col_end: query_state.ident_col_end.clone(),
-            plural: false,
-        });
-    }
-    for child in chain.subchains {
-        let child_chain = build_chain(query_state, child_prev_subchain_seg.clone(), child)?;
-        sql_sel.join(
-            sea_query::JoinType::LeftJoin,
-            child_chain.cte,
-            sea_query::Expr::col(
-                global_col_primary_end.clone(),
-            ).eq(
-                sea_query::ColumnRef::TableColumn(child_chain.cte_name.clone(), query_state.ident_col_start.clone()),
-            ),
-        );
-        for (name, plural) in child_chain.selects {
-            let ident_name = SeaRc::new(Alias::new(format!("_{}", name)));
-            sql_sel.expr_as(
-                sea_query::ColumnRef::TableColumn(child_chain.cte_name.clone(), ident_name.clone()),
-                ident_name,
+    if !chain.tail.subchains.is_empty() {
+        let child_prev_subchain_seg;
+        {
+            let ident_table_root = SeaRc::new(Alias::new(format!("chain_child_prev{}", query_state.global_unique)));
+            query_state.global_unique += 1;
+            let mut sql_sel = sea_query::Query::select();
+            sql_sel.from(primary_subchain.ident_table.clone());
+            sql_sel.column(primary_subchain.col_end.clone());
+            sql_sel.column(primary_subchain.col_end.clone());
+            let mut sql_cte = sea_query::CommonTableExpression::new();
+            sql_cte.table_name(ident_table_root.clone());
+            sql_cte.query(sql_sel);
+            sql_cte.column(query_state.ident_col_start.clone());
+            sql_cte.column(query_state.ident_col_end.clone());
+            query_state.ctes.push(sql_cte);
+            child_prev_subchain_seg = Some(BuildStepRes {
+                ident_table: ident_table_root,
+                col_start: query_state.ident_col_start.clone(),
+                col_end: query_state.ident_col_end.clone(),
+                plural: false,
+            });
+        }
+        for child in chain.tail.subchains {
+            let child_chain = build_chain(query_state, child_prev_subchain_seg.clone(), child)?;
+            sql_sel.join(
+                sea_query::JoinType::LeftJoin,
+                child_chain.cte,
+                sea_query::Expr::col(
+                    global_col_primary_end.clone(),
+                ).eq(
+                    sea_query::ColumnRef::TableColumn(
+                        child_chain.cte_name.clone(),
+                        query_state.ident_col_start.clone(),
+                    ),
+                ),
             );
-            selects.push((name, child_chain.plural || plural));
+            for (name, plural) in child_chain.selects {
+                let ident_name = SeaRc::new(Alias::new(format!("_{}", name)));
+                sql_sel.expr_as(
+                    sea_query::ColumnRef::TableColumn(child_chain.cte_name.clone(), ident_name.clone()),
+                    ident_name,
+                );
+                selects.push((name, child_chain.plural || plural));
+            }
         }
     }
 
@@ -1066,7 +1124,7 @@ pub fn execute_sql_query(
     db: &rusqlite::Connection,
     sql_query: String,
     sql_parameters: sea_query_rusqlite::RusqliteValues,
-    sort: Option<QuerySort>,
+    sort: Option<SortQuery>,
     paginate: Option<Pagination>,
 ) -> Result<Vec<Row>, loga::Error> {
     let mut s = db.prepare(&sql_query)?;
@@ -1105,7 +1163,7 @@ pub fn execute_sql_query(
     }
     if let Some(sort) = sort {
         match sort {
-            QuerySort::Random => {
+            SortQuery::Shuffle => {
                 let seed;
                 superif!({
                     let Some(pagination) = &paginate else {
@@ -1120,11 +1178,11 @@ pub fn execute_sql_query(
                 });
                 out.shuffle(&mut rand_chacha::ChaChaRng::seed_from_u64(seed));
             },
-            QuerySort::Fields(sort) => {
+            SortQuery::Fields(sort) => {
                 out.sort_unstable_by(|a, b| {
                     for (dir, key) in &sort {
                         let res = a.value.get(key).partial_cmp(&b.value.get(key)).unwrap_or(Ordering::Equal);
-                        let rev = *dir == QuerySortDir::Desc;
+                        let rev = *dir == SortDir::Desc;
                         match res {
                             Ordering::Less => if rev {
                                 return Ordering::Greater;
@@ -1165,6 +1223,7 @@ pub async fn execute_query(
     // fields, not value-based sorting (ex: numbers). Therefore pagination also has to
     // happen in rust.
     let (sql_query, sql_parameters) = build_root_chain(query.chain, parameters)?;
+    eprintln!("{}", sql_query);
     return Ok(tx(&db, move |txn| {
         return Ok(execute_sql_query(txn, sql_query, sql_parameters, query.sort, paginate)?);
     }).await.err_internal()?);

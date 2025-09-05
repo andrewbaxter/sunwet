@@ -6,4 +6,4 @@ export type LinkDestView = { id: ViewId,
 /**
  * Provide initial query parameters.
  */
-parameters: { [key in string]?: FieldOrLiteral }, };
+parameters?: { [key in string]?: FieldOrLiteral }, };

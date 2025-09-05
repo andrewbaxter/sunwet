@@ -10,9 +10,11 @@ use {
             CommitTriple,
         },
         ministate::{
+            ministate_octothorpe,
             Ministate,
             MinistateNodeView,
         },
+        page_node_view::node_to_text,
         playlist::{
             categorize_mime_media,
             PlaylistEntryMediaType,
@@ -985,7 +987,7 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> El {
 
 fn build_edit_triple(pc: &mut ProcessingContext, triple: &TripleState, new: bool) -> El {
     let buttons_el = {
-        let style_res = style_export::leaf_node_edit_buttons();
+        let style_res = style_export::leaf_node_edit_buttons(style_export::LeafNodeEditButtonsArgs { link: None });
         let button_revert = style_res.button_revert;
         button_revert.ref_on("click", {
             let triple = triple.clone();
@@ -1190,7 +1192,25 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                 // Pivot
                 {
                     let buttons_el = {
-                        let style_res = style_export::leaf_node_edit_buttons();
+                        let style_res =
+                            style_export::leaf_node_edit_buttons(
+                                style_export::LeafNodeEditButtonsArgs {
+                                    link: Some(
+                                        ministate_octothorpe(&super::ministate::Ministate::NodeView(MinistateNodeView {
+                                            title: shed!{
+                                                'titled _;
+                                                for t in &triples.outgoing {
+                                                    if t.predicate == shared::interface::ont::PREDICATE_NAME {
+                                                        break 'titled node_to_text(&t.object);
+                                                    }
+                                                }
+                                                break 'titled node_to_text(&node);
+                                            },
+                                            node: node.clone(),
+                                        })),
+                                    ),
+                                },
+                            );
                         let button_revert = style_res.button_revert;
                         button_revert.ref_on("click", {
                             let pivot_original = node.clone();

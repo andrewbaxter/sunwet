@@ -46,6 +46,7 @@ pub struct ViewLink {
     pub view_id: ViewId,
     /// Provide initial query parameters. These can be modified by the user.
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub parameters: BTreeMap<String, Node>,
 }
 
@@ -55,6 +56,7 @@ pub struct FormLink {
     pub form_id: FormId,
     /// Provide initial parameters for fields, by field id.
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub parameters: BTreeMap<String, Node>,
 }
 
@@ -95,6 +97,7 @@ pub struct ServerConfigMenuItem {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct View {
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub parameters: BTreeMap<String, ClientViewParam>,
     pub queries: BTreeMap<String, Query>,
     pub display: WidgetRootDataRows,
@@ -114,12 +117,15 @@ pub struct ConfigIamGrantsLimited {
     /// child menu items (if a section) transitively, and any forms or views directly
     /// linked by leaf menu items.
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub menu_items: HashSet<MenuItemId>,
     /// Give the user access to all these views.
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub views: HashSet<ViewId>,
     /// Give the user access to all these forms.
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub forms: HashSet<FormId>,
 }
 
@@ -135,6 +141,7 @@ pub enum ConfigIamGrants {
 pub struct GlobalConfig {
     pub api_tokens: HashMap<String, ConfigIamGrants>,
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub public_iam_grants: ConfigIamGrantsLimited,
     pub menu: Vec<ServerConfigMenuItem>,
     /// View ids to view definitions
@@ -184,6 +191,7 @@ pub struct FdapConfig {
 #[ts(export)]
 pub struct Config {
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub debug: bool,
     pub temp_dir: PathBuf,
     pub graph_dir: PathBuf,

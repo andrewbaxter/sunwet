@@ -1,0 +1,131 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RespQuery",
+  "type": "object",
+  "required": [
+    "meta",
+    "records"
+  ],
+  "properties": {
+    "meta": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": [
+          {
+            "$ref": "#/definitions/Node"
+          },
+          {
+            "$ref": "#/definitions/NodeMeta"
+          }
+        ],
+        "maxItems": 2,
+        "minItems": 2
+      }
+    },
+    "next_page_key": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Node"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": {
+          "$ref": "#/definitions/TreeNode"
+        }
+      }
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "Node": {
+      "$ref": "#/definitions/SerdeNode_"
+    },
+    "NodeMeta": {
+      "type": "object",
+      "properties": {
+        "mime": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "SerdeNodeType": {
+      "type": "string",
+      "enum": [
+        "f",
+        "v"
+      ]
+    },
+    "SerdeNode_": {
+      "type": "object",
+      "required": [
+        "t",
+        "v"
+      ],
+      "properties": {
+        "t": {
+          "$ref": "#/definitions/SerdeNodeType"
+        },
+        "v": true
+      }
+    },
+    "TreeNode": {
+      "description": "A tree node is like a json node but it can also encode files.  So the root of the returned query is generic data w/ a file type, then once you reach the nodes it's just generic data. This allows users to select on files directly, rather than try to re-parse json.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "scalar"
+          ],
+          "properties": {
+            "scalar": {
+              "$ref": "#/definitions/Node"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "array"
+          ],
+          "properties": {
+            "array": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/TreeNode"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "record"
+          ],
+          "properties": {
+            "record": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/definitions/TreeNode"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

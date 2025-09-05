@@ -7,7 +7,7 @@ import type { ServerConfigMenuItem } from "./ServerConfigMenuItem";
 import type { View } from "./View";
 import type { ViewId } from "./ViewId";
 
-export type GlobalConfig = { api_tokens: { [key in string]?: ConfigIamGrants }, public_iam_grants: ConfigIamGrantsLimited, menu: Array<ServerConfigMenuItem>, 
+export type GlobalConfig = { api_tokens: { [key in string]?: ConfigIamGrants }, public_iam_grants?: ConfigIamGrantsLimited, menu: Array<ServerConfigMenuItem>, 
 /**
  * View ids to view definitions
  */

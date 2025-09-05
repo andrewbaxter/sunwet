@@ -15,14 +15,39 @@ use {
 #[derive(Aargvark)]
 #[vark(break_help)]
 enum Command {
+    /// Send a query (JSON) to the API and write the results (JSON) to stdout.
     Query(client::QueryCommand),
+    /// Compile a query into JSON to use in config or the API.
+    ///
+    /// Specify a query either inline on the command line, or as a file.
     CompileQuery(client::CompileQueryCommand),
+    /// Compile a query head (root and steps) into JSON, to be combined with a tail
+    /// before using in config or the API.
+    ///
+    /// Specify a query either inline on the command line, or as a file.
+    CompileQueryHead(client::CompileQueryHeadCommand),
+    /// Compile a query tail (selection) into JSON, to be combined with a head before
+    /// using in config or the API.
+    ///
+    /// Specify a query either inline on the command line, or as a file.
+    CompileQueryTail(client::CompileQueryTailCommand),
+    /// Add data and files to the database.
+    ///
+    /// This takes a CLI commit JSON, prepares and sends an API JSON commit payload
+    /// (replacing files with hashes), then uploads all files.
     Commit(client::commit::CommitCommand),
-    PrepareImportCommit(client::import_::PrepareImportCommitCommand),
+    /// Prepare a CLI commit JSON from media files in a directory using their tags.
+    PrepareMediaImportCommit(client::media_import::PrepareImportCommitCommand),
+    /// Move all triples centered around one node to another node, eliminating the
+    /// first node.
     MergeNodes(client::MergeNodesCommand),
+    /// Delete all triples centered around one node.
     DeleteNodes(client::DeleteNodesCommand),
+    /// Show commit history.
     History(client::HistoryCommand),
+    /// Show all triples involving a given node.
     GetNode(client::GetNodeCommand),
+    /// Run the Sunwet server.
     RunServer(server::Args),
 }
 
@@ -40,11 +65,17 @@ async fn main1() -> Result<(), loga::Error> {
         Command::CompileQuery(c) => {
             client::handle_compile_query(c)?;
         },
+        Command::CompileQueryHead(c) => {
+            client::handle_compile_query_head(c)?;
+        },
+        Command::CompileQueryTail(c) => {
+            client::handle_compile_query_tail(c)?;
+        },
         Command::Commit(c) => {
             client::commit::handle_commit(c).await?;
         },
-        Command::PrepareImportCommit(c) => {
-            client::import_::handle_prepare_import_commit(c).await?;
+        Command::PrepareMediaImportCommit(c) => {
+            client::media_import::handle_prepare_media_import_commit(c).await?;
         },
         Command::DeleteNodes(c) => {
             client::handle_delete_nodes(c).await?;

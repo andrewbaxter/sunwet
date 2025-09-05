@@ -2,4 +2,4 @@
 import type { Orientation } from "./Orientation";
 import type { TransAlign } from "./TransAlign";
 
-export type WidgetPlayButton = { media_file_field: string, show_image: boolean, width: string | null, height: string | null, name_field: string | null, album_field: string | null, artist_field: string | null, cover_field: string | null, orientation: Orientation | null, trans_align: TransAlign, };
+export type WidgetPlayButton = { media_file_field: string, show_image?: boolean, width?: string | null, height?: string | null, name_field?: string | null, album_field?: string | null, artist_field?: string | null, cover_field?: string | null, orientation?: Orientation | null, trans_align?: TransAlign, };

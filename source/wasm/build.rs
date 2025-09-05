@@ -519,6 +519,19 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         Func {
+            name: "leafViewIcon",
+            args: vec![
+                ("icon", &string_),
+                ("link", &optstring_),
+                ("width", &optstring_),
+                ("height", &optstring_),
+                ("color", &optstring_),
+                ("transAlign", &transalign),
+                ("orientation", &orientation),
+            ],
+            returns: vec![("root", &el_)],
+        },
+        Func {
             name: "leafViewText",
             args: vec![
                 ("transAlign", &transalign),
@@ -655,7 +668,12 @@ fn main() {
         // xx Components, styles: page, node view, history
         Func {
             name: "leafNodeViewNodeButtons",
-            args: vec![("download", &optstring_), ("history", &optstring_), ("edit", &optstring_)],
+            args: vec![
+                ("download", &optstring_),
+                ("history", &optstring_),
+                ("edit", &optstring_),
+                ("link", &optstring_)
+            ],
             returns: vec![("root", &el_)],
         },
         Func {
@@ -682,7 +700,7 @@ fn main() {
         },
         Func {
             name: "leafNodeEditButtons",
-            args: vec![],
+            args: vec![("link", &optstring_)],
             returns: vec![("root", &el_), ("buttonDelete", &el_), ("buttonRevert", &el_)],
         },
         Func {

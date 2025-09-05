@@ -146,7 +146,7 @@ pub fn build_page_history(pc: &mut ProcessingContext, ministate: &MinistateHisto
                         out.push(
                             style_export::cont_history_subject(
                                 style_export::ContHistorySubjectArgs {
-                                    center: vec![build_node_el(&event.triple.subject, true)],
+                                    center: vec![build_node_el(&event.triple.subject)],
                                 },
                             ).root,
                         );
@@ -161,7 +161,7 @@ pub fn build_page_history(pc: &mut ProcessingContext, ministate: &MinistateHisto
                                                 value: event.triple.predicate.clone(),
                                             },
                                         ).root,
-                                        build_node_el(&event.triple.object, true),
+                                        build_node_el(&event.triple.object),
                                     ],
                                 },
                             );
@@ -177,7 +177,7 @@ pub fn build_page_history(pc: &mut ProcessingContext, ministate: &MinistateHisto
                                                 value: event.triple.predicate.clone(),
                                             },
                                         ).root,
-                                        build_node_el(&event.triple.object, true),
+                                        build_node_el(&event.triple.object),
                                     ],
                                 },
                             );

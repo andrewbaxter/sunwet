@@ -17,6 +17,7 @@ use {
         DateTime,
         Utc,
     },
+    schemars::JsonSchema,
     serde::{
         de::DeserializeOwned,
         Deserialize,
@@ -37,7 +38,7 @@ pub trait C2SReqTrait: Serialize + DeserializeOwned + Into<C2SReq> {
 }
 
 // # Commit
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct Triple {
     pub subject: Node,
@@ -45,7 +46,7 @@ pub struct Triple {
     pub object: Node,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct CommitFile {
     pub hash: FileHash,
@@ -53,7 +54,7 @@ pub struct CommitFile {
     pub mimetype: String,
 }
 
-#[derive(Serialize, Deserialize, Default, Clone)]
+#[derive(Serialize, Deserialize, Default, Clone, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqCommit {
     pub comment: String,
@@ -62,7 +63,7 @@ pub struct ReqCommit {
     pub files: Vec<CommitFile>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct RespCommit {
     pub incomplete: Vec<FileHash>,
@@ -79,7 +80,7 @@ impl C2SReqTrait for ReqCommit {
 }
 
 // # Form commit
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqFormCommit {
     pub form_id: FormId,
@@ -98,11 +99,11 @@ impl C2SReqTrait for ReqFormCommit {
 }
 
 // # Upload finish
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqUploadFinish(pub FileHash);
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct RespUploadFinish {
     pub done: bool,
@@ -119,7 +120,7 @@ impl C2SReqTrait for ReqUploadFinish {
 }
 
 // # Query
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct Pagination {
     pub count: usize,
@@ -129,7 +130,7 @@ pub struct Pagination {
     pub key: Option<Node>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqQuery {
     pub query: Query,
@@ -142,7 +143,7 @@ pub struct ReqQuery {
 /// the returned query is generic data w/ a file type, then once you reach the
 /// nodes it's just generic data. This allows users to select on files directly,
 /// rather than try to re-parse json.
-#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Debug, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Debug, Clone, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum TreeNode {
     Scalar(Node),
@@ -150,7 +151,7 @@ pub enum TreeNode {
     Record(BTreeMap<String, TreeNode>),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct RespQuery {
     pub records: Vec<BTreeMap<String, TreeNode>>,
@@ -169,7 +170,7 @@ impl C2SReqTrait for ReqQuery {
 }
 
 // # View query
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqViewQuery {
     pub view_id: ViewId,
@@ -189,7 +190,7 @@ impl C2SReqTrait for ReqViewQuery {
 }
 
 // # Get triples from
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqGetTriplesAround {
     pub node: Node,
@@ -201,7 +202,7 @@ impl Into<C2SReq> for ReqGetTriplesAround {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct RespGetTriplesAround {
     pub incoming: Vec<Triple>,
@@ -213,7 +214,7 @@ impl C2SReqTrait for ReqGetTriplesAround {
 }
 
 // # Get node meta
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqGetNodeMeta {
     pub node: Node,
@@ -225,7 +226,7 @@ impl Into<C2SReq> for ReqGetNodeMeta {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct NodeMeta {
     pub mime: Option<String>,
@@ -236,7 +237,7 @@ impl C2SReqTrait for ReqGetNodeMeta {
 }
 
 // # History
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqHistory {
     pub page_key: Option<(DateTime<Utc>, Triple)>,
@@ -249,7 +250,7 @@ impl Into<C2SReq> for ReqHistory {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct RespHistoryEvent {
     pub delete: bool,
@@ -257,7 +258,7 @@ pub struct RespHistoryEvent {
     pub triple: Triple,
 }
 
-#[derive(Serialize, Deserialize, Default, Clone)]
+#[derive(Serialize, Deserialize, Default, Clone, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct RespHistory {
     pub events: Vec<RespHistoryEvent>,
@@ -269,14 +270,14 @@ impl C2SReqTrait for ReqHistory {
 }
 
 // # History, commits
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum ReqHistoryFilterPredicate {
     Incoming(String),
     Outgoing(String),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqHistoryFilter {
     pub node: Node,
@@ -284,7 +285,7 @@ pub struct ReqHistoryFilter {
 }
 
 // # Get Menu
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqGetClientConfig;
 
@@ -299,11 +300,11 @@ impl C2SReqTrait for ReqGetClientConfig {
 }
 
 // # Who am I
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqWhoAmI;
 
-#[derive(Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum RespWhoAmI {
     Public,
@@ -322,22 +323,27 @@ impl C2SReqTrait for ReqWhoAmI {
 }
 
 // # Assemble
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum C2SReq {
     /// Make changes to the graph
     Commit(ReqCommit),
     /// Make changes to the graph via a form (uses form permissions)
     FormCommit(ReqFormCommit),
+    /// Tell the server to verify and commit a file after uploading all chunks
     UploadFinish(ReqUploadFinish),
     /// Read from the graph
     Query(ReqQuery),
     /// Read from the graph via a view (uses view permissions)
     ViewQuery(ReqViewQuery),
+    /// Get all triples where the subject/object is a given node
     GetTriplesAround(ReqGetTriplesAround),
+    /// Get metadata associated with nodes (ex: mime type for files)
     GetNodeMeta(ReqGetNodeMeta),
     History(ReqHistory),
+    /// Request the config for the web UI for this user
     GetClientConfig(ReqGetClientConfig),
+    /// Check authentication status
     WhoAmI(ReqWhoAmI),
 }
 

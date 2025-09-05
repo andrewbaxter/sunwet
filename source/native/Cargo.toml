@@ -17,6 +17,7 @@ hyper-tungstenite = { version = "0.17" }
 hyper-util = "0.1"
 loga = "0.5"
 rusqlite = { version = "0.32", features = ["array", "bundled"] }
+deadpool-sqlite = "0.9"
 sea-query = { version = "0.32.1", default-features = false, features = [
     "backend-sqlite",
 ] }
@@ -27,7 +28,6 @@ tokio = { version = "1", features = ["process"] }
 tokio-stream = { version = "0.1" }
 async-stream = "0.3"
 taskmanager = "0.6"
-deadpool-sqlite = "0.9"
 futures = "0.3"
 http-body = "1"
 http-serde = "2"

@@ -5,5 +5,3 @@
         ?(-* (-> "sunwet/1/track") -> "sunwet/1/artist" == $artist_id)
         !(-> "sunwet/1/delete")
     )
-    include "query_comic_albums_suffix.txt"
-    asc album_name

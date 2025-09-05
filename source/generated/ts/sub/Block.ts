@@ -6,7 +6,7 @@ export type Block = {
  * Sets the default width of the block. If not specified, space will be divided
  * with other unsized blocks.
  */
-width: string | null, 
+width?: string | null, 
 /**
  * The contents of the block.
  */

@@ -11,4 +11,4 @@ data: QueryOrField,
 /**
  * How the data rows are displayed.
  */
-row_widget: DataRowsLayout, trans_align: TransAlign, };
+row_widget: DataRowsLayout, trans_align?: TransAlign, };

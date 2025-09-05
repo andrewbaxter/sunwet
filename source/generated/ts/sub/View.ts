@@ -3,4 +3,4 @@ import type { ClientViewParam } from "./ClientViewParam";
 import type { Query } from "./Query";
 import type { WidgetRootDataRows } from "./WidgetRootDataRows";
 
-export type View = { parameters: { [key in string]?: ClientViewParam }, queries: { [key in string]?: Query }, display: WidgetRootDataRows, };
+export type View = { parameters?: { [key in string]?: ClientViewParam }, queries: { [key in string]?: Query }, display: WidgetRootDataRows, };

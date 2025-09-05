@@ -607,10 +607,14 @@
                         children: [
                           presentation.leafNodeViewNodeText({
                             value: "ABCD-1234",
-                            link: "abcd",
                           }).root,
                           presentation.leafNodeViewPredicate({
                             value: "sunwet/1/is",
+                          }).root,
+                          presentation.leafNodeViewNodeButtons({
+                            history: "https://abcd",
+                            download: "https://abcd",
+                            link: "abcd",
                           }).root,
                         ],
                         new: false,
@@ -619,7 +623,6 @@
                         children: [
                           presentation.leafNodeViewNodeText({
                             value: "ABCD-1234",
-                            link: "abcd",
                           }).root,
                           presentation.leafNodeViewPredicate({
                             value: "sunwet/1/has",
@@ -629,6 +632,7 @@
                           presentation.leafNodeViewNodeButtons({
                             history: "https://abcd",
                             download: "https://abcd",
+                            link: "abcd",
                           }).root,
                         ],
                         new: false,
@@ -640,10 +644,10 @@
                       presentation.leafNodeViewNodeButtons({
                         history: "https://abcd",
                         edit: "https://1234",
+                        link: "abcd",
                       }).root,
                       presentation.leafNodeViewNodeText({
                         value: "ABCD-1234",
-                        link: "abcd",
                       }).root,
                     ],
                   }).root,
@@ -651,12 +655,16 @@
                     children: [
                       presentation.contNodeRowOutgoing({
                         children: [
+                          presentation.leafNodeViewNodeButtons({
+                            download: "https://abcd",
+                            history: "https://abcd",
+                            link: "abcd",
+                          }).root,
                           presentation.leafNodeViewPredicate({
                             value: "sunwet/1/has",
                           }).root,
                           presentation.leafNodeViewNodeText({
                             value: "ABCD-1234",
-                            link: "abcd",
                           }).root,
                         ],
                         new: false,
@@ -666,13 +674,13 @@
                           presentation.leafNodeViewNodeButtons({
                             download: "https://abcd",
                             history: "https://abcd",
+                            link: "abcd",
                           }).root,
                           presentation.leafNodeViewPredicate({
                             value: "sunwet/1/has",
                           }).root,
                           presentation.leafNodeViewNodeText({
                             value: "ABCD-1234",
-                            link: "abcd",
                           }).root,
                         ],
                         new: false,
@@ -755,7 +763,9 @@
                   }).root,
                   presentation.contNodeSectionCenter({
                     children: [
-                      presentation.leafNodeEditButtons({}).root,
+                      presentation.leafNodeEditButtons({
+                        link: "abcd",
+                      }).root,
                       presentation.leafNodeEditNode({
                         inputType: nodeTypeSel({
                           hint: "Subject",

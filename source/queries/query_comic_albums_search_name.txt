@@ -5,4 +5,3 @@ search $name -< "sunwet/1/name"
         ?(-> "sunwet/1/language" == $lang)
         !(-> "sunwet/1/delete")
     )
-    include "query_comic_albums_suffix.txt"

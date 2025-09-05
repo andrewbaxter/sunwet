@@ -3,4 +3,4 @@ import type { FieldOrLiteralString } from "./FieldOrLiteralString";
 import type { Orientation } from "./Orientation";
 import type { TransAlign } from "./TransAlign";
 
-export type WidgetColor = { data: FieldOrLiteralString, width: string, height: string, orientation: Orientation, trans_align: TransAlign, };
+export type WidgetColor = { data: FieldOrLiteralString, width?: string, height?: string, orientation: Orientation, trans_align?: TransAlign, };

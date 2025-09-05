@@ -3,5 +3,3 @@
         ?(-> "sunwet/1/media" == "sunwet/1/book")
         !( -> "sunwet/1/delete")
     )
-    include "query_book_albums_suffix.txt"
-    desc album_artist_name desc album_name

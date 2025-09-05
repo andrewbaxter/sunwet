@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RespGetTriplesAround",
+  "type": "object",
+  "required": [
+    "incoming",
+    "outgoing"
+  ],
+  "properties": {
+    "incoming": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Triple"
+      }
+    },
+    "outgoing": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Triple"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "Node": {
+      "$ref": "#/definitions/SerdeNode_"
+    },
+    "SerdeNodeType": {
+      "type": "string",
+      "enum": [
+        "f",
+        "v"
+      ]
+    },
+    "SerdeNode_": {
+      "type": "object",
+      "required": [
+        "t",
+        "v"
+      ],
+      "properties": {
+        "t": {
+          "$ref": "#/definitions/SerdeNodeType"
+        },
+        "v": true
+      }
+    },
+    "Triple": {
+      "type": "object",
+      "required": [
+        "object",
+        "predicate",
+        "subject"
+      ],
+      "properties": {
+        "object": {
+          "$ref": "#/definitions/Node"
+        },
+        "predicate": {
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/definitions/Node"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

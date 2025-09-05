@@ -5,4 +5,4 @@ import type { Orientation } from "./Orientation";
 import type { TextSizeMode } from "./TextSizeMode";
 import type { TransAlign } from "./TransAlign";
 
-export type WidgetText = { data: FieldOrLiteralString, prefix: string, suffix: string, font_size: string | null, color: string | null, cons_size_mode: TextSizeMode, cons_size_max: string | null, orientation: Orientation, trans_align: TransAlign, link: Link | null, };
+export type WidgetText = { data: FieldOrLiteralString, prefix?: string, suffix?: string, font_size?: string | null, color?: string | null, cons_size_mode?: TextSizeMode, cons_size_max?: string | null, orientation: Orientation, trans_align?: TransAlign, link?: Link | null, };

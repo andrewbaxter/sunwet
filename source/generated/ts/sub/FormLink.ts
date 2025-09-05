@@ -5,4 +5,4 @@ export type FormLink = { form_id: FormId,
 /**
  * Provide initial parameters for fields, by field id.
  */
-parameters: { [key in string]?: SerdeNode }, };
+parameters?: { [key in string]?: SerdeNode }, };

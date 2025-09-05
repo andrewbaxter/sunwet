@@ -3,4 +3,4 @@ import type { FieldOrLiteralString } from "./FieldOrLiteralString";
 import type { Orientation } from "./Orientation";
 import type { TransAlign } from "./TransAlign";
 
-export type WidgetTime = { data: FieldOrLiteralString, prefix: string, suffix: string, font_size: string | null, color: string | null, orientation: Orientation, trans_align: TransAlign, };
+export type WidgetTime = { data: FieldOrLiteralString, prefix?: string, suffix?: string, font_size?: string | null, color?: string | null, orientation: Orientation, trans_align?: TransAlign, };

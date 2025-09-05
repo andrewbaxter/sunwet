@@ -1,0 +1,2105 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ClientConfig",
+  "type": "object",
+  "required": [
+    "forms",
+    "menu",
+    "views"
+  ],
+  "properties": {
+    "forms": {
+      "description": "Form ids to form definitions",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/ClientForm"
+      }
+    },
+    "menu": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ClientMenuItem"
+      }
+    },
+    "views": {
+      "description": "View ids to view definitions",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/ClientView"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "Block": {
+      "type": "object",
+      "required": [
+        "widget"
+      ],
+      "properties": {
+        "widget": {
+          "description": "The contents of the block.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Widget"
+            }
+          ]
+        },
+        "width": {
+          "description": "Sets the default width of the block. If not specified, space will be divided with other unsized blocks.",
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Chain": {
+      "type": "object",
+      "required": [
+        "head",
+        "tail"
+      ],
+      "properties": {
+        "head": {
+          "$ref": "#/definitions/ChainHead"
+        },
+        "tail": {
+          "$ref": "#/definitions/ChainTail"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ChainHead": {
+      "type": "object",
+      "required": [
+        "steps"
+      ],
+      "properties": {
+        "root": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ChainRoot"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Step"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ChainRoot": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "$ref": "#/definitions/Value"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "search"
+          ],
+          "properties": {
+            "search": {
+              "$ref": "#/definitions/StrValue"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ChainTail": {
+      "type": "object",
+      "properties": {
+        "bind": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subchains": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Chain"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ClientForm": {
+      "type": "object",
+      "required": [
+        "fields",
+        "outputs"
+      ],
+      "properties": {
+        "fields": {
+          "description": "Form fields and generated data (ids)",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FormField"
+          }
+        },
+        "outputs": {
+          "description": "Triples to generate from the inputs",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FormOutput"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ClientFormLink": {
+      "type": "object",
+      "required": [
+        "form_id",
+        "parameters"
+      ],
+      "properties": {
+        "form_id": {
+          "$ref": "#/definitions/FormId"
+        },
+        "parameters": {
+          "description": "Provide initial parameters for fields, by field id.",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Node"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ClientMenuItem": {
+      "type": "object",
+      "required": [
+        "detail",
+        "id",
+        "name"
+      ],
+      "properties": {
+        "detail": {
+          "$ref": "#/definitions/ClientMenuItemDetail"
+        },
+        "id": {
+          "description": "The id of a menu item is used for permissions.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/MenuItemId"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ClientMenuItemDetail": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "section"
+          ],
+          "properties": {
+            "section": {
+              "$ref": "#/definitions/ClientMenuSection"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "page"
+          ],
+          "properties": {
+            "page": {
+              "$ref": "#/definitions/ClientPage"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ClientMenuSection": {
+      "type": "object",
+      "required": [
+        "children"
+      ],
+      "properties": {
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ClientMenuItem"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ClientPage": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "history",
+            "query",
+            "logs"
+          ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "view"
+          ],
+          "properties": {
+            "view": {
+              "$ref": "#/definitions/ClientViewLink"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "form"
+          ],
+          "properties": {
+            "form": {
+              "$ref": "#/definitions/ClientFormLink"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ClientView": {
+      "type": "object",
+      "required": [
+        "parameters",
+        "query_parameters",
+        "root"
+      ],
+      "properties": {
+        "parameters": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/ClientViewParam"
+          }
+        },
+        "query_parameters": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "root": {
+          "$ref": "#/definitions/WidgetRootDataRows"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ClientViewLink": {
+      "type": "object",
+      "required": [
+        "parameters",
+        "view_id"
+      ],
+      "properties": {
+        "parameters": {
+          "description": "Provide initial query parameters. These can be modified by the user.",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Node"
+          }
+        },
+        "view_id": {
+          "$ref": "#/definitions/ViewId"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ClientViewParam": {
+      "oneOf": [
+        {
+          "description": "A simple text box.\n\nNote that if this is used as part of a `search` root in a query, it must follow sqlite's `fts5` syntax. Basically, you need at least one string with quotes around it.",
+          "type": "string",
+          "enum": [
+            "text"
+          ]
+        }
+      ]
+    },
+    "DataRowsLayout": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "unaligned"
+          ],
+          "properties": {
+            "unaligned": {
+              "$ref": "#/definitions/DataRowsLayoutUnaligned"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "table"
+          ],
+          "properties": {
+            "table": {
+              "$ref": "#/definitions/DataRowsLayoutTable"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "DataRowsLayoutTable": {
+      "type": "object",
+      "required": [
+        "elements",
+        "orientation"
+      ],
+      "properties": {
+        "elements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Widget"
+          }
+        },
+        "gap": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "orientation": {
+          "$ref": "#/definitions/Orientation"
+        },
+        "x_scroll": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "DataRowsLayoutUnaligned": {
+      "type": "object",
+      "required": [
+        "widget"
+      ],
+      "properties": {
+        "direction": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Direction"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "gap": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
+          ]
+        },
+        "widget": {
+          "$ref": "#/definitions/Widget"
+        },
+        "wrap": {
+          "default": false,
+          "type": "boolean"
+        },
+        "x_scroll": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Direction": {
+      "type": "string",
+      "enum": [
+        "up",
+        "down",
+        "left",
+        "right"
+      ]
+    },
+    "FieldOrLiteral": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "field"
+          ],
+          "properties": {
+            "field": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "literal"
+          ],
+          "properties": {
+            "literal": {
+              "$ref": "#/definitions/Node"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "FieldOrLiteralString": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "field"
+          ],
+          "properties": {
+            "field": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "literal"
+          ],
+          "properties": {
+            "literal": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "FilterExpr": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "exists"
+          ],
+          "properties": {
+            "exists": {
+              "$ref": "#/definitions/FilterExprExistance"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "junction"
+          ],
+          "properties": {
+            "junction": {
+              "$ref": "#/definitions/FilterExprJunction"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "FilterExprExistance": {
+      "type": "object",
+      "required": [
+        "subchain",
+        "type_"
+      ],
+      "properties": {
+        "subchain": {
+          "$ref": "#/definitions/ChainHead"
+        },
+        "suffix": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/FilterSuffix"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "type_": {
+          "$ref": "#/definitions/FilterExprExistsType"
+        }
+      },
+      "additionalProperties": false
+    },
+    "FilterExprExistsType": {
+      "type": "string",
+      "enum": [
+        "exists",
+        "doesnt_exist"
+      ]
+    },
+    "FilterExprJunction": {
+      "type": "object",
+      "required": [
+        "subexprs",
+        "type_"
+      ],
+      "properties": {
+        "subexprs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FilterExpr"
+          }
+        },
+        "type_": {
+          "$ref": "#/definitions/JunctionType"
+        }
+      },
+      "additionalProperties": false
+    },
+    "FilterSuffix": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "simple"
+          ],
+          "properties": {
+            "simple": {
+              "$ref": "#/definitions/FilterSuffixSimple"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "like"
+          ],
+          "properties": {
+            "like": {
+              "$ref": "#/definitions/FilterSuffixLike"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "FilterSuffixLike": {
+      "type": "object",
+      "required": [
+        "value"
+      ],
+      "properties": {
+        "value": {
+          "$ref": "#/definitions/StrValue"
+        }
+      },
+      "additionalProperties": false
+    },
+    "FilterSuffixSimple": {
+      "type": "object",
+      "required": [
+        "op",
+        "value"
+      ],
+      "properties": {
+        "op": {
+          "$ref": "#/definitions/FilterSuffixSimpleOperator"
+        },
+        "value": {
+          "$ref": "#/definitions/Value"
+        }
+      },
+      "additionalProperties": false
+    },
+    "FilterSuffixSimpleOperator": {
+      "type": "string",
+      "enum": [
+        "eq",
+        "neq",
+        "lt",
+        "gt",
+        "lte",
+        "gte"
+      ]
+    },
+    "FormField": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "type"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/definitions/FormFieldType"
+        }
+      },
+      "additionalProperties": false
+    },
+    "FormFieldBool": {
+      "type": "object",
+      "properties": {
+        "initial_on": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "FormFieldComment": {
+      "type": "object",
+      "required": [
+        "text"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "FormFieldConstEnum": {
+      "type": "object",
+      "required": [
+        "choices"
+      ],
+      "properties": {
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/definitions/Node"
+              }
+            ],
+            "maxItems": 2,
+            "minItems": 2
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "FormFieldNumber": {
+      "type": "object",
+      "properties": {
+        "placeholder": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "FormFieldQueryEnum": {
+      "type": "object",
+      "required": [
+        "query"
+      ],
+      "properties": {
+        "query": {
+          "$ref": "#/definitions/Query"
+        }
+      },
+      "additionalProperties": false
+    },
+    "FormFieldRgbU8": {
+      "type": "object",
+      "properties": {
+        "initial": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "FormFieldText": {
+      "type": "object",
+      "properties": {
+        "placeholder": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "FormFieldType": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "date",
+            "time",
+            "datetime",
+            "file"
+          ]
+        },
+        {
+          "description": "Generate a unique id (uuid) - no visible entry.",
+          "type": "string",
+          "enum": [
+            "id"
+          ]
+        },
+        {
+          "description": "Add text to the form, no interactive entry.",
+          "type": "object",
+          "required": [
+            "comment"
+          ],
+          "properties": {
+            "comment": {
+              "$ref": "#/definitions/FormFieldComment"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "text"
+          ],
+          "properties": {
+            "text": {
+              "$ref": "#/definitions/FormFieldText"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "number"
+          ],
+          "properties": {
+            "number": {
+              "$ref": "#/definitions/FormFieldNumber"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "bool"
+          ],
+          "properties": {
+            "bool": {
+              "$ref": "#/definitions/FormFieldBool"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "rgb_u8"
+          ],
+          "properties": {
+            "rgb_u8": {
+              "$ref": "#/definitions/FormFieldRgbU8"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "Present a selection of fixed choices.",
+          "type": "object",
+          "required": [
+            "const_enum"
+          ],
+          "properties": {
+            "const_enum": {
+              "$ref": "#/definitions/FormFieldConstEnum"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "Present a selection of choices by performing a query. The query must return two fields: `name` (the text presented to the user) and `id` (the value to store in the relation).",
+          "type": "object",
+          "required": [
+            "query_enum"
+          ],
+          "properties": {
+            "query_enum": {
+              "$ref": "#/definitions/FormFieldQueryEnum"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "FormId": {
+      "type": "string"
+    },
+    "FormOutput": {
+      "type": "object",
+      "required": [
+        "object",
+        "predicate",
+        "subject"
+      ],
+      "properties": {
+        "object": {
+          "$ref": "#/definitions/InputOrInline"
+        },
+        "predicate": {
+          "$ref": "#/definitions/InputOrInlineText"
+        },
+        "subject": {
+          "$ref": "#/definitions/InputOrInline"
+        }
+      },
+      "additionalProperties": false
+    },
+    "InputOrInline": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "input"
+          ],
+          "properties": {
+            "input": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "inline"
+          ],
+          "properties": {
+            "inline": {
+              "$ref": "#/definitions/Node"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "InputOrInlineText": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "input"
+          ],
+          "properties": {
+            "input": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "inline"
+          ],
+          "properties": {
+            "inline": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "JunctionType": {
+      "type": "string",
+      "enum": [
+        "and",
+        "or"
+      ]
+    },
+    "Link": {
+      "type": "object",
+      "required": [
+        "dest",
+        "title"
+      ],
+      "properties": {
+        "dest": {
+          "$ref": "#/definitions/LinkDest"
+        },
+        "title": {
+          "$ref": "#/definitions/FieldOrLiteral"
+        }
+      },
+      "additionalProperties": false
+    },
+    "LinkDest": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "plain"
+          ],
+          "properties": {
+            "plain": {
+              "$ref": "#/definitions/FieldOrLiteral"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "view"
+          ],
+          "properties": {
+            "view": {
+              "$ref": "#/definitions/LinkDestView"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "form"
+          ],
+          "properties": {
+            "form": {
+              "$ref": "#/definitions/LinkDestForm"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "node"
+          ],
+          "properties": {
+            "node": {
+              "$ref": "#/definitions/FieldOrLiteral"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "LinkDestForm": {
+      "type": "object",
+      "required": [
+        "id",
+        "parameters"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/FormId"
+        },
+        "parameters": {
+          "description": "Provide other initial parameters for fields, by field id.",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/FieldOrLiteral"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "LinkDestView": {
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/ViewId"
+        },
+        "parameters": {
+          "description": "Provide initial query parameters.",
+          "default": {},
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/FieldOrLiteral"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "MenuItemId": {
+      "type": "string"
+    },
+    "MoveDirection": {
+      "type": "string",
+      "enum": [
+        "forward",
+        "backward"
+      ]
+    },
+    "Node": {
+      "$ref": "#/definitions/SerdeNode_"
+    },
+    "Orientation": {
+      "type": "string",
+      "enum": [
+        "up_left",
+        "up_right",
+        "down_left",
+        "down_right",
+        "left_up",
+        "left_down",
+        "right_up",
+        "right_down"
+      ]
+    },
+    "Query": {
+      "type": "object",
+      "required": [
+        "chain"
+      ],
+      "properties": {
+        "chain": {
+          "$ref": "#/definitions/Chain"
+        },
+        "sort": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SortQuery"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "QueryOrField": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "field"
+          ],
+          "properties": {
+            "field": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "query"
+          ],
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "SerdeNodeType": {
+      "type": "string",
+      "enum": [
+        "f",
+        "v"
+      ]
+    },
+    "SerdeNode_": {
+      "type": "object",
+      "required": [
+        "t",
+        "v"
+      ],
+      "properties": {
+        "t": {
+          "$ref": "#/definitions/SerdeNodeType"
+        },
+        "v": true
+      }
+    },
+    "SortDir": {
+      "type": "string",
+      "enum": [
+        "asc",
+        "desc"
+      ]
+    },
+    "SortQuery": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "shuffle"
+          ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "fields"
+          ],
+          "properties": {
+            "fields": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": [
+                  {
+                    "$ref": "#/definitions/SortDir"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ],
+                "maxItems": 2,
+                "minItems": 2
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Step": {
+      "type": "object",
+      "required": [
+        "specific"
+      ],
+      "properties": {
+        "first": {
+          "type": "boolean"
+        },
+        "sort": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SortDir"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "specific": {
+          "$ref": "#/definitions/StepSpecific"
+        }
+      },
+      "additionalProperties": false
+    },
+    "StepJunction": {
+      "type": "object",
+      "required": [
+        "subchains",
+        "type_"
+      ],
+      "properties": {
+        "subchains": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ChainHead"
+          }
+        },
+        "type_": {
+          "$ref": "#/definitions/JunctionType"
+        }
+      },
+      "additionalProperties": false
+    },
+    "StepMove": {
+      "type": "object",
+      "required": [
+        "dir",
+        "predicate"
+      ],
+      "properties": {
+        "dir": {
+          "$ref": "#/definitions/MoveDirection"
+        },
+        "filter": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/FilterExpr"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "predicate": {
+          "$ref": "#/definitions/StrValue"
+        }
+      },
+      "additionalProperties": false
+    },
+    "StepRecurse": {
+      "type": "object",
+      "required": [
+        "subchain"
+      ],
+      "properties": {
+        "subchain": {
+          "$ref": "#/definitions/ChainHead"
+        }
+      },
+      "additionalProperties": false
+    },
+    "StepSpecific": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "move"
+          ],
+          "properties": {
+            "move": {
+              "$ref": "#/definitions/StepMove"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "recurse"
+          ],
+          "properties": {
+            "recurse": {
+              "$ref": "#/definitions/StepRecurse"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "junction"
+          ],
+          "properties": {
+            "junction": {
+              "$ref": "#/definitions/StepJunction"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "StrValue": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "literal"
+          ],
+          "properties": {
+            "literal": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "parameter"
+          ],
+          "properties": {
+            "parameter": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "TextSizeMode": {
+      "type": "string",
+      "enum": [
+        "wrap",
+        "ellipsize"
+      ]
+    },
+    "TransAlign": {
+      "type": "string",
+      "enum": [
+        "start",
+        "middle",
+        "end"
+      ]
+    },
+    "Value": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "literal"
+          ],
+          "properties": {
+            "literal": {
+              "$ref": "#/definitions/Node"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "parameter"
+          ],
+          "properties": {
+            "parameter": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ViewId": {
+      "type": "string"
+    },
+    "Widget": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "space"
+          ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "layout"
+          ],
+          "properties": {
+            "layout": {
+              "$ref": "#/definitions/WidgetLayout"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "data_rows"
+          ],
+          "properties": {
+            "data_rows": {
+              "$ref": "#/definitions/WidgetDataRows"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "text"
+          ],
+          "properties": {
+            "text": {
+              "$ref": "#/definitions/WidgetText"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "date"
+          ],
+          "properties": {
+            "date": {
+              "$ref": "#/definitions/WidgetDate"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "time"
+          ],
+          "properties": {
+            "time": {
+              "$ref": "#/definitions/WidgetTime"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "datetime"
+          ],
+          "properties": {
+            "datetime": {
+              "$ref": "#/definitions/WidgetDatetime"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "color"
+          ],
+          "properties": {
+            "color": {
+              "$ref": "#/definitions/WidgetColor"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "media"
+          ],
+          "properties": {
+            "media": {
+              "$ref": "#/definitions/WidgetMedia"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "icon"
+          ],
+          "properties": {
+            "icon": {
+              "$ref": "#/definitions/WidgetIcon"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "play_button"
+          ],
+          "properties": {
+            "play_button": {
+              "$ref": "#/definitions/WidgetPlayButton"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "WidgetColor": {
+      "type": "object",
+      "required": [
+        "data",
+        "orientation"
+      ],
+      "properties": {
+        "data": {
+          "$ref": "#/definitions/FieldOrLiteralString"
+        },
+        "height": {
+          "default": "",
+          "type": "string"
+        },
+        "orientation": {
+          "$ref": "#/definitions/Orientation"
+        },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
+          ]
+        },
+        "width": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "WidgetDataRows": {
+      "type": "object",
+      "required": [
+        "data",
+        "row_widget"
+      ],
+      "properties": {
+        "data": {
+          "description": "Where to get the data for the sublist.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/QueryOrField"
+            }
+          ]
+        },
+        "row_widget": {
+          "description": "How the data rows are displayed.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/DataRowsLayout"
+            }
+          ]
+        },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "WidgetDate": {
+      "type": "object",
+      "required": [
+        "data",
+        "orientation"
+      ],
+      "properties": {
+        "color": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "data": {
+          "$ref": "#/definitions/FieldOrLiteralString"
+        },
+        "font_size": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "orientation": {
+          "$ref": "#/definitions/Orientation"
+        },
+        "prefix": {
+          "default": "",
+          "type": "string"
+        },
+        "suffix": {
+          "default": "",
+          "type": "string"
+        },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "WidgetDatetime": {
+      "type": "object",
+      "required": [
+        "data",
+        "orientation"
+      ],
+      "properties": {
+        "color": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "data": {
+          "$ref": "#/definitions/FieldOrLiteralString"
+        },
+        "font_size": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "orientation": {
+          "$ref": "#/definitions/Orientation"
+        },
+        "prefix": {
+          "default": "",
+          "type": "string"
+        },
+        "suffix": {
+          "default": "",
+          "type": "string"
+        },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "WidgetIcon": {
+      "type": "object",
+      "required": [
+        "data"
+      ],
+      "properties": {
+        "color": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "data": {
+          "description": "The unicode string for the google material icon font icon",
+          "type": "string"
+        },
+        "height": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "link": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Link"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "orientation": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Orientation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
+          ]
+        },
+        "width": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "WidgetLayout": {
+      "type": "object",
+      "required": [
+        "direction",
+        "elements"
+      ],
+      "properties": {
+        "direction": {
+          "$ref": "#/definitions/Direction"
+        },
+        "elements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Widget"
+          }
+        },
+        "gap": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
+          ]
+        },
+        "wrap": {
+          "default": false,
+          "type": "boolean"
+        },
+        "x_scroll": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "WidgetMedia": {
+      "type": "object",
+      "required": [
+        "data"
+      ],
+      "properties": {
+        "alt": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/FieldOrLiteral"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "data": {
+          "$ref": "#/definitions/FieldOrLiteral"
+        },
+        "direction": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Direction"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "height": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "link": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Link"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
+          ]
+        },
+        "width": {
+          "description": "For image/video, the width.  For audio, the length of the controls regardless of direction.",
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "WidgetPlayButton": {
+      "type": "object",
+      "required": [
+        "media_file_field"
+      ],
+      "properties": {
+        "album_field": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "artist_field": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cover_field": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "height": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "media_file_field": {
+          "type": "string"
+        },
+        "name_field": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "orientation": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Orientation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "show_image": {
+          "default": false,
+          "type": "boolean"
+        },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
+          ]
+        },
+        "width": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "WidgetRootDataRows": {
+      "type": "object",
+      "required": [
+        "data",
+        "row_blocks"
+      ],
+      "properties": {
+        "data": {
+          "description": "Where to get the data for the sublist.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/QueryOrField"
+            }
+          ]
+        },
+        "row_blocks": {
+          "description": "How the data rows are displayed.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Block"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "WidgetText": {
+      "type": "object",
+      "required": [
+        "data",
+        "orientation"
+      ],
+      "properties": {
+        "color": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cons_size_max": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cons_size_mode": {
+          "default": "wrap",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TextSizeMode"
+            }
+          ]
+        },
+        "data": {
+          "$ref": "#/definitions/FieldOrLiteralString"
+        },
+        "font_size": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "link": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Link"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "orientation": {
+          "$ref": "#/definitions/Orientation"
+        },
+        "prefix": {
+          "default": "",
+          "type": "string"
+        },
+        "suffix": {
+          "default": "",
+          "type": "string"
+        },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "WidgetTime": {
+      "type": "object",
+      "required": [
+        "data",
+        "orientation"
+      ],
+      "properties": {
+        "color": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "data": {
+          "$ref": "#/definitions/FieldOrLiteralString"
+        },
+        "font_size": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "orientation": {
+          "$ref": "#/definitions/Orientation"
+        },
+        "prefix": {
+          "default": "",
+          "type": "string"
+        },
+        "suffix": {
+          "default": "",
+          "type": "string"
+        },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

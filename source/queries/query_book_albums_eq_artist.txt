@@ -1,7 +1,6 @@
 "sunwet/1/album" -< "sunwet/1/is"
     &(
         ?(-> "sunwet/1/media" == "sunwet/1/book")
+        ?(-* (-> "sunwet/1/track") -> "sunwet/1/artist" == $artist_id)
         !(-> "sunwet/1/delete")
     )
-    include "query_book_albums_suffix.txt"
-    asc album_name

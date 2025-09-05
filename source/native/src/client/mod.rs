@@ -9,7 +9,6 @@ use {
             AargvarkFile,
             AargvarkFromStr,
             AargvarkJson,
-            Source,
         },
         Aargvark,
     },
@@ -41,12 +40,14 @@ use {
                 Triple,
             },
         },
-        query_parser::compile_query,
+        query_parser::{
+            compile_fragment_query_head,
+            compile_fragment_query_tail,
+            compile_query,
+        },
     },
     std::{
         collections::HashMap,
-        env::current_dir,
-        fs::read_to_string,
         str::FromStr,
     },
     uuid::Uuid,
@@ -54,7 +55,7 @@ use {
 
 pub mod req;
 pub mod commit;
-pub mod import_;
+pub mod media_import;
 
 pub struct AargvarkStrNode(pub Node);
 
@@ -101,50 +102,75 @@ pub async fn handle_query(c: QueryCommand) -> Result<(), loga::Error> {
 
 #[derive(Aargvark)]
 pub struct CompileQueryCommand {
-    query: Option<String>,
+    inline: Option<String>,
     file: Option<AargvarkFile>,
 }
 
 pub fn handle_compile_query(c: CompileQueryCommand) -> Result<(), loga::Error> {
     let query;
-    let query_dir;
-    if let Some(q) = c.query {
+    if let Some(q) = c.inline {
         query = q;
         if c.file.is_some() {
             return Err(
                 loga::err("A query was both specified on the command line and via file, you can only do one"),
             );
         }
-        query_dir = current_dir()?;
     } else if let Some(q_file) = c.file {
         query = String::from_utf8(q_file.value).context("Query was not valid utf-8")?;
-        match q_file.source {
-            Source::Stdin => {
-                query_dir = current_dir()?;
-            },
-            Source::File(source) => {
-                query_dir =
-                    source
-                        .canonicalize()
-                        .context("Unable to resolve query file path")?
-                        .parent()
-                        .context("Query file path has no parent, required for includes")?
-                        .to_path_buf();
-            },
-        }
     } else {
         return Err(loga::err("Must specify a query, either on the command line or as a file"));
     }
-    let out =
-        compile_query(
-            Some(
-                (
-                    &query_dir,
-                    |p| read_to_string(p).map_err(|e| format!("Error reading import at [{:?}]: {}", p, e)),
-                ),
-            ),
-            &query,
-        ).map_err(|e| loga::err(e))?;
+    let out = compile_query(&query).map_err(|e| loga::err(e))?;
+    println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    return Ok(());
+}
+
+#[derive(Aargvark)]
+pub struct CompileQueryHeadCommand {
+    inline: Option<String>,
+    file: Option<AargvarkFile>,
+}
+
+pub fn handle_compile_query_head(c: CompileQueryHeadCommand) -> Result<(), loga::Error> {
+    let query;
+    if let Some(q) = c.inline {
+        query = q;
+        if c.file.is_some() {
+            return Err(
+                loga::err("A query was both specified on the command line and via file, you can only do one"),
+            );
+        }
+    } else if let Some(q_file) = c.file {
+        query = String::from_utf8(q_file.value).context("Query was not valid utf-8")?;
+    } else {
+        return Err(loga::err("Must specify a query, either on the command line or as a file"));
+    }
+    let out = compile_fragment_query_head(&query).map_err(|e| loga::err(e))?;
+    println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    return Ok(());
+}
+
+#[derive(Aargvark)]
+pub struct CompileQueryTailCommand {
+    inline: Option<String>,
+    file: Option<AargvarkFile>,
+}
+
+pub fn handle_compile_query_tail(c: CompileQueryTailCommand) -> Result<(), loga::Error> {
+    let query;
+    if let Some(q) = c.inline {
+        query = q;
+        if c.file.is_some() {
+            return Err(
+                loga::err("A query was both specified on the command line and via file, you can only do one"),
+            );
+        }
+    } else if let Some(q_file) = c.file {
+        query = String::from_utf8(q_file.value).context("Query was not valid utf-8")?;
+    } else {
+        return Err(loga::err("Must specify a query, either on the command line or as a file"));
+    }
+    let out = compile_fragment_query_tail(&query).map_err(|e| loga::err(e))?;
     println!("{}", serde_json::to_string_pretty(&out).unwrap());
     return Ok(());
 }

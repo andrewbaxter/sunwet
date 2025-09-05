@@ -29,19 +29,22 @@ use {
         ResultContext,
     },
     moka::future::Cache,
-    shared::interface::{
-        config::{
-            form::FormId,
-            view::{
-                self,
-                ViewId,
+    shared::{
+        interface::{
+            config::{
+                form::FormId,
+                view::{
+                    self,
+                    ViewId,
+                },
+                MenuItemId,
             },
-            MenuItemId,
+            iam::UserIdentityId,
+            query,
+            triple::FileHash,
+            wire::link::WsS2L,
         },
-        iam::UserIdentityId,
-        query,
-        triple::FileHash,
-        wire::link::WsS2L,
+        query_analysis::analyze_query,
     },
     std::{
         collections::{
@@ -104,86 +107,6 @@ pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<
     }
     let mut views = HashMap::new();
     for (k, v) in &config0.views {
-        fn recurse_query_value(v: &query::Value, query_parameters: &mut HashSet<String>) {
-            match v {
-                query::Value::Literal(_) => { },
-                query::Value::Parameter(r) => {
-                    query_parameters.insert(r.clone());
-                },
-            }
-        }
-
-        fn recurse_query_str_value(v: &query::StrValue, query_parameters: &mut HashSet<String>) {
-            match v {
-                query::StrValue::Literal(_) => { },
-                query::StrValue::Parameter(r) => {
-                    query_parameters.insert(r.clone());
-                },
-            }
-        }
-
-        fn recurse_query_filter_expr(f: &query::FilterExpr, query_parameters: &mut HashSet<String>) {
-            match f {
-                query::FilterExpr::Exists(f) => {
-                    recurse_query_chain_body(&f.subchain, query_parameters);
-                    if let Some(suffix) = &f.suffix {
-                        match suffix {
-                            query::FilterSuffix::Simple(suffix) => {
-                                recurse_query_value(&suffix.value, query_parameters);
-                            },
-                            query::FilterSuffix::Like(suffix) => {
-                                recurse_query_str_value(&suffix.value, query_parameters);
-                            },
-                        }
-                    }
-                },
-                query::FilterExpr::Junction(f) => {
-                    for e in &f.subexprs {
-                        recurse_query_filter_expr(e, query_parameters);
-                    }
-                },
-            }
-        }
-
-        fn recurse_query_chain_body(query_chain: &query::ChainBody, query_parameters: &mut HashSet<String>) {
-            if let Some(root) = &query_chain.root {
-                match root {
-                    query::ChainRoot::Value(r) => match r {
-                        query::Value::Literal(_) => { },
-                        query::Value::Parameter(r) => {
-                            query_parameters.insert(r.clone());
-                        },
-                    },
-                    query::ChainRoot::Search(r) => recurse_query_str_value(r, query_parameters),
-                }
-            }
-            for step in &query_chain.steps {
-                match step {
-                    shared::interface::query::Step::Move(s) => {
-                        recurse_query_str_value(&s.predicate, query_parameters);
-                        if let Some(f) = &s.filter {
-                            recurse_query_filter_expr(f, query_parameters);
-                        }
-                    },
-                    shared::interface::query::Step::Recurse(s) => {
-                        recurse_query_chain_body(&s.subchain, query_parameters);
-                    },
-                    shared::interface::query::Step::Junction(s) => {
-                        for c in &s.subchains {
-                            recurse_query_chain_body(c, query_parameters);
-                        }
-                    },
-                }
-            }
-        }
-
-        fn recurse_query_chain(query_chain: &query::Chain, query_parameters: &mut HashSet<String>) {
-            recurse_query_chain_body(&query_chain.body, query_parameters);
-            for s in &query_chain.subchains {
-                recurse_query_chain(s, query_parameters);
-            }
-        }
-
         fn recurse_build_query_parameters(
             queries: &BTreeMap<String, query::Query>,
             w: &view::Widget,
@@ -201,9 +124,8 @@ pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<
                         view::QueryOrField::Query(q) => {
                             let query = queries.get(q).context(format!("Missing query [{}]", q))?;
                             query_parameters.entry(q.clone()).or_insert_with(|| {
-                                let mut params = HashSet::new();
-                                recurse_query_chain(&query.chain, &mut params);
-                                return params.into_iter().collect::<Vec<_>>();
+                                let analysis = analyze_query(query);
+                                return analysis.inputs.into_iter().collect::<Vec<_>>();
                             });
                         },
                     }
@@ -224,6 +146,7 @@ pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<
                 view::Widget::Datetime(_) => { },
                 view::Widget::Color(_) => { },
                 view::Widget::Media(_) => { },
+                view::Widget::Icon(_) => { },
                 view::Widget::PlayButton(_) => { },
                 view::Widget::Space => { },
             }
@@ -236,9 +159,8 @@ pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<
             view::QueryOrField::Query(q) => {
                 let query = v.queries.get(q).context(format!("Missing query [{}] referred in view [{}]", q, k))?;
                 query_parameters.entry(q.clone()).or_insert_with(|| {
-                    let mut params = HashSet::new();
-                    recurse_query_chain(&query.chain, &mut params);
-                    return params.into_iter().collect::<Vec<_>>();
+                    let analysis = analyze_query(query);
+                    return analysis.inputs.into_iter().collect::<Vec<_>>();
                 });
             },
         }

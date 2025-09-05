@@ -93,18 +93,11 @@ pub fn build_node_media_el(node: &Node) -> Option<El> {
     }));
 }
 
-pub fn build_node_el(node: &Node, link: bool) -> El {
+pub fn build_node_el(node: &Node) -> El {
     let text = node_to_text(node);
     return style_export::leaf_node_view_node_text(style_export::LeafNodeViewNodeTextArgs {
         value: text.clone(),
-        link: if link {
-            Some(ministate_octothorpe(&super::ministate::Ministate::NodeView(MinistateNodeView {
-                title: text,
-                node: node.clone(),
-            })))
-        } else {
-            None
-        },
+        link: None,
     }).root;
 }
 
@@ -124,7 +117,7 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                     let mut triples_els = vec![];
                     for t in triples.incoming {
                         let mut triple_els = vec![];
-                        triple_els.push(build_node_el(&t.subject, true));
+                        triple_els.push(build_node_el(&t.subject));
                         triple_els.push(
                             style_export::leaf_node_view_predicate(
                                 style_export::LeafNodeViewPredicateArgs { value: t.predicate.clone() },
@@ -152,6 +145,12 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                                         }) }),
                                     ),
                                 ),
+                                link: Some(
+                                    ministate_octothorpe(&super::ministate::Ministate::NodeView(MinistateNodeView {
+                                        title: node_to_text(&t.subject),
+                                        node: t.subject.clone(),
+                                    })),
+                                ),
                             }).root,
                         );
                         triples_els.push(style_export::cont_node_row_incoming(style_export::ContNodeRowIncomingArgs {
@@ -170,7 +169,7 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                 {
                     let mut children = vec![
                         //. .
-                        build_node_el(&node, false),
+                        build_node_el(&node),
                         style_export::leaf_node_view_node_buttons(style_export::LeafNodeViewNodeButtonsArgs {
                             download: None,
                             edit: Some(ministate_octothorpe(&Ministate::NodeEdit(MinistateNodeEdit {
@@ -185,6 +184,7 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                                     }) }),
                                 ),
                             ),
+                            link: None,
                         }).root,
                     ];
                     if let Some(ele) = build_node_media_el(&node) {
@@ -215,7 +215,7 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                                 style_export::LeafNodeViewPredicateArgs { value: t.predicate.clone() },
                             ).root,
                         );
-                        triple_els.push(build_node_el(&t.object, true));
+                        triple_els.push(build_node_el(&t.object));
                         if let Some(ele) = build_node_media_el(&t.object) {
                             triple_els.push(ele);
                         }
@@ -237,6 +237,12 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                                             ),
                                         }) }),
                                     ),
+                                ),
+                                link: Some(
+                                    ministate_octothorpe(&super::ministate::Ministate::NodeView(MinistateNodeView {
+                                        title: node_to_text(&t.object),
+                                        node: t.object.clone(),
+                                    })),
                                 ),
                             }).root
                         });

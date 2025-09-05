@@ -71,9 +71,10 @@ pub enum FilterSuffix {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FilterExprExistance {
     pub type_: FilterExprExistsType,
-    pub subchain: ChainBody,
+    pub subchain: ChainHead,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub suffix: Option<FilterSuffix>,
 }
 
@@ -112,31 +113,54 @@ pub struct StepMove {
     pub predicate: StrValue,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub filter: Option<FilterExpr>,
-    #[serde(skip_serializing_if = "std::ops::Not::not")]
-    #[serde(default)]
-    pub first: bool,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash, Clone, Debug, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct StepRecurse {
-    pub subchain: ChainBody,
-    #[serde(skip_serializing_if = "std::ops::Not::not")]
-    #[serde(default)]
-    pub first: bool,
+    pub subchain: ChainHead,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash, Clone, Debug, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct StepJunction {
     pub type_: JunctionType,
-    pub subchains: Vec<ChainBody>,
+    pub subchains: Vec<ChainHead>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, JsonSchema, TS)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum SortDir {
+    Asc,
+    Desc,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash, Clone, Debug, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub enum Step {
+pub enum SortQuery {
+    Shuffle,
+    Fields(Vec<(SortDir, String)>),
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash, Clone, Debug, JsonSchema, TS)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct Step {
+    pub specific: StepSpecific,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub sort: Option<SortDir>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub first: bool,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash, Clone, Debug, JsonSchema, TS)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum StepSpecific {
     Move(StepMove),
     Recurse(StepRecurse),
     Junction(StepJunction),
@@ -151,48 +175,40 @@ pub enum ChainRoot {
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash, Clone, Debug, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct ChainBody {
+pub struct ChainHead {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub root: Option<ChainRoot>,
     pub steps: Vec<Step>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct Chain {
-    pub body: ChainBody,
+pub struct ChainTail {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub bind: Option<String>,
     #[serde(skip_serializing_if = "std::vec::Vec::is_empty")]
     #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub subchains: Vec<Chain>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub enum QuerySortDir {
-    Asc,
-    Desc,
+pub struct Chain {
+    pub head: ChainHead,
+    pub tail: ChainTail,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq, JsonSchema, TS)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub enum QuerySort {
-    Random,
-    Fields(Vec<(QuerySortDir, String)>),
-}
-
-/// Right now, all fields are turned into a single top level record - this is
-/// useful for recursion which could otherwise lead to large nested objects when a
-/// flat list is desired.  A new `nest` step may be introduced later to create
-/// intermediate records (as `QueryResType::Record`).
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct Query {
     pub chain: Chain,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
-    pub sort: Option<QuerySort>,
+    #[ts(optional, as = "Option<_>")]
+    pub sort: Option<SortQuery>,
 }

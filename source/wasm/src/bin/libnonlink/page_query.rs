@@ -39,7 +39,7 @@ fn refresh(results_group: El, text: &str) {
         &state().log,
         &super::ministate::Ministate::Query(MinistateQuery { query: Some(text.to_string()) }),
     );
-    let query = match compile_query(None, &text) {
+    let query = match compile_query(&text) {
         Ok(q) => q,
         Err(e) => {
             results_group.ref_push(style_export::leaf_err_block(style_export::LeafErrBlockArgs {

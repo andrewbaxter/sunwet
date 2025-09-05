@@ -174,6 +174,7 @@
   const textIconView = "\ue8f4";
   const textIconHistory = "\ue889";
   const textIconCenter = "\ue3b5";
+  const textIconGo = "\ue5c8";
 
   // xx Variables
   const varFNormal = "12pt";
@@ -308,7 +309,7 @@
     "rgb(58, 57, 57)"
   );
   const varCForeground = vs(
-    uniq("foreground"),
+    "c-foreground",
     "rgb(0, 0, 0)",
     "rgb(244, 255, 255)"
   );
@@ -2809,6 +2810,46 @@
     }
     return { root: out };
   };
+  presentation.leafViewIcon = /** @type { Presentation["leafViewIcon"] } */ (
+    args
+  ) => {
+    const alignStyle = viewLeafTransStyle({
+      orientation: args.orientation,
+      transAlign: args.transAlign,
+    });
+    const out = (() => {
+      if (args.link != null) {
+        const x = leafIcon({
+          text: args.icon,
+          extraStyles: [viewMediaLinkMediaStyle],
+        });
+        return e(
+          "a",
+          { href: args.link },
+          {
+            styles_: [viewMediaLinkStyle, alignStyle],
+            children_: [x],
+          }
+        );
+      } else {
+        const x = leafIcon({
+          text: args.icon,
+          extraStyles: [viewMediaNonlinkMediaStyle, alignStyle],
+        });
+        return x;
+      }
+    })();
+    if (args.width != null) {
+      out.style.width = args.width;
+    }
+    if (args.height != null) {
+      out.style.height = args.height;
+    }
+    if (args.color != null) {
+      out.style.color = args.color;
+    }
+    return { root: out };
+  };
   presentation.leafViewColor = /** @type { Presentation["leafViewColor"] } */ (
     args
   ) => {
@@ -3614,7 +3655,7 @@
         }
       ),
     });
-  const leafButtonEditFreeStyle = ss(uniq("leaf_button_free"), {
+  const leafButtonFreeStyle = ss(uniq("leaf_button_free"), {
     "": (s) => {
       s.borderRadius = varRNodeButton;
       s.color = `color-mix(in srgb, ${varCForeground}, transparent 30%)`;
@@ -3622,6 +3663,7 @@
       s.maxWidth = varSNodeButton;
       s.height = varSNodeButton;
       s.maxHeight = varSNodeButton;
+      s.position = "relative";
     },
     ":hover": (s) => {
       s.color = varCForeground;
@@ -3640,9 +3682,9 @@
       leafButton({
         title: args.hint,
         icon: args.icon,
-        extraStyles: [leafButtonEditFreeStyle],
+        extraStyles: [leafButtonFreeStyle],
       });
-  const leafButtonEditFreeLink =
+  const leafButtonFreeLink =
     /** @type { (args: { icon: string, hint: string, url: string, download?: boolean }) => { root: HTMLElement } } */ (
       args
     ) =>
@@ -3651,7 +3693,24 @@
         icon: args.icon,
         url: args.url,
         download: args.download,
-        extraStyles: [leafButtonEditFreeStyle],
+        extraStyles: [
+          leafButtonFreeStyle,
+          ss(uniq("leaf_button_free_link"), {
+            ":after": (s) => {
+              s.display = "block";
+              s.position = "absolute";
+              s.content = '""';
+              s.margin = "0 auto";
+              s.left = "15%";
+              s.right = "15%";
+              s.bottom = "-0.05cm";
+              s.height = varLMid;
+              s.borderRadius = varLMid;
+              s.background = "currentColor";
+              s.opacity = varONoninteractive;
+            },
+          }),
+        ],
       });
 
   const leafNodeButtons =
@@ -3674,19 +3733,19 @@
   presentation.leafNodeViewNodeButtons =
     /** @type {Presentation["leafNodeViewNodeButtons"]} */ (args) => {
       const children = [presentation.leafSpace({}).root];
-      if (args.edit != null) {
+      if (args.download != null) {
         children.push(
-          leafButtonEditFreeLink({
-            icon: textIconEdit,
-            hint: "Edit",
-            url: args.edit,
-            download: false,
+          leafButtonFreeLink({
+            icon: textIconSave,
+            hint: "Save",
+            url: args.download,
+            download: true,
           }).root
         );
       }
       if (args.history != null) {
         children.push(
-          leafButtonEditFreeLink({
+          leafButtonFreeLink({
             icon: textIconHistory,
             hint: "History",
             url: args.history,
@@ -3694,13 +3753,23 @@
           }).root
         );
       }
-      if (args.download != null) {
+      if (args.edit != null) {
         children.push(
-          leafButtonEditFreeLink({
-            icon: textIconSave,
-            hint: "Save",
-            url: args.download,
-            download: true,
+          leafButtonFreeLink({
+            icon: textIconEdit,
+            hint: "Edit",
+            url: args.edit,
+            download: false,
+          }).root
+        );
+      }
+      if (args.link != null) {
+        children.push(
+          leafButtonFreeLink({
+            icon: textIconGo,
+            hint: "View node",
+            url: args.link,
+            download: false,
           }).root
         );
       }
@@ -3717,27 +3786,23 @@
     };
   presentation.leafNodeViewNodeText =
     /** @type {Presentation["leafNodeViewNodeText"]} */ (args) => {
-      const out = e(
-        "a",
-        { textContent: args.value },
-        {
-          styles_: [
-            ss(uniq("leaf_node_view_node_text"), {
-              "": (s) => {
-                s.whiteSpace = "pre-wrap";
-                s.overflowWrap = "anywhere";
-                s.flexShrink = "1";
-              },
-            }),
-            leafLinkStyle,
-          ],
-        }
-      );
-      if (args.link != null) {
-        out.href = args.link;
-      }
       return {
-        root: out,
+        root: e(
+          "span",
+          { textContent: args.value },
+          {
+            styles_: [
+              ss(uniq("leaf_node_view_node_text"), {
+                "": (s) => {
+                  s.whiteSpace = "pre-wrap";
+                  s.overflowWrap = "anywhere";
+                  s.flexShrink = "1";
+                  s.pointerEvents = "initial";
+                },
+              }),
+            ],
+          }
+        ),
       };
     };
 
@@ -3753,6 +3818,7 @@
                 s.opacity = varONodePredicate;
                 s.whiteSpace = "pre-wrap";
                 s.overflowWrap = "anywhere";
+                s.pointerEvents = "initial";
               },
             }),
           ],
@@ -3807,17 +3873,28 @@
         icon: textIconRevert,
         hint: "Revert",
       });
+      const children = [
+        presentation.leafSpace({}).root,
+        buttonDelete.root,
+        buttonRevert.root,
+      ];
+      if (args.link != null) {
+        children.push(
+          leafButtonFreeLink({
+            icon: textIconGo,
+            hint: "View",
+            download: false,
+            url: args.link,
+          }).root
+        );
+      }
       return {
         root: e(
           "div",
           {},
           {
             styles_: [contHboxStyle, contEditNodeHboxStyle],
-            children_: [
-              presentation.leafSpace({}).root,
-              buttonDelete.root,
-              buttonRevert.root,
-            ],
+            children_: children,
           }
         ),
         buttonDelete: buttonDelete.root,
@@ -4140,14 +4217,61 @@
             "": (s) => {
               s.minWidth = blockWidth;
               s.pointerEvents = "initial";
-              s.flexBasis = "1cm";
-              s.flexGrow = "1";
               s.fontFamily = "monospace";
               s.fontSize = varFCode;
               s.whiteSpace = "pre-wrap";
               s.overflowWrap = "anywhere";
             },
           }),
+        ],
+      }
+    );
+    const queryBox = e(
+      "div",
+      {},
+      {
+        styles_: [
+          contVboxStyle,
+          ss(uniq("cont_page_query_box"), {
+            "": (s) => {
+              s.flexBasis = "1cm";
+              s.flexGrow = "1";
+
+              s.gap = varP05;
+            },
+          }),
+        ],
+        children_: [
+          e(
+            "div",
+            {},
+            {
+              styles_: [
+                ss(uniq("cont_page_query_box_help_text"), {
+                  "": (s) => {
+                    s.color = varCForegroundFade;
+                  },
+                }),
+              ],
+              children_: [
+                e("span", { textContent: "Query language " }, {}),
+                e(
+                  "a",
+                  { href: "", textContent: "reference" },
+                  {
+                    styles_: [
+                      ss(uniq("cont_page_query_doc_link"), {
+                        "": (s) => {
+                          s.textDecoration = "underline";
+                        },
+                      }),
+                    ],
+                  }
+                ),
+              ],
+            }
+          ),
+          query,
         ],
       }
     );
@@ -4200,10 +4324,10 @@
               },
             }),
           ],
-          children_: [query, results],
+          children_: [queryBox, results],
         }
       ),
-      query: query,
+      query: queryBox,
       results: results,
     };
   };

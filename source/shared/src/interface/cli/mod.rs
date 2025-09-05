@@ -1,5 +1,6 @@
 use {
     super::triple::FileHash,
+    schemars::JsonSchema,
     serde::{
         Deserialize,
         Serialize,
@@ -7,7 +8,7 @@ use {
     std::path::PathBuf,
 };
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum CliNode {
     File(FileHash),
@@ -15,7 +16,7 @@ pub enum CliNode {
     Upload(PathBuf),
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct CliTriple {
     pub subject: CliNode,
@@ -23,7 +24,7 @@ pub struct CliTriple {
     pub object: CliNode,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct CliCommit {
     #[serde(default)]

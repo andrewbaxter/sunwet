@@ -5,4 +5,4 @@ export type ViewLink = { view_id: ViewId,
 /**
  * Provide initial query parameters. These can be modified by the user.
  */
-parameters: { [key in string]?: SerdeNode }, };
+parameters?: { [key in string]?: SerdeNode }, };
