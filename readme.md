@@ -51,6 +51,23 @@ id2 role trupmetest
 id1 artist id3
 id3 who person2
 id3 role pianist
+```
+
+```mermaid
+flowchart TD
+    id1 -->|is| music_album
+    id1 -->|name| summer_music(Summer Music)
+    id1 -->|genre| pop
+    id1 -->|year| 1973
+    id1 -->|artist| id2
+    id2 -->|who| person1
+    id2 -->|role| trupmetest
+    id1 -->|artist| id3
+    id3 -->|who| person2
+    id3 -->|role| pianist
+```
+
+```
 id4 is photo
 id4 subject id5
 id5 is dog
@@ -58,6 +75,17 @@ id5 fur-color white
 id4 subject id6
 id6 is cat
 id6 fur-color black
+```
+
+```mermaid
+flowchart TD
+    id4 -->|is| photo
+    id4 -->|subject| id5
+    id5 -->|is| dog
+    id5 -->|fur-color| white
+    id4 -->|subject| id6
+    id6 -->|is| cat
+    id6 -->|fur-color| black
 ```
 
 You can write queries that move through this graph arbitrarily to do the above and more, like:
