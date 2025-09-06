@@ -1223,7 +1223,6 @@ pub async fn execute_query(
     // fields, not value-based sorting (ex: numbers). Therefore pagination also has to
     // happen in rust.
     let (sql_query, sql_parameters) = build_root_chain(query.chain, parameters)?;
-    eprintln!("{}", sql_query);
     return Ok(tx(&db, move |txn| {
         return Ok(execute_sql_query(txn, sql_query, sql_parameters, query.sort, paginate)?);
     }).await.err_internal()?);
