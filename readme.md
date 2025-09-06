@@ -96,7 +96,7 @@ You can write queries that move through this graph arbitrarily to do the above a
 
 Knowledge graphs can handle all the above, arbitrary normalization (i.e. maybe you don't have "subject" but just put "fur-color" directly on "id4" - and you need to write a fur-color query that handles photos with and without subjects), and even things like tag hierarchies.
 
-So are there any practical limitations to knowledge graphs? I'm not sure. But as far as I can tell there's no general purpose software that uses full knowledge graphs today, so Sunwet is an experiment to find out.
+So are there any practical limitations to knowledge graphs? I'm not sure. But as far as I can tell there's no general purpose software that uses full knowledge graphs today, so Sunwet is an experiment to see how far it can go.
 
 # Running Sunwet
 
@@ -127,11 +127,13 @@ Sunwet can also be configured to use OIDC for user logins or run with no authent
 
 Regardless, you need to create a root config. The root config follows the [JSON spec](./source/generated/jsonschema/config.schema.json) or equivalent [TS spec](./source/generated/ts/index.ts) (`Config`). If you use FDAP there are additional schemas in the above directories for the global config and per-user config.
 
+The global config sets up storage paths, views available in the UI, and the menu structure. The per-user config is mostly permissions for accessing various views. The config is large, needs JSON queries (which you may want to compile from the query DSL), and you'll likely want to repeat bits of config (like making multiple views with different queries but similar display structures) - for these reasons I currently recommend using a typescript script to build (and upload, if using FDAP) the config. This allows you to use variables, call processes to build queries, and upload the data all in one file, and provides type safety and autocomple. There's a complete example config at [./source/example_fdap_config.ts](./source/example_fdap_config.ts).
+
 ## Running
 
 Start Sunwet with `sunwet run-server PATH/TO/ROOT/CONFIG.json`.
 
-Once it's running you can access it via CLI or Web UI.
+Once it's running you can access it at the bind address via CLI or Web UI.
 
 # Data
 
