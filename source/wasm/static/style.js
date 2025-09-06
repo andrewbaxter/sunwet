@@ -197,6 +197,7 @@
   const varSTransportGutterRadius = "0.05cm";
   const varSRelIcon = "min(10dvw, 1.5cm)";
   const varSNodeButton = "min(10dvw, 0.8cm)";
+  const varSNodeGap = "0.5cm";
   const varSHistPredObj = "min(10dvw, 1cm)";
   const varSColWidthRaw = `12cm`;
   const varSColWidth = `min(100%, ${varSColWidthRaw})`;
@@ -219,6 +220,8 @@
   const varPTitle = "0.4cm";
   const varPModalTitleLeft = "0.5cm";
   const varPNodeCenter = "min(2dvw, 0.4cm)";
+  const varPBarLeftRightWide = "10%";
+  const varPBarLeftRightNarrow = "0.5%";
   const varPHistoryMid = "min(3dvw, 0.5cm)";
   const varPHistoryBig = "min(5dvw, 0.8cm)";
   const varPLink = "0.5cm";
@@ -233,18 +236,16 @@
 
   const varRMedia = "0.2cm";
   const varRModal = "0.2cm";
-  const varRNode = "0.2cm";
+  const varRNodeCenter = "0.2cm";
   const varRNodeButton = "0.2cm";
   const varRLink = "0.5cm";
 
   const varWTransportBold = "300";
   const varWLight = "100";
   const varWRelIcon = "800";
-  const varWNodeButton = "300";
   const varWLinkLogoText = "200";
 
   const varONoninteractive = "0.5";
-  const varONoninteractiveLight = "0.3";
   const varONodePredicate = "0.5";
   const varOMenuBar = "0.5";
 
@@ -259,52 +260,53 @@
   const varCSpinner = v(uniq("spinner"), "rgb(155, 178, 229)");
 
   const varCAppTitle = vs(
-    uniq("app_title"),
+    "c-app-title",
     "rgb(93,113,134)",
     "rgb(164, 180, 200)"
   );
-  const varCModalVeil = vs(
-    uniq("modal_veil"),
-    "rgba(0,0,0,0.3)",
-    "rgb(0,0,0,0.3)"
-  );
+  const varCModalVeil = vs("c-modal-veil", "rgba(0,0,0,0.3)", "rgb(0,0,0,0.3)");
   const varCBackground = vs(
-    uniq("background"),
+    "c-background",
     "rgb(230, 232, 238)",
     "rgb(70, 73, 77)"
   );
   const varCBackground2 = vs(
-    uniq("node_center"),
+    "c-background2",
     "rgb(215, 217, 225)",
     "rgb(82, 87, 94)"
   );
+  const varCBackground3 = vs(
+    "c-background3",
+    "rgb(245, 246, 251)",
+    "rgb(65, 66, 72)"
+  );
   const varCNodeCenterLine = vs(
-    uniq("node_center_line"),
+    "c-node-center-line",
     "rgb(204, 207, 217)",
     "rgb(89, 95, 104)"
   );
   const varCBackgroundMenu = vs(
-    uniq("background_menu"),
+    "c-background-menu",
     "rgb(205, 208, 217)",
     "rgb(85, 87, 90)"
   );
   const varCBackgroundMenuBar = vs(
-    uniq("background_menu_bar"),
+    "c-background-menu-bar",
     "rgb(219, 223, 232)",
     "rgb(99, 102, 104)"
   );
   const varCButtonHover = vs(
-    uniq("button_hover"),
+    "c-button-hover",
     "rgba(255, 255, 255, 0.7)",
     "rgb(56, 61, 64)"
   );
   const varCButtonClick = vs(
-    uniq("button_click"),
+    "c-button-click",
     "rgba(255, 255, 255, 1)",
     "rgb(49, 50, 53)"
   );
   const varCSeekbarEmpty = vs(
-    uniq("seekbar_empty"),
+    "c-seekbar-empty",
     "rgb(212, 216, 223)",
     "rgb(58, 57, 57)"
   );
@@ -314,48 +316,49 @@
     "rgb(244, 255, 255)"
   );
   const varCForegroundFade = vs(
-    uniq("foreground_fade"),
+    "c-foreground-fade",
     "rgb(123, 123, 123)",
     "rgb(167, 177, 177)"
   );
   const varCForegroundError = vs(
-    uniq("foreground_error"),
+    "c-foreground-error",
     "rgb(154, 60, 74)",
     "rgb(243, 69, 95)"
   );
   const varCModified = vs(
-    uniq("border_modified"),
+    "c-border-modified",
     "rgb(20, 194, 121)",
     "rgb(5, 136, 81)"
   );
   const varCSelected = vs(
-    uniq("selected"),
+    "c-selected",
     "rgb(66, 104, 219)",
     "rgb(111, 144, 245)"
   );
   const varCBorderError = vs(
-    uniq("border_error"),
+    "c-border-error",
     "rgb(192, 61, 80)",
     "rgb(168, 72, 72)"
   );
   const varCInputUnderline = vs(
-    uniq("input_underline"),
+    "c-input-underline",
     "rgba(154, 157, 168, 0.5)",
     "rgba(128, 131, 145, 0.5)"
   );
   const varCHighlightBold = vs(
-    uniq("highlight"),
+    "c-highlight-bold",
     "rgb(140, 172, 245)",
     "rgb(78, 129, 183)"
   );
-  const varCRemove = vs(uniq("remove"), "rgb(136, 136, 136)", "rgb(0,0,0)");
+  const varCRemove = vs("c-remove", "rgb(238, 146, 146)", "rgb(138, 81, 81)");
+  const varCAdd = vs("c-add", "rgb(96, 179, 113)", "rgb(111, 185, 126)");
   const varCLogoWhite = vs(
-    uniq("logo_white"),
+    "c-logo-white",
     "rgb(254, 254, 254)",
     "rgb(96, 96, 96)"
   );
   const varCLogoBlue = vs(
-    uniq("logo_blue"),
+    "c-logo-blue",
     "rgb(124,167,219)",
     "rgb(105, 140, 185)"
   );
@@ -939,30 +942,6 @@
         icon: textIconCommit,
         text: "Commit",
         extraStyles: [],
-      });
-  const leafButtonLinkSmall =
-    /** @type {(args: { title: string, icon?: string, text?: string, url: string }) => { root: HTMLElement }} */ (
-      args
-    ) =>
-      leafButtonLink({
-        url: args.url,
-        title: args.title,
-        icon: args.icon,
-        text: args.text,
-        extraStyles: [
-          ss(uniq("leaf_text_button_small"), {
-            "": (s) => {
-              s.padding = `${varPButtonSmall} ${varPButtonBig}`;
-              s.color = varCForegroundFade;
-            },
-            ">svg": (s) => {
-              s.width = varSButtonSmallIcon;
-              s.minWidth = varSButtonSmallIcon;
-              s.height = varSButtonSmallIcon;
-              s.minHeight = varSButtonSmallIcon;
-            },
-          }),
-        ],
       });
 
   const contBodyStyle = ss(uniq("cont_body"), {
@@ -3491,30 +3470,36 @@
     };
   };
 
-  let varSNodeGap = v(uniq(), "0.5cm");
-  const leafNodeHboxStyle = ss(uniq("leaf_edit_hbox"), {
+  const leafNodeStyle = ss(uniq("leaf_node_hbox"), {
     "": (s) => {
       s.alignItems = "stretch";
       s.position = "relative";
+    },
+    ":before": (s) => {
+      s.display = "block";
+      s.content = '""';
+      s.position = "absolute";
+      s.borderTop = `${varLMid} solid ${varCNodeCenterLine}`;
     },
     ">*": (s) => {
       s.flexBasis = "0";
     },
   });
-  const leafNodeVboxStyle = ss(uniq("leaf_edit_vbox"), {
+  const leafNodeVboxStyle = ss(uniq("leaf_node_vbox"), {
     "": (s) => {
       s.flexGrow = "1";
+      s.justifyContent = "center";
       s.gap = varPSmall;
-      s.border = `${varLThick} solid ${varCNodeCenterLine}`;
-      s.borderRadius = varRNode;
       s.padding = varPSmall;
       s.overflow = "hidden";
     },
   });
-  const leafNodeVBoxNewStyle = ss(uniq("leaf_edit_vbox_new"), {
+  const leafNodeNewStyle = ss(uniq("leaf_node_vbox_new"), {
     // increase specifity...
-    [`.${leafNodeVboxStyle}`]: (s) => {
-      s.borderStyle = "dashed";
+    [`.${leafNodeStyle}:before`]: (s) => {
+      s.borderTopStyle = "dashed";
+      s.borderTopColor = varCAdd;
+      s.opacity = varONoninteractive;
     },
   });
   const leafNodeRelStyle = ss(uniq("leaf_edit_rel"), {
@@ -3561,22 +3546,32 @@
     });
   presentation.contNodeRowIncoming =
     /** @type {Presentation["contNodeRowIncoming"]} */ (args) => {
-      const vboxStyles = [contVboxStyle, leafNodeVboxStyle];
-      if (args.new) {
-        vboxStyles.push(leafNodeVBoxNewStyle);
-      }
       return {
         root: e(
           "div",
           {},
           {
-            styles_: [contHboxStyle, leafNodeHboxStyle],
+            styles_: [
+              contHboxStyle,
+              leafNodeStyle,
+              ss(uniq("cont_node_row_incoming"), {
+                "": (s) => {
+                  s.paddingBottom = varPSmall;
+                },
+                ":before": (s) => {
+                  s.bottom = "0";
+                  s.left = varPBarLeftRightWide;
+                  s.right = varPBarLeftRightNarrow;
+                },
+              }),
+              ...(args.new ? [leafNodeNewStyle] : []),
+            ],
             children_: [
               e(
                 "div",
                 {},
                 {
-                  styles_: vboxStyles,
+                  styles_: [contVboxStyle, leafNodeVboxStyle],
                   children_: args.children,
                 }
               ),
@@ -3596,16 +3591,26 @@
 
   presentation.contNodeRowOutgoing =
     /** @type {Presentation["contNodeRowOutgoing"]} */ (args) => {
-      const vboxStyles = [contVboxStyle, leafNodeVboxStyle];
-      if (args.new) {
-        vboxStyles.push(leafNodeVBoxNewStyle);
-      }
       return {
         root: e(
           "div",
           {},
           {
-            styles_: [contHboxStyle, leafNodeHboxStyle],
+            styles_: [
+              contHboxStyle,
+              leafNodeStyle,
+              ss(uniq("cont_node_row_outgoing"), {
+                "": (s) => {
+                  s.paddingTop = varPSmall;
+                },
+                ":before": (s) => {
+                  s.right = varPBarLeftRightWide;
+                  s.left = varPBarLeftRightNarrow;
+                  s.top = "0";
+                },
+              }),
+              ...(args.new ? [leafNodeNewStyle] : []),
+            ],
             children_: [
               leafIcon({
                 text: textIconRelOut,
@@ -3619,7 +3624,7 @@
                 "div",
                 {},
                 {
-                  styles_: vboxStyles,
+                  styles_: [contVboxStyle, leafNodeVboxStyle],
                   children_: args.children,
                 }
               ),
@@ -3638,16 +3643,16 @@
           styles_: [
             contVboxStyle,
             leafNodeVboxStyle,
-            ss(uniq("cont_page_edit_center"), {
+            ss(uniq("cont_node_center"), {
               // increase specifity...
               [`.${leafNodeVboxStyle}`]: (s) => {
                 s.border = "none";
               },
               "": (s) => {
-                s.padding = varPSmall;
-                s.backgroundColor = varCBackground2;
-                s.borderRadius = varRNode;
-                s.margin = `${varPNodeCenter} 0`;
+                s.padding = `${varPSmall} calc(${varPSmall} + ${varPNodeCenter})`;
+                s.backgroundColor = varCBackground3;
+                s.borderRadius = varRNodeCenter;
+                s.margin = `-0.2cm`;
               },
             }),
           ],
@@ -3713,6 +3718,12 @@
         ],
       });
 
+  const contNodeToolbarStyle = ss(uniq("cont_node_hbox"), {
+    "": (s) => {
+      s.justifyContent = "stretch";
+      s.gap = "0.2cm";
+    },
+  });
   const leafNodeButtons =
     /** @type { (args: {children: Element[]})=>{root: Element}} */ (args) => {
       return {
@@ -3720,7 +3731,7 @@
           "div",
           {},
           {
-            styles_: [contHboxStyle, contEditNodeHboxStyle],
+            styles_: [contHboxStyle, contNodeToolbarStyle],
             children_: args.children,
           }
         ),
@@ -3778,7 +3789,7 @@
           "div",
           {},
           {
-            styles_: [contHboxStyle, contEditNodeHboxStyle],
+            styles_: [contHboxStyle, contNodeToolbarStyle],
             children_: children,
           }
         ),
@@ -3893,7 +3904,7 @@
           "div",
           {},
           {
-            styles_: [contHboxStyle, contEditNodeHboxStyle],
+            styles_: [contHboxStyle, contNodeToolbarStyle],
             children_: children,
           }
         ),
@@ -3902,12 +3913,6 @@
       };
     };
 
-  const contEditNodeHboxStyle = ss(uniq("cont_edit_node_hbox"), {
-    "": (s) => {
-      s.justifyContent = "stretch";
-      s.gap = "0.2cm";
-    },
-  });
   presentation.leafNodeEditNode =
     /** @type {Presentation["leafNodeEditNode"]} */ (args) => {
       return {
@@ -4002,10 +4007,21 @@
             contVboxStyle,
             ss(uniq("cont_history_commit"), {
               "": (s) => {
+                s.position = "relative";
                 s.marginBottom = varPHistoryBig;
+              },
+              ":not(:first-child):before": (s) => {
+                s.position = "absolute";
+                s.content = '""';
+                s.left = "10%";
+                s.right = "10%";
+                s.top = "0";
+                s.height = varLThin;
+                s.backgroundColor = "currentColor";
               },
               ":not(:first-child)": (s) => {
                 s.marginTop = `calc(2 * ${varPHistoryBig})`;
+                s.paddingTop = varP05;
               },
             }),
           ],
@@ -4162,7 +4178,6 @@
               ss(uniq("cont_history_row_rel_icon"), {
                 "": (s) => {
                   s.color = varCRemove;
-                  s.opacity = varONoninteractiveLight;
                   s.fontSize = varFRelIcon;
                   s.fontWeight = varWRelIcon;
                 },
@@ -4186,7 +4201,7 @@
             extraStyles: [
               ss(uniq("cont_history_row_rel_icon"), {
                 "": (s) => {
-                  s.opacity = varONoninteractiveLight;
+                  s.color = varCAdd;
                   s.fontSize = varFRelIcon;
                   s.fontWeight = varWRelIcon;
                 },
