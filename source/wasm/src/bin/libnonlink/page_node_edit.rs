@@ -987,7 +987,7 @@ fn build_edit_node(pc: &mut ProcessingContext, node: &NodeState) -> El {
 
 fn build_edit_triple(pc: &mut ProcessingContext, triple: &TripleState, new: bool) -> El {
     let buttons_el = {
-        let style_res = style_export::leaf_node_edit_buttons(style_export::LeafNodeEditButtonsArgs { link: None });
+        let style_res = style_export::leaf_node_edit_toolbar(style_export::LeafNodeEditToolbarArgs { link: None });
         let button_revert = style_res.button_revert;
         button_revert.ref_on("click", {
             let triple = triple.clone();
@@ -1570,7 +1570,7 @@ pub fn build_page_node_edit(pc: &mut ProcessingContext, edit_title: &str, node: 
                     }
                 });
                 bar_out.push(button_commit);
-                return Ok(vec![style_export::cont_page_node(style_export::ContPageNodeArgs {
+                return Ok(vec![style_export::cont_page_node_edit(style_export::ContPageNodeEditArgs {
                     children: out,
                     bar_children: bar_out,
                 }).root]);

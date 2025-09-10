@@ -1176,6 +1176,7 @@ pub fn execute_sql_query(
                 } 'noseed {
                     seed = thread_rng().gen();
                 });
+                out.sort_by_cached_key(|r| r.pagination_key.clone());
                 out.shuffle(&mut rand_chacha::ChaChaRng::seed_from_u64(seed));
             },
             SortQuery::Fields(sort) => {

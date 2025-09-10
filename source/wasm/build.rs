@@ -77,6 +77,16 @@ fn main() {
         rust_type: quote!(bool),
         ts_type: "boolean".to_string(),
     };
+    let int = Type {
+        mod_: TypeMod::None,
+        rust_type: quote!(usize),
+        ts_type: "number".to_string(),
+    };
+    let optint = Type {
+        mod_: TypeMod::Opt,
+        rust_type: quote!(usize),
+        ts_type: "number".to_string(),
+    };
     let string_ = Type {
         mod_: TypeMod::None,
         rust_type: quote!(String),
@@ -640,7 +650,12 @@ fn main() {
         // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: page, view/edit/history node
         Func {
-            name: "contPageNode",
+            name: "contPageNodeView",
+            args: vec![("children", &arrel_)],
+            returns: vec![("root", &el_), ("body", &el_)],
+        },
+        Func {
+            name: "contPageNodeEdit",
             args: vec![("barChildren", &arrel_), ("children", &arrel_)],
             returns: vec![("root", &el_), ("body", &el_)],
         },
@@ -699,8 +714,8 @@ fn main() {
             returns: vec![("root", &el_), ("button", &el_)],
         },
         Func {
-            name: "leafNodeEditButtons",
-            args: vec![("link", &optstring_)],
+            name: "leafNodeEditToolbar",
+            args: vec![("link", &optstring_), ("count", &optint), ("total", &optint)],
             returns: vec![("root", &el_), ("buttonDelete", &el_), ("buttonRevert", &el_)],
         },
         Func {
@@ -711,6 +726,11 @@ fn main() {
         Func {
             name: "leafNodeEditPredicate",
             args: vec![("value", &string_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafNodeEditNumberTextCenter",
+            args: vec![("total", &int)],
             returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
@@ -745,11 +765,41 @@ fn main() {
         Func {
             name: "contPageQuery",
             args: vec![("initialQuery", &string_)],
-            returns: vec![("root", &el_), ("query", &el_), ("results", &el_)],
+            returns: vec![
+                ("root", &el_),
+                ("query", &el_),
+                ("prettyResults", &el_),
+                ("jsonResults", &el_),
+                ("downloadField", &el_),
+                ("downloadPattern", &el_),
+                ("downloadResults", &el_),
+                ("edit", &el_),
+                ("commitButton", &el_)
+            ],
         },
         Func {
-            name: "leafQueryRow",
+            name: "contQueryPrettyRow",
+            args: vec![("children", &arrel_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafQueryPrettyInlineKV",
+            args: vec![("key", &string_), ("value", &string_), ("link", &string_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafQueryPrettyMediaKV",
+            args: vec![("key", &string_), ("value", &el_), ("link", &string_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafQueryJsonRow",
             args: vec![("data", &string_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafQueryDownloadRow",
+            args: vec![("link", &string_), ("filename", &string_)],
             returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////

@@ -31,10 +31,13 @@ use {
         self,
     },
     wasm_bindgen::JsCast,
-    web_sys::HtmlElement,
+    web_sys::{
+        Event,
+        HtmlElement,
+    },
 };
 
-fn refresh(results_group: El, text: &str) {
+fn refresh_query(results_group: El, text: &str) {
     record_replace_ministate(
         &state().log,
         &super::ministate::Ministate::Query(MinistateQuery { query: Some(text.to_string()) }),
@@ -66,8 +69,8 @@ fn refresh(results_group: El, text: &str) {
                 let mut out = vec![];
                 for row in page_data.records {
                     out.push(
-                        style_export::leaf_query_row(
-                            style_export::LeafQueryRowArgs { data: serde_json::to_string_pretty(&row).unwrap() },
+                        style_export::leaf_query_json_row(
+                            style_export::LeafQueryJsonRowArgs { data: serde_json::to_string_pretty(&row).unwrap() },
                         ).root,
                     );
                 }
@@ -81,26 +84,89 @@ fn refresh(results_group: El, text: &str) {
     }));
 }
 
+fn debounce_cb<I: 'static, F: 'static + Clone + FnMut(I) -> ()>(f: F) -> impl FnMut(I) -> () {
+    let debounce = RefCell::new(None);
+    return move |i| {
+        *debounce.borrow_mut() = Some(Timeout::new(500, {
+            let mut f = f.clone();
+            move || f(i)
+        }));
+    };
+}
+
 pub fn build_page_query(pc: &mut ProcessingContext, ms: &MinistateQuery) {
     let initial_query = ms.query.clone().unwrap_or_else(|| "\"hello world\" { => value }".to_string());
     let style_res =
         style_export::cont_page_query(style_export::ContPageQueryArgs { initial_query: initial_query.clone() });
-    let results_group = style_res.results;
-    refresh(results_group.clone(), &initial_query);
-    style_res.query.ref_on("input", {
-        let debounce = RefCell::new(None);
-        move |ev| {
+    let json_results_group = style_res.json_results;
+    let downloads_group = style_res.download_results;
+    refresh_query(json_results_group.clone(), &initial_query);
+    style_res.query.ref_on("input", debounce_cb({
+        let query = style_res.query.weak();
+        let downloads_group = downloads_group.clone();
+        let download_field = style_res.download_field.weak();
+        let download_pattern = style_res.download_pattern.weak();
+        move |ev: &Event| {
+            let Some(query) = query.upgrade() else {
+                return;
+            };
+            let Some(download_field) = download_field.upgrade() else {
+                return;
+            };
+            let Some(download_pattern) = download_pattern.upgrade() else {
+                return;
+            };
             let ev_target = ev.target();
-            *debounce.borrow_mut() = Some(Timeout::new(500, {
-                let results_group = results_group.clone();
-                move || {
-                    let text =
-                        ev_target.unwrap().dyn_ref::<HtmlElement>().unwrap().text_content().unwrap_or_default();
-                    results_group.ref_clear();
-                    refresh(results_group, &text);
-                }
-            }));
+            let query_text = query.raw().dyn_into::<HtmlElement>().unwrap().text_content().unwrap_or_default();
+            let download_field_text =
+                download_field.raw().dyn_into::<HtmlElement>().unwrap().text_content().unwrap_or_default();
+            let download_pattern_text =
+                download_pattern.raw().dyn_into::<HtmlElement>().unwrap().text_content().unwrap_or_default();
+            edit_group.ref_clear();
+            json_results_group.ref_clear();
+            pretty_results_group.ref_clear();
+            downloads_group.ref_clear();
+            refresh_query(pretty_results_group, json_results_group, &query_text);
+            refresh_downloads(downloads_group, &text);
         }
-    });
+    }));
+    style_res.download_pattern.ref_on("input", debounce_cb({
+        let downloads_group = downloads_group.clone();
+        let download_field = style_res.download_field.weak();
+        let download_pattern = style_res.download_pattern.weak();
+        move |ev: &Event| {
+            let Some(download_field) = download_field.upgrade() else {
+                return;
+            };
+            let Some(download_pattern) = download_pattern.upgrade() else {
+                return;
+            };
+            let download_field_text =
+                download_field.raw().dyn_into::<HtmlElement>().unwrap().text_content().unwrap_or_default();
+            let download_pattern_text =
+                download_pattern.raw().dyn_into::<HtmlElement>().unwrap().text_content().unwrap_or_default();
+            downloads_group.ref_clear();
+            refresh_downloads(downloads_group, &text);
+        }
+    }));
+    style_res.download_field.ref_on("input", debounce_cb({
+        let downloads_group = downloads_group.clone();
+        let download_field = style_res.download_field.weak();
+        let download_pattern = style_res.download_pattern.weak();
+        move |ev: &Event| {
+            let Some(download_field) = field.upgrade() else {
+                return;
+            };
+            let Some(download_pattern) = pattern.upgrade() else {
+                return;
+            };
+            let download_field_text =
+                download_field.raw().dyn_into::<HtmlElement>().unwrap().text_content().unwrap_or_default();
+            let download_pattern_text =
+                download_pattern.raw().dyn_into::<HtmlElement>().unwrap().text_content().unwrap_or_default();
+            downloads_group.ref_clear();
+            refresh_downloads(downloads_group, &text);
+        }
+    }));
     set_page(pc, "Query", style_res.root);
 }

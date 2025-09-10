@@ -257,7 +257,7 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                         ).root,
                     );
                 }
-                return Ok(vec![style_export::cont_page_node(style_export::ContPageNodeArgs {
+                return Ok(vec![style_export::cont_page_node_edit(style_export::ContPageNodeEditArgs {
                     bar_children: vec![],
                     children: out,
                 }).root]);

@@ -383,6 +383,145 @@
       menuBody: stagingMenu,
     }).root;
 
+    const nodeTypeSel =
+      /** @type { (args: {hint: string, value: string})=>Element} */ (args) =>
+        window.sunwetPresentation.leafInputEnum({
+          title: `${args.hint} type`,
+          value: args.value,
+          options: {
+            file: "File",
+            string: "String",
+            bool: "Boolean",
+            number: "Number",
+            json: "JSON",
+          },
+        }).root;
+    const nodeEditChildren = /** @type { ( total: number) => Element[] } */ (
+      total
+    ) => {
+      const makeToolbar = () =>
+        presentation.leafNodeEditToolbar({
+          count:
+            total == 1
+              ? undefined
+              : Math.round(Math.random() * (total + 0.98) - 0.49),
+          total: total == 1 ? undefined : total,
+        }).root;
+      return [
+        presentation.contNodeRowIncomingAdd({
+          hint: "Add incoming triple",
+        }).root,
+        presentation.contPageNodeSectionRel({
+          children: [
+            presentation.contNodeRowIncoming({
+              children: [
+                presentation.leafNodeEditNode({
+                  inputType: nodeTypeSel({
+                    hint: "Subject",
+                    value: "file",
+                  }),
+                  inputValue: presentation.leafInputText({
+                    title: "Subject",
+                    value: "ABCD-1234",
+                  }).root,
+                }).root,
+                presentation.leafNodeEditPredicate({
+                  value: "sunwet/1/is",
+                }).root,
+                presentation.leafMediaImg({ src: "testcover.jpg" }).root,
+                makeToolbar(),
+              ],
+              new: true,
+            }).root,
+            presentation.contNodeRowIncoming({
+              children: [
+                makeToolbar(),
+                presentation.leafNodeEditNode({
+                  inputType: nodeTypeSel({
+                    hint: "Subject",
+                    value: "file",
+                  }),
+                  inputValue: presentation.leafInputText({
+                    title: "Subject",
+                    value: "ABCD-1234",
+                  }).root,
+                }).root,
+                presentation.leafNodeEditPredicate({
+                  value: "sunwet/1/has",
+                }).root,
+              ],
+              new: false,
+            }).root,
+          ],
+        }).root,
+        presentation.contNodeSectionCenter({
+          children: [
+            presentation.leafNodeEditToolbar({
+              link: "abcd",
+            }).root,
+            total == 1
+              ? presentation.leafNodeEditNode({
+                  inputType: nodeTypeSel({
+                    hint: "Subject",
+                    value: "file",
+                  }),
+                  inputValue: presentation.leafInputText({
+                    title: "Subject",
+                    value: "ABCD-1234",
+                  }).root,
+                }).root
+              : presentation.leafNodeEditNumberTextCenter({ total: total })
+                  .root,
+          ],
+        }).root,
+        presentation.contPageNodeSectionRel({
+          children: [
+            presentation.contNodeRowOutgoing({
+              children: [
+                makeToolbar(),
+                presentation.leafNodeEditPredicate({
+                  value: "sunwet/1/is",
+                }).root,
+                presentation.leafNodeEditNode({
+                  inputType: nodeTypeSel({
+                    hint: "Subject",
+                    value: "file",
+                  }),
+                  inputValue: presentation.leafInputText({
+                    title: "Subject",
+                    value: "ABCD-1234",
+                  }).root,
+                }).root,
+              ],
+              new: false,
+            }).root,
+            presentation.contNodeRowOutgoing({
+              children: [
+                makeToolbar(),
+                presentation.leafNodeEditPredicate({
+                  value: "sunwet/1/has",
+                }).root,
+                presentation.leafNodeEditNode({
+                  inputType: nodeTypeSel({
+                    hint: "Subject",
+                    value: "file",
+                  }),
+                  inputValue: presentation.leafInputText({
+                    title: "Subject",
+                    value: "ABCD-1234",
+                  }).root,
+                }).root,
+              ],
+              new: true,
+            }).root,
+          ],
+        }).root,
+        presentation.contNodeRowOutgoingAdd({
+          hint: "Add outgoing triple",
+        }).root,
+      ];
+    };
+
     const buildRoot = /** @type {(e: Element[])=>void} */ (e) => {
       document.body.appendChild(
         presentation.contRootStack({ children: e }).root
@@ -598,8 +737,7 @@
           buildRoot([
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "Music" }).root,
-              mainBody: presentation.contPageNode({
-                barChildren: [],
+              mainBody: presentation.contPageNodeView({
                 children: [
                   presentation.contPageNodeSectionRel({
                     children: [
@@ -697,133 +835,11 @@
       case "#node_edit":
         {
           /** @type { (args: {hint: string, value: string})=> Element} */
-          const nodeTypeSel = (args) =>
-            window.sunwetPresentation.leafInputEnum({
-              title: `${args.hint} type`,
-              value: args.value,
-              options: {
-                file: "File",
-                string: "String",
-                bool: "Boolean",
-                number: "Number",
-                json: "JSON",
-              },
-            }).root;
           buildRoot([
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "Music" }).root,
-              mainBody: presentation.contPageNode({
-                children: [
-                  presentation.contNodeRowIncomingAdd({
-                    hint: "Add incoming triple",
-                  }).root,
-                  presentation.contPageNodeSectionRel({
-                    children: [
-                      presentation.contNodeRowIncoming({
-                        children: [
-                          presentation.leafNodeEditNode({
-                            inputType: nodeTypeSel({
-                              hint: "Subject",
-                              value: "file",
-                            }),
-                            inputValue: presentation.leafInputText({
-                              title: "Subject",
-                              value: "ABCD-1234",
-                            }).root,
-                          }).root,
-                          presentation.leafNodeEditPredicate({
-                            value: "sunwet/1/is",
-                          }).root,
-                          presentation.leafMediaImg({ src: "testcover.jpg" })
-                            .root,
-                          presentation.leafNodeEditButtons({}).root,
-                        ],
-                        new: true,
-                      }).root,
-                      presentation.contNodeRowIncoming({
-                        children: [
-                          presentation.leafNodeEditButtons({}).root,
-                          presentation.leafNodeEditNode({
-                            inputType: nodeTypeSel({
-                              hint: "Subject",
-                              value: "file",
-                            }),
-                            inputValue: presentation.leafInputText({
-                              title: "Subject",
-                              value: "ABCD-1234",
-                            }).root,
-                          }).root,
-                          presentation.leafNodeEditPredicate({
-                            value: "sunwet/1/has",
-                          }).root,
-                        ],
-                        new: false,
-                      }).root,
-                    ],
-                  }).root,
-                  presentation.contNodeSectionCenter({
-                    children: [
-                      presentation.leafNodeEditButtons({
-                        link: "abcd",
-                      }).root,
-                      presentation.leafNodeEditNode({
-                        inputType: nodeTypeSel({
-                          hint: "Subject",
-                          value: "file",
-                        }),
-                        inputValue: presentation.leafInputText({
-                          title: "Subject",
-                          value: "ABCD-1234",
-                        }).root,
-                      }).root,
-                    ],
-                  }).root,
-                  presentation.contPageNodeSectionRel({
-                    children: [
-                      presentation.contNodeRowOutgoing({
-                        children: [
-                          presentation.leafNodeEditButtons({}).root,
-                          presentation.leafNodeEditPredicate({
-                            value: "sunwet/1/is",
-                          }).root,
-                          presentation.leafNodeEditNode({
-                            inputType: nodeTypeSel({
-                              hint: "Subject",
-                              value: "file",
-                            }),
-                            inputValue: presentation.leafInputText({
-                              title: "Subject",
-                              value: "ABCD-1234",
-                            }).root,
-                          }).root,
-                        ],
-                        new: false,
-                      }).root,
-                      presentation.contNodeRowOutgoing({
-                        children: [
-                          presentation.leafNodeEditButtons({}).root,
-                          presentation.leafNodeEditPredicate({
-                            value: "sunwet/1/has",
-                          }).root,
-                          presentation.leafNodeEditNode({
-                            inputType: nodeTypeSel({
-                              hint: "Subject",
-                              value: "file",
-                            }),
-                            inputValue: presentation.leafInputText({
-                              title: "Subject",
-                              value: "ABCD-1234",
-                            }).root,
-                          }).root,
-                        ],
-                        new: true,
-                      }).root,
-                    ],
-                  }).root,
-                  presentation.contNodeRowOutgoingAdd({
-                    hint: "Add outgoing triple",
-                  }).root,
-                ],
+              mainBody: presentation.contPageNodeEdit({
+                children: nodeEditChildren(1),
                 barChildren: [presentation.leafButtonBigCommit({}).root],
               }).root,
               menuBody: stagingMenu,
@@ -980,21 +996,96 @@
           const root = presentation.contPageQuery({
             initialQuery: '"hello world" { => value }',
           });
-          root.results.appendChild(
-            presentation.leafQueryRow({
+          root.prettyResults.appendChild(
+            presentation.contQueryPrettyRow({
+              children: [
+                presentation.leafQueryPrettyInlineKV({
+                  key: "a",
+                  value: "4",
+                  link: "abcd",
+                }).root,
+                presentation.leafQueryPrettyInlineKV({
+                  key: "banana",
+                  value: "6",
+                  link: "abcd",
+                }).root,
+                presentation.leafQueryPrettyInlineKV({
+                  key: "c",
+                  value: "-7",
+                  link: "abcd",
+                }).root,
+              ],
+            }).root
+          );
+          root.prettyResults.appendChild(
+            presentation.contQueryPrettyRow({
+              children: [
+                presentation.leafQueryPrettyInlineKV({
+                  key: "a",
+                  value: "4",
+                  link: "abcd",
+                }).root,
+                presentation.leafQueryPrettyMediaKV({
+                  key: "noxos",
+                  value: presentation.leafMediaImg({ src: "testcover.jpg" })
+                    .root,
+                  link: "abcd",
+                }).root,
+                presentation.leafQueryPrettyInlineKV({
+                  key: "c",
+                  value: "-7",
+                  link: "abcd",
+                }).root,
+              ],
+            }).root
+          );
+          root.prettyResults.appendChild(
+            presentation.contQueryPrettyRow({
+              children: [
+                presentation.leafQueryPrettyInlineKV({
+                  key: "a",
+                  value: "4",
+                  link: "abcd",
+                }).root,
+                presentation.leafQueryPrettyInlineKV({
+                  key: "banana",
+                  value: "6",
+                  link: "abcd",
+                }).root,
+                presentation.leafQueryPrettyInlineKV({
+                  key: "c",
+                  value: "-7",
+                  link: "abcd",
+                }).root,
+              ],
+            }).root
+          );
+          root.jsonResults.appendChild(
+            presentation.leafQueryJsonRow({
               data: JSON.stringify({ a: 4, b: 6, c: -7 }, null, 4),
             }).root
           );
-          root.results.appendChild(
-            presentation.leafQueryRow({
+          root.jsonResults.appendChild(
+            presentation.leafQueryJsonRow({
               data: JSON.stringify({ a: 4, b: 6, c: -7 }, null, 4),
             }).root
           );
-          root.results.appendChild(
-            presentation.leafQueryRow({
+          root.jsonResults.appendChild(
+            presentation.leafQueryJsonRow({
               data: JSON.stringify({ a: 4, b: 6, c: -7 }, null, 4),
             }).root
           );
+          root.downloadField.textContent = "file";
+          root.downloadPattern.textContent = "{abc}-{def}";
+          root.downloadResults.appendChild(
+            presentation.leafQueryDownloadRow({
+              link: "abcd",
+              filename: "super_cityhall.txt",
+            }).root
+          );
+          for (const x of nodeEditChildren(10)) {
+            root.edit.appendChild(x);
+          }
           buildRoot([
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "Query" }).root,
