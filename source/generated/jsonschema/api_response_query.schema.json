@@ -4,7 +4,7 @@
   "type": "object",
   "required": [
     "meta",
-    "records"
+    "rows"
   ],
   "properties": {
     "meta": {
@@ -33,14 +33,8 @@
         }
       ]
     },
-    "records": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": {
-          "$ref": "#/definitions/TreeNode"
-        }
-      }
+    "rows": {
+      "$ref": "#/definitions/RespQueryRows"
     }
   },
   "additionalProperties": false,
@@ -59,6 +53,45 @@
         }
       },
       "additionalProperties": false
+    },
+    "RespQueryRows": {
+      "oneOf": [
+        {
+          "description": "For queries with no struct `{}` suffix",
+          "type": "object",
+          "required": [
+            "scalar"
+          ],
+          "properties": {
+            "scalar": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/Node"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "For queries with a struct `{}` suffix",
+          "type": "object",
+          "required": [
+            "record"
+          ],
+          "properties": {
+            "record": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/definitions/TreeNode"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "SerdeNodeType": {
       "type": "string",

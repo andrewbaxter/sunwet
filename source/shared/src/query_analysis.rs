@@ -22,12 +22,27 @@ pub struct QueryAnalysisOutput {
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct QueryAnalysis {
+pub struct QueryAnalysisStruct {
     pub inputs: HashSet<String>,
     pub outputs: HashMap<String, QueryAnalysisOutput>,
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug, JsonSchema, TS)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct QueryAnalysis {
+    pub r#struct: Option<QueryAnalysisStruct>,
+}
+
 pub fn analyze_query(q: &query::Query) -> QueryAnalysis {
+    let suffix = match &q.suffix {
+        Some(suffix) => {
+            suffix
+        },
+        None => {
+            return QueryAnalysis { r#struct: None };
+        },
+    };
+
     struct State {
         inputs: HashSet<String>,
         outputs: HashMap<String, QueryAnalysisOutput>,
@@ -109,13 +124,13 @@ pub fn analyze_query(q: &query::Query) -> QueryAnalysis {
         return plural;
     }
 
-    fn recurse_query_chain(query_chain: &query::Chain, state: &mut State) {
-        let plural = recurse_query_chain_body(&query_chain.head, state);
-        if let Some(bind) = &query_chain.tail.bind {
+    fn recurse_query_chain(head: &query::ChainHead, tail: &query::ChainTail, state: &mut State) {
+        let plural = recurse_query_chain_body(head, state);
+        if let Some(bind) = &tail.bind {
             state.outputs.insert(bind.clone(), QueryAnalysisOutput { plural: plural });
         }
-        for s in &query_chain.tail.subchains {
-            recurse_query_chain(s, state);
+        for s in &tail.subchains {
+            recurse_query_chain(&s.head, &s.tail, state);
         }
     }
 
@@ -123,9 +138,9 @@ pub fn analyze_query(q: &query::Query) -> QueryAnalysis {
         inputs: Default::default(),
         outputs: Default::default(),
     };
-    recurse_query_chain(&q.chain, &mut state);
-    return QueryAnalysis {
+    recurse_query_chain(&q.chain_head, &suffix.chain_tail, &mut state);
+    return QueryAnalysis { r#struct: Some(QueryAnalysisStruct {
         inputs: state.inputs,
         outputs: state.outputs,
-    };
+    }) };
 }

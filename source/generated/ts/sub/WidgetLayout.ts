@@ -3,4 +3,4 @@ import type { Direction } from "./Direction";
 import type { TransAlign } from "./TransAlign";
 import type { Widget } from "./Widget";
 
-export type WidgetLayout = { direction: Direction, trans_align?: TransAlign, elements: Array<Widget>, gap?: string | null, x_scroll?: boolean, wrap?: boolean, };
+export type WidgetLayout = { direction: Direction, trans_align?: TransAlign, elements: Array<Widget>, gap?: string | null, conv_scroll?: boolean, conv_size_max?: string | null, trans_size_max?: string | null, wrap?: boolean, };

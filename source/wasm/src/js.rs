@@ -13,13 +13,21 @@ use {
         events::EventListener,
         storage::errors::StorageError,
         timers::future::TimeoutFuture,
-        utils::window,
+        utils::{
+            document,
+            window,
+        },
     },
-    js_sys::JSON,
+    js_sys::{
+        Array,
+        Object,
+        JSON,
+    },
     rooting::{
-        el,
+        scope_any,
         spawn_rooted,
         El,
+        ScopeValue,
     },
     shared::interface::{
         triple::FileHash,
@@ -35,14 +43,28 @@ use {
         rc::Rc,
     },
     wasm_bindgen::{
+        prelude::Closure,
         JsCast,
         JsValue,
         UnwrapThrowExt,
     },
+    wasm_bindgen_futures::{
+        spawn_local,
+        JsFuture,
+    },
     web_sys::{
+        console,
+        Blob,
+        BlobPropertyBag,
+        ClipboardItem,
+        Element,
         Event,
         EventTarget,
         HtmlElement,
+        IntersectionObserver,
+        IntersectionObserverEntry,
+        IntersectionObserverInit,
+        Url,
     },
 };
 
@@ -205,6 +227,47 @@ impl Log for ConsoleLog {
     }
 }
 
+struct MyIntersectionObserver_ {
+    _root_cb: ScopeValue,
+    o: IntersectionObserver,
+}
+
+impl Drop for MyIntersectionObserver_ {
+    fn drop(&mut self) {
+        self.o.disconnect();
+    }
+}
+
+pub struct MyIntersectionObserver(Rc<MyIntersectionObserver_>);
+
+impl MyIntersectionObserver {
+    pub fn new(threshold: f64, mut cb: impl 'static + FnMut(Vec<IntersectionObserverEntry>)) -> Self {
+        let scroll_observer_cb = Closure::new(move |entries: Array| {
+            let entries =
+                entries
+                    .into_iter()
+                    .map(|x| x.dyn_into::<IntersectionObserverEntry>().unwrap())
+                    .collect::<Vec<_>>();
+            cb(entries);
+        });
+        let scroll_observer = IntersectionObserver::new_with_options(scroll_observer_cb.as_ref().unchecked_ref(), &{
+            let o = IntersectionObserverInit::new();
+            o.set_threshold(&JsValue::from(threshold));
+            o
+        }).unwrap();
+        return Self(Rc::new(MyIntersectionObserver_ {
+            _root_cb: scope_any(scroll_observer_cb),
+            o: scroll_observer,
+        }));
+    }
+}
+
+impl MyIntersectionObserver {
+    pub fn observe(&self, e: &Element) {
+        self.0.o.observe(e);
+    }
+}
+
 pub async fn async_event(e: &EventTarget, event: &str) -> Event {
     let (tx, rx) = channel();
     let _l = EventListener::once(e, event.to_string(), move |ev| {
@@ -238,6 +301,7 @@ pub mod style_export {
         shared::interface::config::view::{
             Direction,
             Orientation,
+            TextSizeMode,
             TransAlign,
         },
         std::collections::HashMap,
@@ -448,6 +512,16 @@ pub mod style_export {
         }
     }
 
+    impl JsExport for TextSizeMode {
+        fn from_js(v: &JsValue) -> Self {
+            return <JsValue as JsValueSerdeExt>::into_serde(v).unwrap();
+        }
+
+        fn to_js(&self) -> JsValue {
+            return <JsValue as JsValueSerdeExt>::from_serde(self).unwrap();
+        }
+    }
+
     pub fn js_get<T: JsExport>(o: &JsValue, p: &str) -> T {
         let v = match js_sys::Reflect::get(o, &JsValue::from(p)) {
             Ok(v) => v,
@@ -504,12 +578,61 @@ pub fn el_async_<E: ToString, F: 'static + Future<Output = Result<Vec<El>, E>>>(
     return out;
 }
 
-pub fn el_video(src: &str) -> El {
-    return el("video").attr("preload", "metadata").push(el("source").attr("src", src));
-}
-
-pub fn el_audio(src: &str) -> El {
-    return el("audio").attr("preload", "metadata").attr("src", src);
+pub fn lazy_el_async<E: ToString, F: 'static + AsyncFnOnce() -> Result<Vec<El>, E>>(f: F) -> El {
+    let out = style_export::leaf_async_block(style_export::LeafAsyncBlockArgs { in_root: false }).root;
+    let data = Rc::new(RefCell::new(scope_any(())));
+    let o = MyIntersectionObserver::new(0., {
+        let data = Rc::downgrade(&data);
+        let out = out.weak();
+        let mut f = Some(f);
+        move |entries| {
+            let Some(data) = data.upgrade() else {
+                return;
+            };
+            for e in entries {
+                if e.intersection_ratio() >= 0. {
+                    if let Some(out) = out.upgrade() {
+                        console::log_2(
+                            &JsValue::from(format!("intersection ratio {}", e.intersection_ratio())),
+                            &out.raw(),
+                        );
+                    }
+                    *data.borrow_mut() = spawn_rooted({
+                        let Some(f) = f.take() else {
+                            return;
+                        };
+                        let out = out.clone();
+                        async move {
+                            // To ensure this doesn't happen synchronously with caller, so the caller can root
+                            // the element before it gets replaced (i.e. view, with non-query data)
+                            TimeoutFuture::new(0).await;
+                            let res = f().await;
+                            let Some(out) = out.upgrade() else {
+                                return;
+                            };
+                            let new_el;
+                            match res {
+                                Ok(v) => {
+                                    new_el = v;
+                                },
+                                Err(e) => {
+                                    new_el = vec![style_export::leaf_err_block(style_export::LeafErrBlockArgs {
+                                        in_root: false,
+                                        data: e.to_string(),
+                                    }).root];
+                                },
+                            }
+                            out.ref_replace(new_el);
+                        }
+                    });
+                }
+            }
+        }
+    });
+    o.observe(&out.raw());
+    *data.borrow_mut() = scope_any(o);
+    out.ref_own(|_| data);
+    return out;
 }
 
 pub trait LogJsErr {
@@ -546,4 +669,50 @@ impl ElExt for El {
     fn html(&self) -> HtmlElement {
         return self.raw().dyn_into::<HtmlElement>().unwrap();
     }
+}
+
+static CLIPBOARD_MIME: &str = "text/plain";
+
+pub fn as_blob(data: impl serde::Serialize) -> Blob {
+    return Blob::new_with_str_sequence_and_options(&JsValue::from(vec![
+        //. .
+        JsValue::from(serde_json::to_string_pretty(&data).unwrap())
+    ]), &{
+        let p = BlobPropertyBag::new();
+        p.set_type(CLIPBOARD_MIME);
+        p
+    }).unwrap();
+}
+
+pub fn copy(log: &Rc<dyn Log>, data: impl serde::Serialize) {
+    let a = window().navigator().clipboard().write(&JsValue::from(vec![
+        //. .
+        ClipboardItem::new_with_record_from_str_to_str_promise(&Object::from_entries(&JsValue::from(vec![
+            //. .
+            JsValue::from(vec![
+                //. .
+                JsValue::from(CLIPBOARD_MIME),
+                JsValue::from(as_blob(data))
+            ])
+        ])).unwrap()).unwrap()
+    ]));
+    spawn_local({
+        let log = log.clone();
+        async move {
+            JsFuture::from(a).await.log(&log, "Error copying");
+        }
+    });
+}
+
+pub fn download(filename: String, data: impl serde::Serialize) {
+    let document = document();
+    let body = document.body().unwrap();
+    let a = document.create_element("a").unwrap().dyn_into::<HtmlElement>().unwrap();
+    let url = Url::create_object_url_with_blob(&as_blob(data)).unwrap();
+    a.set_attribute("href", &url).unwrap();
+    a.set_attribute("download", &filename).unwrap();
+    body.append_child(&a).unwrap();
+    a.click();
+    body.remove_child(&a).unwrap();
+    Url::revoke_object_url(&url).unwrap();
 }

@@ -69,7 +69,7 @@ pub struct MinistateForm {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct MinistateNodeEdit {
     pub title: String,
-    pub node: Node,
+    pub nodes: Vec<Node>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]

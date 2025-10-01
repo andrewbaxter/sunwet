@@ -133,7 +133,7 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
             }));
         },
         Ministate::NodeEdit(ms) => {
-            build_page_node_edit(pc, &ms.title, &ms.node);
+            build_page_node_edit(pc, &ms.title, &ms.nodes);
         },
         Ministate::NodeView(ms) => {
             build_page_node_view(pc, &ms.title, &ms.node);

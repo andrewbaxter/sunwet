@@ -22,13 +22,19 @@ use {
     flowcontrol::ta_return,
     lunk::ProcessingContext,
     rooting::El,
-    shared::interface::{
-        ont::PREDICATE_NAME,
-        triple::Node,
-        wire::{
-            ReqGetNodeMeta,
-            ReqGetTriplesAround,
+    shared::{
+        interface::{
+            ont::PREDICATE_NAME,
+            triple::{
+                FileHash,
+                Node,
+            },
+            wire::{
+                ReqGetNodeMeta,
+                ReqGetTriplesAround,
+            },
         },
+        stringpattern::node_to_text,
     },
     wasm::{
         js::{
@@ -39,16 +45,6 @@ use {
         world::file_url,
     },
 };
-
-pub fn node_to_text(node: &Node) -> String {
-    match node {
-        Node::File(node) => return node.to_string(),
-        Node::Value(node) => match node {
-            serde_json::Value::String(v) => return v.clone(),
-            node => return serde_json::to_string(node).unwrap(),
-        },
-    };
-}
 
 pub fn build_node_media_el(node: &Node) -> Option<El> {
     let Node::File(h) = node else {
@@ -101,6 +97,31 @@ pub fn build_node_el(node: &Node) -> El {
     }).root;
 }
 
+fn build_node_rel_buttons(download: Option<&FileHash>, history: String, link: String) -> El {
+    let mut right = vec![];
+    if let Some(download) = download {
+        right.push(
+            style_export::leaf_node_view_toolbar_download_link_button(
+                style_export::LeafNodeViewToolbarDownloadLinkButtonArgs { link: file_url(&state().env, download) },
+            ).root,
+        );
+    }
+    right.push(
+        style_export::leaf_node_view_toolbar_history_link_button(
+            style_export::LeafNodeViewToolbarHistoryLinkButtonArgs { link: history },
+        ).root,
+    );
+    right.push(
+        style_export::leaf_node_view_toolbar_go_link_button(
+            style_export::LeafNodeViewToolbarGoLinkButtonArgs { link: link },
+        ).root,
+    );
+    return style_export::cont_node_toolbar(style_export::ContNodeToolbarArgs {
+        left: vec![],
+        right: right,
+    }).root;
+}
+
 pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node) {
     set_page(pc, title, el_async_(true, {
         let eg = pc.eg();
@@ -108,14 +129,15 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
         let node = node.clone();
         async move {
             ta_return!(Vec < El >, String);
-            let triples = req_post_json(&state().env.base_url, ReqGetTriplesAround { node: node.clone() }).await?;
+            let mut triples =
+                req_post_json(&state().env.base_url, ReqGetTriplesAround { nodes: vec![node.clone()] }).await?;
             return eg.event(|_pc| {
                 let mut out = vec![];
 
                 // Incoming triples
                 {
                     let mut triples_els = vec![];
-                    for t in triples.incoming {
+                    for t in triples.extract_if(.., |x| x.object == node) {
                         let mut triple_els = vec![];
                         triple_els.push(build_node_el(&t.subject));
                         triple_els.push(
@@ -126,33 +148,26 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                         if let Some(ele) = build_node_media_el(&t.subject) {
                             triple_els.push(ele);
                         };
-                        triple_els.push(
-                            style_export::leaf_node_view_node_buttons(style_export::LeafNodeViewNodeButtonsArgs {
-                                edit: None,
-                                download: match &t.subject {
-                                    Node::File(n) => Some(file_url(&state().env, n)),
-                                    _ => None,
-                                },
-                                history: Some(
-                                    ministate_octothorpe(
-                                        &Ministate::History(MinistateHistory { filter: Some(MinistateHistoryFilter {
-                                            predicate: Some(
-                                                crate::libnonlink::ministate::MinistateHistoryPredicate::Incoming(
-                                                    t.predicate.clone(),
-                                                ),
-                                            ),
-                                            node: node.clone(),
-                                        }) }),
+                        triple_els.push(build_node_rel_buttons(
+                            match &t.subject {
+                                Node::File(n) => Some(n),
+                                _ => None,
+                            },
+                            ministate_octothorpe(
+                                &Ministate::History(MinistateHistory { filter: Some(MinistateHistoryFilter {
+                                    predicate: Some(
+                                        crate::libnonlink::ministate::MinistateHistoryPredicate::Incoming(
+                                            t.predicate.clone(),
+                                        ),
                                     ),
-                                ),
-                                link: Some(
-                                    ministate_octothorpe(&super::ministate::Ministate::NodeView(MinistateNodeView {
-                                        title: node_to_text(&t.subject),
-                                        node: t.subject.clone(),
-                                    })),
-                                ),
-                            }).root,
-                        );
+                                    node: node.clone(),
+                                }) }),
+                            ),
+                            ministate_octothorpe(&super::ministate::Ministate::NodeView(MinistateNodeView {
+                                title: node_to_text(&t.subject),
+                                node: t.subject.clone(),
+                            })),
+                        ));
                         triples_els.push(style_export::cont_node_row_incoming(style_export::ContNodeRowIncomingArgs {
                             children: triple_els,
                             new: false,
@@ -170,22 +185,31 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                     let mut children = vec![
                         //. .
                         build_node_el(&node),
-                        style_export::leaf_node_view_node_buttons(style_export::LeafNodeViewNodeButtonsArgs {
-                            download: None,
-                            edit: Some(ministate_octothorpe(&Ministate::NodeEdit(MinistateNodeEdit {
-                                title: title.clone(),
-                                node: node.clone(),
-                            }))),
-                            history: Some(
-                                ministate_octothorpe(
-                                    &Ministate::History(MinistateHistory { filter: Some(MinistateHistoryFilter {
-                                        node: node.clone(),
-                                        predicate: None,
-                                    }) }),
-                                ),
-                            ),
-                            link: None,
-                        }).root,
+                        style_export::cont_node_toolbar(style_export::ContNodeToolbarArgs {
+                            left: vec![],
+                            right: vec![
+                                style_export::leaf_node_view_toolbar_edit_link_button(
+                                    style_export::LeafNodeViewToolbarEditLinkButtonArgs {
+                                        link: ministate_octothorpe(&Ministate::NodeEdit(MinistateNodeEdit {
+                                            title: title.clone(),
+                                            nodes: vec![node.clone()],
+                                        })),
+                                    },
+                                ).root,
+                                style_export::leaf_node_view_toolbar_history_link_button(
+                                    style_export::LeafNodeViewToolbarHistoryLinkButtonArgs {
+                                        link: ministate_octothorpe(
+                                            &Ministate::History(
+                                                MinistateHistory { filter: Some(MinistateHistoryFilter {
+                                                    node: node.clone(),
+                                                    predicate: None,
+                                                }) },
+                                            ),
+                                        ),
+                                    },
+                                ).root,
+                            ],
+                        }).root
                     ];
                     if let Some(ele) = build_node_media_el(&node) {
                         children.push(ele);
@@ -200,7 +224,7 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                 // Outgoing triples
                 {
                     let mut triples_els = vec![];
-                    for t in triples.outgoing {
+                    for t in triples {
                         if t.predicate == PREDICATE_NAME {
                             let name = node_to_text(&t.object);
                             state().main_title.ref_text(&name);
@@ -220,31 +244,26 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                             triple_els.push(ele);
                         }
                         triple_els.push({
-                            style_export::leaf_node_view_node_buttons(style_export::LeafNodeViewNodeButtonsArgs {
-                                download: match &t.object {
-                                    Node::File(n) => Some(file_url(&state().env, n)),
+                            build_node_rel_buttons(
+                                match &t.object {
+                                    Node::File(n) => Some(n),
                                     _ => None,
                                 },
-                                edit: None,
-                                history: Some(
-                                    ministate_octothorpe(
-                                        &Ministate::History(MinistateHistory { filter: Some(MinistateHistoryFilter {
-                                            node: node.clone(),
-                                            predicate: Some(
-                                                crate::libnonlink::ministate::MinistateHistoryPredicate::Outgoing(
-                                                    t.predicate.clone(),
-                                                ),
+                                ministate_octothorpe(
+                                    &Ministate::History(MinistateHistory { filter: Some(MinistateHistoryFilter {
+                                        node: node.clone(),
+                                        predicate: Some(
+                                            crate::libnonlink::ministate::MinistateHistoryPredicate::Outgoing(
+                                                t.predicate.clone(),
                                             ),
-                                        }) }),
-                                    ),
+                                        ),
+                                    }) }),
                                 ),
-                                link: Some(
-                                    ministate_octothorpe(&super::ministate::Ministate::NodeView(MinistateNodeView {
-                                        title: node_to_text(&t.object),
-                                        node: t.object.clone(),
-                                    })),
-                                ),
-                            }).root
+                                ministate_octothorpe(&super::ministate::Ministate::NodeView(MinistateNodeView {
+                                    title: node_to_text(&t.object),
+                                    node: t.object.clone(),
+                                })),
+                            )
                         });
                         triples_els.push(style_export::cont_node_row_outgoing(style_export::ContNodeRowOutgoingArgs {
                             children: triple_els,

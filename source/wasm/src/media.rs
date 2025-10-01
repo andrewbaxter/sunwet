@@ -11,6 +11,7 @@ use {
             Env,
             Log,
             LogJsErr,
+            MyIntersectionObserver,
         },
         world::file_url,
     },
@@ -33,7 +34,6 @@ use {
             window,
         },
     },
-    js_sys::Array,
     lunk::{
         link,
         EventGraph,
@@ -42,7 +42,6 @@ use {
     },
     rooting::{
         el,
-        scope_any,
         spawn_rooted,
         El,
         ScopeValue,
@@ -72,9 +71,7 @@ use {
             FromWasmAbi,
             IntoWasmAbi,
         },
-        prelude::Closure,
         JsCast,
-        JsValue,
     },
     wasm_bindgen_futures::JsFuture,
     web_sys::{
@@ -83,9 +80,6 @@ use {
         HtmlElement,
         HtmlIFrameElement,
         HtmlMediaElement,
-        IntersectionObserver,
-        IntersectionObserverEntry,
-        IntersectionObserverInit,
         KeyboardEvent,
         MouseEvent,
         WheelEvent,
@@ -809,47 +803,6 @@ impl PlaylistMedia for PlaylistMediaComic {
 
     fn pm_wait_until_buffered(&self) -> Pin<Box<dyn Future<Output = ()>>> {
         return async { }.boxed_local();
-    }
-}
-
-struct MyIntersectionObserver_ {
-    _root_cb: ScopeValue,
-    o: IntersectionObserver,
-}
-
-impl Drop for MyIntersectionObserver_ {
-    fn drop(&mut self) {
-        self.o.disconnect();
-    }
-}
-
-struct MyIntersectionObserver(Rc<MyIntersectionObserver_>);
-
-impl MyIntersectionObserver {
-    fn new(threshold: f64, mut cb: impl 'static + FnMut(Vec<IntersectionObserverEntry>)) -> Self {
-        let scroll_observer_cb = Closure::new(move |entries: Array| {
-            let entries =
-                entries
-                    .into_iter()
-                    .map(|x| x.dyn_into::<IntersectionObserverEntry>().unwrap())
-                    .collect::<Vec<_>>();
-            cb(entries);
-        });
-        let scroll_observer = IntersectionObserver::new_with_options(scroll_observer_cb.as_ref().unchecked_ref(), &{
-            let o = IntersectionObserverInit::new();
-            o.set_threshold(&JsValue::from(threshold));
-            o
-        }).unwrap();
-        return Self(Rc::new(MyIntersectionObserver_ {
-            _root_cb: scope_any(scroll_observer_cb),
-            o: scroll_observer,
-        }));
-    }
-}
-
-impl MyIntersectionObserver {
-    fn observe(&self, e: &Element) {
-        self.0.o.observe(e);
     }
 }
 

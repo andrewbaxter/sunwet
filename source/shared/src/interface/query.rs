@@ -205,10 +205,20 @@ pub struct Chain {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct Query {
-    pub chain: Chain,
+pub struct QuerySuffix {
+    pub chain_tail: ChainTail,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
     pub sort: Option<SortQuery>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct Query {
+    pub chain_head: ChainHead,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub suffix: Option<QuerySuffix>,
 }

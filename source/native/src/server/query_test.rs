@@ -31,7 +31,6 @@ use {
                 PREDICATE_TRACK,
             },
             query::{
-                Chain,
                 ChainHead,
                 ChainRoot,
                 ChainTail,
@@ -43,6 +42,7 @@ use {
                 JunctionType,
                 MoveDirection,
                 Query,
+                QuerySuffix,
                 Step,
                 StepJunction,
                 StepMove,
@@ -54,11 +54,7 @@ use {
             triple::Node,
             wire::TreeNode,
         },
-        query_parser::{
-            compile_fragment_query_head,
-            compile_fragment_query_tail,
-            compile_query,
-        },
+        query_parser::compile_query,
     },
     std::{
         collections::{
@@ -83,8 +79,7 @@ fn n() -> Node {
 }
 
 fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, TreeNode)]], query: Query) {
-    let sort = query.sort;
-    let (query, query_values) = build_root_chain(query.chain, HashMap::new()).map_err(|e| panic!("{}", match e {
+    let (query_string, query_values) = build_root_chain(&query, HashMap::new()).map_err(|e| panic!("{}", match e {
         VisErr::Internal(e) => e.to_string(),
         VisErr::External(e) => e,
     })).unwrap();
@@ -114,7 +109,7 @@ fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, TreeNode)]], query
     //.        }
     //.        println!("Query: {}", String::from_utf8(output.stdout).unwrap());
     //.    }
-    println!("Query: {}", query);
+    println!("Query: {}", query_string);
 
     //.    {
     //.        let mut s = db.prepare(&format!("explain query plan {}", query)).unwrap();
@@ -127,10 +122,10 @@ fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, TreeNode)]], query
     //.        }
     //.    }
     let got =
-        execute_sql_query(&db, query, query_values, sort, None)
+        execute_sql_query(&db, query_string, query_values, &query, None)
             .unwrap()
             .into_iter()
-            .map(|x| x.value)
+            .map(|x| x.tail_data)
             .collect::<Vec<_>>();
     let want =
         want
@@ -148,13 +143,9 @@ fn src_query_dir() -> PathBuf {
 fn test_base() {
     let query_dir = src_query_dir();
     let query_head =
-        compile_fragment_query_head(
-            &read_to_string(&query_dir.join("query_audio_albums_by_add_date.txt")).unwrap(),
-        ).unwrap();
+        compile_query(&read_to_string(&query_dir.join("query_audio_albums_by_add_date.txt")).unwrap()).unwrap();
     let query_tail =
-        compile_fragment_query_tail(
-            &read_to_string(&query_dir.join("query_audio_albums_suffix.txt")).unwrap(),
-        ).unwrap();
+        compile_query(&read_to_string(&query_dir.join("query_audio_albums_suffix.txt")).unwrap()).unwrap();
     execute(
         &[
             (&s("a"), PREDICATE_IS, &node_is_album()),
@@ -175,11 +166,8 @@ fn test_base() {
             ],
         ],
         Query {
-            chain: Chain {
-                head: query_head,
-                tail: query_tail,
-            },
-            sort: None,
+            chain_head: query_head.chain_head,
+            suffix: query_tail.suffix,
         },
     );
 }
@@ -187,7 +175,7 @@ fn test_base() {
 #[test]
 fn test_versions() {
     let query = compile_query("\"x\" -> \"y\" { => y }").unwrap();
-    let (query, query_values) = build_root_chain(query.chain, HashMap::new()).map_err(|e| panic!("{}", match e {
+    let (query_sql, query_values) = build_root_chain(&query, HashMap::new()).map_err(|e| panic!("{}", match e {
         VisErr::Internal(e) => e.to_string(),
         VisErr::External(e) => e,
     })).unwrap();
@@ -209,9 +197,9 @@ fn test_versions() {
         DateTime::from_timestamp_nanos(2),
         true,
     ).unwrap();
-    println!("Query: {}", query);
+    println!("Query: {}", query_sql);
     {
-        let mut s = db.prepare(&format!("explain query plan {}", query)).unwrap();
+        let mut s = db.prepare(&format!("explain query plan {}", query_sql)).unwrap();
         let mut results = s.query(&*query_values.as_params()).unwrap();
         loop {
             let Some(row) = results.next().unwrap() else {
@@ -221,10 +209,10 @@ fn test_versions() {
         }
     }
     let got =
-        execute_sql_query(&db, query, query_values, None, None)
+        execute_sql_query(&db, query_sql, query_values, &query, None)
             .unwrap()
             .into_iter()
-            .map(|x| x.value)
+            .map(|x| x.tail_data)
             .collect::<Vec<_>>();
     assert_eq!(
         got,
@@ -235,7 +223,7 @@ fn test_versions() {
 #[test]
 fn test_delete() {
     let query = compile_query("\"x\" -> \"y\" { => y }").unwrap();
-    let (query, query_values) = build_root_chain(query.chain, HashMap::new()).map_err(|e| panic!("{}", match e {
+    let (query_sql, query_values) = build_root_chain(&query, HashMap::new()).map_err(|e| panic!("{}", match e {
         VisErr::Internal(e) => e.to_string(),
         VisErr::External(e) => e,
     })).unwrap();
@@ -257,9 +245,9 @@ fn test_delete() {
         DateTime::from_timestamp_nanos(2),
         false,
     ).unwrap();
-    println!("Query: {}", query);
+    println!("Query: {}", query_sql);
     {
-        let mut s = db.prepare(&format!("explain query plan {}", query)).unwrap();
+        let mut s = db.prepare(&format!("explain query plan {}", query_sql)).unwrap();
         let mut results = s.query(&*query_values.as_params()).unwrap();
         loop {
             let Some(row) = results.next().unwrap() else {
@@ -269,10 +257,10 @@ fn test_delete() {
         }
     }
     let got =
-        execute_sql_query(&db, query, query_values, None, None)
+        execute_sql_query(&db, query_sql, query_values, &query, None)
             .unwrap()
             .into_iter()
-            .map(|x| x.value)
+            .map(|x| x.tail_data)
             .collect::<Vec<_>>();
     assert_eq!(got, vec![]);
 }
@@ -280,7 +268,7 @@ fn test_delete() {
 #[test]
 fn test_undelete() {
     let query = compile_query("\"x\" -> \"y\" { => y }").unwrap();
-    let (query, query_values) = build_root_chain(query.chain, HashMap::new()).map_err(|e| panic!("{}", match e {
+    let (query_sql, query_values) = build_root_chain(&query, HashMap::new()).map_err(|e| panic!("{}", match e {
         VisErr::Internal(e) => e.to_string(),
         VisErr::External(e) => e,
     })).unwrap();
@@ -310,9 +298,9 @@ fn test_undelete() {
         DateTime::from_timestamp_nanos(3),
         true,
     ).unwrap();
-    println!("Query: {}", query);
+    println!("Query: {}", query_sql);
     {
-        let mut s = db.prepare(&format!("explain query plan {}", query)).unwrap();
+        let mut s = db.prepare(&format!("explain query plan {}", query_sql)).unwrap();
         let mut results = s.query(&*query_values.as_params()).unwrap();
         loop {
             let Some(row) = results.next().unwrap() else {
@@ -322,10 +310,10 @@ fn test_undelete() {
         }
     }
     let got =
-        execute_sql_query(&db, query, query_values, None, None)
+        execute_sql_query(&db, query_sql, query_values, &query, None)
             .unwrap()
             .into_iter()
-            .map(|x| x.value)
+            .map(|x| x.tail_data)
             .collect::<Vec<_>>();
     assert_eq!(
         got,
@@ -347,53 +335,53 @@ fn test_recurse() {
         ],
         &[&[("name", TreeNode::Scalar(s("a_name")))], &[("name", TreeNode::Scalar(s("b_name")))]],
         Query {
-            chain: Chain {
-                head: ChainHead {
-                    root: Some(ChainRoot::Value(Value::Literal(node_is_album()))),
-                    steps: vec![
-                        //. .
-                        Step {
-                            specific: StepSpecific::Move(StepMove {
-                                dir: MoveDirection::Backward,
-                                predicate: StrValue::Literal(PREDICATE_IS.to_string()),
-                                filter: None,
-                            }),
-                            sort: None,
-                            first: false,
-                        },
-                        Step {
-                            specific: StepSpecific::Recurse(StepRecurse { subchain: ChainHead {
-                                root: None,
-                                steps: vec![Step {
-                                    specific: StepSpecific::Move(StepMove {
-                                        dir: MoveDirection::Backward,
-                                        predicate: StrValue::Literal(PREDICATE_TRACK.to_string()),
-                                        filter: None,
-                                    }),
-                                    sort: None,
-                                    first: false,
-                                }],
-                            } }),
-                            sort: None,
-                            first: false,
-                        },
-                        Step {
-                            specific: StepSpecific::Move(StepMove {
-                                dir: MoveDirection::Forward,
-                                predicate: StrValue::Literal(PREDICATE_NAME.to_string()),
-                                filter: None,
-                            }),
-                            sort: None,
-                            first: false,
-                        }
-                    ],
-                },
-                tail: ChainTail {
+            chain_head: ChainHead {
+                root: Some(ChainRoot::Value(Value::Literal(node_is_album()))),
+                steps: vec![
+                    //. .
+                    Step {
+                        specific: StepSpecific::Move(StepMove {
+                            dir: MoveDirection::Backward,
+                            predicate: StrValue::Literal(PREDICATE_IS.to_string()),
+                            filter: None,
+                        }),
+                        sort: None,
+                        first: false,
+                    },
+                    Step {
+                        specific: StepSpecific::Recurse(StepRecurse { subchain: ChainHead {
+                            root: None,
+                            steps: vec![Step {
+                                specific: StepSpecific::Move(StepMove {
+                                    dir: MoveDirection::Backward,
+                                    predicate: StrValue::Literal(PREDICATE_TRACK.to_string()),
+                                    filter: None,
+                                }),
+                                sort: None,
+                                first: false,
+                            }],
+                        } }),
+                        sort: None,
+                        first: false,
+                    },
+                    Step {
+                        specific: StepSpecific::Move(StepMove {
+                            dir: MoveDirection::Forward,
+                            predicate: StrValue::Literal(PREDICATE_NAME.to_string()),
+                            filter: None,
+                        }),
+                        sort: None,
+                        first: false,
+                    }
+                ],
+            },
+            suffix: Some(QuerySuffix {
+                chain_tail: ChainTail {
                     bind: Some("name".to_string()),
                     subchains: vec![],
                 },
-            },
-            sort: None,
+                sort: None,
+            }),
         },
     );
 }
@@ -409,46 +397,46 @@ fn test_filter_eq() {
         ],
         &[&[("id", TreeNode::Scalar(s("a")))]],
         Query {
-            chain: Chain {
-                head: ChainHead {
-                    root: Some(ChainRoot::Value(Value::Literal(node_is_album()))),
-                    steps: vec![
-                        //. .
-                        Step {
-                            specific: StepSpecific::Move(StepMove {
-                                dir: MoveDirection::Backward,
-                                predicate: StrValue::Literal(PREDICATE_IS.to_string()),
-                                filter: Some(FilterExpr::Exists(FilterExprExistance {
-                                    type_: FilterExprExistsType::Exists,
-                                    subchain: ChainHead {
-                                        root: None,
-                                        steps: vec![Step {
-                                            specific: StepSpecific::Move(StepMove {
-                                                dir: MoveDirection::Forward,
-                                                predicate: StrValue::Literal(PREDICATE_NAME.to_string()),
-                                                filter: None,
-                                            }),
-                                            sort: None,
-                                            first: false,
-                                        }],
-                                    },
-                                    suffix: Some(shared::interface::query::FilterSuffix::Simple(FilterSuffixSimple {
-                                        op: FilterSuffixSimpleOperator::Eq,
-                                        value: Value::Literal(s("a_name")),
-                                    })),
+            chain_head: ChainHead {
+                root: Some(ChainRoot::Value(Value::Literal(node_is_album()))),
+                steps: vec![
+                    //. .
+                    Step {
+                        specific: StepSpecific::Move(StepMove {
+                            dir: MoveDirection::Backward,
+                            predicate: StrValue::Literal(PREDICATE_IS.to_string()),
+                            filter: Some(FilterExpr::Exists(FilterExprExistance {
+                                type_: FilterExprExistsType::Exists,
+                                subchain: ChainHead {
+                                    root: None,
+                                    steps: vec![Step {
+                                        specific: StepSpecific::Move(StepMove {
+                                            dir: MoveDirection::Forward,
+                                            predicate: StrValue::Literal(PREDICATE_NAME.to_string()),
+                                            filter: None,
+                                        }),
+                                        sort: None,
+                                        first: false,
+                                    }],
+                                },
+                                suffix: Some(shared::interface::query::FilterSuffix::Simple(FilterSuffixSimple {
+                                    op: FilterSuffixSimpleOperator::Eq,
+                                    value: Value::Literal(s("a_name")),
                                 })),
-                            }),
-                            sort: None,
-                            first: false,
-                        }
-                    ],
-                },
-                tail: ChainTail {
+                            })),
+                        }),
+                        sort: None,
+                        first: false,
+                    }
+                ],
+            },
+            suffix: Some(QuerySuffix {
+                chain_tail: ChainTail {
                     bind: Some("id".to_string()),
                     subchains: vec![],
                 },
-            },
-            sort: None,
+                sort: None,
+            }),
         },
     );
 }
@@ -464,46 +452,46 @@ fn test_filter_lt() {
         ],
         &[&[("id", TreeNode::Scalar(s("b")))]],
         Query {
-            chain: Chain {
-                head: ChainHead {
-                    root: Some(ChainRoot::Value(Value::Literal(node_is_album()))),
-                    steps: vec![
-                        //. .
-                        Step {
-                            specific: StepSpecific::Move(StepMove {
-                                dir: MoveDirection::Backward,
-                                predicate: StrValue::Literal(PREDICATE_IS.to_string()),
-                                filter: Some(FilterExpr::Exists(FilterExprExistance {
-                                    type_: FilterExprExistsType::Exists,
-                                    subchain: ChainHead {
-                                        root: None,
-                                        steps: vec![Step {
-                                            specific: StepSpecific::Move(StepMove {
-                                                dir: MoveDirection::Forward,
-                                                predicate: StrValue::Literal("sunwet/1/q".to_string()),
-                                                filter: None,
-                                            }),
-                                            sort: None,
-                                            first: false,
-                                        }],
-                                    },
-                                    suffix: Some(shared::interface::query::FilterSuffix::Simple(FilterSuffixSimple {
-                                        op: FilterSuffixSimpleOperator::Gte,
-                                        value: Value::Literal(i(30)),
-                                    })),
+            chain_head: ChainHead {
+                root: Some(ChainRoot::Value(Value::Literal(node_is_album()))),
+                steps: vec![
+                    //. .
+                    Step {
+                        specific: StepSpecific::Move(StepMove {
+                            dir: MoveDirection::Backward,
+                            predicate: StrValue::Literal(PREDICATE_IS.to_string()),
+                            filter: Some(FilterExpr::Exists(FilterExprExistance {
+                                type_: FilterExprExistsType::Exists,
+                                subchain: ChainHead {
+                                    root: None,
+                                    steps: vec![Step {
+                                        specific: StepSpecific::Move(StepMove {
+                                            dir: MoveDirection::Forward,
+                                            predicate: StrValue::Literal("sunwet/1/q".to_string()),
+                                            filter: None,
+                                        }),
+                                        sort: None,
+                                        first: false,
+                                    }],
+                                },
+                                suffix: Some(shared::interface::query::FilterSuffix::Simple(FilterSuffixSimple {
+                                    op: FilterSuffixSimpleOperator::Gte,
+                                    value: Value::Literal(i(30)),
                                 })),
-                            }),
-                            sort: None,
-                            first: false,
-                        }
-                    ],
-                },
-                tail: ChainTail {
+                            })),
+                        }),
+                        sort: None,
+                        first: false,
+                    }
+                ],
+            },
+            suffix: Some(QuerySuffix {
+                chain_tail: ChainTail {
                     bind: Some("id".to_string()),
                     subchains: vec![],
                 },
-            },
-            sort: None,
+                sort: None,
+            }),
         },
     );
 }
@@ -522,53 +510,53 @@ fn test_chain_union() {
             &[("id", TreeNode::Scalar(s("d")))],
         ],
         Query {
-            chain: Chain {
-                head: ChainHead {
-                    root: None,
-                    steps: vec![
-                        //. .
-                        Step {
-                            specific: StepSpecific::Junction(StepJunction {
-                                type_: JunctionType::Or,
-                                subchains: vec![
-                                    //. .
-                                    ChainHead {
-                                        root: Some(ChainRoot::Value(Value::Literal(s("sunwet/1/dog")))),
-                                        steps: vec![Step {
-                                            specific: StepSpecific::Move(StepMove {
-                                                dir: MoveDirection::Backward,
-                                                predicate: StrValue::Literal(PREDICATE_IS.to_string()),
-                                                filter: None,
-                                            }),
-                                            sort: None,
-                                            first: false,
-                                        }],
-                                    },
-                                    ChainHead {
-                                        root: Some(ChainRoot::Value(Value::Literal(s("sunwet/1/what")))),
-                                        steps: vec![Step {
-                                            specific: StepSpecific::Move(StepMove {
-                                                dir: MoveDirection::Backward,
-                                                predicate: StrValue::Literal(PREDICATE_IS.to_string()),
-                                                filter: None,
-                                            }),
-                                            sort: None,
-                                            first: false,
-                                        }],
-                                    }
-                                ],
-                            }),
-                            sort: None,
-                            first: false,
-                        }
-                    ],
-                },
-                tail: ChainTail {
+            chain_head: ChainHead {
+                root: None,
+                steps: vec![
+                    //. .
+                    Step {
+                        specific: StepSpecific::Junction(StepJunction {
+                            type_: JunctionType::Or,
+                            subchains: vec![
+                                //. .
+                                ChainHead {
+                                    root: Some(ChainRoot::Value(Value::Literal(s("sunwet/1/dog")))),
+                                    steps: vec![Step {
+                                        specific: StepSpecific::Move(StepMove {
+                                            dir: MoveDirection::Backward,
+                                            predicate: StrValue::Literal(PREDICATE_IS.to_string()),
+                                            filter: None,
+                                        }),
+                                        sort: None,
+                                        first: false,
+                                    }],
+                                },
+                                ChainHead {
+                                    root: Some(ChainRoot::Value(Value::Literal(s("sunwet/1/what")))),
+                                    steps: vec![Step {
+                                        specific: StepSpecific::Move(StepMove {
+                                            dir: MoveDirection::Backward,
+                                            predicate: StrValue::Literal(PREDICATE_IS.to_string()),
+                                            filter: None,
+                                        }),
+                                        sort: None,
+                                        first: false,
+                                    }],
+                                }
+                            ],
+                        }),
+                        sort: None,
+                        first: false,
+                    }
+                ],
+            },
+            suffix: Some(QuerySuffix {
+                chain_tail: ChainTail {
                     bind: Some("id".to_string()),
                     subchains: vec![],
                 },
-            },
-            sort: None,
+                sort: None,
+            }),
         },
     );
 }

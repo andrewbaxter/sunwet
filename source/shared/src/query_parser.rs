@@ -28,6 +28,7 @@ use {
     },
     crate::interface::query::{
         ChainTail,
+        QuerySuffix,
         StepSpecific,
     },
     query_parser_actions::{
@@ -130,7 +131,7 @@ fn compile_filter(filter: query_parser_actions::FILTER) -> Result<FilterExpr, St
         query_parser_actions::FILTER::FILTER_EXISTS(f) => {
             return Ok(FilterExpr::Exists(FilterExprExistance {
                 type_: FilterExprExistsType::Exists,
-                subchain: compile_chain_body(None, f.step0.unwrap_or_default())?,
+                subchain: compile_chain_head(None, *f.step0)?,
                 suffix: if let Some(parsed_suffix) = f.filter_suffixopt {
                     Some(compile_filter_suffix(parsed_suffix)?)
                 } else {
@@ -141,7 +142,7 @@ fn compile_filter(filter: query_parser_actions::FILTER) -> Result<FilterExpr, St
         query_parser_actions::FILTER::FILTER_NOT_EXISTS(f) => {
             return Ok(FilterExpr::Exists(FilterExprExistance {
                 type_: FilterExprExistsType::DoesntExist,
-                subchain: compile_chain_body(None, f.step0.unwrap_or_default())?,
+                subchain: compile_chain_head(None, *f.step0)?,
                 suffix: if let Some(parsed_suffix) = f.filter_suffixopt {
                     Some(compile_filter_suffix(parsed_suffix)?)
                 } else {
@@ -172,10 +173,8 @@ fn compile_filter(filter: query_parser_actions::FILTER) -> Result<FilterExpr, St
     }
 }
 
-fn compile_chain_body(body_root: Option<ROOT>, body_steps: Vec<STEP>) -> Result<ChainHead, String> {
-    if body_root.is_none() && body_steps.is_empty() {
-        return Err(format!("Query must have root or at least one step"));
-    }
+fn compile_chain_head(body_root: Option<ROOT>, body_steps: Option<Vec<STEP>>) -> Result<ChainHead, String> {
+    let body_steps = body_steps.unwrap_or_default();
     let root;
     match body_root {
         Some(parsed_root) => match parsed_root {
@@ -221,17 +220,12 @@ fn compile_chain_body(body_root: Option<ROOT>, body_steps: Vec<STEP>) -> Result<
                 });
             },
             query_parser_actions::STEP_SPECIFIC::STEP_RECURSE(step) => {
-                specific =
-                    StepSpecific::Recurse(
-                        StepRecurse { subchain: compile_chain_body(None, step.unwrap_or_default())? },
-                    );
+                specific = StepSpecific::Recurse(StepRecurse { subchain: compile_chain_head(None, *step)? });
             },
             query_parser_actions::STEP_SPECIFIC::STEP_JUNCT_AND(step) => {
                 let mut subchains = vec![];
                 for parsed_subchain in step {
-                    subchains.push(
-                        compile_chain_body(parsed_subchain.rootopt, parsed_subchain.step0.unwrap_or_default())?,
-                    );
+                    subchains.push(compile_chain_head(parsed_subchain.rootopt, parsed_subchain.step0)?);
                 }
                 specific = StepSpecific::Junction(StepJunction {
                     type_: JunctionType::And,
@@ -241,9 +235,7 @@ fn compile_chain_body(body_root: Option<ROOT>, body_steps: Vec<STEP>) -> Result<
             query_parser_actions::STEP_SPECIFIC::STEP_JUNCT_OR(step) => {
                 let mut subchains = vec![];
                 for parsed_subchain in step {
-                    subchains.push(
-                        compile_chain_body(parsed_subchain.rootopt, parsed_subchain.step0.unwrap_or_default())?,
-                    );
+                    subchains.push(compile_chain_head(parsed_subchain.rootopt, parsed_subchain.step0)?);
                 }
                 specific = StepSpecific::Junction(StepJunction {
                     type_: JunctionType::Or,
@@ -269,10 +261,10 @@ fn compile_chain_body(body_root: Option<ROOT>, body_steps: Vec<STEP>) -> Result<
     })
 }
 
-fn compile_chain(chain: query_parser_actions::CHAIN) -> Result<Chain, String> {
+fn compile_chain_tail(chain_tail: query_parser_actions::CHAIN_TAIL) -> Result<ChainTail, String> {
     let mut bind_current = None;
     let mut children = vec![];
-    for action in chain.chain_tail.unwrap_or_default() {
+    for action in chain_tail.unwrap_or_default() {
         match action {
             query_parser_actions::CHAIN_BIND::CHAIN_BIND_CURRENT(action) => {
                 if bind_current.is_some() {
@@ -281,16 +273,16 @@ fn compile_chain(chain: query_parser_actions::CHAIN) -> Result<Chain, String> {
                 bind_current = Some(action);
             },
             query_parser_actions::CHAIN_BIND::CHAIN_BIND_SUBCHAIN(action) => {
-                children.push(compile_chain(*action)?);
+                children.push(Chain {
+                    head: compile_chain_head(action.chain_head.rootopt, action.chain_head.step0)?,
+                    tail: compile_chain_tail(*action.chain_tail)?,
+                });
             },
         }
     }
-    return Ok(Chain {
-        head: compile_chain_body(chain.chain_head.rootopt, chain.chain_head.step0.unwrap_or_default())?,
-        tail: ChainTail {
-            bind: bind_current,
-            subchains: children,
-        },
+    return Ok(ChainTail {
+        bind: bind_current,
+        subchains: children,
     });
 }
 
@@ -299,39 +291,31 @@ pub fn compile_query(query: &str) -> Result<Query, String> {
         rustemo::Parser::parse(&query_parser::QueryParserParser::new(), query)
             .map_err(|e| e.to_string())
             .map_err(|e| format!("Error parsing query: {}", e))?;
-    return Ok(Query {
-        sort: match parse.sort_queryopt {
-            Some(sort) => match sort {
-                query_parser_actions::SORT_QUERY::SORT_QUERY_PAIRS(sort) => {
-                    Some(SortQuery::Fields(sort.into_iter().map(|x| match x {
-                        query_parser_actions::SORT_QUERY_PAIR::SORT_QUERY_PAIR_ASC(x) => (SortDir::Asc, x),
-                        query_parser_actions::SORT_QUERY_PAIR::SORT_QUERY_PAIR_DESC(x) => (SortDir::Desc, x),
-                    }).collect()))
+    let chain_head = compile_chain_head(parse.chain_head.rootopt, parse.chain_head.step0)?;
+    let query_suffix;
+    if let Some(suffix) = parse.query_suffixopt {
+        query_suffix = Some(QuerySuffix {
+            chain_tail: compile_chain_tail(suffix.chain_tail)?,
+            sort: match suffix.sort_queryopt {
+                Some(sort) => match sort {
+                    query_parser_actions::SORT_QUERY::SORT_QUERY_PAIRS(sort) => {
+                        Some(SortQuery::Fields(sort.into_iter().map(|x| match x {
+                            query_parser_actions::SORT_QUERY_PAIR::SORT_QUERY_PAIR_ASC(x) => (SortDir::Asc, x),
+                            query_parser_actions::SORT_QUERY_PAIR::SORT_QUERY_PAIR_DESC(x) => (SortDir::Desc, x),
+                        }).collect()))
+                    },
+                    query_parser_actions::SORT_QUERY::kw_sort_random => {
+                        Some(SortQuery::Shuffle)
+                    },
                 },
-                query_parser_actions::SORT_QUERY::kw_sort_random => {
-                    Some(SortQuery::Shuffle)
-                },
+                None => None,
             },
-            None => None,
-        },
-        chain: compile_chain(parse.chain)?,
+        });
+    } else {
+        query_suffix = None;
+    };
+    return Ok(Query {
+        chain_head: chain_head,
+        suffix: query_suffix,
     });
-}
-
-pub fn compile_fragment_query_head(query_frag: &str) -> Result<ChainHead, String> {
-    // Hack, https://github.com/igordejanovic/rustemo/issues/24
-    let parse =
-        rustemo::Parser::parse(&query_parser::QueryParserParser::new(), &format!("{} {{}}", query_frag))
-            .map_err(|e| e.to_string())
-            .map_err(|e| format!("Error parsing query: {}", e))?;
-    return Ok(compile_chain(parse.chain)?.head);
-}
-
-pub fn compile_fragment_query_tail(query_frag: &str) -> Result<ChainTail, String> {
-    // Hack, https://github.com/igordejanovic/rustemo/issues/24
-    let parse =
-        rustemo::Parser::parse(&query_parser::QueryParserParser::new(), &format!("-> \"\" {}", query_frag))
-            .map_err(|e| e.to_string())
-            .map_err(|e| format!("Error parsing query: {}", e))?;
-    return Ok(compile_chain(parse.chain)?.tail);
 }

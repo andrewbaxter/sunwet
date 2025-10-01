@@ -91,6 +91,7 @@ use {
             NodeMeta,
             Pagination,
             ReqViewQuery,
+            RespQueryRows,
             TreeNode,
         },
     },
@@ -303,7 +304,9 @@ impl Build {
         return style_export::cont_view_list(style_export::ContViewListArgs {
             direction: config_at.direction,
             trans_align: config_at.trans_align,
-            x_scroll: config_at.x_scroll,
+            conv_scroll: config_at.conv_scroll,
+            conv_size_max: config_at.conv_size_max.clone(),
+            trans_size_max: config_at.trans_size_max.clone(),
             children: children,
             gap: config_at.gap.clone(),
             wrap: config_at.wrap,
@@ -369,8 +372,17 @@ impl Build {
                             pagination: None,
                         }).await?;
                         let mut out = vec![];
-                        for v in res.records {
-                            out.push(TreeNode::Record(v));
+                        match res.rows {
+                            RespQueryRows::Scalar(rows) => {
+                                for v in rows {
+                                    out.push(TreeNode::Scalar(v));
+                                }
+                            },
+                            RespQueryRows::Record(rows) => {
+                                for v in rows {
+                                    out.push(TreeNode::Record(v));
+                                }
+                            },
                         }
                         new_data_at_tops = out;
                         node_meta = Rc::new(res.meta.into_iter().collect::<HashMap<_, _>>());
@@ -413,7 +425,9 @@ impl Build {
                             out = style_export::cont_view_list(style_export::ContViewListArgs {
                                 direction: row_widget.direction.unwrap_or(Direction::Down),
                                 trans_align: row_widget.trans_align,
-                                x_scroll: row_widget.x_scroll,
+                                conv_scroll: row_widget.conv_scroll,
+                                conv_size_max: row_widget.conv_size_max.clone(),
+                                trans_size_max: row_widget.trans_size_max.clone(),
                                 wrap: row_widget.wrap,
                                 children: children,
                                 gap: row_widget.gap.clone(),
@@ -441,7 +455,9 @@ impl Build {
                             }
                             out = style_export::cont_view_table(style_export::ContViewTableArgs {
                                 orientation: row_widget.orientation,
-                                x_scroll: row_widget.x_scroll,
+                                conv_scroll: row_widget.conv_scroll,
+                                conv_size_max: row_widget.conv_size_max.clone(),
+                                trans_size_max: row_widget.trans_size_max.clone(),
                                 children: rows,
                                 gap: row_widget.gap.clone(),
                             }).root;
@@ -610,9 +626,19 @@ impl Build {
                                         }),
                                     }).await?;
                                     let mut chunk = vec![];
-                                    for v in res.records {
-                                        chunk.push((count.get(), TreeNode::Record(v)));
-                                        count.set(count.get() + 1);
+                                    match res.rows {
+                                        RespQueryRows::Scalar(rows) => {
+                                            for v in rows {
+                                                chunk.push((count.get(), TreeNode::Scalar(v)));
+                                                count.set(count.get() + 1);
+                                            }
+                                        },
+                                        RespQueryRows::Record(rows) => {
+                                            for v in rows {
+                                                chunk.push((count.get(), TreeNode::Record(v)));
+                                                count.set(count.get() + 1);
+                                            }
+                                        },
                                     }
                                     Ok(InfPageRes {
                                         immediate_advance: restore
@@ -652,7 +678,8 @@ impl Build {
                 ),
                 font_size: config_at.font_size.clone(),
                 color: config_at.color.clone(),
-                max_size: config_at.cons_size_max.clone(),
+                conv_size_max: config_at.conv_size_max.clone(),
+                conv_size_mode: Some(config_at.conv_size_mode.clone()),
                 link: shed!{
                     let Some(link) = config_at.link.as_ref() else {
                         break None;

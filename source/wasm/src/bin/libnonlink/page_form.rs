@@ -32,18 +32,22 @@ use {
         spawn_rooted,
         El,
     },
-    shared::interface::{
-        config::form::{
-            ClientForm,
-            FormFieldType,
-            FormId,
+    shared::{
+        interface::{
+            config::form::{
+                ClientForm,
+                FormFieldType,
+                FormId,
+            },
+            triple::Node,
+            wire::{
+                ReqFormCommit,
+                ReqQuery,
+                RespQueryRows,
+                TreeNode,
+            },
         },
-        triple::Node,
-        wire::{
-            ReqFormCommit,
-            ReqQuery,
-            TreeNode,
-        },
+        stringpattern::node_to_text,
     },
     std::{
         cell::RefCell,
@@ -478,24 +482,36 @@ pub fn build_page_form(
                             pagination: None,
                         }).await?;
                         let mut choices = vec![];
-                        for mut choice in res.records {
-                            let Some(value) = choice.remove("value") else {
-                                return Err(format!("Query result array element is missing `id` field"));
-                            };
-                            let TreeNode::Scalar(value) = value else {
-                                return Err(format!("Query result elements are arrays/records, not scalar values"));
-                            };
-                            let name;
-                            if let Some(name1) = choice.remove("name") {
-                                if let TreeNode::Scalar(Node::Value(serde_json::Value::String(name1))) = name1 {
-                                    name = name1;
-                                } else {
-                                    name = serde_json::to_string(&name1).unwrap();
+                        match res.rows {
+                            RespQueryRows::Scalar(rows) => {
+                                for choice in rows {
+                                    choices.push((node_to_text(&choice), choice));
                                 }
-                            } else {
-                                name = serde_json::to_string(&value).unwrap();
-                            }
-                            choices.push((name, value));
+                            },
+                            RespQueryRows::Record(rows) => {
+                                for mut choice in rows {
+                                    let Some(value) = choice.remove("value") else {
+                                        return Err(format!("Query result array element is missing `id` field"));
+                                    };
+                                    let TreeNode::Scalar(value) = value else {
+                                        return Err(
+                                            format!("Query result elements are arrays/records, not scalar values"),
+                                        );
+                                    };
+                                    let name;
+                                    if let Some(name1) = choice.remove("name") {
+                                        if let TreeNode::Scalar(Node::Value(serde_json::Value::String(name1))) =
+                                            name1 {
+                                            name = name1;
+                                        } else {
+                                            name = serde_json::to_string(&name1).unwrap();
+                                        }
+                                    } else {
+                                        name = serde_json::to_string(&value).unwrap();
+                                    }
+                                    choices.push((name, value));
+                                }
+                            },
                         }
                         match fs.0.data.borrow_mut().entry(id.clone()) {
                             Entry::Occupied(mut e) => {

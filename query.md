@@ -40,17 +40,15 @@ Suppose you have a graph with triples like:
 "sunwet/1/album" -< "sunwet/1/is" { => id }
 ```
 
-The query syntax follows this form: `ROOT? STEP+ SELECT`
+The query syntax follows this form: `ROOT? STEP+ STRUCT? SORT?`
 
-This simple example starts at the node with JSON string value "sunwet/1/album" (the root), moves from object to subject over predicates with the value "sunwet/1/is" (steps), then returns those subjects as `id` in each row of output (selection).
+This simple example starts at the node with JSON string value "sunwet/1/album" (the `ROOT`: `"sunwet/1/album"`), moves from object to subject over predicates with the value "sunwet/1/is" (the `STEP+`: `-< "sunwet/1/is"`). One row is output for each value in the output set of the final step. The `STRUCT?` (`{ => id }`) turns each row from a single value into a struct, and binds the row value to the field `id` in the struct.
 
-In other words, it returns the ids of all albums (if you're confused, or if you're not confused yet: id isn't a property of a album in this ontology, album is a property of an id).
-
-One row is returned for each element in the result set for the top level query (in this example, one row per album).
+Uh, but to summarize what the query actually does, it returns the ids of all albums (if you're confused, or if you're not confused yet: id isn't a property of a album in this ontology, album is a property of an id).
 
 Each part is described in more detail below.
 
-## The root
+## The `ROOT`
 
 A root value is optional and determines the starting set for the query.
 
@@ -72,7 +70,7 @@ For an example, `hounds bask` might result in the set `"the hounds of baskervill
 
 If you want to use fts5 syntax yourself, you can prefix your search expression with `raw:` (e.g. `"raw:\"hounds\" AND \"bask\"").
 
-## Steps
+## `STEP`s
 
 Steps (like `<- "sunwet/1/is"`) are executed left to right. They take a set of values and produce a new set via some rule. In the above example, the initial set is a single value `"sunwet/1/album"`. After the movement step the set will be a bunch of ids, where each ID has a link to `"sunwet/1/album"` by the `"sunwet/1/is"` predicate.
 
@@ -125,24 +123,26 @@ This executes `STEP+` and unions it with the starting set to produce a result se
 
 ### Junction and/or (intersection/union)
 
-- `-& ( ROOT? STEP+ )`
-- `-| ( ROOT? STEP+ )`
+- `-& ( (ROOT? STEP*)* )`
+- `-| ( (ROOT? STEP*)* )`
 
 Titled "junction and" and "junction or" (intersection and union).
 
-This executes `STEP+` and intersects or unions the results with the input set to produce the result set.
+Each performs a junction on the results of each parenthesized element within the outer parentheses, like `-| ( (-> "a") (-> "b") )` (union the results of following the `a` and `b` predicates from the input set). The incoming set is discarded unless you explicitly include an empty element: `-| ( () (-> "b") )`.
 
-`ROOT` behaves the same as it does at the root of the query (see more details on the root above).
+If `ROOT` is specified, the input set to the operator is ignored for that element - `ROOT` behaves the same as it does at the root of the query (see more details on the root above). Otherwise the steps in each element start from the junction's input set.
 
-## Selection
+## `STRUCT`
 
 Selection has the format `{ BIND? ( SUBQUERY )* }`.
 
-In a top level query, each value in the input set (er, the result set of the last preceding step) will become a row in the output. In a subquery, the entire input set will be turned into an array value and placed in the row with this name. That is, at the moment, there's no way to create nested structures in result rows with subqueries.
+`BIND` has the format `=> NAME` where `NAME` is a simple unquoted string (a string using just `a-zA-Z0-9_-`) and determines the name of the field the value will be placed in in the row.
 
-`BIND` has the format `=> ID` where `ID` is a simple unquoted string (a string using just `a-zA-Z0-9_-`) and determines the name of the field the value will be placed in in the row.
+`SUBQUERY` is the same as the root query, except without sorting: sorting can only be used on the root query.
 
-`SUBQUERY` is the same as the root query, except `shuffle?` can only be used on the root query.
+In a top level query, one row is output per value in the last step's output set, so `NAME` will always be a scalar. In subqueries, if the final step doesn't specify `first`, the output set of the last step in the subquery will be turned into an array and placed in `NAME` in the output struct -- at this time there is no way to create nested structs in subqueries.
+
+If no `STRUCT` is specified, the output will be an array consisting of the output set values directly, without being turned into structs and bound to a field (i.e. elements of `"x"` rather than `{"name": "x"}`).
 
 ## Values
 

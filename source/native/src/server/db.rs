@@ -820,20 +820,29 @@ pub struct DbRes3 {
 
 pub fn triple_list_around(
     db: &rusqlite::Connection,
-    node: &crate::interface::triple::DbNode,
+    nodes: Vec<&crate::interface::triple::DbNode>,
 ) -> Result<Vec<DbRes3>, GoodError> {
     let mut out = vec![];
     let query =
-        "with current0 ( subject , predicate , object , commit_ , exist ) as ( select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , max ( \"triple\" . \"commit_\" ) as \"commit_\" , \"triple\" . \"exists\" from \"triple\" group by \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" ) , current ( subject , predicate , object , commit_ ) as ( select \"current0\" . \"subject\" , \"current0\" . \"predicate\" , \"current0\" . \"object\" , \"current0\" . \"commit_\" from \"current0\" where ( \"current0\" . \"exist\" = true ) ) select \"current\" . \"subject\" , \"current\" . \"predicate\" , \"current\" . \"object\" from \"current\" where ( ( \"current\" . \"subject\" = $1 ) or ( \"current\" . \"object\" = $1 ) ) ";
+        "with current0 ( subject , predicate , object , commit_ , exist ) as ( select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , max ( \"triple\" . \"commit_\" ) as \"commit_\" , \"triple\" . \"exists\" from \"triple\" group by \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" ) , current ( subject , predicate , object , commit_ ) as ( select \"current0\" . \"subject\" , \"current0\" . \"predicate\" , \"current0\" . \"object\" , \"current0\" . \"commit_\" from \"current0\" where ( \"current0\" . \"exist\" = true ) ) select \"current\" . \"subject\" , \"current\" . \"predicate\" , \"current\" . \"object\" from \"current\" where ( ( \"current\" . \"subject\" in rarray($1) ) or ( \"current\" . \"object\" in rarray($1) ) ) ";
     let mut stmt = db.prepare(query).to_good_error_query(query)?;
     let mut rows =
         stmt
             .query(
                 rusqlite::params![
-                    <crate::interface::triple::DbNode as good_ormning_runtime
-                    ::sqlite
-                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
-                        &node,
+                    std::rc::Rc::new(
+                        nodes
+                            .into_iter()
+                            .map(
+                                |nodes| rusqlite::types::Value::from(
+                                    <crate::interface::triple::DbNode as good_ormning_runtime
+                                    ::sqlite
+                                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
+                                        &nodes,
+                                    ),
+                                ),
+                            )
+                            .collect::<Vec<_>>(),
                     )
                 ],
             )

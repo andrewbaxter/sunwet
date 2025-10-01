@@ -41,13 +41,14 @@ use {
             },
         },
         query_parser::{
-            compile_fragment_query_head,
-            compile_fragment_query_tail,
             compile_query,
         },
     },
     std::{
-        collections::HashMap,
+        collections::{
+            HashMap,
+            HashSet,
+        },
         str::FromStr,
     },
     uuid::Uuid,
@@ -95,7 +96,7 @@ pub async fn handle_query(c: QueryCommand) -> Result<(), loga::Error> {
         query: c.query.value.clone(),
         parameters: c.parameters.iter().map(|(k, v)| (k.clone(), v.0.clone())).collect(),
         pagination: None,
-    }).await?.records;
+    }).await?.rows;
     println!("{}", serde_json::to_string_pretty(&out).unwrap());
     return Ok(());
 }
@@ -121,56 +122,6 @@ pub fn handle_compile_query(c: CompileQueryCommand) -> Result<(), loga::Error> {
         return Err(loga::err("Must specify a query, either on the command line or as a file"));
     }
     let out = compile_query(&query).map_err(|e| loga::err(e))?;
-    println!("{}", serde_json::to_string_pretty(&out).unwrap());
-    return Ok(());
-}
-
-#[derive(Aargvark)]
-pub struct CompileQueryHeadCommand {
-    inline: Option<String>,
-    file: Option<AargvarkFile>,
-}
-
-pub fn handle_compile_query_head(c: CompileQueryHeadCommand) -> Result<(), loga::Error> {
-    let query;
-    if let Some(q) = c.inline {
-        query = q;
-        if c.file.is_some() {
-            return Err(
-                loga::err("A query was both specified on the command line and via file, you can only do one"),
-            );
-        }
-    } else if let Some(q_file) = c.file {
-        query = String::from_utf8(q_file.value).context("Query was not valid utf-8")?;
-    } else {
-        return Err(loga::err("Must specify a query, either on the command line or as a file"));
-    }
-    let out = compile_fragment_query_head(&query).map_err(|e| loga::err(e))?;
-    println!("{}", serde_json::to_string_pretty(&out).unwrap());
-    return Ok(());
-}
-
-#[derive(Aargvark)]
-pub struct CompileQueryTailCommand {
-    inline: Option<String>,
-    file: Option<AargvarkFile>,
-}
-
-pub fn handle_compile_query_tail(c: CompileQueryTailCommand) -> Result<(), loga::Error> {
-    let query;
-    if let Some(q) = c.inline {
-        query = q;
-        if c.file.is_some() {
-            return Err(
-                loga::err("A query was both specified on the command line and via file, you can only do one"),
-            );
-        }
-    } else if let Some(q_file) = c.file {
-        query = String::from_utf8(q_file.value).context("Query was not valid utf-8")?;
-    } else {
-        return Err(loga::err("Must specify a query, either on the command line or as a file"));
-    }
-    let out = compile_fragment_query_tail(&query).map_err(|e| loga::err(e))?;
     println!("{}", serde_json::to_string_pretty(&out).unwrap());
     return Ok(());
 }
@@ -214,16 +165,13 @@ pub async fn handle_delete_nodes(args: DeleteNodesCommand) -> Result<(), loga::E
     } else {
         loga::INFO
     });
-    let mut triples = vec![];
-    for node in args.nodes {
-        let node_triples = req_simple(&log, ReqGetTriplesAround { node: node.0 }).await?;
-        triples.extend(node_triples.incoming);
-        triples.extend(node_triples.outgoing);
-    }
     req_simple(&log, ReqCommit {
         comment: format!("CLI delete note"),
         add: vec![],
-        remove: triples,
+        remove: req_simple(
+            &log,
+            ReqGetTriplesAround { nodes: args.nodes.into_iter().map(|x| x.0).collect() },
+        ).await?,
         files: vec![],
     }).await?;
     return Ok(());
@@ -242,26 +190,27 @@ pub async fn handle_merge_nodes_command(args: MergeNodesCommand) -> Result<(), l
     } else {
         loga::INFO
     });
+    let merge_nodes_lookup = args.merge_nodes.iter().map(|x| &x.0).collect::<HashSet<_>>();
     let mut remove = vec![];
     let mut add = vec![];
-    for node in args.merge_nodes {
-        let node_triples = req_simple(&log, ReqGetTriplesAround { node: node.0 }).await?;
-        for t in node_triples.incoming {
-            add.push(Triple {
-                subject: t.subject.clone(),
-                predicate: t.predicate.clone(),
-                object: args.dest_node.0.clone(),
-            });
-            remove.push(t);
-        }
-        for t in node_triples.outgoing {
+    for t in req_simple(
+        &log,
+        ReqGetTriplesAround { nodes: args.merge_nodes.iter().map(|x| x.0.clone()).collect() },
+    ).await? {
+        if merge_nodes_lookup.contains(&t.subject) {
             add.push(Triple {
                 subject: args.dest_node.0.clone(),
                 predicate: t.predicate.clone(),
                 object: t.object.clone(),
             });
-            remove.push(t);
+        } else {
+            add.push(Triple {
+                subject: t.subject.clone(),
+                predicate: t.predicate.clone(),
+                object: args.dest_node.0.clone(),
+            });
         }
+        remove.push(t);
     }
     req_simple(&log, ReqCommit {
         comment: format!("CLI merge nodes"),
@@ -288,20 +237,20 @@ pub async fn handle_duplicate_nodes_command(args: DuplicateNodesCommand) -> Resu
     let dest_str = Uuid::new_v4().hyphenated().to_string();
     let dest = Node::Value(serde_json::Value::String(dest_str.clone()));
     let mut add = vec![];
-    let node_triples = req_simple(&log, ReqGetTriplesAround { node: args.node.0.clone() }).await?;
-    for t in node_triples.incoming {
-        add.push(Triple {
-            subject: t.subject.clone(),
-            predicate: t.predicate.clone(),
-            object: dest.clone(),
-        });
-    }
-    for t in node_triples.outgoing {
-        add.push(Triple {
-            subject: dest.clone(),
-            predicate: t.predicate.clone(),
-            object: t.object.clone(),
-        });
+    for t in req_simple(&log, ReqGetTriplesAround { nodes: vec![args.node.0.clone()] }).await? {
+        if t.subject == dest {
+            add.push(Triple {
+                subject: dest.clone(),
+                predicate: t.predicate.clone(),
+                object: t.object.clone(),
+            });
+        } else {
+            add.push(Triple {
+                subject: t.subject.clone(),
+                predicate: t.predicate.clone(),
+                object: dest.clone(),
+            });
+        }
     }
     req_simple(&log, ReqCommit {
         comment: format!("CLI duplicate [{}]", serde_json::to_string(&args.node.0).unwrap()),
@@ -420,7 +369,7 @@ pub async fn handle_get_node(c: GetNodeCommand) -> Result<(), loga::Error> {
     } else {
         loga::INFO
     });
-    let res = req::req_simple(&log, ReqGetTriplesAround { node: c.node.0 }).await?;
+    let res = req::req_simple(&log, ReqGetTriplesAround { nodes: vec![c.node.0] }).await?;
     println!("{}", serde_json::to_string_pretty(&res).unwrap());
     return Ok(());
 }

@@ -463,11 +463,33 @@
     "Query": {
       "type": "object",
       "required": [
-        "chain"
+        "chain_head"
       ],
       "properties": {
-        "chain": {
-          "$ref": "#/definitions/Chain"
+        "chain_head": {
+          "$ref": "#/definitions/ChainHead"
+        },
+        "suffix": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/QuerySuffix"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "QuerySuffix": {
+      "type": "object",
+      "required": [
+        "chain_tail"
+      ],
+      "properties": {
+        "chain_tail": {
+          "$ref": "#/definitions/ChainTail"
         },
         "sort": {
           "anyOf": [
@@ -552,11 +574,14 @@
     "ReqGetTriplesAround": {
       "type": "object",
       "required": [
-        "node"
+        "nodes"
       ],
       "properties": {
-        "node": {
-          "$ref": "#/definitions/Node"
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Node"
+          }
         }
       },
       "additionalProperties": false

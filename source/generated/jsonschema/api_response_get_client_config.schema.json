@@ -386,6 +386,17 @@
         "orientation"
       ],
       "properties": {
+        "conv_scroll": {
+          "default": false,
+          "type": "boolean"
+        },
+        "conv_size_max": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "elements": {
           "type": "array",
           "items": {
@@ -402,9 +413,12 @@
         "orientation": {
           "$ref": "#/definitions/Orientation"
         },
-        "x_scroll": {
-          "default": false,
-          "type": "boolean"
+        "trans_size_max": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "additionalProperties": false
@@ -415,6 +429,17 @@
         "widget"
       ],
       "properties": {
+        "conv_scroll": {
+          "default": false,
+          "type": "boolean"
+        },
+        "conv_size_max": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "direction": {
           "anyOf": [
             {
@@ -440,14 +465,17 @@
             }
           ]
         },
+        "trans_size_max": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "widget": {
           "$ref": "#/definitions/Widget"
         },
         "wrap": {
-          "default": false,
-          "type": "boolean"
-        },
-        "x_scroll": {
           "default": false,
           "type": "boolean"
         }
@@ -1114,16 +1142,16 @@
     "Query": {
       "type": "object",
       "required": [
-        "chain"
+        "chain_head"
       ],
       "properties": {
-        "chain": {
-          "$ref": "#/definitions/Chain"
+        "chain_head": {
+          "$ref": "#/definitions/ChainHead"
         },
-        "sort": {
+        "suffix": {
           "anyOf": [
             {
-              "$ref": "#/definitions/SortQuery"
+              "$ref": "#/definitions/QuerySuffix"
             },
             {
               "type": "null"
@@ -1160,6 +1188,28 @@
           "additionalProperties": false
         }
       ]
+    },
+    "QuerySuffix": {
+      "type": "object",
+      "required": [
+        "chain_tail"
+      ],
+      "properties": {
+        "chain_tail": {
+          "$ref": "#/definitions/ChainTail"
+        },
+        "sort": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SortQuery"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
     },
     "SerdeNodeType": {
       "type": "string",
@@ -1778,6 +1828,17 @@
         "elements"
       ],
       "properties": {
+        "conv_scroll": {
+          "default": false,
+          "type": "boolean"
+        },
+        "conv_size_max": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "direction": {
           "$ref": "#/definitions/Direction"
         },
@@ -1802,11 +1863,14 @@
             }
           ]
         },
-        "wrap": {
-          "default": false,
-          "type": "boolean"
+        "trans_size_max": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
         },
-        "x_scroll": {
+        "wrap": {
           "default": false,
           "type": "boolean"
         }
@@ -1997,14 +2061,14 @@
             "null"
           ]
         },
-        "cons_size_max": {
+        "conv_size_max": {
           "default": null,
           "type": [
             "string",
             "null"
           ]
         },
-        "cons_size_mode": {
+        "conv_size_mode": {
           "default": "wrap",
           "allOf": [
             {

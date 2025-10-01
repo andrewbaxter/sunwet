@@ -21,16 +21,6 @@ enum Command {
     ///
     /// Specify a query either inline on the command line, or as a file.
     CompileQuery(client::CompileQueryCommand),
-    /// Compile a query head (root and steps) into JSON, to be combined with a tail
-    /// before using in config or the API.
-    ///
-    /// Specify a query either inline on the command line, or as a file.
-    CompileQueryHead(client::CompileQueryHeadCommand),
-    /// Compile a query tail (selection) into JSON, to be combined with a head before
-    /// using in config or the API.
-    ///
-    /// Specify a query either inline on the command line, or as a file.
-    CompileQueryTail(client::CompileQueryTailCommand),
     /// Add data and files to the database.
     ///
     /// This takes a CLI commit JSON, prepares and sends an API JSON commit payload
@@ -64,12 +54,6 @@ async fn main1() -> Result<(), loga::Error> {
         },
         Command::CompileQuery(c) => {
             client::handle_compile_query(c)?;
-        },
-        Command::CompileQueryHead(c) => {
-            client::handle_compile_query_head(c)?;
-        },
-        Command::CompileQueryTail(c) => {
-            client::handle_compile_query_tail(c)?;
         },
         Command::Commit(c) => {
             client::commit::handle_commit(c).await?;

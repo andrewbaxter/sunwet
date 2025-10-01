@@ -47,6 +47,10 @@ Baseline un-styling.
   summary {
     pointer-events: initial;
   }
+
+  video:host::cue {
+    font-size: max(3dvh, 12pt);
+  }
 }
 
 .group {

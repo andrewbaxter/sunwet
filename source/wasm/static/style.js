@@ -6,6 +6,9 @@
   ///////////////////////////////////////////////////////////////////////////////
   // xx Utility, globals
 
+  const switchCb = /** @type { (x: () => number) => void } */ (x) => {
+    x();
+  };
   const notnull = /** @type {<T>(x: T | null | undefined) => T} */ (x) => {
     if (x == null) {
       throw Error();
@@ -153,13 +156,16 @@
   const textIconPlay = "\ue037";
   const textIconPause = "\ue034";
   const textIconDelete = "\ue15b";
+  const textIconFill = "\ue997";
   const textIconRevert = "\ue166";
   const textIconAdd = "\ue145";
   const textIconNext = "\ue5cc";
   const textIconPrev = "\ue5cb";
   const textIconLink = "\ue157";
   const textIconCommit = "\ue161";
-  const textIconSave = "\uf090";
+  const textIconDownload = "\uf090";
+  const textIconCopy = "\ue14d";
+  const textIconDownloadOffline = "\uf000";
   const textIconUnlink = "\ue16f";
   const textIconLogin = "\uea77";
   const textIconLogout = "\ue9ba";
@@ -174,7 +180,7 @@
   const textIconView = "\ue8f4";
   const textIconHistory = "\ue889";
   const textIconCenter = "\ue3b5";
-  const textIconGo = "\ue5c8";
+  const textIconGo = "\uf81b";
 
   // xx Variables
   const varFNormal = "12pt";
@@ -208,7 +214,7 @@
   const varPSmall = "0.2cm";
   const varPBarBottom = "0.7cm";
   const varPPageBottom = "2.5cm";
-  const varPViewRows = "0.8cm";
+  const varPViewRows = "0.4cm";
   const varPViewCol = "0.5cm";
   const varPViewList = "0.3cm";
   const varPViewHoriz = `max(0.3cm, min(${varSCol1Width}, 100dvw / 20))`;
@@ -935,6 +941,9 @@
               s.height = varSButtonBigIcon;
               s.minHeight = varSButtonBigIcon;
             },
+            [`.${classStatePressed}`]: (s) => {
+              s.color = varCModified;
+            },
           }),
           ...args.extraStyles,
         ],
@@ -946,6 +955,24 @@
         title: "View",
         icon: textIconView,
         text: "View",
+        extraStyles: [],
+      });
+  presentation.leafButtonBigDelete =
+    /** @type { Presentation["leafButtonBigDelete"] } */
+    (args) =>
+      presentation.leafButtonBig({
+        title: "Delete",
+        icon: textIconDelete,
+        text: "Delete",
+        extraStyles: [],
+      });
+  presentation.leafButtonBigRevert =
+    /** @type { Presentation["leafButtonBigRevert"] } */
+    (args) =>
+      presentation.leafButtonBig({
+        title: "Revert",
+        icon: textIconRevert,
+        text: "Revert",
         extraStyles: [],
       });
   presentation.leafButtonBigCommit =
@@ -1009,7 +1036,18 @@
   presentation.leafMediaImg = /** @type {Presentation["leafMediaImg"]} */ (
     args
   ) => ({
-    root: leafImg({ src: args.src, lazy: true }),
+    root: leafImg({
+      src: args.src,
+      lazy: true,
+      styles_: [
+        ss(uniq("leaf_media_img"), {
+          "": (s) => {
+            s.pointerEvents = "initial";
+            s.width = "100%";
+          },
+        }),
+      ],
+    }),
   });
   presentation.leafMediaAudio = /** @type {Presentation["leafMediaAudio"]} */ (
     args
@@ -1029,7 +1067,17 @@
     root: e(
       "video",
       { src: args.src, controls: true },
-      { styles_: [leafMediaStyle] }
+      {
+        styles_: [
+          leafMediaStyle,
+          ss(uniq("leaf_media_video"), {
+            "": (s) => {
+              s.minWidth = "0";
+              s.minHeight = "0";
+            },
+          }),
+        ],
+      }
     ),
   });
 
@@ -1818,7 +1866,7 @@
     /** @type {Presentation["contBarViewTransport"]} */ () => {
       const buttonShare = leafTransportButton({
         title: "Share",
-        icons: { "": textIconLink },
+        iconv: { "": textIconLink },
         extraStyles: [
           ss(uniq("cont_bar_view_transport_share_button"), {
             [`.${classStateSharing} text`]: (s) => {
@@ -1830,15 +1878,15 @@
       });
       const buttonPrev = leafTransportButton({
         title: "Previous",
-        icons: { "": textIconPrev },
+        iconv: { "": textIconPrev },
       });
       const buttonNext = leafTransportButton({
         title: "Next",
-        icons: { "": textIconNext },
+        iconv: { "": textIconNext },
       });
       const buttonPlay = leafTransportButton({
         title: "Play",
-        icons: { "": textIconPlay, [attrStatePlaying]: textIconPause },
+        iconv: { "": textIconPlay, [attrStatePlaying]: textIconPause },
         extraStyles: [
           ss(uniq("leaf_transport_play"), {
             [`.${classStateSelected}`]: (s) => {
@@ -1849,7 +1897,7 @@
       });
       const buttonCenter = leafTransportButton({
         title: "Scroll to",
-        icons: { "": textIconCenter },
+        iconv: { "": textIconCenter },
       });
       buttonCenter.root.addEventListener("click", (_) => {
         for (const b of document.getElementsByClassName(
@@ -1948,7 +1996,6 @@
             ss(uniq("cont_view_root_rows"), {
               "": (s) => {
                 s.flexGrow = "1";
-                s.gap = varPViewRows;
               },
             }),
           ],
@@ -1973,6 +2020,11 @@
               s.rowGap = varPViewList;
               s.justifyContent = "space-around";
               s.maxWidth = "100%";
+              s.padding = varPViewRows;
+            },
+            ":nth-child(odd)": (s) => {
+              s.backgroundColor = varCBackground2;
+              s.borderRadius = varRMedia;
             },
           }),
         ],
@@ -2224,7 +2276,7 @@
   };
 
   const leafTransportButton =
-    /** @type {(args: { title: string, icons: {[s: string]: string}, extraStyles?: string[] }) => { root: HTMLElement }} */
+    /** @type {(args: { title: string, iconv: {[s: string]: string}, extraStyles?: string[] }) => { root: HTMLElement }} */
     (args) => {
       const size = "1cm";
       const baseIconStyle = ss(uniq("leaf_transport_button_base_child_state"), {
@@ -2233,7 +2285,7 @@
         },
       });
 
-      const statePairs = Object.entries(args.icons);
+      const statePairs = Object.entries(args.iconv);
       statePairs.sort();
       const children = [];
       const buildStyleId = [];
@@ -2492,8 +2544,43 @@
         children_: args.children,
       }
     );
-    if (args.xScroll) {
-      out.style.overflowX = "auto";
+    if (args.convScroll) {
+      switch (args.direction) {
+        case "up":
+        case "down":
+          out.style.overflowY = "auto";
+          break;
+        case "left":
+        case "right":
+          out.style.overflowX = "auto";
+          break;
+      }
+    }
+    if (args.convSizeMax != null) {
+      switch (args.direction) {
+        case "up":
+        case "down":
+          // Issue with max height for vert flex/grid auto; need to use height (please w3c)
+          out.style.height = args.convSizeMax;
+          break;
+        case "left":
+        case "right":
+          out.style.maxWidth = args.convSizeMax;
+          break;
+      }
+    }
+    if (args.transSizeMax != null) {
+      switch (args.direction) {
+        case "up":
+        case "down":
+          out.style.maxWidth = args.transSizeMax;
+          break;
+        case "left":
+        case "right":
+          // Issue with max height for vert flex/grid auto; need to use height (please w3c)
+          out.style.height = args.transSizeMax;
+          break;
+      }
     }
     if (args.gap != null) {
       out.style.gap = args.gap;
@@ -2504,8 +2591,30 @@
   presentation.contViewTable =
     /** @type { Presentation["contViewTable"] } */
     (args) => {
-      const template = [];
-      const children1 = [];
+      const spacer = e("div", {}, {});
+      const convTemplate = [];
+      const transTemplate = [];
+      switch (conv(args.orientation)) {
+        case "up":
+          convTemplate.push("1fr");
+          spacer.style.gridRow = "0";
+          break;
+        case "left":
+          convTemplate.push("1fr");
+          spacer.style.gridColumn = "0";
+          break;
+      }
+      switch (trans(args.orientation)) {
+        case "up":
+          transTemplate.push("1fr");
+          spacer.style.gridRow = "0";
+          break;
+        case "left":
+          transTemplate.push("1fr");
+          spacer.style.gridColumn = "0";
+          break;
+      }
+      const children1 = /** @type { Element[] } */ ([spacer]);
       for (let j0 = 0; j0 < args.children.length; ++j0) {
         const j = j0 + 1;
         const row = args.children[j0];
@@ -2541,9 +2650,33 @@
               break;
           }
           children1.push(child);
+          if (j0 == 0) {
+            transTemplate.push("auto");
+          }
         }
-        template.push("auto");
+        convTemplate.push("auto");
       }
+      switch (conv(args.orientation)) {
+        case "down":
+          convTemplate.push("1fr");
+          spacer.style.gridRow = `${convTemplate.length}`;
+          break;
+        case "right":
+          convTemplate.push("1fr");
+          spacer.style.gridColumn = `${convTemplate.length}`;
+          break;
+      }
+      switch (trans(args.orientation)) {
+        case "down":
+          transTemplate.push("1fr");
+          spacer.style.gridRow = `${transTemplate.length}`;
+          break;
+        case "right":
+          transTemplate.push("1fr");
+          spacer.style.gridColumn = `${transTemplate.length}`;
+          break;
+      }
+      children1.push(spacer);
       const out = e(
         "div",
         {},
@@ -2565,16 +2698,30 @@
       );
       switch (conv(args.orientation)) {
         case "up":
-          out.style.gridTemplateRows = `1fr ${template.join(" ")}`;
+          out.style.gridTemplateRows = `1fr ${convTemplate.join(" ")}`;
           break;
         case "down":
-          out.style.gridTemplateRows = `${template.join(" ")} 1fr`;
+          out.style.gridTemplateRows = `${convTemplate.join(" ")} 1fr`;
           break;
         case "left":
-          out.style.gridTemplateColumns = `1fr ${template.join(" ")}`;
+          out.style.gridTemplateColumns = `1fr ${convTemplate.join(" ")}`;
           break;
         case "right":
-          out.style.gridTemplateColumns = `${template.join(" ")} 1fr`;
+          out.style.gridTemplateColumns = `${convTemplate.join(" ")} 1fr`;
+          break;
+      }
+      switch (trans(args.orientation)) {
+        case "up":
+          out.style.gridTemplateRows = `1fr ${transTemplate.join(" ")}`;
+          break;
+        case "down":
+          out.style.gridTemplateRows = `${transTemplate.join(" ")} 1fr`;
+          break;
+        case "left":
+          out.style.gridTemplateColumns = `1fr ${transTemplate.join(" ")}`;
+          break;
+        case "right":
+          out.style.gridTemplateColumns = `${transTemplate.join(" ")} 1fr`;
           break;
       }
       if (args.gap != null) {
@@ -2589,8 +2736,43 @@
             break;
         }
       }
-      if (args.xScroll) {
-        out.style.overflowX = "auto";
+      if (args.convScroll) {
+        switch (conv(args.orientation)) {
+          case "up":
+          case "down":
+            out.style.overflowY = "auto";
+            break;
+          case "left":
+          case "right":
+            out.style.overflowX = "auto";
+            break;
+        }
+      }
+      if (args.convSizeMax != null) {
+        switch (conv(args.orientation)) {
+          case "up":
+          case "down":
+            // Issue with max height for vert flex/grid auto; need to use height (please w3c)
+            out.style.height = args.convSizeMax;
+            break;
+          case "left":
+          case "right":
+            out.style.maxWidth = args.convSizeMax;
+            break;
+        }
+      }
+      if (args.transSizeMax != null) {
+        switch (trans(args.orientation)) {
+          case "up":
+          case "down":
+            // Issue with max height for vert flex/grid auto; need to use height (please w3c)
+            out.style.height = args.transSizeMax;
+            break;
+          case "left":
+          case "right":
+            out.style.maxWidth = args.transSizeMax;
+            break;
+        }
       }
       return { root: out };
     };
@@ -2741,7 +2923,18 @@
         const media = e(
           "video",
           { src: args.src, controls: true },
-          { styles_: [viewMediaNonlinkMediaStyle] }
+          {
+            styles_: [
+              viewMediaNonlinkMediaStyle,
+              ss(uniq("leaf_view_video"), {
+                "": (s) => {
+                  s.pointerEvents = "initial";
+                  s.minWidth = "0";
+                  s.minHeight = "0";
+                },
+              }),
+            ],
+          }
         );
         if (args.src != null) {
           media.src = args.src;
@@ -2808,7 +3001,7 @@
         return out;
       } else {
         const media = e(
-          "video",
+          "audio",
           { src: args.src, controls: true },
           { styles_: [viewMediaNonlinkMediaStyle, directionStyle] }
         );
@@ -2959,18 +3152,30 @@
     if (args.color != null) {
       out.style.color = args.color;
     }
-    if (args.maxSize != null) {
+    if (args.convSizeMax != null) {
       switch (conv(args.orientation)) {
         case "up":
         case "down":
-          out.style.maxHeight = args.maxSize;
+          out.style.maxHeight = args.convSizeMax;
           break;
         case "left":
         case "right":
-          out.style.maxWidth = args.maxSize;
+          out.style.maxWidth = args.convSizeMax;
           break;
       }
     }
+    switchCb(() => {
+      switch (args.convSizeMode) {
+        case "wrap":
+          // default
+          return 0;
+        case "ellipsize":
+          out.style.textOverflow = "ellipsis";
+          return 0;
+        case undefined:
+          return 0;
+      }
+    });
     return { root: out };
   };
   presentation.leafViewDatetime =
@@ -3463,73 +3668,7 @@
     });
 
   // /////////////////////////////////////////////////////////////////////////////
-  // xx Components, styles: page, view/edit node
-
-  const pageNodeBody = /** @type{(children: Element[])=>HTMLElement} */ (
-    children
-  ) =>
-    e(
-      "div",
-      {},
-      {
-        styles_: [
-          contBodyNarrowStyle,
-          contVboxStyle,
-          ss(uniq("page_node"), {
-            "": (s) => {
-              s.gap = varSNodeGap;
-            },
-          }),
-        ],
-        children_: children,
-      }
-    );
-  presentation.contPageNodeView =
-    /** @type {Presentation["contPageNodeView"]} */ (args) => {
-      const body = pageNodeBody(args.children);
-      return {
-        root: presentation.contGroup({
-          children: [
-            e(
-              "div",
-              {},
-              {
-                styles_: [classMenuWantStateOpen, contVboxStyle, contBodyStyle],
-                children_: [body],
-              }
-            ),
-          ],
-        }).root,
-        body: body,
-      };
-    };
-  presentation.contPageNodeEdit =
-    /** @type {Presentation["contPageNodeEdit"]} */ (args) => {
-      const body = pageNodeBody(args.children);
-      return {
-        root: presentation.contGroup({
-          children: [
-            presentation.contBarMain({
-              leftChildren: [],
-              leftMidChildren: [],
-              midChildren: [],
-              rightMidChildren: [],
-              rightChildren: args.barChildren,
-            }).root,
-            e(
-              "div",
-              {},
-              {
-                styles_: [classMenuWantStateOpen, contVboxStyle, contBodyStyle],
-                children_: [body],
-              }
-            ),
-          ],
-        }).root,
-        body: body,
-      };
-    };
-
+  // xx Components, styles: page, node view/edit/history
   let varSNodeGap = v(uniq(), "0.5cm");
   const contNodeStyle = ss(uniq("cont_node"), {
     "": (s) => {
@@ -3705,6 +3844,106 @@
         }
       ),
     });
+  // /////////////////////////////////////////////////////////////////////////////
+  // xx Components, styles: page, view/history node
+  presentation.contPageNodeView =
+    /** @type {Presentation["contPageNodeView"]} */ (args) => {
+      const body = pageNodeBody(args.children);
+      return {
+        root: presentation.contGroup({
+          children: [
+            e(
+              "div",
+              {},
+              {
+                styles_: [classMenuWantStateOpen, contVboxStyle, contBodyStyle],
+                children_: [body],
+              }
+            ),
+          ],
+        }).root,
+        body: body,
+      };
+    };
+  presentation.leafNodeViewPredicate =
+    /** @type {Presentation["leafNodeViewPredicate"]} */ (args) => ({
+      root: e(
+        "p",
+        { textContent: args.value },
+        {
+          styles_: [
+            ss(uniq("leaf_node_view_predicate"), {
+              "": (s) => {
+                s.opacity = varONodePredicate;
+                s.whiteSpace = "pre-wrap";
+                s.overflowWrap = "anywhere";
+                s.pointerEvents = "initial";
+              },
+            }),
+          ],
+        }
+      ),
+    });
+  presentation.leafNodeViewNodeText =
+    /** @type {Presentation["leafNodeViewNodeText"]} */ (args) => {
+      return {
+        root: e(
+          "span",
+          { textContent: args.value },
+          {
+            styles_: [
+              ss(uniq("leaf_node_view_node_text"), {
+                "": (s) => {
+                  s.whiteSpace = "pre-wrap";
+                  s.overflowWrap = "anywhere";
+                  s.flexShrink = "1";
+                  s.pointerEvents = "initial";
+                },
+              }),
+            ],
+          }
+        ),
+      };
+    };
+
+  // /////////////////////////////////////////////////////////////////////////////
+  // xx Components, styles: page, node view/edit
+  presentation.contNodeToolbar =
+    /** @type {Presentation["contNodeToolbar"]} */ (args) => {
+      const children = args.left;
+      children.push(presentation.leafSpace({}).root);
+      children.push(...args.right);
+      return {
+        root: e(
+          "div",
+          {},
+          {
+            styles_: [contHboxStyle, contNodeToolboxStyle],
+            children_: children,
+          }
+        ),
+      };
+    };
+  const pageNodeBody = /** @type{(children: Element[])=>HTMLElement} */ (
+    children
+  ) =>
+    e(
+      "div",
+      {},
+      {
+        styles_: [
+          contBodyNarrowStyle,
+          contVboxStyle,
+          ss(uniq("page_node"), {
+            "": (s) => {
+              s.gap = varSNodeGap;
+            },
+          }),
+        ],
+        children_: children,
+      }
+    );
+
   const leafButtonFreeStyle = ss(uniq("leaf_button_free"), {
     "": (s) => {
       s.borderRadius = varRNodeButton;
@@ -3723,6 +3962,9 @@
     },
     [`.${classStatePressed}`]: (s) => {
       s.color = varCModified;
+    },
+    [`.${classStateHide}`]: (s) => {
+      s.display = "none";
     },
   });
   const leafButtonEditFree =
@@ -3773,7 +4015,9 @@
     },
   });
   const leafNodeButtons =
-    /** @type { (args: {children: Element[]})=>{root: Element}} */ (args) => {
+    /** @type { (args: {children: Element[]})=>{root: HTMLElement}} */ (
+      args
+    ) => {
       return {
         root: e(
           "div",
@@ -3789,106 +4033,77 @@
   // /////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: page, node view
 
-  presentation.leafNodeViewNodeButtons =
-    /** @type {Presentation["leafNodeViewNodeButtons"]} */ (args) => {
-      const children = [presentation.leafSpace({}).root];
-      if (args.download != null) {
-        children.push(
-          leafButtonFreeLink({
-            icon: textIconSave,
-            hint: "Save",
-            url: args.download,
-            download: true,
-          }).root
-        );
-      }
-      if (args.history != null) {
-        children.push(
-          leafButtonFreeLink({
-            icon: textIconHistory,
-            hint: "History",
-            url: args.history,
-            download: false,
-          }).root
-        );
-      }
-      if (args.edit != null) {
-        children.push(
-          leafButtonFreeLink({
-            icon: textIconEdit,
-            hint: "Edit",
-            url: args.edit,
-            download: false,
-          }).root
-        );
-      }
-      if (args.link != null) {
-        children.push(
-          leafButtonFreeLink({
-            icon: textIconGo,
-            hint: "View node",
-            url: args.link,
-            download: false,
-          }).root
-        );
-      }
-      return {
-        root: e(
-          "div",
-          {},
-          {
-            styles_: [contHboxStyle, contNodeToolboxStyle],
-            children_: children,
-          }
-        ),
-      };
+  presentation.leafNodeViewToolbarDownloadLinkButton =
+    /** @type {Presentation["leafNodeViewToolbarDownloadLinkButton"]} */ (
+      args
+    ) => {
+      return leafButtonFreeLink({
+        icon: textIconDownload,
+        hint: "Download",
+        url: args.link,
+        download: true,
+      });
     };
-  presentation.leafNodeViewNodeText =
-    /** @type {Presentation["leafNodeViewNodeText"]} */ (args) => {
-      return {
-        root: e(
-          "span",
-          { textContent: args.value },
-          {
-            styles_: [
-              ss(uniq("leaf_node_view_node_text"), {
-                "": (s) => {
-                  s.whiteSpace = "pre-wrap";
-                  s.overflowWrap = "anywhere";
-                  s.flexShrink = "1";
-                  s.pointerEvents = "initial";
-                },
-              }),
-            ],
-          }
-        ),
-      };
+  presentation.leafNodeViewToolbarHistoryLinkButton =
+    /** @type {Presentation["leafNodeViewToolbarHistoryLinkButton"]} */ (
+      args
+    ) => {
+      return leafButtonFreeLink({
+        icon: textIconHistory,
+        hint: "History",
+        url: args.link,
+        download: false,
+      });
     };
-
-  presentation.leafNodeViewPredicate =
-    /** @type {Presentation["leafNodeViewPredicate"]} */ (args) => ({
-      root: e(
-        "p",
-        { textContent: args.value },
-        {
-          styles_: [
-            ss(uniq("leaf_node_view_predicate"), {
-              "": (s) => {
-                s.opacity = varONodePredicate;
-                s.whiteSpace = "pre-wrap";
-                s.overflowWrap = "anywhere";
-                s.pointerEvents = "initial";
-              },
-            }),
-          ],
-        }
-      ),
-    });
+  presentation.leafNodeViewToolbarEditLinkButton =
+    /** @type {Presentation["leafNodeViewToolbarEditLinkButton"]} */ (args) => {
+      return leafButtonFreeLink({
+        icon: textIconEdit,
+        hint: "Edit",
+        url: args.link,
+        download: false,
+      });
+    };
+  presentation.leafNodeViewToolbarGoLinkButton =
+    /** @type {Presentation["leafNodeViewToolbarGoLinkButton"]} */ (args) => {
+      return leafButtonFreeLink({
+        icon: textIconGo,
+        hint: "View node",
+        url: args.link,
+        download: false,
+      });
+    };
 
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: page, node edit
+  presentation.contPageNodeEdit =
+    /** @type {Presentation["contPageNodeEdit"]} */ (args) => {
+      const body = pageNodeBody(args.children);
+      return {
+        root: presentation.contGroup({
+          children: [
+            presentation.contBarMain({
+              leftChildren: [],
+              leftMidChildren: [],
+              midChildren: [],
+              rightMidChildren: [],
+              rightChildren: args.barChildren,
+            }).root,
+            e(
+              "div",
+              {},
+              {
+                styles_: [classMenuWantStateOpen, contVboxStyle, contBodyStyle],
+                children_: [body],
+              }
+            ),
+          ],
+        }).root,
+        body: body,
+      };
+    };
   const leafButtonNodeEditAdd =
-    /** @type {(args: {hint: string})=>{root: Element}} */ (args) =>
+    /** @type {(args: {hint: string})=>{root: HTMLElement}} */ (args) =>
       leafButtonEditFree({
         icon: textIconAdd,
         hint: args.hint,
@@ -3931,61 +4146,6 @@
           new: true,
         }).root,
         button: button,
-      };
-    };
-
-  presentation.leafNodeEditToolbar =
-    /** @type {Presentation["leafNodeEditToolbar"]} */ (args) => {
-      const buttonDelete = leafButtonEditFree({
-        icon: textIconDelete,
-        hint: "Delete",
-      });
-      const buttonRevert = leafButtonEditFree({
-        icon: textIconRevert,
-        hint: "Revert",
-      });
-      const children = [];
-      if (args.total != null) {
-        children.push(
-          e(
-            "div",
-            { textContent: `${args.count} / ${args.total} nodes` },
-            {
-              styles_: [
-                ss(uniq("leaf_node_edit_toolbar_center_count"), {
-                  "": (s) => {
-                    s.opacity = varONoninteractive;
-                  },
-                }),
-              ],
-            }
-          )
-        );
-      }
-      children.push(presentation.leafSpace({}).root);
-      children.push(buttonDelete.root);
-      children.push(buttonRevert.root);
-      if (args.link != null) {
-        children.push(
-          leafButtonFreeLink({
-            icon: textIconGo,
-            hint: "View",
-            download: false,
-            url: args.link,
-          }).root
-        );
-      }
-      return {
-        root: e(
-          "div",
-          {},
-          {
-            styles_: [contHboxStyle, contNodeToolboxStyle],
-            children_: children,
-          }
-        ),
-        buttonDelete: buttonDelete.root,
-        buttonRevert: buttonRevert.root,
       };
     };
 
@@ -4052,6 +4212,61 @@
         }
       ),
     });
+
+  presentation.leafNodeEditToolbarCountText =
+    /** @type {Presentation["leafNodeEditToolbarCountText"]} */ (args) => {
+      return {
+        root: e(
+          "div",
+          {},
+          {
+            styles_: [
+              ss(uniq("leaf_node_edit_toolbar_center_count"), {
+                "": (s) => {
+                  s.opacity = varONoninteractive;
+                },
+                [`.${classInputStateModified}`]: (s) => {
+                  s.color = varCModified;
+                },
+                [`.${classStateHide}`]: (s) => {
+                  s.display = "none";
+                },
+              }),
+            ],
+          }
+        ),
+      };
+    };
+  presentation.leafNodeEditToolbarFillToggle =
+    /** @type {Presentation["leafNodeEditToolbarFillToggle"]} */ (args) => {
+      return leafButtonEditFree({
+        icon: textIconFill,
+        hint: "Fill",
+      });
+    };
+  presentation.leafNodeEditToolbarDeleteToggle =
+    /** @type {Presentation["leafNodeEditToolbarDeleteToggle"]} */ (args) => {
+      return leafButtonEditFree({
+        icon: textIconDelete,
+        hint: "Delete",
+      });
+    };
+  presentation.leafNodeEditToolbarRevertButton =
+    /** @type {Presentation["leafNodeEditToolbarRevertButton"]} */ (args) => {
+      return leafButtonEditFree({
+        icon: textIconRevert,
+        hint: "Revert",
+      });
+    };
+  presentation.leafNodeEditToolbarViewLinkButton =
+    /** @type {Presentation["leafNodeEditToolbarViewLinkButton"]} */ (args) => {
+      return leafButtonFreeLink({
+        icon: textIconGo,
+        hint: "View",
+        download: false,
+        url: args.link,
+      });
+    };
 
   // /////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: page, history
@@ -4185,7 +4400,7 @@
       ),
     });
   const contHistoryPredicateObject =
-    /** @type {(args: {icon: Element, button?: Element, children: Element[]})=>{root: Element}} */ (
+    /** @type {(args: {icon: Element, button?: Element, children: Element[]})=>{root: HTMLElement}} */ (
       args
     ) => {
       const children = /** @type {Element[]} */ ([
@@ -4310,6 +4525,42 @@
 
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: page, query
+  const pageQueryBlockWidth = `min(10cm, 100%)`;
+  const contQueryNarrowStyle = ss(uniq("cont_query_narrow"), {
+    "": (s) => {
+      s.width = `min(${varSNarrow}, 100%)`;
+    },
+  });
+  const createPageQuerySplit =
+    /** @type { (left: Element, right: Element) => HTMLElement } */ (
+      left,
+      right
+    ) => {
+      return e(
+        "div",
+        {},
+        {
+          styles_: [
+            ss(uniq("cont_page_query_split"), {
+              "": (s) => {
+                s.flexGrow = "1";
+
+                s.display = "flex";
+                s.flexWrap = "wrap";
+                s.flexDirection = "row";
+                s.justifyContent = "stretch";
+                s.gap = varP05;
+              },
+              ">*": (s) => {
+                s.flexBasis = "1cm";
+                s.flexGrow = "1";
+              },
+            }),
+          ],
+          children_: [left, right],
+        }
+      );
+    };
 
   presentation.contPageQuery = /** @type {Presentation["contPageQuery"]} */ (
     args
@@ -4375,9 +4626,9 @@
             for (const [otherK, vs] of tabMap) {
               for (const v of vs) {
                 if (otherK == k) {
-                  v.style.removeProperty("visibility");
+                  v.style.removeProperty("display");
                 } else {
-                  v.style.visibility = "hidden";
+                  v.style.display = "none";
                 }
               }
             }
@@ -4409,11 +4660,9 @@
       };
 
     const mainTabs = /** @type {[string, HTMLElement[]][]} */ ([]);
-    const sideContents = [];
     const mainContents = [];
 
     // Query
-    const blockWidth = `min(10cm, 100%)`;
     const query = e(
       "div",
       { contentEditable: "plaintext-only", textContent: args.initialQuery },
@@ -4421,8 +4670,11 @@
         styles_: [
           ss(uniq("cont_page_query_query"), {
             "": (s) => {
-              s.minWidth = blockWidth;
+              s.minWidth = pageQueryBlockWidth;
               s.pointerEvents = "initial";
+              s.border = `${varLMid} solid ${varCInputUnderline}`;
+              s.borderRadius = varRMedia;
+              s.padding = varPSmall;
               s.fontFamily = "monospace";
               s.fontSize = varFCode;
               s.whiteSpace = "pre-wrap";
@@ -4443,36 +4695,8 @@
               s.fontFamily = "monospace";
               s.fontSize = varFCode;
               s.gap = varPSmall;
-            },
-            ":empty::before": (s) => {
-              s.display = "grid";
-              s.gridTemplateRows = "1fr";
-              s.gridTemplateColumns = "1fr";
-              s.justifyItems = "center";
-              s.alignItems = "center";
-
-              s.opacity = varONoninteractive;
-              s.content = '"No results"';
-              s.flexGrow = "1";
-            },
-          }),
-        ],
-      }
-    );
-    const jsonResults = e(
-      "div",
-      {},
-      {
-        styles_: [
-          contVboxStyle,
-          ss(uniq("cont_page_query_results"), {
-            "": (s) => {
-              s.minWidth = blockWidth;
-              s.flexBasis = "1cm";
-              s.flexGrow = "1";
-              s.fontFamily = "monospace";
-              s.fontSize = varFCode;
-              s.gap = varPSmall;
+              s.minWidth = "6cm";
+              s.maxWidth = "100%";
             },
             ":empty::before": (s) => {
               s.display = "grid";
@@ -4490,179 +4714,73 @@
       }
     );
     {
-      const queryLeft = e(
-        "div",
-        {},
-        {
-          styles_: [
-            contVboxStyle,
-            ss(uniq("cont_page_query_query_left"), {
-              "": (s) => {
-                s.flexBasis = "1cm";
-                s.flexGrow = "1";
-
-                s.gap = varP05;
-              },
-            }),
-          ],
-          children_: [
-            e(
-              "div",
-              {},
-              {
-                styles_: [
-                  ss(uniq("cont_page_query_box_help_text"), {
-                    "": (s) => {
-                      s.color = varCForegroundFade;
-                    },
-                  }),
-                ],
-                children_: [
-                  e("span", { textContent: "Language " }, {}),
-                  e(
-                    "a",
-                    { href: "", textContent: "reference" },
-                    {
-                      styles_: [
-                        ss(uniq("cont_page_query_doc_link"), {
-                          "": (s) => {
-                            s.textDecoration = "underline";
-                          },
-                        }),
-                      ],
-                    }
-                  ),
-                ],
-              }
-            ),
-            query,
-          ],
-        }
-      );
-      const queryRight = e(
-        "div",
-        {},
-        {
-          styles_: [
-            contStackStyle,
-            ss(uniq("cont_page_query_query_right"), {
-              "": (s) => {
-                s.minWidth = blockWidth;
-                s.flexBasis = "1cm";
-                s.flexGrow = "1";
-              },
-            }),
-          ],
-          children_: [prettyResults, jsonResults],
-        }
-      );
-      const queryMain = e(
-        "div",
-        {},
-        {
-          styles_: [
-            ss(uniq("cont_page_query_query_main"), {
-              "": (s) => {
-                s.flexGrow = "1";
-
-                s.display = "flex";
-                s.flexWrap = "wrap";
-                s.justifyContent = "stretch";
-                s.rowGap = varP05;
-              },
-            }),
-          ],
-          children_: [queryLeft, queryRight],
-        }
+      const queryMain = createPageQuerySplit(
+        e(
+          "div",
+          {},
+          {
+            styles_: [
+              contVboxStyle,
+              ss(uniq("cont_page_query_query_left"), {
+                "": (s) => {
+                  s.minWidth = "6cm";
+                  s.gap = varP05;
+                },
+              }),
+            ],
+            children_: [
+              query,
+              e(
+                "div",
+                {},
+                {
+                  styles_: [
+                    ss(uniq("cont_page_query_box_help_text"), {
+                      "": (s) => {
+                        s.color = varCForegroundFade;
+                      },
+                    }),
+                  ],
+                  children_: [
+                    e("span", { textContent: "Language " }, {}),
+                    e(
+                      "a",
+                      {
+                        href: "https://github.com/andrewbaxter/sunwet/blob/master/query.md",
+                        textContent: "reference",
+                      },
+                      {
+                        styles_: [
+                          ss(uniq("cont_page_query_doc_link"), {
+                            "": (s) => {
+                              s.textDecoration = "underline";
+                            },
+                          }),
+                        ],
+                      }
+                    ),
+                  ],
+                }
+              ),
+            ],
+          }
+        ),
+        prettyResults
       );
       mainContents.push(queryMain);
-      const querySide = createTabs([
-        ["Pretty", [prettyResults]],
-        ["JSON", [jsonResults]],
-      ]);
-      sideContents.push(querySide);
-      mainTabs.push(["Query", [queryMain, querySide]]);
+      mainTabs.push(["Query", [queryMain]]);
     }
+
+    mainContents.push(...args.jsonTab);
+    mainTabs.push(["JSON", args.jsonTab]);
 
     // Download
-    const downloadField = presentation.leafInputText({
-      title: "Field",
-      value: "",
-    }).root;
-    const downloadPattern = presentation.leafInputText({
-      title: "Filename pattern",
-      value: "",
-    }).root;
-    const downloadResults = e(
-      "div",
-      {},
-      {
-        styles_: [
-          contVboxStyle,
-          ss(uniq("cont_page_query_download_results"), {
-            "": (s) => {
-              s.flexGrow = "1";
-            },
-          }),
-        ],
-      }
-    );
-    {
-      const downloadMain = e(
-        "div",
-        {},
-        {
-          styles_: [
-            contBodyNarrowStyle,
-            contVboxStyle,
-            ss(uniq("cont_page_query_download"), {
-              "": (s) => {
-                s.gap = varP05;
-              },
-            }),
-          ],
-          children_: [
-            e(
-              "div",
-              {},
-              {
-                styles_: [
-                  contHboxStyle,
-                  ss(uniq("cont_page_query_download_inputs"), {
-                    "": (s) => {
-                      s.gap = varP05;
-                    },
-                    ">*": (s) => {
-                      s.minWidth = "1cm";
-                    },
-                  }),
-                ],
-                children_: [downloadField, downloadPattern],
-              }
-            ),
-            downloadResults,
-          ],
-        }
-      );
-      mainContents.push(downloadMain);
-      mainTabs.push(["Download", [downloadMain]]);
-    }
+    mainContents.push(...args.downloadTab);
+    mainTabs.push(["Download", args.downloadTab]);
 
     // Edit
-    const commitButton = presentation.leafButtonBigCommit({}).root;
-    const editBar = /** @type {HTMLElement} */ (
-      presentation.contBarMain({
-        leftChildren: [],
-        leftMidChildren: [],
-        midChildren: [],
-        rightMidChildren: [],
-        rightChildren: [commitButton],
-      }).root
-    );
-    mainContents.push(editBar);
-    const edit = pageNodeBody([]);
-    mainContents.push(edit);
-    mainTabs.push(["Edit", [edit, editBar]]);
+    mainContents.push(...args.editTab);
+    mainTabs.push(["Edit", args.editTab]);
 
     return {
       root: e(
@@ -4695,21 +4813,21 @@
                     },
                   }),
                 ],
-                children_: [
-                  createTabs(mainTabs),
-                  e(
-                    "div",
-                    {},
-                    { styles_: [contStackStyle], children_: sideContents }
-                  ),
-                ],
+                children_: [createTabs(mainTabs)],
               }
             ),
             e(
               "div",
               {},
               {
-                styles_: [contStackStyle],
+                styles_: [
+                  contStackStyle,
+                  ss(uniq("cont_page_query_body_stack"), {
+                    "": (s) => {
+                      s.alignItems = "start";
+                    },
+                  }),
+                ],
                 children_: mainContents,
               }
             ),
@@ -4718,14 +4836,185 @@
       ),
       query: query,
       prettyResults: prettyResults,
-      jsonResults: jsonResults,
-      downloadField: downloadField,
-      downloadPattern: downloadPattern,
-      downloadResults: downloadResults,
-      edit: edit,
-      commitButton: commitButton,
     };
   };
+  presentation.contPageQueryTabJson =
+    /** @type {Presentation["contPageQueryTabJson"]} */ (args) => {
+      const jsonResults = e(
+        "div",
+        {},
+        {
+          styles_: [
+            contVboxStyle,
+            ss(uniq("cont_page_query_results"), {
+              "": (s) => {
+                s.minWidth = pageQueryBlockWidth;
+                s.fontFamily = "monospace";
+                s.fontSize = varFCode;
+                s.gap = varPSmall;
+                s.backgroundColor = varCBackground2;
+                s.borderRadius = varRMedia;
+                s.pointerEvents = "initial";
+                s.padding = varPSmall;
+                s.whiteSpace = "pre";
+              },
+              ":empty::before": (s) => {
+                s.display = "grid";
+                s.gridTemplateRows = "1fr";
+                s.gridTemplateColumns = "1fr";
+                s.justifyItems = "center";
+                s.alignItems = "center";
+
+                s.opacity = varONoninteractive;
+                s.content = '"null"';
+                s.flexGrow = "1";
+              },
+            }),
+          ],
+        }
+      );
+      const downloadButton = leafButtonEditFree({
+        hint: "Download",
+        icon: textIconDownload,
+        extraStyles: [],
+      }).root;
+      const copyButton = leafButtonEditFree({
+        hint: "Copy",
+        icon: textIconCopy,
+        extraStyles: [],
+      }).root;
+      return {
+        root: createPageQuerySplit(
+          e(
+            "div",
+            {},
+            {
+              styles_: [
+                contHboxStyle,
+                ss(uniq("cont_page_query_json_left_buttons"), {
+                  "": (s) => {
+                    s.minWidth = "6cm";
+                    s.justifyContent = "end";
+                    s.gap = varP05;
+                    s.margin = varPSmall;
+                  },
+                }),
+              ],
+              children_: [downloadButton, copyButton],
+            }
+          ),
+          jsonResults
+        ),
+        jsonResults: jsonResults,
+        downloadButton: downloadButton,
+        copyButton: copyButton,
+      };
+    };
+  presentation.contPageQueryTabDownloadV =
+    /** @type {Presentation["contPageQueryTabDownloadV"]} */ (args) => {
+      return {
+        root: e(
+          "div",
+          {},
+          {
+            styles_: [
+              contQueryNarrowStyle,
+              contVboxStyle,
+              ss(uniq("cont_page_query_download_results"), {
+                "": (s) => {
+                  s.gap = varP05;
+                  s.margin = "0 auto";
+                },
+              }),
+            ],
+          }
+        ),
+      };
+    };
+  presentation.contPageQueryTabDownloadKV =
+    /** @type {Presentation["contPageQueryTabDownloadKV"]} */ (args) => {
+      const downloadField = presentation.leafInputText({
+        title: "Field",
+        value: "",
+      }).root;
+      const downloadPattern = presentation.leafInputText({
+        title: "Filename pattern",
+        value: "",
+      }).root;
+      const downloadResults = e(
+        "div",
+        {},
+        {
+          styles_: [
+            contVboxStyle,
+            ss(uniq("cont_page_query_download_results"), {
+              "": (s) => {
+                s.flexGrow = "1";
+              },
+            }),
+          ],
+        }
+      );
+      return {
+        root: createPageQuerySplit(
+          e(
+            "div",
+            {},
+            {
+              styles_: [
+                contHboxStyle,
+                ss(uniq("cont_page_query_download_inputs"), {
+                  "": (s) => {
+                    s.gap = varP05;
+                  },
+                  ">*": (s) => {
+                    s.minWidth = "1cm";
+                  },
+                }),
+              ],
+              children_: [downloadField, downloadPattern],
+            }
+          ),
+          downloadResults
+        ),
+        downloadField: downloadField,
+        downloadPattern: downloadPattern,
+        downloadResults: downloadResults,
+      };
+    };
+  presentation.contPageQueryTabEdit =
+    /** @type {Presentation["contPageQueryTabEdit"]} */ (args) => {
+      const editBar = /** @type {HTMLElement} */ (
+        presentation.contBarMain({
+          leftChildren: [],
+          leftMidChildren: [],
+          midChildren: [],
+          rightMidChildren: [],
+          rightChildren: args.barChildren,
+        }).root
+      );
+      const edit = e(
+        "div",
+        {},
+        {
+          styles_: [
+            contVboxStyle,
+            contQueryNarrowStyle,
+            ss(uniq("cont_page_query_edit"), {
+              "": (s) => {
+                s.gap = varSNodeGap;
+                s.margin = "0 auto";
+              },
+            }),
+          ],
+          children_: args.children,
+        }
+      );
+      return {
+        root: edit,
+        editBar: editBar,
+      };
+    };
 
   presentation.contQueryPrettyRow =
     /** @type {Presentation["contQueryPrettyRow"]} */ (args) => ({
@@ -4742,6 +5031,7 @@
                 s.display = "grid";
                 s.gridTemplateColumns = "auto 1fr auto";
                 s.gap = varPSmall;
+                s.columnGap = varP05;
               },
               ":nth-child(odd)": (s) => {
                 s.backgroundColor = varCBackground2;
@@ -4753,21 +5043,63 @@
         }
       ),
     });
-  const queryPrettyInlineKStyle = ss(uniq("query_pretty_inline_k"), {
-    "": (s) => {
-      s.fontWeight = "600";
-      s.pointerEvents = "initial";
-      s.gridColumn = "1";
-    },
-  });
-  presentation.leafQueryPrettyInlineKV =
-    /** @type {Presentation["leafQueryPrettyInlineKV"]} */ (args) => ({
+  presentation.leafQueryPrettyV =
+    /** @type {Presentation["leafQueryPrettyV"]} */ (args) => {
+      /** @type { HTMLElement[] } */
+      const children = [
+        e(
+          "div",
+          { textContent: args.value },
+          {
+            styles_: [
+              ss(uniq("leaf_query_pretty_inline_v"), {
+                "": (s) => {
+                  s.pointerEvents = "initial";
+                  s.gridColumn = "2";
+                  s.display = "flex";
+                  s.flexDirection = "column";
+                  s.justifyContent = "center";
+                },
+              }),
+            ],
+          }
+        ),
+      ];
+      if (args.link != null) {
+        children.push(
+          leafButtonFreeLink({
+            icon: textIconGo,
+            hint: "View",
+            url: args.link,
+            download: false,
+          }).root
+        );
+      }
+      return {
+        root: e(
+          "div",
+          {},
+          {
+            styles_: [
+              ss(uniq("leaf_query_pretty_v"), {
+                "": (s) => {
+                  s.display = "contents";
+                },
+              }),
+            ],
+            children_: children,
+          }
+        ),
+      };
+    };
+  presentation.leafQueryPrettyMediaV =
+    /** @type {Presentation["leafQueryPrettyMediaV"]} */ (args) => ({
       root: e(
         "div",
         {},
         {
           styles_: [
-            ss(uniq("leaf_query_pretty_inline_kv"), {
+            ss(uniq("leaf_query_pretty_media_kv"), {
               "": (s) => {
                 s.display = "contents";
               },
@@ -4776,33 +5108,105 @@
           children_: [
             e(
               "div",
-              { textContent: args.key },
-              { styles_: [queryPrettyInlineKStyle] }
-            ),
-            e(
-              "div",
-              { textContent: args.value },
+              {},
               {
                 styles_: [
-                  ss(uniq("leaf_query_pretty_inline_v"), {
+                  ss(uniq("leaf_query_pretty_media_link"), {
                     "": (s) => {
-                      s.pointerEvents = "initial";
-                      s.gridColumn = "2";
+                      s.gridColumn = "3";
                     },
                   }),
                 ],
+                children_: [
+                  leafButtonFreeLink({
+                    icon: textIconGo,
+                    hint: "View",
+                    url: args.link,
+                    download: false,
+                  }).root,
+                ],
               }
             ),
-            leafButtonFreeLink({
-              icon: textIconGo,
-              hint: "View",
-              url: args.link,
-              download: false,
-            }).root,
+            e(
+              "div",
+              {},
+              {
+                styles_: [
+                  ss(uniq("leaf_query_pretty_media_v"), {
+                    "": (s) => {
+                      s.paddingLeft = varP05;
+                      s.gridColumn = "1 / 3";
+                    },
+                    ">*": (s) => {
+                      s.maxWidth = "100%";
+                    },
+                  }),
+                ],
+                children_: [args.value],
+              }
+            ),
           ],
         }
       ),
     });
+  const queryPrettyInlineKStyle = ss(uniq("query_pretty_inline_k"), {
+    "": (s) => {
+      s.fontWeight = "600";
+      s.pointerEvents = "initial";
+      s.gridColumn = "1";
+    },
+  });
+  presentation.leafQueryPrettyInlineKV =
+    /** @type {Presentation["leafQueryPrettyInlineKV"]} */ (args) => {
+      /** @type { HTMLElement[] } */
+      const children = [
+        e(
+          "div",
+          { textContent: args.key },
+          { styles_: [queryPrettyInlineKStyle] }
+        ),
+        e(
+          "div",
+          { textContent: args.value },
+          {
+            styles_: [
+              ss(uniq("leaf_query_pretty_inline_v"), {
+                "": (s) => {
+                  s.pointerEvents = "initial";
+                  s.gridColumn = "2";
+                },
+              }),
+            ],
+          }
+        ),
+      ];
+      if (args.link != null) {
+        children.push(
+          leafButtonFreeLink({
+            icon: textIconGo,
+            hint: "View",
+            url: args.link,
+            download: false,
+          }).root
+        );
+      }
+      return {
+        root: e(
+          "div",
+          {},
+          {
+            styles_: [
+              ss(uniq("leaf_query_pretty_inline_kv"), {
+                "": (s) => {
+                  s.display = "contents";
+                },
+              }),
+            ],
+            children_: children,
+          }
+        ),
+      };
+    };
   presentation.leafQueryPrettyMediaKV =
     /** @type {Presentation["leafQueryPrettyMediaKV"]} */ (args) => ({
       root: e(
@@ -4865,28 +5269,6 @@
         }
       ),
     });
-  presentation.leafQueryJsonRow =
-    /** @type {Presentation["leafQueryJsonRow"]} */ (args) => ({
-      root: e(
-        "div",
-        { textContent: args.data },
-        {
-          styles_: [
-            ss(uniq("leaf_query_row"), {
-              "": (s) => {
-                s.pointerEvents = "initial";
-                s.padding = varPSmall;
-                s.whiteSpace = "pre";
-              },
-              ":nth-child(odd)": (s) => {
-                s.backgroundColor = varCBackground2;
-                s.borderRadius = varRMedia;
-              },
-            }),
-          ],
-        }
-      ),
-    });
   presentation.leafQueryDownloadRow =
     /** @type {Presentation["leafQueryDownloadRow"]} */ (args) => {
       const out = e(
@@ -4914,7 +5296,7 @@
       );
       out.appendChild(
         leafIcon({
-          text: textIconGo,
+          text: textIconDownload,
           extraStyles: [
             ss(uniq("leaf_query_download_row_icon"), {
               "": (s) => {

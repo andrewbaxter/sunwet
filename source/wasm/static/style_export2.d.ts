@@ -9,6 +9,7 @@ declare type Orientation =
   | "right_up"
   | "right_down";
 declare type TransAlign = "start" | "middle" | "end";
+declare type TextSizeMode = "wrap" | "ellipsize";
 // Merge, separated to avoid issues with rust generation
 declare interface Window {
   sunwetPresentation: Presentation;

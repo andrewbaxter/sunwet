@@ -47,10 +47,6 @@ fn main() {
         serde_json::to_vec_pretty(&schema_for!(shared::interface::wire::RespCommit)).unwrap(),
     ).unwrap();
     write(
-        root.join("api_response_get_triples_around.schema.json"),
-        serde_json::to_vec_pretty(&schema_for!(shared::interface::wire::RespGetTriplesAround)).unwrap(),
-    ).unwrap();
-    write(
         root.join("api_response_history.schema.json"),
         serde_json::to_vec_pretty(&schema_for!(shared::interface::wire::RespHistory)).unwrap(),
     ).unwrap();

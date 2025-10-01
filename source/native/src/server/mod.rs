@@ -95,6 +95,8 @@ use {
     },
     moka::future::Cache,
     shared::interface::{
+        config::view::ViewId,
+        query::Query,
         triple::{
             FileHash,
             Node,
@@ -102,11 +104,12 @@ use {
         wire::{
             C2SReq,
             NodeMeta,
+            Pagination,
             ReqHistoryFilterPredicate,
-            RespGetTriplesAround,
             RespHistory,
             RespHistoryEvent,
             RespQuery,
+            RespQueryRows,
             RespWhoAmI,
             TreeNode,
             Triple,
@@ -168,7 +171,7 @@ use {
     tokio_stream::wrappers::TcpListenerStream,
 };
 
-fn gather_files(files: &mut Vec<FileHash>, r: &TreeNode) {
+fn gather_record_files(files: &mut Vec<FileHash>, r: &TreeNode) {
     match r {
         TreeNode::Scalar(s) => {
             if let Node::File(s) = s {
@@ -177,15 +180,90 @@ fn gather_files(files: &mut Vec<FileHash>, r: &TreeNode) {
         },
         TreeNode::Array(a) => {
             for v in a {
-                gather_files(files, v);
+                gather_record_files(files, v);
             }
         },
         TreeNode::Record(r) => {
             for v in r.values() {
-                gather_files(files, v);
+                gather_record_files(files, v);
             }
         },
     }
+}
+
+async fn handle_query_req(
+    state: Arc<State>,
+    query: Query,
+    parameters: HashMap<String, Node>,
+    pagination: Option<Pagination>,
+    view_access: Option<(ViewId, u64)>,
+) -> Result<RespQuery, VisErr<loga::Error>> {
+    let expect_count = pagination.as_ref().map(|x| x.count);
+    let results = query::execute_query(&state.db, query, parameters, pagination).await?;
+    let page_end = expect_count.and_then(|x| {
+        match &results {
+            query::QueryResults::Scalar(rows) => {
+                if rows.len() < x {
+                    return None;
+                } else {
+                    return rows.last().cloned();
+                }
+            },
+            query::QueryResults::Record(rows) => {
+                if rows.len() < x {
+                    return None;
+                } else {
+                    return rows.last().map(|x| x.head_data.clone());
+                }
+            },
+        }
+    });
+    let mut files = vec![];
+    let out_rows;
+    match results {
+        query::QueryResults::Scalar(rows) => {
+            for scalar in &rows {
+                if let Node::File(s) = scalar {
+                    files.push(s.clone());
+                }
+            }
+            out_rows = RespQueryRows::Scalar(rows);
+        },
+        query::QueryResults::Record(rows) => {
+            let mut out_rows1 = vec![];
+            for record in rows {
+                for v in record.tail_data.values() {
+                    gather_record_files(&mut files, v);
+                }
+                out_rows1.push(record.tail_data);
+            }
+            out_rows = RespQueryRows::Record(out_rows1);
+        },
+    }
+    let meta = tx(&state.db, {
+        move |txn| {
+            if let Some((view_id, view_hash)) = view_access {
+                let access_source_id = DbAccessSourceId(AccessSourceId::ViewId(view_id.clone()));
+                db::file_access_clear_nonversion(txn, &access_source_id, view_hash as i64)?;
+                for file in &files {
+                    db::file_access_insert(txn, &DbFileHash(file.clone()), &access_source_id, view_hash as i64)?;
+                }
+            }
+            let mut meta = HashMap::new();
+            for file in files {
+                let node = Node::File(file);
+                if let Some(node_meta) = db::meta_get(txn, &DbNode(node.clone()))? {
+                    meta.insert(node, NodeMeta { mime: node_meta.mimetype });
+                }
+            }
+            return Ok(meta);
+        }
+    }).await.err_internal()?;
+    return Ok(RespQuery {
+        rows: out_rows,
+        meta: meta.into_iter().collect(),
+        next_page_key: page_end,
+    });
 }
 
 async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<BoxBody<Bytes, std::io::Error>> {
@@ -394,44 +472,16 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     },
                                 }
                                 let responder = req.respond();
-                                let expect_count = req.pagination.as_ref().map(|x| x.count);
-                                let records =
-                                    query::execute_query(
-                                        &state.db,
-                                        req.query,
-                                        req.parameters,
-                                        req.pagination,
-                                    ).await?;
-                                let page_end = expect_count.and_then(|x| {
-                                    if records.len() < x {
-                                        return None
-                                    } else {
-                                        records.last().map(|x| x.pagination_key.clone())
-                                    }
-                                });
-                                let mut files = vec![];
-                                for record in &records {
-                                    for v in record.value.values() {
-                                        gather_files(&mut files, v);
-                                    }
-                                }
-                                let meta = tx(&state.db, {
-                                    move |txn| {
-                                        let mut meta = HashMap::new();
-                                        for file in files {
-                                            let node = Node::File(file);
-                                            if let Some(node_meta) = db::meta_get(txn, &DbNode(node.clone()))? {
-                                                meta.insert(node, NodeMeta { mime: node_meta.mimetype });
-                                            }
-                                        }
-                                        return Ok(meta);
-                                    }
-                                }).await.err_internal()?;
-                                resp = responder(RespQuery {
-                                    records: records.into_iter().map(|x| x.value).collect(),
-                                    meta: meta.into_iter().collect(),
-                                    next_page_key: page_end,
-                                });
+                                resp =
+                                    responder(
+                                        handle_query_req(
+                                            state,
+                                            req.query,
+                                            req.parameters,
+                                            req.pagination,
+                                            None,
+                                        ).await?,
+                                    );
                             },
                             C2SReq::ViewQuery(req) => {
                                 let responder = req.respond();
@@ -497,53 +547,16 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 let mut view_hash = DefaultHasher::new();
                                 view.item.hash(&mut view_hash);
                                 let view_hash = view_hash.finish();
-                                let expect_count = req.pagination.as_ref().map(|x| x.count);
-                                let records =
-                                    query::execute_query(
-                                        &state.db,
-                                        query.clone(),
-                                        req.parameters,
-                                        req.pagination,
-                                    ).await?;
-                                let page_end = expect_count.and_then(|x| {
-                                    if records.len() < x {
-                                        return None
-                                    } else {
-                                        records.last().map(|x| x.pagination_key.clone())
-                                    }
-                                });
-                                let mut files = vec![];
-                                for record in &records {
-                                    for v in record.value.values() {
-                                        gather_files(&mut files, v);
-                                    }
-                                }
-                                let meta = tx(&state.db, {
-                                    move |txn| {
-                                        let access_source_id =
-                                            DbAccessSourceId(AccessSourceId::ViewId(req.view_id.clone()));
-                                        db::file_access_clear_nonversion(txn, &access_source_id, view_hash as i64)?;
-                                        let mut meta = HashMap::new();
-                                        for file in files {
-                                            db::file_access_insert(
-                                                txn,
-                                                &DbFileHash(file.clone()),
-                                                &access_source_id,
-                                                view_hash as i64,
-                                            )?;
-                                            let node = Node::File(file);
-                                            if let Some(node_meta) = db::meta_get(txn, &DbNode(node.clone()))? {
-                                                meta.insert(node, NodeMeta { mime: node_meta.mimetype });
-                                            }
-                                        }
-                                        return Ok(meta);
-                                    }
-                                }).await.err_internal()?;
-                                resp = responder(RespQuery {
-                                    records: records.into_iter().map(|x| x.value).collect(),
-                                    meta: meta.into_iter().collect(),
-                                    next_page_key: page_end,
-                                });
+                                resp =
+                                    responder(
+                                        handle_query_req(
+                                            state,
+                                            query.clone(),
+                                            req.parameters,
+                                            req.pagination,
+                                            Some((req.view_id.clone(), view_hash)),
+                                        ).await?,
+                                    );
                             },
                             C2SReq::GetNodeMeta(req) => {
                                 let responder = req.respond();
@@ -686,32 +699,17 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 }
                                 let responder = req.respond();
                                 let triples = tx(&state.db, {
-                                    let node = req.node.clone();
+                                    let nodes = req.nodes.clone();
                                     move |txn| {
-                                        return Ok(db::triple_list_around(txn, &DbNode(node))?);
+                                        let nodes = nodes.into_iter().map(DbNode).collect::<Vec<_>>();
+                                        return Ok(db::triple_list_around(txn, nodes.iter().collect())?);
                                     }
                                 }).await.err_internal()?;
-                                let mut incoming = vec![];
-                                let mut outgoing = vec![];
-                                for t in triples {
-                                    if t.object.0 == req.node {
-                                        incoming.push(Triple {
-                                            subject: t.subject.0,
-                                            predicate: t.predicate,
-                                            object: t.object.0,
-                                        });
-                                    } else {
-                                        outgoing.push(Triple {
-                                            subject: t.subject.0,
-                                            predicate: t.predicate,
-                                            object: t.object.0,
-                                        });
-                                    }
-                                }
-                                resp = responder(RespGetTriplesAround {
-                                    incoming: incoming,
-                                    outgoing: outgoing,
-                                });
+                                resp = responder(triples.into_iter().map(|t| Triple {
+                                    subject: t.subject.0,
+                                    predicate: t.predicate,
+                                    object: t.object.0,
+                                }).collect());
                             },
                             C2SReq::GetClientConfig(req) => {
                                 resp =

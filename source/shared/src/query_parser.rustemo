@@ -1,4 +1,5 @@
-QUERY: CHAIN SORT_QUERY? ;
+QUERY: CHAIN_HEAD QUERY_SUFFIX? ;
+QUERY_SUFFIX: CHAIN_TAIL SORT_QUERY? ;
 
 CHAIN: CHAIN_HEAD CHAIN_TAIL ;
 CHAIN_HEAD: ROOT? STEP* ;
@@ -62,10 +63,10 @@ sym_step_move_up: "-<";
 // Uchiko operator
 sym_step_recurse: "-*";
 sym_step_junct_and: "-&";
-sym_open_junct_and: "&(";
-sym_step_junct_or: "|(";
 // Crepe operator
-sym_open_junct_or: "-|";
+sym_step_junct_or: "-|";
+sym_open_junct_and: "&(";
+sym_open_junct_or: "|(";
 sym_open_exist: "?(";
 sym_open_not_exist: "!(";
 sym_open_paren: "(";

@@ -58,6 +58,7 @@ use {
     },
     wasm::{
         js::{
+            style_export,
             Env,
             Log,
         },
@@ -211,9 +212,15 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
             }
         });
     };
-    let media_el_audio = el("audio").attr("preload", "metadata").attr("controls", "true");
+    let media_el_audio =
+        style_export::leaf_media_audio(style_export::LeafMediaAudioArgs { src: format!("") })
+            .root
+            .attr("preload", "metadata");
     setup_media_element(pc, &media_el_audio);
-    let media_el_video = el("video").attr("preload", "metadata").attr("controls", "true");
+    let media_el_video =
+        style_export::leaf_media_video(style_export::LeafMediaVideoArgs { src: format!("") })
+            .root
+            .attr("preload", "metadata");
     setup_media_element(pc, &media_el_video);
     let media_el_image = el("img").attr("loading", "lazy");
     let playlist_state = PlaylistState(Rc::new(PlaylistState_ {

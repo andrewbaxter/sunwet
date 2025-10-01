@@ -34,9 +34,9 @@ use {
     sea_query_rusqlite::RusqliteBinder,
     shared::interface::{
         query::{
-            Chain,
             ChainHead,
             ChainRoot,
+            ChainTail,
             FilterExpr,
             FilterExprExistsType,
             FilterSuffix,
@@ -44,8 +44,8 @@ use {
             JunctionType,
             MoveDirection,
             Query,
-            SortQuery,
             SortDir,
+            SortQuery,
             Step,
             StepSpecific,
             StrValue,
@@ -174,7 +174,7 @@ fn build_filter(
     match expr {
         FilterExpr::Exists(expr) => {
             let mut sql_sel = sea_query::Query::select();
-            let subchain = build_subchain(query_state, Some(previous), &expr.subchain)?;
+            let subchain = build_chain_head(query_state, Some(previous), &expr.subchain)?;
             sql_sel.from(sea_query::TableRef::Table(subchain.ident_table.clone()));
             sql_sel.expr(sea_query::Expr::val(1));
             sql_sel.and_where(
@@ -420,7 +420,7 @@ fn build_step(
                             query_state.ident_col_start.clone(),
                         ),
                     );
-                    let subchain = build_subchain(query_state, None, &step.subchain)?;
+                    let subchain = build_chain_head(query_state, None, &step.subchain)?;
                     let local_ident_table_primary = query_state.ident_table_primary.clone();
                     sql_sel.join_as(
                         sea_query::JoinType::InnerJoin,
@@ -471,7 +471,7 @@ fn build_step(
             let mut build_subchain =
                 |subchain: &ChainHead| -> Result<sea_query::SelectStatement, VisErr<loga::Error>> {
                     let mut sql_sel = sea_query::Query::select();
-                    let subchain = build_subchain(query_state, previous.clone(), subchain)?;
+                    let subchain = build_chain_head(query_state, previous.clone(), subchain)?;
                     sql_sel.from(sea_query::TableRef::Table(subchain.ident_table.clone()));
                     sql_sel.column(
                         sea_query::ColumnRef::TableColumn(subchain.ident_table.clone(), subchain.col_start),
@@ -643,12 +643,12 @@ fn build_value(query_state: &mut QueryBuildState, param: &Value) -> Result<sea_q
 
 // Produces (sequence of) CTEs from steps, returning the last CTE. CTE has start
 // and end fields only.
-fn build_subchain(
+fn build_chain_head(
     query_state: &mut QueryBuildState,
     mut prev_subchain_seg: Option<BuildStepRes>,
-    subchain: &ChainHead,
+    chain_head: &ChainHead,
 ) -> Result<BuildStepRes, VisErr<loga::Error>> {
-    if let Some(root) = &subchain.root {
+    if let Some(root) = &chain_head.root {
         let new_root_seg;
         match root {
             ChainRoot::Value(root) => {
@@ -785,7 +785,7 @@ fn build_subchain(
         }
         prev_subchain_seg = Some(new_root_seg);
     }
-    for step in &subchain.steps {
+    for step in &chain_head.steps {
         prev_subchain_seg = Some(build_step(query_state, prev_subchain_seg, step)?);
     }
     if let Some(s) = prev_subchain_seg {
@@ -841,12 +841,13 @@ fn build_subchain(
 fn build_chain(
     query_state: &mut QueryBuildState,
     prev_subchain_seg: Option<BuildStepRes>,
-    chain: Chain,
+    chain_head: &ChainHead,
+    chain_tail: &ChainTail,
 ) -> Result<BuildChainRes, VisErr<loga::Error>> {
     let cte_name = format!("chain{}", query_state.global_unique);
     query_state.global_unique += 1;
     let mut sql_sel = sea_query::Query::select();
-    let primary_subchain = build_subchain(query_state, prev_subchain_seg, &chain.head)?;
+    let primary_subchain = build_chain_head(query_state, prev_subchain_seg, &chain_head)?;
     sql_sel.from(sea_query::TableRef::Table(primary_subchain.ident_table.clone()));
     let global_col_primary_start =
         sea_query::ColumnRef::TableColumn(primary_subchain.ident_table.clone(), primary_subchain.col_start.clone());
@@ -859,13 +860,13 @@ fn build_chain(
 
     // Add dest as selection
     let mut selects = vec![];
-    if let Some(name) = chain.tail.bind {
+    if let Some(name) = &chain_tail.bind {
         sql_sel.expr_as(global_col_primary_end.clone(), SeaRc::new(Alias::new(format!("_{}", name))));
-        selects.push((name, false));
+        selects.push((name.clone(), false));
     }
 
     // Process children
-    if !chain.tail.subchains.is_empty() {
+    if !chain_tail.subchains.is_empty() {
         let child_prev_subchain_seg;
         {
             let ident_table_root = SeaRc::new(Alias::new(format!("chain_child_prev{}", query_state.global_unique)));
@@ -887,8 +888,8 @@ fn build_chain(
                 plural: false,
             });
         }
-        for child in chain.tail.subchains {
-            let child_chain = build_chain(query_state, child_prev_subchain_seg.clone(), child)?;
+        for child in &chain_tail.subchains {
+            let child_chain = build_chain(query_state, child_prev_subchain_seg.clone(), &child.head, &child.tail)?;
             sql_sel.join(
                 sea_query::JoinType::LeftJoin,
                 child_chain.cte,
@@ -929,7 +930,7 @@ fn build_chain(
 const COL_PAGE_KEY: &str = "page_key";
 
 pub fn build_root_chain(
-    root_chain: Chain,
+    query: &Query,
     parameters: HashMap<String, Node>,
 ) -> Result<(String, sea_query_rusqlite::RusqliteValues), VisErr<loga::Error>> {
     // Prep
@@ -1064,7 +1065,16 @@ pub fn build_root_chain(
     }
 
     // Build actual query now
-    let cte = build_chain(&mut query_state, None, root_chain)?;
+    let chain_tail = match &query.suffix {
+        Some(s) => {
+            s.chain_tail.clone()
+        },
+        None => ChainTail {
+            bind: None,
+            subchains: vec![],
+        },
+    };
+    let cte = build_chain(&mut query_state, None, &query.chain_head, &chain_tail)?;
     let mut sel_root = sea_query::Query::select();
     sel_root.from(cte.cte);
     sel_root.expr_as(
@@ -1115,18 +1125,24 @@ pub fn build_root_chain(
     return Ok(sel.build_rusqlite(sea_query::SqliteQueryBuilder));
 }
 
-pub struct Row {
-    pub value: BTreeMap<String, TreeNode>,
-    pub pagination_key: Node,
+pub struct RecordRow {
+    // Also: pagination key
+    pub head_data: Node,
+    pub tail_data: BTreeMap<String, TreeNode>,
+}
+
+pub enum QueryResults {
+    Scalar(Vec<Node>),
+    Record(Vec<RecordRow>),
 }
 
 pub fn execute_sql_query(
     db: &rusqlite::Connection,
     sql_query: String,
     sql_parameters: sea_query_rusqlite::RusqliteValues,
-    sort: Option<SortQuery>,
+    query: &Query,
     paginate: Option<Pagination>,
-) -> Result<Vec<Row>, loga::Error> {
+) -> Result<Vec<RecordRow>, loga::Error> {
     let mut s = db.prepare(&sql_query)?;
     let column_names = s.column_names().into_iter().map(|k| k.to_string()).collect::<Vec<_>>();
     let mut sql_rows = s.query(&*sql_parameters.as_params()).context("Error executing query")?;
@@ -1156,56 +1172,66 @@ pub fn execute_sql_query(
                 panic!("Unrecognized returned field {}", name);
             }
         }
-        out.push(Row {
-            value: got_row1,
-            pagination_key: pagination_key.unwrap(),
+        out.push(RecordRow {
+            tail_data: got_row1,
+            head_data: pagination_key.unwrap(),
         });
     }
-    if let Some(sort) = sort {
-        match sort {
-            SortQuery::Shuffle => {
-                let seed;
-                superif!({
-                    let Some(pagination) = &paginate else {
-                        break 'noseed;
-                    };
-                    let Some(seed1) = pagination.seed else {
-                        break 'noseed;
-                    };
-                    seed = seed1;
-                } 'noseed {
-                    seed = thread_rng().gen();
-                });
-                out.sort_by_cached_key(|r| r.pagination_key.clone());
-                out.shuffle(&mut rand_chacha::ChaChaRng::seed_from_u64(seed));
-            },
-            SortQuery::Fields(sort) => {
-                out.sort_unstable_by(|a, b| {
-                    for (dir, key) in &sort {
-                        let res = a.value.get(key).partial_cmp(&b.value.get(key)).unwrap_or(Ordering::Equal);
-                        let rev = *dir == SortDir::Desc;
-                        match res {
-                            Ordering::Less => if rev {
-                                return Ordering::Greater;
-                            } else {
-                                return Ordering::Less;
-                            },
-                            Ordering::Equal => { },
-                            Ordering::Greater => if rev {
-                                return Ordering::Less;
-                            } else {
-                                return Ordering::Greater;
-                            },
-                        }
-                    }
-                    return Ordering::Equal;
-                });
-            },
-        }
+    match &query.suffix {
+        Some(suffix) => {
+            if let Some(sort) = &suffix.sort {
+                match sort {
+                    SortQuery::Shuffle => {
+                        let seed;
+                        superif!({
+                            let Some(pagination) = &paginate else {
+                                break 'noseed;
+                            };
+                            let Some(seed1) = pagination.seed else {
+                                break 'noseed;
+                            };
+                            seed = seed1;
+                        } 'noseed {
+                            seed = thread_rng().gen();
+                        });
+                        out.sort_by_cached_key(|r| r.head_data.clone());
+                        out.shuffle(&mut rand_chacha::ChaChaRng::seed_from_u64(seed));
+                    },
+                    SortQuery::Fields(sort) => {
+                        out.sort_unstable_by(|a, b| {
+                            for (dir, key) in sort {
+                                let res =
+                                    a
+                                        .tail_data
+                                        .get(key)
+                                        .partial_cmp(&b.tail_data.get(key))
+                                        .unwrap_or(Ordering::Equal);
+                                let rev = *dir == SortDir::Desc;
+                                match res {
+                                    Ordering::Less => if rev {
+                                        return Ordering::Greater;
+                                    } else {
+                                        return Ordering::Less;
+                                    },
+                                    Ordering::Equal => { },
+                                    Ordering::Greater => if rev {
+                                        return Ordering::Less;
+                                    } else {
+                                        return Ordering::Greater;
+                                    },
+                                }
+                            }
+                            return Ordering::Equal;
+                        });
+                    },
+                }
+            }
+        },
+        None => { },
     }
     if let Some(p) = paginate {
         if let Some(after) = p.key {
-            return Ok(out.into_iter().skip_while(|x| x.pagination_key != after).skip(1).take(p.count).collect());
+            return Ok(out.into_iter().skip_while(|x| x.head_data != after).skip(1).take(p.count).collect());
         } else {
             return Ok(out.into_iter().take(p.count).collect());
         }
@@ -1219,12 +1245,19 @@ pub async fn execute_query(
     query: Query,
     parameters: HashMap<String, Node>,
     paginate: Option<Pagination>,
-) -> Result<Vec<Row>, VisErr<loga::Error>> {
+) -> Result<QueryResults, VisErr<loga::Error>> {
+    let results_are_record = query.suffix.is_some();
+
     // Sorting currently happens in rust because sql does string sorting on json
     // fields, not value-based sorting (ex: numbers). Therefore pagination also has to
     // happen in rust.
-    let (sql_query, sql_parameters) = build_root_chain(query.chain, parameters)?;
-    return Ok(tx(&db, move |txn| {
-        return Ok(execute_sql_query(txn, sql_query, sql_parameters, query.sort, paginate)?);
-    }).await.err_internal()?);
+    let (sql_query, sql_parameters) = build_root_chain(&query, parameters)?;
+    let results = tx(&db, move |txn| {
+        return Ok(execute_sql_query(txn, sql_query, sql_parameters, &query, paginate)?);
+    }).await.err_internal()?;
+    if results_are_record {
+        return Ok(QueryResults::Record(results));
+    } else {
+        return Ok(QueryResults::Scalar(results.into_iter().map(|x| x.head_data).collect::<Vec<_>>()));
+    };
 }

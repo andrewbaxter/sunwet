@@ -52,7 +52,6 @@ use {
                 PREDICATE_TRACK,
             },
             query::{
-                Chain,
                 ChainHead,
                 ChainRoot,
                 ChainTail,
@@ -66,6 +65,7 @@ use {
                 JunctionType,
                 MoveDirection,
                 Query,
+                QuerySuffix,
                 Step,
                 StepMove,
                 StepSpecific,
@@ -75,6 +75,7 @@ use {
             triple::Node,
             wire::{
                 ReqQuery,
+                RespQueryRows,
                 TreeNode,
             },
         },
@@ -141,40 +142,59 @@ pub async fn node_id_direct(
     if env::var_os(ENV_SUNWET).is_none() {
         return Ok(Node::Value(serde_json::Value::String(Uuid::new_v4().hyphenated().to_string())));
     }
-    let out = req::req_simple(&log, ReqQuery {
+    let resp = req::req_simple(&log, ReqQuery {
         query: query.clone(),
         parameters: parameters.clone(),
         pagination: None,
-    }).await?.records;
-    let mut out_iter = out.iter();
-    let Some(first) = out_iter.next() else {
-        return Ok(Node::Value(serde_json::Value::String(Uuid::new_v4().hyphenated().to_string())));
-    };
-    if out_iter.next().is_some() {
-        return Err(
-            loga::err_with(
-                "Imported node id can't be matched, multiple potential existing nodes found",
-                ea!(query = query.dbg_str(), params = parameters.dbg_str(), res = out.dbg_str()),
-            ),
-        );
+    }).await?.rows;
+    match resp {
+        RespQueryRows::Scalar(rows) => {
+            let mut rows_iter = rows.iter();
+            let Some(first) = rows_iter.next() else {
+                return Ok(Node::Value(serde_json::Value::String(Uuid::new_v4().hyphenated().to_string())));
+            };
+            if rows_iter.next().is_some() {
+                return Err(
+                    loga::err_with(
+                        "Imported node id can't be matched, multiple potential existing nodes found",
+                        ea!(query = query.dbg_str(), params = parameters.dbg_str(), res = rows.dbg_str()),
+                    ),
+                );
+            }
+            return Ok(first.clone());
+        },
+        RespQueryRows::Record(rows) => {
+            let mut rows_iter = rows.iter();
+            let Some(first) = rows_iter.next() else {
+                return Ok(Node::Value(serde_json::Value::String(Uuid::new_v4().hyphenated().to_string())));
+            };
+            if rows_iter.next().is_some() {
+                return Err(
+                    loga::err_with(
+                        "Imported node id can't be matched, multiple potential existing nodes found",
+                        ea!(query = query.dbg_str(), params = parameters.dbg_str(), res = rows.dbg_str()),
+                    ),
+                );
+            }
+            let Some(id) = first.get("id") else {
+                return Err(
+                    loga::err_with(
+                        "Assertion! Found multiple existing entries in the database matching entry",
+                        ea!(query = query.dbg_str(), params = parameters.dbg_str(), res = rows.dbg_str()),
+                    ),
+                );
+            };
+            let TreeNode::Scalar(id) = id else {
+                return Err(
+                    loga::err_with(
+                        "Assertion! Found id is not a scalar node (is array or record; bad query)",
+                        ea!(query = query.dbg_str(), params = parameters.dbg_str(), res = rows.dbg_str()),
+                    ),
+                );
+            };
+            return Ok(id.clone());
+        },
     }
-    let Some(id) = first.get("id") else {
-        return Err(
-            loga::err_with(
-                "Assertion! Found multiple existing entries in the database matching entry",
-                ea!(query = query.dbg_str(), params = parameters.dbg_str(), res = out.dbg_str()),
-            ),
-        );
-    };
-    let TreeNode::Scalar(id) = id else {
-        return Err(
-            loga::err_with(
-                "Assertion! Found id is not a scalar node (is array or record; bad query)",
-                ea!(query = query.dbg_str(), params = parameters.dbg_str(), res = out.dbg_str()),
-            ),
-        );
-    };
-    return Ok(id.clone());
 }
 
 pub fn node_upload(root: &Path, p: &Path) -> CliNode {
@@ -370,28 +390,28 @@ fn query_album_track(album: Node, superindex: Option<f64>, index: Option<f64>, n
         }));
     }
     return Query {
-        chain: Chain {
-            head: ChainHead {
-                root: Some(ChainRoot::Value(Value::Literal(album))),
-                steps: vec![Step {
-                    specific: StepSpecific::Move(StepMove {
-                        dir: MoveDirection::Forward,
-                        predicate: StrValue::Literal(PREDICATE_TRACK.to_string()),
-                        filter: Some(FilterExpr::Junction(FilterExprJunction {
-                            type_: JunctionType::And,
-                            subexprs: filter,
-                        })),
-                    }),
-                    sort: None,
-                    first: false,
-                }],
-            },
-            tail: ChainTail {
+        chain_head: ChainHead {
+            root: Some(ChainRoot::Value(Value::Literal(album))),
+            steps: vec![Step {
+                specific: StepSpecific::Move(StepMove {
+                    dir: MoveDirection::Forward,
+                    predicate: StrValue::Literal(PREDICATE_TRACK.to_string()),
+                    filter: Some(FilterExpr::Junction(FilterExprJunction {
+                        type_: JunctionType::And,
+                        subexprs: filter,
+                    })),
+                }),
+                sort: None,
+                first: false,
+            }],
+        },
+        suffix: Some(QuerySuffix {
+            chain_tail: ChainTail {
                 bind: Some(format!("id")),
                 subchains: Default::default(),
             },
-        },
-        sort: None,
+            sort: None,
+        }),
     };
 }
 

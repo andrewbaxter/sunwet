@@ -125,7 +125,10 @@ pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<
                             let query = queries.get(q).context(format!("Missing query [{}]", q))?;
                             query_parameters.entry(q.clone()).or_insert_with(|| {
                                 let analysis = analyze_query(query);
-                                return analysis.inputs.into_iter().collect::<Vec<_>>();
+                                let Some(r#struct) = analysis.r#struct else {
+                                    return vec![];
+                                };
+                                return r#struct.inputs.into_iter().collect::<Vec<_>>();
                             });
                         },
                     }
@@ -160,7 +163,10 @@ pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<
                 let query = v.queries.get(q).context(format!("Missing query [{}] referred in view [{}]", q, k))?;
                 query_parameters.entry(q.clone()).or_insert_with(|| {
                     let analysis = analyze_query(query);
-                    return analysis.inputs.into_iter().collect::<Vec<_>>();
+                    let Some(r#struct) = analysis.r#struct else {
+                        return vec![];
+                    };
+                    return r#struct.inputs.into_iter().collect::<Vec<_>>();
                 });
             },
         }

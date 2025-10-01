@@ -157,10 +157,10 @@ pub struct WidgetText {
     pub color: Option<String>,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
-    pub cons_size_mode: TextSizeMode,
+    pub conv_size_mode: TextSizeMode,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
-    pub cons_size_max: Option<String>,
+    pub conv_size_max: Option<String>,
     pub orientation: Orientation,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
@@ -350,7 +350,13 @@ pub struct DataRowsLayoutUnaligned {
     pub widget: Box<Widget>,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
-    pub x_scroll: bool,
+    pub conv_scroll: bool,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub conv_size_max: Option<String>,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub trans_size_max: Option<String>,
     // Wrap layout instead of shrinking elements individually first when out of space.
     // Can't be set at the same time as x_scroll or undefined things will happen.
     #[serde(default)]
@@ -366,7 +372,13 @@ pub struct DataRowsLayoutTable {
     pub gap: Option<String>,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
-    pub x_scroll: bool,
+    pub conv_scroll: bool,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub conv_size_max: Option<String>,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub trans_size_max: Option<String>,
     pub orientation: Orientation,
     pub elements: Vec<Widget>,
 }
@@ -426,7 +438,13 @@ pub struct WidgetLayout {
     // horizontal direction only).
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
-    pub x_scroll: bool,
+    pub conv_scroll: bool,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub conv_size_max: Option<String>,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub trans_size_max: Option<String>,
     // Wrap layout instead of shrinking elements individually first when out of space.
     // Can't be set at the same time as x_scroll or undefined things will happen.
     #[serde(default)]

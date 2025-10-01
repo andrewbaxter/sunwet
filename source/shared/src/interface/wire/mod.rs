@@ -153,8 +153,17 @@ pub enum TreeNode {
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum RespQueryRows {
+    /// For queries with no struct `{}` suffix
+    Scalar(Vec<Node>),
+    /// For queries with a struct `{}` suffix
+    Record(Vec<BTreeMap<String, TreeNode>>),
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct RespQuery {
-    pub records: Vec<BTreeMap<String, TreeNode>>,
+    pub rows: RespQueryRows,
     pub meta: Vec<(Node, NodeMeta)>,
     pub next_page_key: Option<Node>,
 }
@@ -193,7 +202,7 @@ impl C2SReqTrait for ReqViewQuery {
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqGetTriplesAround {
-    pub node: Node,
+    pub nodes: Vec<Node>,
 }
 
 impl Into<C2SReq> for ReqGetTriplesAround {
@@ -202,15 +211,8 @@ impl Into<C2SReq> for ReqGetTriplesAround {
     }
 }
 
-#[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct RespGetTriplesAround {
-    pub incoming: Vec<Triple>,
-    pub outgoing: Vec<Triple>,
-}
-
 impl C2SReqTrait for ReqGetTriplesAround {
-    type Resp = RespGetTriplesAround;
+    type Resp = Vec<Triple>;
 }
 
 // # Get node meta

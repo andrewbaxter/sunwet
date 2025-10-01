@@ -19,7 +19,9 @@ use {
                 set_field,
             },
             insert::InsertConflict,
-            select_body::Order,
+            select_body::{
+                Order,
+            },
             utils::{
                 CteBuilder,
                 With,
@@ -38,7 +40,9 @@ use {
                 FieldType,
             },
         },
-        types::type_str,
+        types::{
+            type_str,
+        },
         QueryResCount,
         Version,
     },
@@ -252,25 +256,30 @@ fn main() {
                 );
             }
         }
-        queries.push(
-            new_select(&view_current_table)
-                .with(With {
-                    recursive: false,
-                    ctes: view_current_ctes.clone(),
-                })
-                .return_field(&view_current_subject)
-                .return_field(&view_current_predicate)
-                .return_field(&view_current_object)
-                .where_(
-                    expr_or(
-                        vec![
-                            expr_field_eq("node", &view_current_subject),
-                            expr_field_eq("node", &view_current_object)
-                        ],
-                    ),
-                )
-                .build_query("triple_list_around", QueryResCount::Many),
-        );
+        queries.push(new_select(&view_current_table)
+            .with(With {
+                recursive: false,
+                ctes: view_current_ctes.clone(),
+            })
+            .return_field(&view_current_subject)
+            .return_field(&view_current_predicate)
+            .return_field(&view_current_object)
+            .where_(expr_or(vec![Expr::BinOp {
+                left: Box::new(Expr::field(&view_current_subject)),
+                op: BinOp::In,
+                right: Box::new(Expr::Param {
+                    name: "nodes".to_string(),
+                    type_: node_array_type.clone(),
+                }),
+            }, Expr::BinOp {
+                left: Box::new(Expr::field(&view_current_object)),
+                op: BinOp::In,
+                right: Box::new(Expr::Param {
+                    name: "nodes".to_string(),
+                    type_: node_array_type.clone(),
+                }),
+            }]))
+            .build_query("triple_list_around", QueryResCount::Many));
         queries.push({
             new_delete(&t).with(With {
                 recursive: false,
