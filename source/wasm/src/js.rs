@@ -53,7 +53,6 @@ use {
         JsFuture,
     },
     web_sys::{
-        console,
         Blob,
         BlobPropertyBag,
         ClipboardItem,
@@ -590,13 +589,7 @@ pub fn lazy_el_async<E: ToString, F: 'static + AsyncFnOnce() -> Result<Vec<El>, 
                 return;
             };
             for e in entries {
-                if e.intersection_ratio() >= 0. {
-                    if let Some(out) = out.upgrade() {
-                        console::log_2(
-                            &JsValue::from(format!("intersection ratio {}", e.intersection_ratio())),
-                            &out.raw(),
-                        );
-                    }
+                if e.intersection_ratio() >= 0.5 {
                     *data.borrow_mut() = spawn_rooted({
                         let Some(f) = f.take() else {
                             return;

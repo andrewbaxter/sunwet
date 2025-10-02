@@ -4742,7 +4742,7 @@
                     }),
                   ],
                   children_: [
-                    e("span", { textContent: "Language " }, {}),
+                    e("span", { textContent: "Query language " }, {}),
                     e(
                       "a",
                       {
