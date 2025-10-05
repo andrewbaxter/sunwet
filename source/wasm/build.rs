@@ -272,17 +272,7 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         Func {
-            name: "leafButtonBigView",
-            args: vec![],
-            returns: vec![("root", &el_)],
-        },
-        Func {
             name: "leafButtonBigDelete",
-            args: vec![],
-            returns: vec![("root", &el_)],
-        },
-        Func {
-            name: "leafButtonBigRevert",
             args: vec![],
             returns: vec![("root", &el_)],
         },
@@ -571,13 +561,12 @@ fn main() {
         },
         Func {
             name: "leafViewPlayButton",
-            args: vec![
-                ("transAlign", &transalign),
-                ("orientation", &orientation),
-                ("image", &optstring_),
-                ("width", &optstring_),
-                ("height", &optstring_)
-            ],
+            args: vec![("transAlign", &transalign), ("orientation", &orientation)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafViewNodeButton",
+            args: vec![("transAlign", &transalign), ("orientation", &orientation)],
             returns: vec![("root", &el_)],
         },
         Func {
@@ -689,7 +678,7 @@ fn main() {
         Func {
             name: "contPageNodeView",
             args: vec![("children", &arrel_)],
-            returns: vec![("root", &el_), ("body", &el_)],
+            returns: vec![("root", &el_)],
         },
         Func {
             name: "leafNodeViewPredicate",
@@ -726,8 +715,13 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         Func {
-            name: "leafNodeViewToolbarGoLinkButton",
+            name: "leafNodeViewToolbarEditListLinkButton",
             args: vec![("link", &string_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafNodeViewToolbarNodeButton",
+            args: vec![],
             returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
@@ -735,7 +729,7 @@ fn main() {
         Func {
             name: "contPageNodeEdit",
             args: vec![("barChildren", &arrel_), ("children", &arrel_)],
-            returns: vec![("root", &el_), ("body", &el_)],
+            returns: vec![("root", &el_)],
         },
         Func {
             name: "contNodeRowIncomingAdd",
@@ -880,6 +874,43 @@ fn main() {
             name: "leafQueryDownloadRow",
             args: vec![("link", &string_), ("filename", &string_)],
             returns: vec![("root", &el_)],
+        },
+        // /////////////////////////////////////////////////////////////////////////////
+        // xx Components, styles: page, list edit
+        Func {
+            name: "contPageListEdit",
+            args: vec![("backToViewLink", &string_), ("children", &arrel_)],
+            returns: vec![
+                ("root", &el_),
+                ("numberedToggle", &el_),
+                ("numberedOuter", &el_),
+                ("buttonMoveUp", &el_),
+                ("buttonMoveDown", &el_),
+                ("buttonDeselect", &el_),
+                ("buttonDelete", &el_),
+                ("buttonCommit", &el_),
+            ],
+        },
+        Func {
+            name: "leafPageListEditEntry",
+            args: vec![("id", &string_), ("idLink", &string_), ("name", &string_)],
+            returns: vec![("root", &el_), ("deleteButton", &el_), ("number", &el_), ("checkbox", &el_)],
+        },
+        Func {
+            name: "contModalNode",
+            args: vec![
+                ("currentListName", &optstring_),
+                ("currentListId", &optstring_),
+                ("currentListLink", &optstring_),
+                ("nodeLink", &string_)
+            ],
+            returns: vec![
+                ("root", &el_),
+                ("errors", &el_),
+                ("buttonClose", &el_),
+                ("buttonSetList", &el_),
+                ("buttonAddToList", &el_)
+            ],
         },
         // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: menu

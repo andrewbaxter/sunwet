@@ -152,6 +152,7 @@ pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<
                 view::Widget::Icon(_) => { },
                 view::Widget::PlayButton(_) => { },
                 view::Widget::Space => { },
+                view::Widget::Node(_) => { },
             }
             return Ok(());
         }

@@ -1,5 +1,5 @@
-import * as sunwet from "./sunwet/source/generated/ts/index.ts";
-import * as sortquery from "./sunwet/source/generated/ts/sub/SortQuery.ts";
+import * as sunwet from "./source/generated/ts/index.ts";
+import * as sortquery from "./source/generated/ts/sub/SortQuery.ts";
 import * as child_process from "child_process";
 import * as process from "process";
 
@@ -65,16 +65,15 @@ import * as process from "process";
     );
   };
 
-  const widget_node_link = (link: sunwet.Link): sunwet.Widget => {
+  const widget_node_link = (
+    name_field: string,
+    node_field: string
+  ): sunwet.Widget => {
     return {
-      icon: {
-        color: "rgba(from var(--c-foreground) r g b / .4)",
-        data: "\uf81b",
-        link: link,
-        width: "0.5cm",
-        height: "0.5cm",
+      node: {
+        name: { field: name_field },
+        node: { field: node_field },
         orientation: "right_down",
-        trans_align: "middle",
       },
     };
   };
@@ -275,16 +274,7 @@ import * as process from "process";
                         },
                       },
                     },
-                    widget_node_link({
-                      title: {
-                        field: "album_name",
-                      },
-                      dest: {
-                        node: {
-                          field: "album_id",
-                        },
-                      },
-                    }),
+                    widget_node_link("album_name", "album_id"),
                   ],
                 },
               },
@@ -548,16 +538,7 @@ import * as process from "process";
                         },
                       },
                     },
-                    widget_node_link({
-                      title: {
-                        field: "album_name",
-                      },
-                      dest: {
-                        node: {
-                          field: "album_id",
-                        },
-                      },
-                    }),
+                    widget_node_link("album_name", "album_id"),
                   ],
                 },
               },
@@ -676,16 +657,7 @@ import * as process from "process";
                         },
                       },
                     },
-                    widget_node_link({
-                      title: {
-                        field: "album_name",
-                      },
-                      dest: {
-                        node: {
-                          field: "album_id",
-                        },
-                      },
-                    }),
+                    widget_node_link("album_name", "album_id"),
                   ],
                 },
               },
@@ -824,16 +796,7 @@ import * as process from "process";
                         },
                       },
                     },
-                    widget_node_link({
-                      title: {
-                        field: "album_name",
-                      },
-                      dest: {
-                        node: {
-                          field: "album_id",
-                        },
-                      },
-                    }),
+                    widget_node_link("album_name", "album_id"),
                   ],
                 },
               },
@@ -968,19 +931,7 @@ import * as process from "process";
                         color: "rgba(0,0,0,0.3)",
                       },
                     },
-                    widget_node_link({
-                      title: {
-                        literal: {
-                          t: "v",
-                          v: "Node",
-                        },
-                      },
-                      dest: {
-                        node: {
-                          field: "note_id",
-                        },
-                      },
-                    }),
+                    widget_node_link("note_id", "note_id"),
                   ],
                 },
               },
@@ -997,6 +948,150 @@ import * as process from "process";
                 media: { data: { field: "file" } },
               },
             ],
+          },
+        },
+      },
+    ],
+  };
+  const display_playlists: sunwet.WidgetRootDataRows = {
+    data: { query: "root" },
+    row_blocks: [
+      {
+        width: album_title_block_width,
+        widget: {
+          layout: {
+            trans_align: "end",
+            direction: "down",
+            elements: [
+              {
+                media: {
+                  trans_align: "start",
+                  width: "100%",
+                  data: { field: "cover" },
+                },
+              },
+              {
+                text: {
+                  trans_align: "start",
+                  font_size: "18pt",
+                  conv_size_mode: "ellipsize",
+                  orientation: "right_down",
+                  data: { field: "playlist_name" },
+                  link: {
+                    title: {
+                      field: "playlist_name",
+                    },
+                    dest: {
+                      view: {
+                        id: "audio_playlists_eq_playlist",
+                        parameters: {
+                          playlist_id: {
+                            field: "playlist_id",
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              {
+                text: {
+                  trans_align: "start",
+                  font_size: "12pt",
+                  conv_size_mode: "ellipsize",
+                  orientation: "right_down",
+                  data: { field: "playlist_artist_name" },
+                  link: {
+                    title: {
+                      field: "playlist_artist_name",
+                    },
+                    dest: {
+                      view: {
+                        id: "audio_playlists_eq_artist_by_name",
+                        parameters: {
+                          artist_id: {
+                            field: "playlist_artist_id",
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+      {
+        widget: {
+          data_rows: {
+            data: { query: "tracks" },
+            row_widget: {
+              table: {
+                orientation: "right_down",
+                conv_scroll: true,
+                gap: "0.2cm",
+                trans_size_max: album_tracks_height,
+                elements: [
+                  {
+                    play_button: {
+                      trans_align: "middle",
+                      orientation: "down_left",
+                      media_file_field: "file",
+                      name_field: "track_name",
+                      album_field: "playlist_name",
+                      artist_field: "artist_name",
+                      cover_field: "cover",
+                    },
+                  },
+                  {
+                    text: {
+                      trans_align: "middle",
+                      data: {
+                        field: "track_superindex",
+                      },
+                      suffix: ". ",
+                      font_size: "12pt",
+                      conv_size_mode: "wrap",
+                      orientation: "down_left",
+                    },
+                  },
+                  {
+                    text: {
+                      trans_align: "middle",
+                      data: {
+                        field: "track_index",
+                      },
+                      suffix: ". ",
+                      font_size: "12pt",
+                      conv_size_mode: "wrap",
+                      orientation: "down_left",
+                    },
+                  },
+                  {
+                    text: {
+                      trans_align: "middle",
+                      data: {
+                        field: "track_name",
+                      },
+                      link: {
+                        title: {
+                          field: "track_name",
+                        },
+                        dest: {
+                          node: {
+                            field: "track_id",
+                          },
+                        },
+                      },
+                      font_size: "12pt",
+                      conv_size_mode: "wrap",
+                      orientation: "down_left",
+                    },
+                  },
+                ],
+              },
+            },
           },
         },
       },
@@ -1023,6 +1118,7 @@ import * as process from "process";
               "comics_group",
               "books_group",
               "notes_group",
+              "playlists_group",
               "logs",
             ],
             views: [
@@ -1049,6 +1145,9 @@ import * as process from "process";
   );
   const query_book_albums_tracks = await compile_query(
     "./sunwet/source/queries/query_book_albums_tracks.txt"
+  );
+  const query_playlists_tracks = await compile_query(
+    "./sunwet/source/queries/query_playlists_tracks.txt"
   );
   const sunwet_config: sunwet.GlobalConfig = {
     api_tokens: { [process.env.ADMIN_TOKEN]: "admin" },
@@ -1264,6 +1363,43 @@ import * as process from "process";
                 detail: {
                   page: {
                     view: { view_id: "video_albums_search_name" },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+      {
+        id: "playlists_group",
+        name: "Playlists",
+        detail: {
+          section: {
+            children: [
+              {
+                name: "playlists by add date",
+                id: "playlists_by_add_date",
+                detail: {
+                  page: {
+                    view: { view_id: "playlists_by_add_date" },
+                  },
+                },
+              },
+              {
+                id: "playlists_by_random",
+                name: "playlists by random",
+                detail: {
+                  page: {
+                    view: { view_id: "playlists_by_random" },
+                  },
+                },
+              },
+              {
+                id: "playlists_search_name",
+                name: "playlists, search by name",
+                detail: {
+                  page: {
+                    view: { view_id: "playlists_search_name" },
                   },
                 },
               },
@@ -1649,6 +1785,44 @@ import * as process from "process";
         },
         display: display_notes,
       },
+      playlists_by_add_date: {
+        queries: {
+          root: await compile_query_head_tail(
+            "./sunwet/source/queries/query_playlists.txt",
+            "./sunwet/source/queries/query_playlists_select.txt",
+            {
+              fields: [
+                ["desc", "playlist_add_timestamp"],
+                ["asc", "playlist_name"],
+              ],
+            }
+          ),
+          tracks: query_playlists_tracks,
+        },
+        display: display_playlists,
+      },
+      playlists_by_random: {
+        queries: {
+          root: await compile_query_head_tail(
+            "./sunwet/source/queries/query_playlists.txt",
+            "./sunwet/source/queries/query_playlists_select.txt",
+            "shuffle"
+          ),
+          tracks: query_playlists_tracks,
+        },
+        display: display_playlists,
+      },
+      playlists_search_name: {
+        parameters: { name: "text" },
+        queries: {
+          root: await compile_query_head_tail(
+            "./sunwet/source/queries/query_playlists_search_name.txt",
+            "./sunwet/source/queries/query_playlists_select.txt"
+          ),
+          tracks: query_playlists_tracks,
+        },
+        display: display_playlists,
+      },
     },
     forms: {
       notes_new: {
@@ -1714,6 +1888,29 @@ import * as process from "process";
             subject: { input: "id" },
             predicate: { inline: "sunwet/1/file" },
             object: { input: "file" },
+          },
+        ],
+      },
+      playlists_new: {
+        fields: [
+          { id: "id", label: "", type: "id" },
+          { id: "name", label: "Name", type: { text: {} } },
+        ],
+        outputs: [
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/is" },
+            object: { inline: { t: "v", v: "sunwet/1/playlist" } },
+          },
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/add_timestamp" },
+            object: { input: "stamp" },
+          },
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/name" },
+            object: { input: "name" },
           },
         ],
       },

@@ -74,6 +74,13 @@ pub struct MinistateNodeEdit {
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct MinistateListEdit {
+    pub title: String,
+    pub node: Node,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct MinistateNodeView {
     pub title: String,
     pub node: Node,
@@ -113,6 +120,7 @@ pub enum Ministate {
     Form(MinistateForm),
     NodeEdit(MinistateNodeEdit),
     NodeView(MinistateNodeView),
+    ListEdit(MinistateListEdit),
     History(MinistateHistory),
     Query(MinistateQuery),
     Logs,
@@ -129,12 +137,14 @@ pub fn ministate_title(s: &Ministate) -> String {
         Ministate::Form(s) => return s.title.clone(),
         Ministate::NodeEdit(s) => return s.title.clone(),
         Ministate::NodeView(s) => return s.title.clone(),
+        Ministate::ListEdit(s) => return s.title.clone(),
         Ministate::History(_) => return format!("History"),
         Ministate::Query(_) => return format!("Query"),
         Ministate::Logs => return format!("Logs"),
     }
 }
 
+/// Adds history + triggers page change
 pub fn record_new_ministate(log: &Rc<dyn Log>, s: &Ministate) {
     window()
         .history()
@@ -148,6 +158,7 @@ pub fn record_new_ministate(log: &Rc<dyn Log>, s: &Ministate) {
     LocalStorage::set(LOCALSTORAGE_PWA_MINISTATE, s).log(log, "Error storing PWA ministate");
 }
 
+/// Replaces current state in history, no page change
 pub fn record_replace_ministate(log: &Rc<dyn Log>, s: &Ministate) {
     window()
         .history()

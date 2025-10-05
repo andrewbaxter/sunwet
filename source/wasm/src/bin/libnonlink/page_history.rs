@@ -95,7 +95,7 @@ pub fn build_page_history(pc: &mut ProcessingContext, ministate: &MinistateHisto
         save: button_commit.weak(),
         ministate: ministate.clone(),
     });
-    page_res.body.ref_push(build_infinite(&state().log, None, {
+    page_res.root.ref_push(build_infinite(&state().log, None, {
         let hist_state = hist_state.clone();
         move |page_key| {
             let hist_state = hist_state.clone();

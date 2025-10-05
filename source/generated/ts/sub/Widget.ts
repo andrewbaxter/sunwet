@@ -6,8 +6,9 @@ import type { WidgetDatetime } from "./WidgetDatetime";
 import type { WidgetIcon } from "./WidgetIcon";
 import type { WidgetLayout } from "./WidgetLayout";
 import type { WidgetMedia } from "./WidgetMedia";
+import type { WidgetNode } from "./WidgetNode";
 import type { WidgetPlayButton } from "./WidgetPlayButton";
 import type { WidgetText } from "./WidgetText";
 import type { WidgetTime } from "./WidgetTime";
 
-export type Widget = { "layout": WidgetLayout } | { "data_rows": WidgetDataRows } | { "text": WidgetText } | { "date": WidgetDate } | { "time": WidgetTime } | { "datetime": WidgetDatetime } | { "color": WidgetColor } | { "media": WidgetMedia } | { "icon": WidgetIcon } | { "play_button": WidgetPlayButton } | "space";
+export type Widget = { "layout": WidgetLayout } | { "data_rows": WidgetDataRows } | { "text": WidgetText } | { "date": WidgetDate } | { "time": WidgetTime } | { "datetime": WidgetDatetime } | { "color": WidgetColor } | { "media": WidgetMedia } | { "icon": WidgetIcon } | { "play_button": WidgetPlayButton } | "space" | { "node": WidgetNode };

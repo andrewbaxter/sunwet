@@ -1,0 +1,5 @@
+search $name -< "sunwet/1/name"
+    &(
+        ?( -> "sunwet/1/is" == "sunwet/1/playlist" )
+        !( -> "sunwet/1/delete")
+    )

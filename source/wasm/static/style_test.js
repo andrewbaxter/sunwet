@@ -186,11 +186,23 @@
                       transAlign: "start",
                       convScroll: false,
                       children: [
-                        presentation.leafViewText({
+                        presentation.contViewList({
+                          direction: "right",
+                          wrap: false,
                           transAlign: "start",
-                          orientation: "right_down",
-                          text: "Harmônicos",
-                          fontSize: "20pt",
+                          convScroll: false,
+                          children: [
+                            presentation.leafViewText({
+                              transAlign: "start",
+                              orientation: "right_down",
+                              text: "Harmônicos",
+                              fontSize: "20pt",
+                            }).root,
+                            presentation.leafViewNodeButton({
+                              transAlign: "middle",
+                              orientation: "right_down",
+                            }).root,
+                          ],
                         }).root,
                         presentation.leafViewDatetime({
                           transAlign: "start",
@@ -651,6 +663,19 @@
           ]);
         }
         break;
+      case "#view_modal_node":
+        {
+          buildRoot([
+            stagingPageView,
+            presentation.contModalNode({
+              currentListId: "ABCDEF-ABCDEF-ABCDEF-ABCDEF",
+              currentListName: "ABCD",
+              currentListLink: "abcd",
+              nodeLink: "abcd",
+            }).root,
+          ]);
+        }
+        break;
       case "#fullscreen":
         {
           const media = document.createElement("div");
@@ -736,10 +761,7 @@
                   }).root,
                   presentation.leafSpace({}).root,
                 ],
-                barChildren: [
-                  presentation.leafButtonBigView({}).root,
-                  presentation.leafButtonBigCommit({}).root,
-                ],
+                barChildren: [presentation.leafButtonBigCommit({}).root],
               }).root,
               menuBody: stagingMenu,
             }).root,
@@ -751,7 +773,7 @@
           const buildToolbar =
             /** @type { (download:boolean, center: boolean)=>HTMLElement} */ (
               download,
-              go
+              center
             ) => {
               return presentation.contNodeToolbar({
                 left: [],
@@ -766,17 +788,19 @@
                         }).root,
                       ]
                     : []),
-                  ...(go
+                  ...(center
                     ? [
                         presentation.leafNodeViewToolbarEditLinkButton({
                           link: "https://abcd",
                         }).root,
-                      ]
-                    : [
-                        presentation.leafNodeViewToolbarGoLinkButton({
+                        presentation.leafNodeViewToolbarEditListLinkButton({
                           link: "https://abcd",
                         }).root,
-                      ]),
+                      ]
+                    : []),
+                  presentation.leafNodeViewToolbarNodeButton({
+                    link: "https://abcd",
+                  }).root,
                 ],
               }).root;
             };
@@ -868,7 +892,6 @@
                 children: nodeEditChildren(1),
                 barChildren: [
                   presentation.leafButtonBigDelete({}).root,
-                  presentation.leafButtonBigRevert({}).root,
                   presentation.leafButtonBigCommit({}).root,
                 ],
               }).root,
@@ -1145,6 +1168,32 @@
           buildRoot([
             presentation.appMain({
               mainTitle: presentation.leafTitle({ text: "Query" }).root,
+              mainBody: root.root,
+              menuBody: stagingMenu,
+            }).root,
+          ]);
+        }
+        break;
+      case "#list_edit":
+        {
+          const root = presentation.contPageListEdit({
+            backToViewLink: "abcd",
+            children: [
+              presentation.leafPageListEditEntry({
+                id: "abcd-1234",
+                idLink: "abcd",
+                name: "Song abcd",
+              }).root,
+              presentation.leafPageListEditEntry({
+                id: "efgh-5678",
+                idLink: "abcd",
+                name: "Song efgh",
+              }).root,
+            ],
+          });
+          buildRoot([
+            presentation.appMain({
+              mainTitle: presentation.leafTitle({ text: "Edit list" }).root,
               mainBody: root.root,
               menuBody: stagingMenu,
             }).root,

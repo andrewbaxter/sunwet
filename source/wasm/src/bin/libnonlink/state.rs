@@ -1,7 +1,6 @@
 use {
     super::{
         ministate::{
-            record_new_ministate,
             record_replace_ministate,
             Ministate,
             PlaylistRestorePos,
@@ -18,6 +17,7 @@ use {
     },
     crate::libnonlink::{
         ministate::MinistateView,
+        page_list_edit::build_page_list_edit,
         page_query::build_page_query,
     },
     gloo::utils::document,
@@ -27,6 +27,10 @@ use {
         ProcessingContext,
     },
     rooting::El,
+    serde::{
+        Deserialize,
+        Serialize,
+    },
     shared::interface::{
         config::{
             view::ViewId,
@@ -51,6 +55,13 @@ use {
     },
 };
 
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct CurrentList {
+    pub name: String,
+    pub node: Node,
+}
+
 pub struct State_ {
     pub eg: EventGraph,
     pub ministate: RefCell<Ministate>,
@@ -64,6 +75,7 @@ pub struct State_ {
     pub modal_stack: El,
     pub log: Rc<dyn Log>,
     pub log1: Rc<VecLog>,
+    pub current_list: Prim<Option<CurrentList>>,
 }
 
 thread_local!{
@@ -138,6 +150,9 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
         Ministate::NodeView(ms) => {
             build_page_node_view(pc, &ms.title, &ms.node);
         },
+        Ministate::ListEdit(ms) => {
+            build_page_list_edit(pc, &ms.title, &ms.node);
+        },
         Ministate::History(ms) => {
             build_page_history(pc, ms);
         },
@@ -165,11 +180,6 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
             );
         },
     }
-}
-
-pub fn change_ministate(pc: &mut ProcessingContext, s: &Ministate) {
-    record_new_ministate(&state().log, s);
-    build_ministate(pc, s);
 }
 
 pub struct MinistateViewState_ {

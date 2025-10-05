@@ -1,0 +1,6 @@
+{
+    => playlist_id
+    ( -> "sunwet/1/add_timestamp" first { => playlist_add_timestamp } )
+    ( -> "sunwet/1/name" first { => playlist_name } )
+    ( -> "sunwet/1/cover" first { => cover } )
+}

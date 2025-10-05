@@ -454,6 +454,17 @@ pub struct WidgetLayout {
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct WidgetNode {
+    pub name: FieldOrLiteralString,
+    pub node: FieldOrLiteral,
+    pub orientation: Orientation,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub trans_align: TransAlign,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Widget {
     Layout(WidgetLayout),
     DataRows(WidgetDataRows),
@@ -466,6 +477,7 @@ pub enum Widget {
     Icon(WidgetIcon),
     PlayButton(WidgetPlayButton),
     Space,
+    Node(WidgetNode),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]

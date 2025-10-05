@@ -1,0 +1,14 @@
+$playlist_id -> "sunwet/1/track" !(-> "sunwet/1/delete") {
+    => track_id
+    ( -> "sunwet/1/index" first { => track_index } )
+    ( -> "sunwet/1/value" {
+        ( -> "sunwet/1/name" first { => track_name })
+        ( -> "sunwet/1/file" first { => file } )
+        (
+            -> "sunwet/1/artist" first {
+                => artist_id
+                ( -> "sunwet/1/name" first { => artist_name } )
+            }
+        )
+    })
+} asc track_index

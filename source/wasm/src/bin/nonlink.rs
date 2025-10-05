@@ -1,5 +1,9 @@
 use {
-    crate::libnonlink::seekbar::setup_seekbar,
+    crate::libnonlink::{
+        node_button::STORAGE_CURRENT_LIST,
+        seekbar::setup_seekbar,
+        state::CurrentList,
+    },
     flowcontrol::{
         shed,
         ta_return,
@@ -179,6 +183,15 @@ pub fn main() {
             client_config: client_config.clone(),
             log1: log1,
             log: log.clone(),
+            current_list: Prim::new(shed!{
+                if let Ok(m) = SessionStorage::get::<CurrentList>(STORAGE_CURRENT_LIST) {
+                    break Some(m);
+                };
+                if let Ok(m) = LocalStorage::get::<CurrentList>(STORAGE_CURRENT_LIST) {
+                    break Some(m);
+                };
+                break None;
+            }),
         })));
 
         // Restore share state

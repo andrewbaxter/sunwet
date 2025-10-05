@@ -1596,6 +1596,18 @@
             }
           },
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "node"
+          ],
+          "properties": {
+            "node": {
+              "$ref": "#/definitions/WidgetNode"
+            }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1940,6 +1952,34 @@
           "type": [
             "string",
             "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "WidgetNode": {
+      "type": "object",
+      "required": [
+        "name",
+        "node",
+        "orientation"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/FieldOrLiteralString"
+        },
+        "node": {
+          "$ref": "#/definitions/FieldOrLiteral"
+        },
+        "orientation": {
+          "$ref": "#/definitions/Orientation"
+        },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
           ]
         }
       },

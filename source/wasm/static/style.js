@@ -153,6 +153,9 @@
   ///////////////////////////////////////////////////////////////////////////////
   // xx Constants
 
+  const varZWidgetBg = "-1";
+  const varZBar = "2";
+
   const textIconPlay = "\ue037";
   const textIconPause = "\ue034";
   const textIconDelete = "\ue15b";
@@ -177,10 +180,14 @@
   const textIconRelIn = "\uf72d";
   const textIconRelOut = "\uf72e";
   const textIconEdit = "\ue3c9";
+  const textIconEditList = "\ue0ee";
   const textIconView = "\ue8f4";
   const textIconHistory = "\ue889";
   const textIconCenter = "\ue3b5";
-  const textIconGo = "\uf81b";
+  const textIconNode = "\uf81b";
+  const textIconMoveUp = "\ue5d8";
+  const textIconMoveDown = "\ue5db";
+  const textIconDeselect = "\ue9d5";
 
   // xx Variables
   const varFNormal = "12pt";
@@ -218,6 +225,7 @@
   const varPViewCol = "0.5cm";
   const varPViewList = "0.3cm";
   const varPViewHoriz = `max(0.3cm, min(${varSCol1Width}, 100dvw / 20))`;
+  const varPViewVert = `max(0.15cm, min(${varSCol1Width} / 2, 100dvw / 10))`;
   const varP05 = "0.5cm";
   const varPFormCommentTop = "0.3cm";
   const varPMenu = "0.5cm";
@@ -247,6 +255,7 @@
   const varRNodeButton = "0.2cm";
   const varRLink = "0.5cm";
   const varRTab = "0.4cm";
+  const varRButtonLinkUnderline = "0.06cm";
 
   const varWTransportBold = "300";
   const varWLight = "100";
@@ -326,8 +335,8 @@
   );
   const varCForegroundFade = vs(
     uniq("foreground_fade"),
-    "rgb(123, 123, 123)",
-    "rgb(167, 177, 177)"
+    "rgba(75, 74, 74, 0.7)",
+    "rgba(181, 192, 192, 0.7)"
   );
   const varCForegroundError = vs(
     uniq("foreground_error"),
@@ -540,13 +549,6 @@
     };
   };
 
-  const leafTitleStyle = ss(uniq("leaf_title"), {
-    "": (s) => {
-      s.fontSize = varFTitle;
-      s.gridColumn = "2";
-      s.gridRow = "1";
-    },
-  });
   presentation.leafTitle = /** @type {Presentation["leafTitle"]} */ (args) => ({
     root: e(
       "h1",
@@ -554,7 +556,15 @@
         textContent: args.text,
       },
       {
-        styles_: [leafTitleStyle],
+        styles_: [
+          ss(uniq("leaf_title"), {
+            "": (s) => {
+              s.fontSize = varFTitle;
+              s.gridColumn = "2";
+              s.gridRow = "1";
+            },
+          }),
+        ],
       }
     ),
   });
@@ -628,7 +638,7 @@
           styles_: [
             ss(uniq("cont_bar"), {
               "": (s) => {
-                s.zIndex = "2";
+                s.zIndex = varZBar;
                 s.display = "grid";
                 s.gridTemplateColumns =
                   "minmax(min-content, 1fr) auto minmax(min-content, 1fr)";
@@ -825,6 +835,7 @@
       s.gap = varPSmall;
       s.alignItems = "center";
       s.position = "relative";
+      s.zIndex = "0";
     },
     ":before": (s) => {
       s.position = "absolute";
@@ -833,6 +844,9 @@
       // covers up text otherwise
       s.zIndex = "-1";
       s.inset = "0";
+    },
+    [`.${classStateHide}`]: (s) => {
+      s.display = "none";
     },
     [`.${classStateDisabled}`]: (s) => {
       s.opacity = varONoninteractive;
@@ -920,6 +934,27 @@
     };
   };
 
+  const leafButtonBigStyle = ss(uniq("leaf_text_button_big"), {
+    "": (s) => {
+      s.padding = `0 ${varPButtonBig}`;
+      s.minHeight = "1.3cm";
+      s.minWidth = "1.3cm";
+      s.justifyContent = "center";
+      s.alignItems = "center";
+    },
+    ">span": (s) => {
+      s.padding = `${varPButtonBig} 0`;
+    },
+    ">svg": (s) => {
+      s.width = varSButtonBigIcon;
+      s.minWidth = varSButtonBigIcon;
+      s.height = varSButtonBigIcon;
+      s.minHeight = varSButtonBigIcon;
+    },
+    [`.${classStatePressed}`]: (s) => {
+      s.color = varCModified;
+    },
+  });
   presentation.leafButtonBig =
     /** @type { Presentation["leafButtonBig"] } */
     (args) =>
@@ -927,52 +962,24 @@
         title: args.title,
         icon: args.icon,
         text: args.text,
-        extraStyles: [
-          ss(uniq("leaf_text_button_big"), {
-            "": (s) => {
-              s.padding = `0 ${varPButtonBig}`;
-            },
-            ">span": (s) => {
-              s.padding = `${varPButtonBig} 0`;
-            },
-            ">svg": (s) => {
-              s.width = varSButtonBigIcon;
-              s.minWidth = varSButtonBigIcon;
-              s.height = varSButtonBigIcon;
-              s.minHeight = varSButtonBigIcon;
-            },
-            [`.${classStatePressed}`]: (s) => {
-              s.color = varCModified;
-            },
-          }),
-          ...args.extraStyles,
-        ],
+        extraStyles: [leafButtonBigStyle, ...args.extraStyles],
       });
-  presentation.leafButtonBigView =
-    /** @type { Presentation["leafButtonBigView"] } */
+  const leafButtonBigLink =
+    /** @type { (args:{ title: string, icon?: string, text?: string, extraStyles: string[], url: string, })=>HTMLElement } */
     (args) =>
-      presentation.leafButtonBig({
-        title: "View",
-        icon: textIconView,
-        text: "View",
-        extraStyles: [],
-      });
+      leafButtonLink({
+        title: args.title,
+        icon: args.icon,
+        text: args.text,
+        extraStyles: [leafButtonBigStyle, ...args.extraStyles],
+        url: args.url,
+      }).root;
   presentation.leafButtonBigDelete =
     /** @type { Presentation["leafButtonBigDelete"] } */
     (args) =>
       presentation.leafButtonBig({
         title: "Delete",
         icon: textIconDelete,
-        text: "Delete",
-        extraStyles: [],
-      });
-  presentation.leafButtonBigRevert =
-    /** @type { Presentation["leafButtonBigRevert"] } */
-    (args) =>
-      presentation.leafButtonBig({
-        title: "Revert",
-        icon: textIconRevert,
-        text: "Revert",
         extraStyles: [],
       });
   presentation.leafButtonBigCommit =
@@ -981,9 +988,26 @@
       presentation.leafButtonBig({
         title: "Commit",
         icon: textIconCommit,
-        text: "Commit",
         extraStyles: [],
       });
+  const leafButtonBigMoveUp = () =>
+    presentation.leafButtonBig({
+      title: "Move up",
+      icon: textIconMoveUp,
+      extraStyles: [],
+    });
+  const leafButtonBigMoveDown = () =>
+    presentation.leafButtonBig({
+      title: "Move down",
+      icon: textIconMoveDown,
+      extraStyles: [],
+    });
+  const leafButtonBigDeselect = () =>
+    presentation.leafButtonBig({
+      title: "Deselect",
+      icon: textIconDeselect,
+      extraStyles: [],
+    });
   const leafButtonLinkSmall =
     /** @type {(args: { title: string, icon?: string, text?: string, url: string }) => { root: HTMLElement }} */ (
       args
@@ -1964,9 +1988,7 @@
           styles_: [
             contVboxStyle,
             ss(uniq("view_list_body"), {
-              "": (s) => {
-                s.padding = `0 ${varPViewHoriz}`;
-              },
+              "": (s) => {},
             }),
           ],
           children_: [args.rows],
@@ -2015,12 +2037,12 @@
           contHboxStyle,
           ss(uniq("cont_view_row"), {
             "": (s) => {
+              s.padding = `${varPViewVert} ${varPViewHoriz}`;
               s.flexWrap = "wrap";
               s.columnGap = varPViewCol;
               s.rowGap = varPViewList;
               s.justifyContent = "space-around";
               s.maxWidth = "100%";
-              s.padding = varPViewRows;
             },
             ":nth-child(odd)": (s) => {
               s.backgroundColor = varCBackground2;
@@ -2160,6 +2182,7 @@
     (args: { 
       title: string, 
       child: HTMLElement
+      minimal?: boolean,
     }) => { 
       root: HTMLElement, 
       buttonClose: HTMLElement,
@@ -2180,12 +2203,15 @@
               const size = varSModalIconClose;
               s.width = size;
               s.height = size;
+            },
+            ":before": (s) => {
               s.borderTopRightRadius = varRModal;
             },
           }),
         ],
       }
     );
+    const minimal = args.minimal || false;
     return {
       root: e(
         "div",
@@ -2218,14 +2244,24 @@
                     "": (s) => {
                       s.justifySelf = "center";
                       s.alignSelf = "center";
+                      s.background = varCBackground;
+                      s.borderRadius = varRModal;
+                      s.paddingBottom = varRModal;
+                    },
+                  }),
+                  ss(uniq("cont_modal_minimal", minimal.toString()), {
+                    "": (s) => {
                       /** @type { (min: string, pad: string, max: string) => string } */
                       const threeState = (min, pad, max) => {
                         return `max(min(${min}, 100%), min(100% - ${pad}, ${max}))`;
                       };
-                      s.width = threeState("6cm", "1cm", varSNarrow);
-                      s.height = threeState("10cm", "1cm", varSModalHeight);
-                      s.background = varCBackground;
-                      s.borderRadius = varRModal;
+                      if (minimal) {
+                        s.maxWidth = "100dvw";
+                        s.maxHeight = "100dvh";
+                      } else {
+                        s.width = threeState("6cm", "1cm", varSNarrow);
+                        s.height = threeState("10cm", "1cm", varSModalHeight);
+                      }
                     },
                   }),
                 ],
@@ -3339,6 +3375,7 @@
           "": (s) => {
             s.borderRadius = varRMedia;
             s.position = "relative";
+            s.width = s.height = s.maxWidth = s.maxHeight = "1cm";
           },
           ">*": (s) => {
             s.display = "none";
@@ -3358,17 +3395,6 @@
           transAlign: args.transAlign,
         }),
       ];
-      if (args.image != null) {
-        buttonStyles.push(
-          ss(uniq("leaf_view_play_image"), {
-            "": (s) => {
-              s.backgroundSize = "cover";
-              s.color = "white";
-              s.backdropFilter = "invert()";
-            },
-          })
-        );
-      }
       const out = e(
         "button",
         {},
@@ -3386,39 +3412,40 @@
           ],
         }
       );
-      if (args.image != null) {
-        out.style.backgroundImage = `url(${args.image})`;
-      }
-      const size = "1cm";
-      out.style.width = (() => {
-        if (args.width == null) {
-          return size;
-        } else {
-          return args.width;
-        }
-      })();
-      out.style.minWidth = (() => {
-        if (args.width == null) {
-          return size;
-        } else {
-          return args.width;
-        }
-      })();
-      out.style.height = (() => {
-        if (args.height == null) {
-          return size;
-        } else {
-          return args.height;
-        }
-      })();
-      out.style.minHeight = (() => {
-        if (args.height == null) {
-          return size;
-        } else {
-          return args.height;
-        }
-      })();
       out.setAttribute("data-state", "");
+      return {
+        root: out,
+      };
+    };
+  presentation.leafViewNodeButton =
+    /** @type { Presentation["leafViewNodeButton"] } */ (args) => {
+      const buttonStyles = [
+        leafButtonStyle,
+        ss(uniq("leaf_view_node_button"), {
+          "": (s) => {
+            s.borderRadius = varRMedia;
+            s.width = s.height = s.maxWidth = s.maxHeight = "2.5em";
+            s.padding = "0.3em";
+            s.color = varCForegroundFade;
+          },
+        }),
+        viewLeafTransStyle({
+          orientation: args.orientation,
+          transAlign: args.transAlign,
+        }),
+      ];
+      const out = e(
+        "button",
+        {},
+        {
+          styles_: buttonStyles,
+          children_: [
+            leafIcon({
+              text: textIconNode,
+            }),
+          ],
+        }
+      );
       return {
         root: out,
       };
@@ -3846,23 +3873,31 @@
     });
   // /////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: page, view/history node
+  const contNarrowBody = /** @type{(children: Element[])=>HTMLElement} */ (
+    children
+  ) =>
+    e(
+      "div",
+      {},
+      {
+        styles_: [
+          contBodyStyle,
+          classMenuWantStateOpen,
+          contBodyNarrowStyle,
+          contVboxStyle,
+          ss(uniq("page_node"), {
+            "": (s) => {
+              s.gap = varSNodeGap;
+            },
+          }),
+        ],
+        children_: children,
+      }
+    );
   presentation.contPageNodeView =
     /** @type {Presentation["contPageNodeView"]} */ (args) => {
-      const body = pageNodeBody(args.children);
       return {
-        root: presentation.contGroup({
-          children: [
-            e(
-              "div",
-              {},
-              {
-                styles_: [classMenuWantStateOpen, contVboxStyle, contBodyStyle],
-                children_: [body],
-              }
-            ),
-          ],
-        }).root,
-        body: body,
+        root: contNarrowBody(args.children),
       };
     };
   presentation.leafNodeViewPredicate =
@@ -3924,25 +3959,6 @@
         ),
       };
     };
-  const pageNodeBody = /** @type{(children: Element[])=>HTMLElement} */ (
-    children
-  ) =>
-    e(
-      "div",
-      {},
-      {
-        styles_: [
-          contBodyNarrowStyle,
-          contVboxStyle,
-          ss(uniq("page_node"), {
-            "": (s) => {
-              s.gap = varSNodeGap;
-            },
-          }),
-        ],
-        children_: children,
-      }
-    );
 
   const leafButtonFreeStyle = ss(uniq("leaf_button_free"), {
     "": (s) => {
@@ -3966,8 +3982,11 @@
     [`.${classStateHide}`]: (s) => {
       s.display = "none";
     },
+    [`.${classInputStateModified}`]: (s) => {
+      s.color = varCModified;
+    },
   });
-  const leafButtonEditFree =
+  const leafButtonFree =
     /** @type { (args: { icon: string, hint: string, extraStyles?: string[] }) => { root: HTMLElement } } */ (
       args
     ) =>
@@ -4000,7 +4019,7 @@
               s.right = "15%";
               s.bottom = "-0.05cm";
               s.height = varLMid;
-              s.borderRadius = varLMid;
+              s.borderRadius = varRButtonLinkUnderline;
               s.background = "currentColor";
               s.opacity = varONoninteractive;
             },
@@ -4064,13 +4083,22 @@
         download: false,
       });
     };
-  presentation.leafNodeViewToolbarGoLinkButton =
-    /** @type {Presentation["leafNodeViewToolbarGoLinkButton"]} */ (args) => {
+  presentation.leafNodeViewToolbarEditListLinkButton =
+    /** @type {Presentation["leafNodeViewToolbarEditListLinkButton"]} */ (
+      args
+    ) => {
       return leafButtonFreeLink({
-        icon: textIconGo,
-        hint: "View node",
+        icon: textIconEditList,
+        hint: "Edit as list",
         url: args.link,
         download: false,
+      });
+    };
+  presentation.leafNodeViewToolbarNodeButton =
+    /** @type {Presentation["leafNodeViewToolbarNodeButton"]} */ (args) => {
+      return leafButtonFree({
+        icon: textIconNode,
+        hint: "View node",
       });
     };
 
@@ -4078,7 +4106,6 @@
   // xx Components, styles: page, node edit
   presentation.contPageNodeEdit =
     /** @type {Presentation["contPageNodeEdit"]} */ (args) => {
-      const body = pageNodeBody(args.children);
       return {
         root: presentation.contGroup({
           children: [
@@ -4089,22 +4116,14 @@
               rightMidChildren: [],
               rightChildren: args.barChildren,
             }).root,
-            e(
-              "div",
-              {},
-              {
-                styles_: [classMenuWantStateOpen, contVboxStyle, contBodyStyle],
-                children_: [body],
-              }
-            ),
+            contNarrowBody(args.children),
           ],
         }).root,
-        body: body,
       };
     };
   const leafButtonNodeEditAdd =
     /** @type {(args: {hint: string})=>{root: HTMLElement}} */ (args) =>
-      leafButtonEditFree({
+      leafButtonFree({
         icon: textIconAdd,
         hint: args.hint,
         extraStyles: [
@@ -4239,21 +4258,21 @@
     };
   presentation.leafNodeEditToolbarFillToggle =
     /** @type {Presentation["leafNodeEditToolbarFillToggle"]} */ (args) => {
-      return leafButtonEditFree({
+      return leafButtonFree({
         icon: textIconFill,
         hint: "Fill",
       });
     };
   presentation.leafNodeEditToolbarDeleteToggle =
     /** @type {Presentation["leafNodeEditToolbarDeleteToggle"]} */ (args) => {
-      return leafButtonEditFree({
+      return leafButtonFree({
         icon: textIconDelete,
         hint: "Delete",
       });
     };
   presentation.leafNodeEditToolbarRevertButton =
     /** @type {Presentation["leafNodeEditToolbarRevertButton"]} */ (args) => {
-      return leafButtonEditFree({
+      return leafButtonFree({
         icon: textIconRevert,
         hint: "Revert",
       });
@@ -4261,8 +4280,8 @@
   presentation.leafNodeEditToolbarViewLinkButton =
     /** @type {Presentation["leafNodeEditToolbarViewLinkButton"]} */ (args) => {
       return leafButtonFreeLink({
-        icon: textIconGo,
-        hint: "View",
+        icon: textIconNode,
+        hint: "View node",
         download: false,
         url: args.link,
       });
@@ -4586,8 +4605,9 @@
                       "": (s) => {
                         s.height = "100%";
                         s.width = varLThin;
-                        s.backgroundColor = varCForegroundFade;
+                        s.backgroundColor = varCForeground;
                         s.borderRadius = varRNode;
+                        s.opacity = varONoninteractive;
                       },
                     }),
                   ],
@@ -4873,12 +4893,12 @@
           ],
         }
       );
-      const downloadButton = leafButtonEditFree({
+      const downloadButton = leafButtonFree({
         hint: "Download",
         icon: textIconDownload,
         extraStyles: [],
       }).root;
-      const copyButton = leafButtonEditFree({
+      const copyButton = leafButtonFree({
         hint: "Copy",
         icon: textIconCopy,
         extraStyles: [],
@@ -5068,7 +5088,7 @@
       if (args.link != null) {
         children.push(
           leafButtonFreeLink({
-            icon: textIconGo,
+            icon: textIconNode,
             hint: "View",
             url: args.link,
             download: false,
@@ -5119,7 +5139,7 @@
                 ],
                 children_: [
                   leafButtonFreeLink({
-                    icon: textIconGo,
+                    icon: textIconNode,
                     hint: "View",
                     url: args.link,
                     download: false,
@@ -5183,7 +5203,7 @@
       if (args.link != null) {
         children.push(
           leafButtonFreeLink({
-            icon: textIconGo,
+            icon: textIconNode,
             hint: "View",
             url: args.link,
             download: false,
@@ -5239,7 +5259,7 @@
                 ],
                 children_: [
                   leafButtonFreeLink({
-                    icon: textIconGo,
+                    icon: textIconNode,
                     hint: "View",
                     url: args.link,
                     download: false,
@@ -5312,6 +5332,381 @@
         root: out,
       };
     };
+
+  ///////////////////////////////////////////////////////////////////////////////
+  // xx Components, styles: page, list edit
+  presentation.contPageListEdit =
+    /** @type {Presentation["contPageListEdit"]} */ (args) => {
+      const buttonDelete = presentation.leafButtonBigDelete({}).root;
+      const buttonMoveUp = leafButtonBigMoveUp().root;
+      const buttonMoveDown = leafButtonBigMoveDown().root;
+      const buttonDeselect = leafButtonBigDeselect().root;
+      const buttonCommit = presentation.leafButtonBigCommit({}).root;
+      const backToViewButton = leafButtonFreeLink({
+        icon: textIconNode,
+        hint: "View lsit node",
+        url: args.backToViewLink,
+        download: false,
+      }).root;
+      const numberedToggle = e("input", { type: "checkbox" }, {});
+      const numberedOuter = e(
+        "label",
+        {},
+        {
+          styles_: [
+            ss(uniq("cont_page_list_edit_top_numbered"), {
+              "": (s) => {
+                s.display = "flex";
+                s.flexDirection = "row";
+                s.gap = varPSmall;
+              },
+              [`.${classInputStateModified}`]: (s) => {
+                s.color = varCModified;
+              },
+            }),
+          ],
+          children_: [
+            numberedToggle,
+            e("span", { textContent: "Numbered" }, {}),
+          ],
+        }
+      );
+      return {
+        root: presentation.contGroup({
+          children: [
+            presentation.contBarMain({
+              leftChildren: [],
+              leftMidChildren: [buttonDelete],
+              midChildren: [buttonMoveUp, buttonMoveDown],
+              rightMidChildren: [buttonDeselect],
+              rightChildren: [buttonCommit],
+            }).root,
+            contNarrowBody([
+              e(
+                "div",
+                {},
+                {
+                  styles_: [
+                    contHboxStyle,
+                    ss(uniq("cont_page_list_edit_top_vbox"), {
+                      "": (s) => {
+                        s.justifyContent = "space-between";
+                        s.alignItems = "center";
+                      },
+                    }),
+                  ],
+                  children_: [numberedOuter, backToViewButton],
+                }
+              ),
+              e(
+                "div",
+                {},
+                {
+                  styles_: [
+                    contVboxStyle,
+                    ss(uniq("cont_page_list_edit_entries"), {
+                      "": (s) => {
+                        s.gap = varPSmall;
+                      },
+                    }),
+                  ],
+                  children_: args.children,
+                }
+              ),
+            ]),
+          ],
+        }).root,
+        buttonCommit: buttonCommit,
+        buttonDelete: buttonDelete,
+        buttonDeselect: buttonDeselect,
+        buttonMoveDown: buttonMoveDown,
+        buttonMoveUp: buttonMoveUp,
+        numberedToggle: numberedToggle,
+        numberedOuter: numberedOuter,
+      };
+    };
+  presentation.leafPageListEditEntry =
+    /** @type {Presentation["leafPageListEditEntry"]} */ (args) => {
+      const check = e(
+        "input",
+        { type: "checkbox" },
+        {
+          styles_: [
+            ss(uniq("leaf_page_list_edit_entry"), {
+              "": (s) => {
+                s.width = "0.5cm";
+                s.height = "0.5cm";
+                s.alignSelf = "center";
+                s.margin = varPSmall;
+              },
+              ":checked": (s) => {
+                s.visibility = "initial";
+              },
+            }),
+          ],
+        }
+      );
+      const deleteButton = leafButtonFree({
+        icon: textIconDelete,
+        hint: "Delete entry",
+        extraStyles: [],
+      }).root;
+      const number = e(
+        "span",
+        {},
+        {
+          styles_: [
+            ss(uniq("leaf_page_list_edit_entry_number"), {
+              "": (s) => {},
+              [`.${classStateHide}`]: (s) => {
+                s.display = "none";
+              },
+              [`.${classInputStateModified}`]: (s) => {
+                s.color = varCModified;
+              },
+            }),
+          ],
+        }
+      );
+      return {
+        root: e(
+          "label",
+          {},
+          {
+            styles_: [
+              contNodeContentStyle,
+              ss(uniq("leaf_page_list_edit_entry"), {
+                "": (s) => {
+                  s.display = "flex";
+                  s.flexDirection = "row";
+                  s.gap = varPSmall;
+                  s.border = varLMid;
+                },
+                [`.${classStateHide}`]: (s) => {
+                  s.display = "none";
+                },
+              }),
+            ],
+            children_: [
+              check,
+              e(
+                "div",
+                {},
+                {
+                  styles_: [
+                    contVboxStyle,
+                    ss(uniq("leaf_page_list_edit_entry_horiz"), {
+                      "": (s) => {
+                        s.flexGrow = "1";
+                      },
+                    }),
+                  ],
+                  children_: [
+                    e(
+                      "div",
+                      {},
+                      {
+                        styles_: [
+                          contHboxStyle,
+                          ss(uniq("leaf_page_list_edit_entry_horiz2"), {
+                            "": (s) => {
+                              s.gap = varPSmall;
+                            },
+                          }),
+                        ],
+                        children_: [
+                          number,
+                          e(
+                            "span",
+                            { textContent: args.name },
+                            {
+                              styles_: [
+                                ss(uniq("leaf_page_list_edit_entry_id"), {
+                                  "": (s) => {
+                                    s.flexGrow = "1";
+                                  },
+                                }),
+                              ],
+                            }
+                          ),
+                          deleteButton,
+                          leafButtonFreeLink({
+                            icon: textIconNode,
+                            hint: "View node",
+                            url: args.idLink,
+                            download: false,
+                          }).root,
+                        ],
+                      }
+                    ),
+                    e(
+                      "span",
+                      { textContent: args.id },
+                      {
+                        styles_: [
+                          ss(uniq("leaf_page_list_edit_entry_name"), {
+                            "": (s) => {
+                              s.opacity = varONoninteractive;
+                            },
+                          }),
+                        ],
+                      }
+                    ),
+                  ],
+                }
+              ),
+            ],
+          }
+        ),
+        number: number,
+        deleteButton: deleteButton,
+        checkbox: check,
+      };
+    };
+  presentation.contModalNode = /** @type {Presentation["contModalNode"]} */ (
+    args
+  ) => {
+    const errors = e(
+      "div",
+      {},
+      {
+        styles_: [
+          contVboxStyle,
+          ss(uniq("cont_modal_node_errors"), {
+            "": (s) => {
+              s.gap = varPSmall;
+              s.alignItems = "center";
+            },
+          }),
+        ],
+      }
+    );
+    const modalMenuButton =
+      /** @type { (args: {text: string})=>HTMLElement } */ (args) => {
+        return presentation.leafButtonBig({
+          title: args.text,
+          text: args.text,
+          extraStyles: [],
+        }).root;
+      };
+
+    const listGroupChildren = [];
+    if (
+      args.currentListId != null &&
+      args.currentListName != null &&
+      args.currentListLink != null
+    ) {
+      listGroupChildren.push(
+        e(
+          "div",
+          {},
+          {
+            styles_: [
+              contHboxStyle,
+              ss(uniq("cont_modal_node_current_list_horiz"), {
+                "": (s) => {
+                  s.margin = `${varPSmall} ${varP05}`;
+                  s.gap = varPSmall;
+                },
+              }),
+            ],
+            children_: [
+              e("div", { textContent: "Current list:" }, {}),
+              e(
+                "div",
+                {},
+                {
+                  styles_: [
+                    contVboxStyle,
+                    ss(uniq("cont_modal_node_current_list_vert"), {
+                      "": (s) => {
+                        s.gap = varPSmall;
+                        s.flexGrow = "1";
+                      },
+                    }),
+                  ],
+                  children_: [
+                    e("div", { textContent: args.currentListId }, {}),
+                    e(
+                      "div",
+                      { textContent: args.currentListName },
+                      {
+                        styles_: [
+                          ss(uniq("cont_modal_node_current_list_name"), {
+                            "": (s) => {
+                              s.opacity = varONoninteractive;
+                            },
+                          }),
+                        ],
+                      }
+                    ),
+                  ],
+                }
+              ),
+              presentation.leafNodeEditToolbarViewLinkButton({
+                link: args.currentListLink,
+              }).root,
+            ],
+          }
+        )
+      );
+    }
+    const buttonAddToList = modalMenuButton({ text: "Add to list" });
+    listGroupChildren.push(buttonAddToList);
+    const buttonSetCurrentList = modalMenuButton({
+      text: "Set as current list",
+    });
+    listGroupChildren.push(buttonSetCurrentList);
+    const out = newContModal({
+      minimal: true,
+      title: "Node",
+      child: e(
+        "div",
+        {},
+        {
+          styles_: [
+            contVboxStyle,
+            ss(uniq("cont_modal_node_vbox"), {
+              "": (s) => {
+                s.flexGrow = "1";
+              },
+            }),
+          ],
+          children_: [
+            errors,
+            leafButtonBigLink({
+              text: "View node",
+              title: "View node",
+              url: args.nodeLink,
+              extraStyles: [],
+            }),
+            e(
+              "div",
+              {},
+              {
+                styles_: [
+                  contVboxStyle,
+                  ss(uniq("cont_modal_node_list_vbox"), {
+                    "": (s) => {
+                      s.marginTop = varP05;
+                    },
+                  }),
+                ],
+                children_: listGroupChildren,
+              }
+            ),
+          ],
+        }
+      ),
+    });
+    return {
+      root: out.root,
+      errors: errors,
+      buttonClose: out.buttonClose,
+      buttonSetList: buttonSetCurrentList,
+      buttonAddToList: buttonAddToList,
+    };
+  };
 
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: menu

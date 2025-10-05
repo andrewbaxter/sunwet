@@ -10,6 +10,11 @@ pub const PREDICATE_INDEX: &str = "sunwet/1/index";
 /// and should be omitted if there's only one disk.
 pub const PREDICATE_SUPERINDEX: &str = "sunwet/1/superindex";
 
+/// Used for indirection - i.e. instead of a track going to a song, a track goes to
+/// an "intermediate" that has its own index, and the intermediate points to the
+/// song - value is used by the intermediate to point to the song
+pub const PREDICATE_VALUE: &str = "sunwet/1/value";
+
 /// When the entity was added -- mostly for ID nodes (albums, artists, tracks,
 /// notes)
 pub const PREDICATE_ADD_TIMESTAMP: &str = "sunwet/1/add_timestamp";

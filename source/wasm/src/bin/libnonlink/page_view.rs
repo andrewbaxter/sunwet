@@ -21,6 +21,7 @@ use {
             MinistateForm,
             MinistateView,
         },
+        node_button::setup_node_button,
         playlist::{
             categorize_mime_media,
             playlist_extend,
@@ -61,39 +62,43 @@ use {
         El,
         WeakEl,
     },
-    shared::interface::{
-        config::view::{
-            ClientView,
-            Direction,
-            FieldOrLiteral,
-            FieldOrLiteralString,
-            Link,
-            LinkDest,
-            Orientation,
-            QueryOrField,
-            ViewId,
-            Widget,
-            WidgetColor,
-            WidgetDataRows,
-            WidgetDate,
-            WidgetDatetime,
-            WidgetIcon,
-            WidgetLayout,
-            WidgetMedia,
-            WidgetPlayButton,
-            WidgetRootDataRows,
-            WidgetText,
-            WidgetTime,
+    shared::{
+        interface::{
+            config::view::{
+                ClientView,
+                Direction,
+                FieldOrLiteral,
+                FieldOrLiteralString,
+                Link,
+                LinkDest,
+                Orientation,
+                QueryOrField,
+                ViewId,
+                Widget,
+                WidgetColor,
+                WidgetDataRows,
+                WidgetDate,
+                WidgetDatetime,
+                WidgetIcon,
+                WidgetLayout,
+                WidgetMedia,
+                WidgetNode,
+                WidgetPlayButton,
+                WidgetRootDataRows,
+                WidgetText,
+                WidgetTime,
+            },
+            triple::Node,
+            wire::{
+                link::SourceUrl,
+                NodeMeta,
+                Pagination,
+                ReqViewQuery,
+                RespQueryRows,
+                TreeNode,
+            },
         },
-        triple::Node,
-        wire::{
-            link::SourceUrl,
-            NodeMeta,
-            Pagination,
-            ReqViewQuery,
-            RespQueryRows,
-            TreeNode,
-        },
+        stringpattern::node_to_text,
     },
     std::{
         cell::{
@@ -178,28 +183,11 @@ fn maybe_get_field_or_literal_string(
     }
 }
 
-fn unwrap_value_string(data_at: &TreeNode) -> String {
+pub fn tree_node_to_text(data_at: &TreeNode) -> String {
     match data_at {
         TreeNode::Array(v) => return serde_json::to_string(v).unwrap(),
         TreeNode::Record(v) => return serde_json::to_string(v).unwrap(),
-        TreeNode::Scalar(v) => match v {
-            Node::File(v) => return v.to_string(),
-            Node::Value(v) => match v {
-                serde_json::Value::String(v) => return v.clone(),
-                serde_json::Value::Number(v) => {
-                    if let Some(v) = v.as_i64() {
-                        return v.to_string();
-                    } else if let Some(v) = v.as_u64() {
-                        return v.to_string();
-                    } else if let Some(v) = v.as_f64() {
-                        return v.to_string();
-                    } else {
-                        return v.to_string();
-                    }
-                },
-                _ => return serde_json::to_string(v).unwrap(),
-            },
-        },
+        TreeNode::Scalar(v) => node_to_text(v),
     }
 }
 
@@ -215,7 +203,7 @@ fn unwrap_value_media_url(data_at: &Node) -> Result<SourceUrl, String> {
 
 fn unwrap_value_move_url(data_stack: &Vec<DataStackLevel>, link: &Link) -> Result<Option<String>, String> {
     let title = match maybe_get_field_or_literal(&link.title, data_stack)? {
-        Some(x) => unwrap_value_string(&x),
+        Some(x) => tree_node_to_text(&x),
         None => format!("(unknown name)"),
     };
     match &link.dest {
@@ -670,7 +658,7 @@ impl Build {
                 text: format!(
                     "{}{}{}",
                     config_at.prefix,
-                    unwrap_value_string(&match maybe_get_field_or_literal_string(&config_at.data, data_stack)? {
+                    tree_node_to_text(&match maybe_get_field_or_literal_string(&config_at.data, data_stack)? {
                         Some(x) => x,
                         None => return Ok(el("div")),
                     }),
@@ -729,7 +717,7 @@ impl Build {
                             let Some(d) = maybe_get_field_or_literal(v, data_stack)? else {
                                 break None;
                             };
-                            break Some(unwrap_value_string(&d));
+                            break Some(tree_node_to_text(&d));
                         },
                         width: config_at.width.clone(),
                         height: config_at.height.clone(),
@@ -755,7 +743,7 @@ impl Build {
                             let Some(d) = maybe_get_field_or_literal(v, data_stack)? else {
                                 break None;
                             };
-                            break Some(unwrap_value_string(&d));
+                            break Some(tree_node_to_text(&d));
                         },
                         width: config_at.width.clone(),
                         height: config_at.height.clone(),
@@ -782,7 +770,7 @@ impl Build {
                             let Some(d) = maybe_get_field_or_literal(v, data_stack)? else {
                                 break None;
                             };
-                            break Some(unwrap_value_string(&d));
+                            break Some(tree_node_to_text(&d));
                         },
                         length: config_at.width.clone(),
                     }).root);
@@ -917,6 +905,36 @@ impl Build {
         }
     }
 
+    fn build_widget_node(
+        &mut self,
+        pc: &mut ProcessingContext,
+        config_at: &WidgetNode,
+        data_stack: &Vec<DataStackLevel>,
+    ) -> El {
+        match (|| {
+            ta_return!(El, String);
+            let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(name)))) =
+                maybe_get_field_or_literal_string(&config_at.name, &data_stack)? else {
+                    return Ok(el("div"));
+                };
+            let Some(TreeNode::Scalar(node)) = maybe_get_field_or_literal(&config_at.node, &data_stack)? else {
+                return Ok(el("div"));
+            };
+            let out = style_export::leaf_view_node_button(style_export::LeafViewNodeButtonArgs {
+                trans_align: config_at.trans_align,
+                orientation: config_at.orientation,
+            }).root;
+            setup_node_button(pc, &out, name, node);
+            return Ok(out);
+        })() {
+            Ok(e) => return e,
+            Err(e) => return style_export::leaf_err_block(style_export::LeafErrBlockArgs {
+                in_root: false,
+                data: e,
+            }).root,
+        }
+    }
+
     fn build_widget_play_button(
         &mut self,
         pc: &mut ProcessingContext,
@@ -959,16 +977,6 @@ impl Build {
                 break Some(unwrap_value_media_url(&d).map_err(|e| format!("Building cover url: {}", e))?);
             };
             let out = style_export::leaf_view_play_button(style_export::LeafViewPlayButtonArgs {
-                image: if config_at.show_image {
-                    cover_source_url.as_ref().map(|x| match x {
-                        SourceUrl::Url(u) => u.clone(),
-                        SourceUrl::File(f) => file_url(&state().env, &f),
-                    })
-                } else {
-                    None
-                },
-                width: config_at.width.clone(),
-                height: config_at.height.clone(),
                 trans_align: config_at.trans_align,
                 orientation: config_at.orientation.unwrap_or(Orientation::RightDown),
             }).root;
@@ -982,7 +990,7 @@ impl Build {
                     let Some(d) = maybe_get_field(config_at, data_stack) else {
                         break None;
                     };
-                    break Some(unwrap_value_string(&d));
+                    break Some(tree_node_to_text(&d));
                 },
                 album: shed!{
                     let Some(config_at) = &config_at.album_field else {
@@ -991,7 +999,7 @@ impl Build {
                     let Some(d) = maybe_get_field(config_at, data_stack) else {
                         break None;
                     };
-                    break Some(unwrap_value_string(&d));
+                    break Some(tree_node_to_text(&d));
                 },
                 artist: shed!{
                     let Some(config_at) = &config_at.artist_field else {
@@ -1000,7 +1008,7 @@ impl Build {
                     let Some(d) = maybe_get_field(config_at, data_stack) else {
                         break None;
                     };
-                    break Some(unwrap_value_string(&d));
+                    break Some(tree_node_to_text(&d));
                 },
                 cover_source_url: cover_source_url,
                 source_url: src_url,
@@ -1079,6 +1087,7 @@ impl Build {
             Widget::Datetime(config_at) => return self.build_widget_datetime(config_at, data_stack),
             Widget::Time(config_at) => return self.build_widget_time(config_at, data_stack),
             Widget::Space => return style_export::leaf_space().root,
+            Widget::Node(config_at) => return self.build_widget_node(pc, config_at, data_stack),
         }
     }
 }

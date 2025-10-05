@@ -20,16 +20,16 @@ use {
         Response,
     },
     shared::interface::{
-        triple::FileHash,
+        triple::{
+            FileHash,
+        },
         wire::{
             C2SReq,
             C2SReqTrait,
             HEADER_OFFSET,
         },
     },
-    wasm::js::{
-        LogJsErr,
-    },
+    wasm::js::LogJsErr,
     wasm_bindgen::UnwrapThrowExt,
     web_sys::Url,
 };

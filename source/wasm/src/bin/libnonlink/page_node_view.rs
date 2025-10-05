@@ -11,8 +11,10 @@ use {
             Ministate,
             MinistateHistory,
             MinistateHistoryFilter,
+            MinistateListEdit,
             MinistateNodeEdit,
         },
+        node_button::setup_node_button,
         playlist::{
             categorize_mime_media,
             PlaylistEntryMediaType,
@@ -97,7 +99,12 @@ pub fn build_node_el(node: &Node) -> El {
     }).root;
 }
 
-fn build_node_rel_buttons(download: Option<&FileHash>, history: String, link: String) -> El {
+fn build_node_rel_buttons(
+    pc: &mut ProcessingContext,
+    node: &Node,
+    download: Option<&FileHash>,
+    history: String,
+) -> El {
     let mut right = vec![];
     if let Some(download) = download {
         right.push(
@@ -111,11 +118,9 @@ fn build_node_rel_buttons(download: Option<&FileHash>, history: String, link: St
             style_export::LeafNodeViewToolbarHistoryLinkButtonArgs { link: history },
         ).root,
     );
-    right.push(
-        style_export::leaf_node_view_toolbar_go_link_button(
-            style_export::LeafNodeViewToolbarGoLinkButtonArgs { link: link },
-        ).root,
-    );
+    let node_button = style_export::leaf_node_view_toolbar_node_button().root;
+    setup_node_button(pc, &node_button, node_to_text(&node), node.clone());
+    right.push(node_button);
     return style_export::cont_node_toolbar(style_export::ContNodeToolbarArgs {
         left: vec![],
         right: right,
@@ -131,7 +136,7 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
             ta_return!(Vec < El >, String);
             let mut triples =
                 req_post_json(&state().env.base_url, ReqGetTriplesAround { nodes: vec![node.clone()] }).await?;
-            return eg.event(|_pc| {
+            return eg.event(|pc| {
                 let mut out = vec![];
 
                 // Incoming triples
@@ -149,6 +154,8 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                             triple_els.push(ele);
                         };
                         triple_els.push(build_node_rel_buttons(
+                            pc,
+                            &t.subject,
                             match &t.subject {
                                 Node::File(n) => Some(n),
                                 _ => None,
@@ -163,10 +170,6 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                                     node: node.clone(),
                                 }) }),
                             ),
-                            ministate_octothorpe(&super::ministate::Ministate::NodeView(MinistateNodeView {
-                                title: node_to_text(&t.subject),
-                                node: t.subject.clone(),
-                            })),
                         ));
                         triples_els.push(style_export::cont_node_row_incoming(style_export::ContNodeRowIncomingArgs {
                             children: triple_els,
@@ -182,20 +185,14 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
 
                 // Pivot
                 {
+                    let node_button = style_export::leaf_node_view_toolbar_node_button().root;
+                    setup_node_button(pc, &node_button, title.clone(), node.clone());
                     let mut children = vec![
                         //. .
                         build_node_el(&node),
                         style_export::cont_node_toolbar(style_export::ContNodeToolbarArgs {
                             left: vec![],
                             right: vec![
-                                style_export::leaf_node_view_toolbar_edit_link_button(
-                                    style_export::LeafNodeViewToolbarEditLinkButtonArgs {
-                                        link: ministate_octothorpe(&Ministate::NodeEdit(MinistateNodeEdit {
-                                            title: title.clone(),
-                                            nodes: vec![node.clone()],
-                                        })),
-                                    },
-                                ).root,
                                 style_export::leaf_node_view_toolbar_history_link_button(
                                     style_export::LeafNodeViewToolbarHistoryLinkButtonArgs {
                                         link: ministate_octothorpe(
@@ -208,6 +205,23 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                                         ),
                                     },
                                 ).root,
+                                style_export::leaf_node_view_toolbar_edit_link_button(
+                                    style_export::LeafNodeViewToolbarEditLinkButtonArgs {
+                                        link: ministate_octothorpe(&Ministate::NodeEdit(MinistateNodeEdit {
+                                            title: title.clone(),
+                                            nodes: vec![node.clone()],
+                                        })),
+                                    },
+                                ).root,
+                                style_export::leaf_node_view_toolbar_edit_list_link_button(
+                                    style_export::LeafNodeViewToolbarEditListLinkButtonArgs {
+                                        link: ministate_octothorpe(&Ministate::ListEdit(MinistateListEdit {
+                                            title: title.clone(),
+                                            node: node.clone(),
+                                        })),
+                                    },
+                                ).root,
+                                node_button,
                             ],
                         }).root
                     ];
@@ -245,6 +259,8 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                         }
                         triple_els.push({
                             build_node_rel_buttons(
+                                pc,
+                                &t.object,
                                 match &t.object {
                                     Node::File(n) => Some(n),
                                     _ => None,
@@ -259,10 +275,6 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                                         ),
                                     }) }),
                                 ),
-                                ministate_octothorpe(&super::ministate::Ministate::NodeView(MinistateNodeView {
-                                    title: node_to_text(&t.object),
-                                    node: t.object.clone(),
-                                })),
                             )
                         });
                         triples_els.push(style_export::cont_node_row_outgoing(style_export::ContNodeRowOutgoingArgs {
@@ -276,10 +288,11 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                         ).root,
                     );
                 }
-                return Ok(vec![style_export::cont_page_node_edit(style_export::ContPageNodeEditArgs {
-                    bar_children: vec![],
-                    children: out,
-                }).root]);
+                return Ok(
+                    vec![
+                        style_export::cont_page_node_view(style_export::ContPageNodeViewArgs { children: out }).root
+                    ],
+                );
             }).unwrap();
         }
     }));
