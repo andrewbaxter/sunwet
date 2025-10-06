@@ -5344,7 +5344,7 @@
       const buttonCommit = presentation.leafButtonBigCommit({}).root;
       const backToViewButton = leafButtonFreeLink({
         icon: textIconNode,
-        hint: "View lsit node",
+        hint: "View list node",
         url: args.backToViewLink,
         download: false,
       }).root;

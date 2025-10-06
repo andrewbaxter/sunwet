@@ -11,7 +11,7 @@ flowcontrol = "0.2"
 good-ormning-runtime = { version = "0.3", features = ["sqlite"] }
 http = "1"
 http-body-util = "0.1"
-htwrap = { version = "0.13" }
+htwrap = { version = "0.14" }
 hyper = "1"
 hyper-tungstenite = { version = "0.17" }
 hyper-util = "0.1"

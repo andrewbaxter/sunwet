@@ -422,7 +422,7 @@ pub async fn handle_file_get(
         local_path = file_path(&state, &file).err_internal()?;
     });
     return Ok(
-        htserve::responses::response_file(&head.headers, &mimetype, &local_path, &state.http_resp_headers)
+        htserve::responses::response_file(&head.headers, &mimetype, &local_path, true, &state.http_resp_headers)
             .await
             .err_internal()?,
     );

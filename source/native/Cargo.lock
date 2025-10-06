@@ -1800,9 +1800,9 @@ dependencies = [
 
 [[package]]
 name = "htwrap"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8596da668d5b858f7a5c2236327378a8140f6f376e3a38c8f12a1731e61f8d5"
+checksum = "2ab2b7fa59abf15af1ce90fad8ce9a7601aa3d39850e374ff335d16e5721d475"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -2490,7 +2490,7 @@ dependencies = [
  "http-body",
  "http-body-util",
  "http-serde",
- "htwrap 0.13.0",
+ "htwrap 0.14.0",
  "hyper",
  "hyper-tungstenite",
  "hyper-util",
