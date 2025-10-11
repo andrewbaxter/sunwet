@@ -210,6 +210,10 @@ pub fn main() {
             move |_e| eg.event(|pc| {
                 let ministate = read_ministate(&state().log);
                 *state().ministate.borrow_mut() = ministate.clone();
+                LocalStorage::set(
+                    LOCALSTORAGE_PWA_MINISTATE,
+                    ministate_octothorpe(&ministate),
+                ).log(&state().log, "Error storing PWA ministate");
                 build_ministate(pc, &ministate);
             }).unwrap()
         }).forget();

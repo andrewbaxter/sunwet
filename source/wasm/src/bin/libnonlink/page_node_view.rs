@@ -142,7 +142,9 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                 // Incoming triples
                 {
                     let mut triples_els = vec![];
-                    for t in triples.extract_if(.., |x| x.object == node) {
+                    let mut incoming_rels = triples.extract_if(.., |x| x.object == node).collect::<Vec<_>>();
+                    incoming_rels.sort_by_cached_key(|r| (r.predicate.clone(), r.subject.clone()));
+                    for t in incoming_rels {
                         let mut triple_els = vec![];
                         triple_els.push(build_node_el(&t.subject));
                         triple_els.push(
@@ -238,6 +240,7 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                 // Outgoing triples
                 {
                     let mut triples_els = vec![];
+                    triples.sort_by_cached_key(|r| (r.predicate.clone(), r.object.clone()));
                     for t in triples {
                         if t.predicate == PREDICATE_NAME {
                             let name = node_to_text(&t.object);

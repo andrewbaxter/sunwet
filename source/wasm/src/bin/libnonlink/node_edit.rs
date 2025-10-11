@@ -1,7 +1,5 @@
 use {
-    super::{
-        api::req_post_json,
-    },
+    super::api::req_post_json,
     crate::libnonlink::{
         commit::{
             self,
@@ -78,7 +76,9 @@ use {
         },
         world::file_url,
     },
-    wasm_bindgen::JsCast,
+    wasm_bindgen::{
+        JsCast,
+    },
     web_sys::{
         File,
         HtmlElement,
@@ -1295,6 +1295,8 @@ pub async fn build_node_edit_contents(
             for t in rels.extract_if(.., |x| pivot_lookup.contains(&x.object)) {
                 incoming_rels.entry((t.predicate.clone(), t.subject.clone())).or_default().push(t.object.clone());
             }
+            let mut incoming_rels = incoming_rels.into_iter().collect::<Vec<_>>();
+            incoming_rels.sort_by_cached_key(|r| (r.0.0.clone(), r.0.1.clone()));
             for ((pred, subj), objs) in incoming_rels {
                 let full_pivot = objs.len() == pivot_lookup.len();
                 let rel = new_rel_state(pc, RelStateArgs {
@@ -1452,6 +1454,8 @@ pub async fn build_node_edit_contents(
             for t in rels.extract_if(.., |x| pivot_lookup.contains(&x.subject)) {
                 outgoing_rels.entry((t.predicate.clone(), t.object.clone())).or_default().push(t.subject.clone());
             }
+            let mut outgoing_rels = outgoing_rels.into_iter().collect::<Vec<_>>();
+            outgoing_rels.sort_by_cached_key(|r| (r.0.0.clone(), r.0.1.clone()));
             for ((pred, obj), subjs) in outgoing_rels {
                 let full_pivot = subjs.len() == pivot_lookup.len();
                 let rel = new_rel_state(pc, RelStateArgs {
@@ -1591,7 +1595,7 @@ pub async fn build_node_edit_contents(
                                     file_unique += 1;
                                     file_unique
                                 }, &*p.type_.borrow(), &*p.value.borrow());
-                                pivot_changed = Some(&old_pivot0) == exenum!(&new_pivot0, CommitNode:: Node(x) => x);
+                                pivot_changed = Some(&old_pivot0) != exenum!(&new_pivot0, CommitNode:: Node(x) => x);
                                 old_pivot = vec![old_pivot0];
                                 new_pivot = vec![new_pivot0];
                             },
@@ -1657,7 +1661,7 @@ pub async fn build_node_edit_contents(
                                             rel.0.predicate.borrow().as_str() != rel_predicate_initial.as_str();
                                 } else {
                                     new = true;
-                                    changed = true;
+                                    changed = false;
                                 }
 
                                 // If not new but deleted or changed, delete first

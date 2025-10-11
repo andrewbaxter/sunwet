@@ -1366,20 +1366,24 @@
               s.whiteSpace = "pre-wrap";
               s.overflowWrap = "anywhere";
             },
-            ">span": (s) => {
+            ":before": (s) => {
               s.display = "none";
             },
-            ":empty>span": (s) => {
+            ":empty:before": (s) => {
               s.display = "inline";
               s.whiteSpace = "pre-wrap";
               s.overflowWrap = "anywhere";
               s.opacity = varONoninteractive;
             },
           }),
+          ss(uniq("leaf_input_text_title", args.title), {
+            ":before": (s) => {
+              s.content = JSON.stringify(args.title);
+            },
+          }),
         ],
       }
     );
-    out.insertBefore(e("span", { textContent: args.title }, {}), null);
     if (args.id != null) {
       out.id = args.id;
     }
@@ -3708,13 +3712,17 @@
   });
   const contNodeContentStyle = ss(uniq("cont_node_content"), {
     "": (s) => {
-      s.flexGrow = "1";
       s.justifyContent = "center";
       s.gap = varPSmall;
       s.border = `${varLThick} solid ${varCNodeCenterLine}`;
       s.borderRadius = varRNode;
       s.padding = varPSmall;
       s.overflow = "hidden";
+    },
+  });
+  const contNodeContentRelStyle = ss(uniq("cont_node_content_rel"), {
+    "": (s) => {
+      s.flexGrow = "1";
     },
   });
   const leafNodeContentNewStyle = ss(uniq("leaf_edit_vbox_new"), {
@@ -3768,7 +3776,11 @@
     });
   presentation.contNodeRowIncoming =
     /** @type {Presentation["contNodeRowIncoming"]} */ (args) => {
-      const contentStyles = [contVboxStyle, contNodeContentStyle];
+      const contentStyles = [
+        contVboxStyle,
+        contNodeContentStyle,
+        contNodeContentRelStyle,
+      ];
       if (args.new) {
         contentStyles.push(leafNodeContentNewStyle);
       }
@@ -3803,7 +3815,11 @@
 
   presentation.contNodeRowOutgoing =
     /** @type {Presentation["contNodeRowOutgoing"]} */ (args) => {
-      const vboxStyles = [contVboxStyle, contNodeContentStyle];
+      const vboxStyles = [
+        contVboxStyle,
+        contNodeContentStyle,
+        contNodeContentRelStyle,
+      ];
       if (args.new) {
         vboxStyles.push(leafNodeContentNewStyle);
       }
@@ -3885,7 +3901,7 @@
           classMenuWantStateOpen,
           contBodyNarrowStyle,
           contVboxStyle,
-          ss(uniq("page_node"), {
+          ss(uniq("cont_narrow_body"), {
             "": (s) => {
               s.gap = varSNodeGap;
             },

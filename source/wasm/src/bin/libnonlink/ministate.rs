@@ -144,20 +144,6 @@ pub fn ministate_title(s: &Ministate) -> String {
     }
 }
 
-/// Adds history + triggers page change
-pub fn record_new_ministate(log: &Rc<dyn Log>, s: &Ministate) {
-    window()
-        .history()
-        .unwrap()
-        .push_state_with_url(
-            &JsValue::null(),
-            &format!("{} - Sunwet", ministate_title(s)),
-            Some(&ministate_octothorpe(s)),
-        )
-        .unwrap();
-    LocalStorage::set(LOCALSTORAGE_PWA_MINISTATE, s).log(log, "Error storing PWA ministate");
-}
-
 /// Replaces current state in history, no page change
 pub fn record_replace_ministate(log: &Rc<dyn Log>, s: &Ministate) {
     window()

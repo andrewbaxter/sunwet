@@ -11,6 +11,15 @@ pub fn node_to_text(node: &Node) -> String {
         Node::File(node) => return node.to_string(),
         Node::Value(node) => match node {
             serde_json::Value::String(v) => return v.clone(),
+            serde_json::Value::Number(v) => if v.is_u64() {
+                return v.as_u64().unwrap().to_string();
+            } else if v.is_i64() {
+                return v.as_i64().unwrap().to_string();
+            } else if v.is_f64() {
+                return v.as_f64().unwrap().to_string();
+            } else {
+                unreachable!();
+            },
             node => return serde_json::to_string(node).unwrap(),
         },
     };

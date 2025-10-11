@@ -85,7 +85,7 @@ pub fn build_page_history(pc: &mut ProcessingContext, ministate: &MinistateHisto
     let error_slot = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
     let button_commit = style_export::leaf_button_big_commit().root;
     button_commit.ref_classes(&[&style_export::class_state_disabled().value]);
-    let page_res = style_export::cont_page_node_edit(style_export::ContPageNodeEditArgs {
+    let page_res = style_export::cont_page_history(style_export::ContPageHistoryArgs {
         bar_children: vec![button_commit.clone()],
         children: vec![error_slot.clone()],
     });
@@ -95,7 +95,7 @@ pub fn build_page_history(pc: &mut ProcessingContext, ministate: &MinistateHisto
         save: button_commit.weak(),
         ministate: ministate.clone(),
     });
-    page_res.root.ref_push(build_infinite(&state().log, None, {
+    page_res.body.ref_push(build_infinite(&state().log, None, {
         let hist_state = hist_state.clone();
         move |page_key| {
             let hist_state = hist_state.clone();
