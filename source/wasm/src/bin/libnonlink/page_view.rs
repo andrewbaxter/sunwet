@@ -36,7 +36,6 @@ use {
     flowcontrol::{
         exenum,
         shed,
-        superif,
         ta_return,
     },
     gloo::{
@@ -982,7 +981,6 @@ impl Build {
             }).root;
             self.playlist_add.push(PlaylistPushArg {
                 index: data_id.clone(),
-                seed: self.seed,
                 name: shed!{
                     let Some(config_at) = &config_at.name_field else {
                         break None;
@@ -1233,6 +1231,7 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
 struct BuildViewBodyCommon {
     id: ViewId,
     config_at: WidgetRootDataRows,
+    shuffle: bool,
     config_query_params: BTreeMap<String, Vec<String>>,
     body: WeakEl,
     transport_slot: WeakEl,
@@ -1253,19 +1252,7 @@ fn build_page_view_body(
         return;
     };
     body.ref_clear();
-    playlist_clear(pc, &state().playlist);
-    let seed;
-    superif!({
-        let Some(p) = &restore_playlist_pos else {
-            break 'noseed;
-        };
-        let Some(s) = p.seed else {
-            break 'noseed;
-        };
-        seed = s;
-    } 'noseed {
-        seed = (random() * u64::MAX as f64) as u64;
-    });
+    playlist_clear(pc, &state().playlist, common.shuffle);
     let mut build = Build {
         view_id: common.id.clone(),
         vs: common.view_ministate_state.clone(),
@@ -1275,7 +1262,7 @@ fn build_page_view_body(
         want_media: false,
         have_media: common.have_media.clone(),
         transport_slot: transport_slot,
-        seed: seed,
+        seed: (random() * u64::MAX as f64) as u64,
     };
     body.ref_push(
         build.build_widget_root_data_rows(pc, &common.config_at, &common.config_query_params, &vec![DataStackLevel {
@@ -1316,6 +1303,7 @@ pub fn build_page_view(
             view_ministate_state: vs.clone(),
             transport_slot: transport_slot.weak(),
             config_at: view.root,
+            shuffle: view.shuffle,
             config_query_params: view.query_parameters,
             body: body.weak(),
             have_media: Rc::new(Cell::new(false)),

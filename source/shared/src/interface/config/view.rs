@@ -497,4 +497,5 @@ pub struct ClientView {
     pub root: WidgetRootDataRows,
     pub parameters: BTreeMap<String, ClientViewParam>,
     pub query_parameters: BTreeMap<String, Vec<String>>,
+    pub shuffle: bool,
 }

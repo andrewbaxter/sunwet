@@ -74,3 +74,6 @@ good-ormning = { version = "0.3", features = ["sqlite", "chrono"] }
 
 [dev-dependencies]
 pretty_assertions = "1"
+
+[lints.clippy]
+all = "allow"

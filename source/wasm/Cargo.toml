@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+wasm-bindgen-futures = { version = "0.4" }
 chrono = { version = "0.4", features = ["serde"] }
 console_error_panic_hook = "0.1"
 ezing = "0.2"
@@ -13,7 +14,6 @@ reqwasm = { version = "0.5", features = ["json"] }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
 wasm-bindgen = "=0.2.100"
-wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = [
     "Clipboard",
     "ClipboardItem",
@@ -81,3 +81,6 @@ quote = "1.0.40"
 strip = true
 lto = true
 codegen-units = 1
+
+[lints.clippy]
+all = "allow"

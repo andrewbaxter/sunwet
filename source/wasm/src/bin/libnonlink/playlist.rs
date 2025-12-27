@@ -132,7 +132,6 @@ pub struct PlaylistEntry {
     pub media_type: PlaylistEntryMediaType,
     pub media: Box<dyn PlaylistMedia>,
     pub play_buttons: Vec<HtmlElement>,
-    pub seed: u64,
 }
 
 pub struct PlaylistState_ {
@@ -142,6 +141,7 @@ pub struct PlaylistState_ {
     pub playing: HistPrim<bool>,
     // Must be Some if playing, otherwise may be Some.
     pub playing_i: HistPrim<Option<PlaylistIndex>>,
+    pub shuffle: Cell<bool>,
     pub media_time: Prim<f64>,
     pub playing_time: Prim<f64>,
     pub media_max_time: Prim<Option<f64>>,
@@ -229,6 +229,7 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
         playing: HistPrim::new(pc, false),
         playing_i: HistPrim::new(pc, None),
         playing_time: Prim::new(0.),
+        shuffle: Cell::new(false),
         media_time: Prim::new(0.),
         media_max_time: Prim::new(None),
         view_ministate_state: Default::default(),
@@ -424,13 +425,11 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
                 };
                 let time;
                 let max_time;
-                let seed;
                 {
                     let playlist = state.0.playlist.borrow();
                     let entry: &Rc<PlaylistEntry> = playlist.get(&*playing_i).unwrap();
                     time = entry.media.pm_get_time();
                     max_time = entry.media.pm_get_max_time();
-                    seed = entry.seed;
                 }
                 let new_state = (time, max_time);
                 if Some(&new_state) == last_state.get().as_ref() {
@@ -442,12 +441,15 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
                     state.0.media_max_time.set(pc, max_time);
                 });
                 if let Some(vs) = state.0.view_ministate_state.borrow().as_ref() {
-                    vs.set_pos(Some(PlaylistRestorePos {
-                        seed: Some(seed),
-                        index: playing_i.clone(),
-                        time: time,
-                        play: state.0.playing.get(),
-                    }));
+                    if state.0.shuffle.get() {
+                        vs.set_pos(None);
+                    } else {
+                        vs.set_pos(Some(PlaylistRestorePos {
+                            index: playing_i.clone(),
+                            time: time,
+                            play: state.0.playing.get(),
+                        }));
+                    }
                 }
             }
         }),
@@ -557,7 +559,6 @@ pub fn playlist_len(state: &PlaylistState) -> usize {
 
 pub struct PlaylistPushArg {
     pub index: PlaylistIndex,
-    pub seed: u64,
     pub name: Option<String>,
     pub album: Option<String>,
     pub artist: Option<String>,
@@ -648,11 +649,9 @@ pub fn playlist_extend(
             media_type: entry.media_type,
             media: box_media,
             play_buttons: entry.play_buttons,
-            seed: entry.seed,
         }));
         if let Some(restore_pos) = restore_pos {
-            if restore_pos.seed.map(|x| x == entry.seed).unwrap_or(true) && restore_pos.index == entry.index &&
-                !playlist_state.0.playing.get() {
+            if restore_pos.index == entry.index && !playlist_state.0.playing.get() {
                 playlist_state.0.playing_i.set(pc, Some(entry.index.clone()));
                 if restore_pos.play {
                     playlist_state.0.playing.set(pc, true);
@@ -662,7 +661,7 @@ pub fn playlist_extend(
     }
 }
 
-pub fn playlist_clear(pc: &mut ProcessingContext, state: &PlaylistState) {
+pub fn playlist_clear(pc: &mut ProcessingContext, state: &PlaylistState, shuffle: bool) {
     if *state.0.playing.borrow() {
         let playing_i = state.0.playing_i.get().unwrap();
         let playlist = state.0.playlist.borrow();
@@ -674,6 +673,7 @@ pub fn playlist_clear(pc: &mut ProcessingContext, state: &PlaylistState) {
     state.0.media_max_time.set(pc, None);
     state.0.playlist.borrow_mut().clear();
     *state.0.view_ministate_state.borrow_mut() = None;
+    state.0.shuffle.set(shuffle);
 }
 
 pub fn playlist_toggle_play(pc: &mut ProcessingContext, state: &PlaylistState, i: Option<PlaylistIndex>) {

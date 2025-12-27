@@ -21,6 +21,7 @@ use {
     by_address::ByAddress,
     cookie::time::ext::InstantExt,
     deadpool_sqlite::Pool,
+    flowcontrol::shed,
     http::HeaderMap,
     loga::{
         ea,
@@ -89,6 +90,7 @@ pub struct ServerForm {
 pub struct ServerView {
     pub item: interface::config::View,
     pub query_parameters: BTreeMap<String, Vec<String>>,
+    pub shuffle: bool,
 }
 
 pub struct GlobalConfig {
@@ -158,6 +160,7 @@ pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<
         }
 
         let mut query_parameters: BTreeMap<String, Vec<String>> = Default::default();
+        let mut shuffle = false;
         match &v.display.data {
             view::QueryOrField::Field(_) => { },
             view::QueryOrField::Query(q) => {
@@ -169,6 +172,18 @@ pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<
                     };
                     return r#struct.inputs.into_iter().collect::<Vec<_>>();
                 });
+                shed!{
+                    let Some(s) = query.suffix.as_ref() else {
+                        break;
+                    };
+                    let Some(s) = s.sort.as_ref() else {
+                        break;
+                    };
+                    let query::SortQuery::Shuffle = s else {
+                        break;
+                    };
+                    shuffle = true;
+                }
             },
         }
         for b in &v.display.row_blocks {
@@ -181,6 +196,7 @@ pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<
         views.insert(k.clone(), ServerView {
             item: v.clone(),
             query_parameters: query_parameters,
+            shuffle: shuffle,
         });
     }
 

@@ -107,7 +107,15 @@ async fn commit_generated(
     file: FileHash,
     gentype: String,
     mimetype: String,
+    temp_path: &Path,
+    dest_path: &Path,
 ) -> Result<(), loga::Error> {
+    tokio::fs::rename(&temp_path, &dest_path)
+        .await
+        .context_with(
+            "Error moving generated file to final destination",
+            ea!(source = temp_path.dbg_str(), dest = dest_path.dbg_str()),
+        )?;
     tx(&state.db, move |txn| {
         return Ok(db::gen_insert(txn, &DbNode(Node::File(file)), &gentype, &mimetype)?);
     }).await?;
@@ -164,10 +172,8 @@ async fn generate_subs(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
         if generated_exists(state, file, gentype).await? {
             continue;
         }
-        let dest = genfile_path(&state, file, &gentype, &gentype_vtt_subpath(&lang))?;
-        if let Some(p) = dest.parent() {
-            create_dirs(&p).await.context("Failed to create parent directories for generated subtitle file")?;
-        }
+        let tmp = tempdir_in(&state.temp_dir)?;
+        let tempdest_path = tmp.path().join("out");
         let extract_res =
             Command::new("ffmpeg")
                 .stdin(Stdio::null())
@@ -176,7 +182,7 @@ async fn generate_subs(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
                 .args(&["-map", "0:s:0"])
                 .args(&["-codec:s", "webvtt"])
                 .args(&["-f", "webvtt"])
-                .arg(&dest)
+                .arg(&tempdest_path)
                 .output()
                 .await?;
         if !extract_res.status.success() {
@@ -187,7 +193,18 @@ async fn generate_subs(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
                 ),
             );
         }
-        commit_generated(state, file.clone(), gentype.to_string(), "text/vtt".to_string()).await?;
+        let dest = genfile_path(&state, file, &gentype, &gentype_vtt_subpath(&lang))?;
+        if let Some(p) = dest.parent() {
+            create_dirs(&p).await.context("Failed to create parent directories for generated subtitle file")?;
+        }
+        commit_generated(
+            state,
+            file.clone(),
+            gentype.to_string(),
+            "text/vtt".to_string(),
+            &tempdest_path,
+            &dest,
+        ).await?;
     }
     return Ok(());
 }
@@ -198,13 +215,9 @@ async fn generate_webm(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
     if generated_exists(state, file, &gentype).await? {
         return Ok(());
     }
-    let dest = genfile_path(&state, file, &gentype, "")?;
-    delete_tree(&dest).await?;
-    if let Some(p) = dest.parent() {
-        create_dirs(&p).await.context("Failed to create parent directories for generated webm file")?;
-    }
     let tmp = tempdir_in(&state.temp_dir)?;
     let passlog_path = tmp.path().join("passlog");
+    let tempdest_path = tmp.path().join("out");
     {
         let mut cmd_pass1 = Command::new("ffmpeg");
         cmd_pass1
@@ -239,13 +252,15 @@ async fn generate_webm(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
             .stdin(Stdio::null())
             .arg("-i")
             .arg(source)
+            // ffmpeg bug 5718 re: opus 5.1(side)
+            .args(&["-af", "aformat=channel_layouts=7.1|5.1|stereo|mono"])
             .args(&["-b:v", "0"])
             .args(&["-crf", "30"])
             .args(&["-pass", "2"])
             .arg("-passlogfile")
             .arg(&passlog_path)
             .args(&["-f", "webm"])
-            .arg(&dest);
+            .arg(&tempdest_path);
         let pass2_res =
             cmd_pass2
                 .output()
@@ -260,7 +275,12 @@ async fn generate_webm(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
             );
         }
     }
-    commit_generated(state, file.clone(), gentype, mimetype.to_string()).await?;
+    let dest = genfile_path(&state, file, &gentype, "")?;
+    delete_tree(&dest).await?;
+    if let Some(p) = dest.parent() {
+        create_dirs(&p).await.context("Failed to create parent directories for generated webm file")?;
+    }
+    commit_generated(state, file.clone(), gentype, mimetype.to_string(), &tempdest_path, &dest).await?;
     return Ok(());
 }
 
@@ -270,11 +290,8 @@ async fn generate_aac(state: &Arc<State>, file: &FileHash, source: &Path) -> Res
     if generated_exists(state, file, &gentype).await? {
         return Ok(());
     }
-    let dest = genfile_path(&state, file, &gentype, "")?;
-    delete_tree(&dest).await?;
-    if let Some(p) = dest.parent() {
-        create_dirs(&p).await.context("Failed to create parent directories for generated audio file")?;
-    }
+    let tmp = tempdir_in(&state.temp_dir)?;
+    let tempdest_path = tmp.path().join("out");
     let mut cmd = Command::new("ffmpeg");
     cmd.arg("-i");
     cmd.arg(source);
@@ -282,14 +299,19 @@ async fn generate_aac(state: &Arc<State>, file: &FileHash, source: &Path) -> Res
     cmd.arg("aac");
     cmd.arg("-f");
     cmd.arg("adts");
-    cmd.arg(&dest);
+    cmd.arg(&tempdest_path);
     let res = cmd.output().await.context_with("Error converting audio to aac", ea!(command = cmd.dbg_str()))?;
     if !res.status.success() {
         return Err(
             loga::err_with("Error converting audio to aac", ea!(res = res.dbg_str(), command = cmd.dbg_str())),
         );
     }
-    commit_generated(state, file.clone(), gentype, mimetype.to_string()).await?;
+    let dest = genfile_path(&state, file, &gentype, "")?;
+    delete_tree(&dest).await?;
+    if let Some(p) = dest.parent() {
+        create_dirs(&p).await.context("Failed to create parent directories for generated audio file")?;
+    }
+    commit_generated(state, file.clone(), gentype, mimetype.to_string(), &tempdest_path, &dest).await?;
     return Ok(());
 }
 
@@ -303,9 +325,7 @@ async fn generate_book_html_dir(
     if generated_exists(state, file, gentype).await? {
         return Ok(());
     }
-    let dest = genfile_path(&state, file, gentype, "")?;
-    delete_tree(&dest).await?;
-    create_dirs(&dest).await?;
+    let tmp_dest = tempdir_in(&state.temp_dir)?;
     let mut cmd = Command::new("pandoc");
     cmd.arg("--from");
     cmd.arg(match mime {
@@ -320,7 +340,7 @@ async fn generate_book_html_dir(
     cmd.arg(".");
     let res =
         cmd
-            .current_dir(dest)
+            .current_dir(tmp_dest.path())
             .output()
             .await
             .context_with("Error converting ebook to html", ea!(command = cmd.dbg_str()))?;
@@ -329,7 +349,12 @@ async fn generate_book_html_dir(
             loga::err_with("Error converting ebook to html", ea!(res = res.dbg_str(), command = cmd.dbg_str())),
         );
     }
-    commit_generated(state, file.clone(), gentype.to_string(), "".to_string()).await?;
+    let dest = genfile_path(&state, file, gentype, "")?;
+    delete_tree(&dest).await?;
+    if let Some(p) = dest.parent() {
+        create_dirs(&p).await?;
+    }
+    commit_generated(state, file.clone(), gentype.to_string(), "".to_string(), tmp_dest.path(), &dest).await?;
     return Ok(());
 }
 
@@ -338,14 +363,16 @@ async fn generate_comic_dir(state: &Arc<State>, file: &FileHash, source: &Path) 
     if generated_exists(state, file, gentype).await? {
         return Ok(());
     }
-    let dest = genfile_path(&state, file, gentype, "")?;
-    delete_tree(&dest).await?;
-    create_dirs(&dest).await?;
+    let tmp_dest = tempdir_in(&state.temp_dir)?;
     let mut cmd = Command::new("7zz");
     cmd.arg("x");
     cmd.arg(source);
     let res =
-        cmd.current_dir(&dest).output().await.context_with("Error extracting comic", ea!(command = cmd.dbg_str()))?;
+        cmd
+            .current_dir(&tmp_dest)
+            .output()
+            .await
+            .context_with("Error extracting comic", ea!(command = cmd.dbg_str()))?;
     if !res.status.success() {
         return Err(loga::err_with("Error extracting comic", ea!(res = res.dbg_str(), command = cmd.dbg_str())));
     }
@@ -353,9 +380,9 @@ async fn generate_comic_dir(state: &Arc<State>, file: &FileHash, source: &Path) 
     let manga_matcher = Regex::new("<\\s*Manga\\s*>\\s*Yes").unwrap();
     let mut manifest = BTreeMap::new();
     let mut rtl = false;
-    let mut dest_walk = WalkDir::new(&dest);
+    let mut dest_walk = WalkDir::new(&tmp_dest);
     while let Some(entry) = dest_walk.next().await {
-        let entry = entry.context_with("Error reading entry in generated dir", ea!(dir = dest.dbg_str()))?;
+        let entry = entry.context_with("Error reading entry in generated dir", ea!(dir = tmp_dest.dbg_str()))?;
         let path = entry.path();
         match async {
             ta_return!((), loga::Error);
@@ -379,7 +406,7 @@ async fn generate_comic_dir(state: &Arc<State>, file: &FileHash, source: &Path) 
                 manifest.insert(sort, ComicManifestPage {
                     width: width,
                     height: height,
-                    path: entry.path().strip_prefix(&dest).unwrap().to_path_buf().to_string_lossy().to_string(),
+                    path: entry.path().strip_prefix(&tmp_dest).unwrap().to_path_buf().to_string_lossy().to_string(),
                 });
             }
             return Ok(());
@@ -390,12 +417,17 @@ async fn generate_comic_dir(state: &Arc<State>, file: &FileHash, source: &Path) 
             },
         }
     }
-    let manifest_path = dest.join("sunwet.json");
+    let manifest_path = tmp_dest.path().join("sunwet.json");
     write(&manifest_path, serde_json::to_string_pretty(&ComicManifest {
         rtl: rtl,
         pages: manifest.into_values().collect::<Vec<_>>(),
     }).unwrap()).await.context_with("Error creating sunwet manifest", ea!(path = manifest_path.dbg_str()))?;
-    commit_generated(state, file.clone(), gentype.to_string(), "".to_string()).await?;
+    let dest = genfile_path(&state, file, gentype, "")?;
+    delete_tree(&dest).await?;
+    if let Some(p) = dest.parent() {
+        create_dirs(&p).await?;
+    }
+    commit_generated(state, file.clone(), gentype.to_string(), "".to_string(), &tmp_dest.path(), &dest).await?;
     return Ok(());
 }
 

@@ -91,7 +91,6 @@ pub fn set_page(pc: &mut ProcessingContext, title: &str, body: El) {
 }
 
 pub fn set_page_(pc: &mut ProcessingContext, title: &str, no_main_title: bool, body: El) {
-    playlist_clear(pc, &state().playlist);
     document().set_title(&format!("{} - Sunwet", title));
     let state = state();
     if no_main_title {
@@ -111,6 +110,7 @@ pub fn build_home_page(pc: &mut ProcessingContext) {
 pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
     match s {
         Ministate::Home => {
+            playlist_clear(pc, &state().playlist, false);
             set_page_(pc, "Home", true, style_export::cont_page_home().root);
         },
         Ministate::View(v) => {
@@ -130,6 +130,7 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
             }));
         },
         Ministate::Form(f) => {
+            playlist_clear(pc, &state().playlist, false);
             set_page(pc, &f.title, el_async_(true, {
                 let title = f.title.clone();
                 let form_id = f.id.clone();
@@ -145,21 +146,27 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
             }));
         },
         Ministate::NodeEdit(ms) => {
+            playlist_clear(pc, &state().playlist, false);
             build_page_node_edit(pc, &ms.title, &ms.nodes);
         },
         Ministate::NodeView(ms) => {
+            playlist_clear(pc, &state().playlist, false);
             build_page_node_view(pc, &ms.title, &ms.node);
         },
         Ministate::ListEdit(ms) => {
+            playlist_clear(pc, &state().playlist, false);
             build_page_list_edit(pc, &ms.title, &ms.node);
         },
         Ministate::History(ms) => {
+            playlist_clear(pc, &state().playlist, false);
             build_page_history(pc, ms);
         },
         Ministate::Query(ms) => {
+            playlist_clear(pc, &state().playlist, false);
             build_page_query(pc, ms);
         },
         Ministate::Logs => {
+            playlist_clear(pc, &state().playlist, false);
             set_page(
                 pc,
                 "Logs",

@@ -729,6 +729,16 @@ import * as process from "process";
                                       },
                                       orientation: "right_down",
                                       font_size: "12pt",
+                                      link: {
+                                        title: {
+                                          field: "track_index",
+                                        },
+                                        dest: {
+                                          node: {
+                                            field: "track_id",
+                                          },
+                                        },
+                                      },
                                     },
                                   },
                                   {

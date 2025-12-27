@@ -15,3 +15,6 @@ ts-rs = { version = "11", features = ["serde-json-impl"] }
 
 [build-dependencies]
 rustemo-compiler = "0.7"
+
+[lints.clippy]
+all = "allow"
