@@ -620,7 +620,7 @@ pub fn playlist_extend(
                 }, Rc::new(|url| async move {
                     return Ok(
                         serde_json::from_slice::<ComicManifest>(
-                            &req_file(&state().env.base_url, &url).await?,
+                            &req_file(&url).await?,
                         ).map_err(|e| format!("Error reading comic manifest: {}", e))?,
                     );
                 }.boxed_local()), if let Some(restore_pos) = restore_pos {

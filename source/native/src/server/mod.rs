@@ -24,18 +24,21 @@ use {
         },
         server::{
             access::{
-                can_access_file,
                 AccessRes,
                 AccessSourceId,
                 DbAccessSourceId,
                 Identity,
+                can_access_file,
             },
-            state::IamGrants,
+            state::{
+                BackgroundJob,
+                IamGrants,
+            },
         },
     },
     aargvark::{
-        traits_impls::AargvarkJson,
         Aargvark,
+        traits_impls::AargvarkJson,
     },
     access::{
         check_is_admin,
@@ -53,15 +56,15 @@ use {
     fsutil::create_dirs,
     good_ormning_runtime::GoodError,
     http::{
-        status,
         HeaderMap,
         HeaderName,
         HeaderValue,
         Uri,
+        status,
     },
     http_body_util::{
-        combinators::BoxBody,
         BodyExt,
+        combinators::BoxBody,
     },
     htwrap::htserve::{
         responses::{
@@ -75,23 +78,23 @@ use {
         },
     },
     hyper::{
+        Method,
+        Request,
+        Response,
         body::{
             Bytes,
             Incoming,
         },
         server::conn::http1,
         service::service_fn,
-        Method,
-        Request,
-        Response,
     },
     hyper_util::rt::TokioIo,
     loga::{
-        ea,
         DebugDisplay,
         ErrContext,
         Log,
         ResultContext,
+        ea,
     },
     moka::future::Cache,
     shared::interface::{
@@ -116,9 +119,6 @@ use {
         },
     },
     state::{
-        build_global_config,
-        get_global_config,
-        get_iam_grants,
         FdapGlobalState,
         FdapState,
         FdapUsersState,
@@ -126,6 +126,9 @@ use {
         LocalUsersState,
         State,
         UsersState,
+        build_global_config,
+        get_global_config,
+        get_iam_grants,
     },
     std::{
         collections::{
@@ -145,6 +148,7 @@ use {
         time::Duration,
     },
     subsystems::{
+        background::start_background_job,
         files::{
             handle_commit,
             handle_file_get,
@@ -153,8 +157,6 @@ use {
             handle_finish_upload,
             handle_form_commit,
         },
-        gc::handle_gc,
-        generate_files::start_generate_files,
         link::{
             handle_link_ws,
             handle_ws_link,
@@ -918,7 +920,7 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
                 },
             ),
         };
-        let (generate_files_tx, generate_files_rx) = mpsc::unbounded_channel();
+        let (background_tx, background_rx) = mpsc::unbounded_channel();
         let state = Arc::new(State {
             temp_dir: config.temp_dir,
             oidc_state: oidc_state,
@@ -932,7 +934,7 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
             stage_dir: stage_dir,
             genfiles_dir: genfiles_dir.clone(),
             finishing_uploads: Mutex::new(HashSet::new()),
-            generate_files: generate_files_tx,
+            background: background_tx,
             http_resp_headers: HeaderMap::from_iter([
                 //. .
                 ("cross-origin-embedder-policy", "require-corp"),
@@ -942,21 +944,9 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
             link_sessions: Cache::builder().time_to_idle(Duration::from_secs(24 * 60 * 60)).build(),
         });
 
-        // GC
-        tm.periodic("Garbage collection", Duration::from_secs(24 * 60 * 60), cap_fn!(()(state) {
-            let log = state.log.fork(ea!(sys = "gc"));
-            let state = state.clone();
-            match handle_gc(&state, &log).await {
-                Ok(_) => { },
-                Err(e) => {
-                    log.log_err(loga::WARN, e.context("Error performing database garbage collection"));
-                },
-            }
-        }));
-
-        // Generate files
-        state.generate_files.send(None).log(&log, loga::WARN, "Error triggering initial generate files scan");
-        start_generate_files(&state, &tm, generate_files_rx);
+        // Background tasks
+        state.background.send(BackgroundJob::All).log(&log, loga::WARN, "Error triggering initial generate files scan");
+        start_background_job(&state, &tm, background_rx);
 
         // Client<->server
         tm.critical_stream(

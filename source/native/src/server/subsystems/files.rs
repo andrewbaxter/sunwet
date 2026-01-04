@@ -21,8 +21,9 @@ use {
                 staged_file_path,
             },
             state::{
-                get_global_config,
+                BackgroundJob,
                 State,
+                get_global_config,
             },
         },
     },
@@ -30,8 +31,8 @@ use {
     flowcontrol::superif,
     http::Response,
     http_body_util::{
-        combinators::BoxBody,
         BodyExt,
+        combinators::BoxBody,
     },
     htwrap::htserve::{
         self,
@@ -50,30 +51,28 @@ use {
         Incoming,
     },
     loga::{
+        ResultContext,
         conversion::ResultIgnore,
         ea,
-        ResultContext,
     },
     shared::interface::{
-        config::{
-            form::{
-                FormId,
-                InputOrInline,
-                InputOrInlineText,
-            },
+        config::form::{
+            FormId,
+            InputOrInline,
+            InputOrInlineText,
         },
         triple::{
             FileHash,
             Node,
         },
         wire::{
+            HEADER_OFFSET,
             ReqCommit,
             ReqFormCommit,
             RespCommit,
             RespUploadFinish,
             TreeNode,
             Triple,
-            HEADER_OFFSET,
         },
     },
     std::{
@@ -89,9 +88,9 @@ use {
     },
     tokio::{
         fs::{
+            File,
             create_dir_all,
             rename,
-            File,
         },
         io::{
             AsyncSeekExt,
@@ -344,7 +343,7 @@ pub async fn handle_finish_upload(
                         rename(&source, &dest).await.context("Failed to place uploaded file")?;
 
                         // Trigger generation
-                        state.generate_files.send(Some(file.clone())).ignore();
+                        state.background.send(BackgroundJob::GenerateOne(file.clone())).ignore();
                         return Ok(());
                     }.await {
                         Ok(_) => { },

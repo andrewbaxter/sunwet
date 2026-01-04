@@ -6,18 +6,18 @@ use {
     },
     crate::libnonlink::{
         ministate::{
-            ministate_octothorpe,
-            record_replace_ministate,
             Ministate,
             MinistateHistory,
             MinistateHistoryFilter,
             MinistateListEdit,
             MinistateNodeEdit,
+            ministate_octothorpe,
+            record_replace_ministate,
         },
         node_button::setup_node_button,
         playlist::{
-            categorize_mime_media,
             PlaylistEntryMediaType,
+            categorize_mime_media,
         },
         state::state,
     },
@@ -42,6 +42,8 @@ use {
         js::{
             el_async,
             el_async_,
+            env_preferred_audio_url,
+            env_preferred_video_url,
             style_export,
         },
         world::file_url,
@@ -53,30 +55,37 @@ pub fn build_node_media_el(node: &Node) -> Option<El> {
         return None;
     };
     let h = h.clone();
-    let src_url = file_url(&state().env, &h);
     return Some(el_async(async move {
         ta_return!(Vec < El >, String);
-        let meta = req_post_json(&state().env.base_url, ReqGetNodeMeta { node: Node::File(h.clone()) }).await?;
+        let meta = req_post_json(ReqGetNodeMeta { node: Node::File(h.clone()) }).await?;
         match meta {
             Some(meta) => {
                 match categorize_mime_media(meta.mime.as_ref().map(|x| x.as_str()).unwrap_or("")) {
                     Some(PlaylistEntryMediaType::Audio) => {
                         return Ok(
                             vec![
-                                style_export::leaf_media_audio(style_export::LeafMediaAudioArgs { src: src_url }).root
+                                style_export::leaf_media_audio(
+                                    style_export::LeafMediaAudioArgs { src: env_preferred_audio_url(&state().env, &h) }
+                                ).root
                             ],
                         );
                     },
                     Some(PlaylistEntryMediaType::Video) => {
                         return Ok(
                             vec![
-                                style_export::leaf_media_video(style_export::LeafMediaVideoArgs { src: src_url }).root
+                                style_export::leaf_media_video(
+                                    style_export::LeafMediaVideoArgs { src: env_preferred_video_url(&state().env, &h) }
+                                ).root
                             ],
                         );
                     },
                     Some(PlaylistEntryMediaType::Image) => {
                         return Ok(
-                            vec![style_export::leaf_media_img(style_export::LeafMediaImgArgs { src: src_url }).root],
+                            vec![
+                                style_export::leaf_media_img(
+                                    style_export::LeafMediaImgArgs { src: file_url(&state().env, &h) }
+                                ).root
+                            ],
                         );
                     },
                     _ => {
@@ -134,8 +143,7 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
         let node = node.clone();
         async move {
             ta_return!(Vec < El >, String);
-            let mut triples =
-                req_post_json(&state().env.base_url, ReqGetTriplesAround { nodes: vec![node.clone()] }).await?;
+            let mut triples = req_post_json(ReqGetTriplesAround { nodes: vec![node.clone()] }).await;
             return eg.event(|pc| {
                 let mut out = vec![];
 
@@ -292,9 +300,7 @@ pub fn build_page_node_view(pc: &mut ProcessingContext, title: &str, node: &Node
                     );
                 }
                 return Ok(
-                    vec![
-                        style_export::cont_page_node_view(style_export::ContPageNodeViewArgs { children: out }).root
-                    ],
+                    vec![style_export::cont_page_node_view(style_export::ContPageNodeViewArgs { children: out }).root],
                 );
             }).unwrap();
         }

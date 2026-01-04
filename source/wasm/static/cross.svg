@@ -1,0 +1,10 @@
+    <svg viewBox="0 0 1 1" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+      <defs>
+        <path id="x" fill="none" stroke="black" stroke-width="0.8" d="M -2 0 H 4" />
+      </defs>
+      <g transform-origin="0.5 0.5">
+        <use href="#x" transform="translate(0.5 0.5) rotate(0)" />
+        <animateTransform attributeType="XML" attributeName="transform" type="rotate" values="0; 360;"
+          dur="10s" repeatCount="indefinite" />
+      </g>
+    </svg>

@@ -188,8 +188,8 @@
   const textIconFill = "\ue997";
   const textIconRevert = "\ue166";
   const textIconAdd = "\ue145";
-  const textIconNext = "\ue5cc";
-  const textIconPrev = "\ue5cb";
+  const textIconNext = "\ue044";
+  const textIconPrev = "\ue045";
   const textIconLink = "\ue157";
   const textIconCommit = "\ue161";
   const textIconDownload = "\uf090";
@@ -279,6 +279,7 @@
   const varRModal = "0.2cm";
   const varRNode = "0.2cm";
   const varRNodeButton = "0.2cm";
+  const varRButton = "0.2cm";
   const varRLink = "0.5cm";
   const varRTab = "0.4cm";
   const varRButtonLinkUnderline = "0.06cm";
@@ -887,6 +888,19 @@
       // TODO horiz line with marching dashes instead
       s.opacity = varONoninteractive;
     },
+    [`:not(.${classStateDisabled}).${classStateThinking}:after`]: (s) => {
+      s.position = "absolute";
+      s.content = '""';
+      s.display = "block";
+      s.inset = `${varPSmall}`;
+      s.border = `${varLMid} solid ${varCForeground}`;
+      s.borderRadius = `${varRButton}`;
+      s.maskSize = "100% 100%";
+      s.maskPosition = "center";
+      s.maskImage = `url("cross.svg")`;
+      s.maskMode = "alpha";
+      s.opacity = "0.5";
+    },
     ">span": (s) => {
       s.minWidth = "max-content";
     },
@@ -911,7 +925,7 @@
         },
         {
           styles_: [leafButtonStyle, contHboxStyle, ...args.extraStyles],
-          children_: children,
+          children_: [...children],
         }
       ),
     };
@@ -1577,7 +1591,11 @@
     args
   ) => {
     const children = [];
-    for (const [k, v] of Object.entries(args.options)) {
+    const entries = Object.entries(args.options);
+    entries.sort((a, b) => {
+      return a[1].localeCompare(b[1]);
+    });
+    for (const [k, v] of entries) {
       children.push(e("option", { textContent: v, value: k }, {}));
     }
     const out = e(
@@ -2172,6 +2190,7 @@
                 },
                 ">*:nth-child(1)": (s) => {
                   s.flexGrow = "1";
+                  s.flexBasis = "0";
                 },
               }),
             ],

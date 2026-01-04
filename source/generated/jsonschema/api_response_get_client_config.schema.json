@@ -296,7 +296,8 @@
       "required": [
         "parameters",
         "query_parameters",
-        "root"
+        "root",
+        "shuffle"
       ],
       "properties": {
         "parameters": {
@@ -316,6 +317,9 @@
         },
         "root": {
           "$ref": "#/definitions/WidgetRootDataRows"
+        },
+        "shuffle": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false
@@ -820,6 +824,7 @@
             "date",
             "time",
             "datetime",
+            "datetime_now",
             "file"
           ]
         },

@@ -435,18 +435,13 @@ pub fn build_page_list_edit(pc: &mut ProcessingContext, title: &str, node: &Node
                                             }
                                         }
                                     }
-                                    remove.extend(
-                                        req_post_json(
-                                            &state().env.base_url,
-                                            ReqGetTriplesAround { nodes: delete_nodes },
-                                        ).await?,
-                                    );
-                                    req_post_json(&state().env.base_url, ReqCommit {
+                                    remove.extend(req_post_json(ReqGetTriplesAround { nodes: delete_nodes }).await);
+                                    req_post_json(ReqCommit {
                                         comment: format!("Editing list {}", title),
                                         add: add,
                                         remove: remove,
                                         files: vec![],
-                                    }).await?;
+                                    }).await;
                                     eg.event(|pc| {
                                         initial_enable_numbers.set(pc, *enable_numbers.borrow());
                                         for state in states.borrow().iter() {

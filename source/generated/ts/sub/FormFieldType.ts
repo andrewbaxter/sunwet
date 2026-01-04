@@ -7,4 +7,4 @@ import type { FormFieldQueryEnum } from "./FormFieldQueryEnum";
 import type { FormFieldRgbU8 } from "./FormFieldRgbU8";
 import type { FormFieldText } from "./FormFieldText";
 
-export type FormFieldType = "id" | { "comment": FormFieldComment } | { "text": FormFieldText } | { "number": FormFieldNumber } | { "bool": FormFieldBool } | "date" | "time" | "datetime" | { "rgb_u8": FormFieldRgbU8 } | { "const_enum": FormFieldConstEnum } | { "query_enum": FormFieldQueryEnum } | "file";
+export type FormFieldType = "id" | { "comment": FormFieldComment } | { "text": FormFieldText } | { "number": FormFieldNumber } | { "bool": FormFieldBool } | "date" | "time" | "datetime" | "datetime_now" | { "rgb_u8": FormFieldRgbU8 } | { "const_enum": FormFieldConstEnum } | { "query_enum": FormFieldQueryEnum } | "file";

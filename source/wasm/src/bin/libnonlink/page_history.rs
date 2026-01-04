@@ -11,13 +11,15 @@ use {
             MinistateHistory,
             MinistateHistoryPredicate,
         },
-        state::state,
+        state::{
+            state,
+        },
     },
     lunk::ProcessingContext,
     rooting::{
-        spawn_rooted,
         El,
         WeakEl,
+        spawn_rooted,
     },
     shared::interface::wire::{
         ReqCommit,
@@ -100,7 +102,7 @@ pub fn build_page_history(pc: &mut ProcessingContext, ministate: &MinistateHisto
         move |page_key| {
             let hist_state = hist_state.clone();
             async move {
-                let hist_res = req_post_json(&state().env.base_url, ReqHistory {
+                let hist_res = req_post_json(ReqHistory {
                     page_key: page_key.clone(),
                     filter: match &hist_state.ministate.filter {
                         Some(f) => Some(ReqHistoryFilter {
@@ -119,7 +121,7 @@ pub fn build_page_history(pc: &mut ProcessingContext, ministate: &MinistateHisto
                         }),
                         None => None,
                     },
-                }).await?;
+                }).await;
                 if hist_res.events.is_empty() {
                     return Ok(InfPageRes {
                         next_key: None,
@@ -215,11 +217,10 @@ pub fn build_page_history(pc: &mut ProcessingContext, ministate: &MinistateHisto
             button.ref_classes(&[&style_export::class_state_thinking().value]);
             *save_thinking.borrow_mut() = Some(spawn_rooted({
                 let hist_state = hist_state.clone();
-                let error_slot = error_slot.clone();
                 let button = button.weak();
                 let eg = eg.clone();
                 async move {
-                    let res = req_post_json(&state().env.base_url, ReqCommit {
+                     req_post_json(ReqCommit {
                         comment: format!("History restore"),
                         add: hist_state.revert_was_deleted.borrow().iter().cloned().collect(),
                         remove: hist_state.revert_was_added.borrow().iter().cloned().collect(),
@@ -229,22 +230,9 @@ pub fn build_page_history(pc: &mut ProcessingContext, ministate: &MinistateHisto
                         return;
                     };
                     button.ref_remove_classes(&[&style_export::class_state_thinking().value]);
-                    match res {
-                        Ok(_) => {
-                            eg.event(|pc| {
-                                build_page_history(pc, &hist_state.ministate);
-                            });
-                        },
-                        Err(e) => {
-                            let Some(error_slot) = error_slot.upgrade() else {
-                                return;
-                            };
-                            error_slot.ref_push(style_export::leaf_err_block(style_export::LeafErrBlockArgs {
-                                in_root: false,
-                                data: e,
-                            }).root);
-                        },
-                    }
+                    eg.event(|pc| {
+                        build_page_history(pc, &hist_state.ministate);
+                    });
                 }
             }));
         }

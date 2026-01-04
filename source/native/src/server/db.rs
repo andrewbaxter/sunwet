@@ -1146,9 +1146,52 @@ pub fn gen_get(
     Ok(None)
 }
 
+pub fn gen_filter_existing(
+    db: &rusqlite::Connection,
+    nodes: Vec<&crate::interface::triple::DbNode>,
+) -> Result<Vec<crate::interface::triple::DbNode>, GoodError> {
+    let mut out = vec![];
+    let query = "select \"generated\" . \"node\" from \"generated\" where ( \"generated\" . \"node\" in rarray($1) ) ";
+    let mut stmt = db.prepare(query).to_good_error_query(query)?;
+    let mut rows =
+        stmt
+            .query(
+                rusqlite::params![
+                    std::rc::Rc::new(
+                        nodes
+                            .into_iter()
+                            .map(
+                                |nodes| rusqlite::types::Value::from(
+                                    <crate::interface::triple::DbNode as good_ormning_runtime
+                                    ::sqlite
+                                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
+                                        &nodes,
+                                    ),
+                                ),
+                            )
+                            .collect::<Vec<_>>(),
+                    )
+                ],
+            )
+            .to_good_error_query(query)?;
+    while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
+        out.push({
+            let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
+            let x =
+                <crate::interface::triple::DbNode as good_ormning_runtime
+                ::sqlite
+                ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::from_sql(
+                    x,
+                ).to_good_error(|| format!("Parsing result {}", 0usize))?;
+            x
+        });
+    }
+    Ok(out)
+}
+
 pub fn gen_gc(db: &rusqlite::Connection) -> Result<(), GoodError> {
     let query =
-        "delete from \"generated\" where not exists ( select 1 as \"x\" from \"meta\" where ( \"generated\" . \"node\" = \"meta\" . \"node\" )  )";
+        "with current0 ( subject , predicate , object , commit_ , exist ) as ( select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , max ( \"triple\" . \"commit_\" ) as \"commit_\" , \"triple\" . \"exists\" from \"triple\" group by \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" ) , current ( subject , predicate , object , commit_ ) as ( select \"current0\" . \"subject\" , \"current0\" . \"predicate\" , \"current0\" . \"object\" , \"current0\" . \"commit_\" from \"current0\" where ( \"current0\" . \"exist\" = true ) ) delete from \"generated\" where not exists ( select 1 as \"x\" from \"current\" where ( ( \"generated\" . \"node\" = \"current\" . \"object\" ) or ( \"generated\" . \"node\" = \"current\" . \"subject\" ) )  )";
     db.execute(query, rusqlite::params![]).to_good_error_query(query)?;
     Ok(())
 }

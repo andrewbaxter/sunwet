@@ -99,7 +99,7 @@ impl C2SReqTrait for ReqFormCommit {
 }
 
 // # Upload finish
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqUploadFinish(pub FileHash);
 
@@ -120,7 +120,7 @@ impl C2SReqTrait for ReqUploadFinish {
 }
 
 // # Query
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct Pagination {
     pub count: usize,
@@ -130,7 +130,7 @@ pub struct Pagination {
     pub key: Option<Node>,
 }
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqQuery {
     pub query: Query,
@@ -179,7 +179,7 @@ impl C2SReqTrait for ReqQuery {
 }
 
 // # View query
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqViewQuery {
     pub view_id: ViewId,
@@ -199,7 +199,7 @@ impl C2SReqTrait for ReqViewQuery {
 }
 
 // # Get triples from
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqGetTriplesAround {
     pub nodes: Vec<Node>,
@@ -216,7 +216,7 @@ impl C2SReqTrait for ReqGetTriplesAround {
 }
 
 // # Get node meta
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqGetNodeMeta {
     pub node: Node,
@@ -239,7 +239,7 @@ impl C2SReqTrait for ReqGetNodeMeta {
 }
 
 // # History
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqHistory {
     pub page_key: Option<(DateTime<Utc>, Triple)>,
@@ -272,14 +272,14 @@ impl C2SReqTrait for ReqHistory {
 }
 
 // # History, commits
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum ReqHistoryFilterPredicate {
     Incoming(String),
     Outgoing(String),
 }
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqHistoryFilter {
     pub node: Node,
@@ -287,7 +287,7 @@ pub struct ReqHistoryFilter {
 }
 
 // # Get Menu
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqGetClientConfig;
 
@@ -302,7 +302,7 @@ impl C2SReqTrait for ReqGetClientConfig {
 }
 
 // # Who am I
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqWhoAmI;
 
@@ -325,7 +325,7 @@ impl C2SReqTrait for ReqWhoAmI {
 }
 
 // # Assemble
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum C2SReq {
     /// Make changes to the graph

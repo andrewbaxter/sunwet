@@ -2,14 +2,21 @@ use {
     super::{
         api::req_post_json,
         commit::{
+            CommitNode,
             prep_node,
             upload_files,
-            CommitNode,
         },
         state::{
             set_page,
             state,
         },
+    },
+    crate::libnonlink::{
+        ministate::{
+            Ministate,
+            MinistateNodeView,
+        },
+        state::goto_replace_ministate,
     },
     chrono::{
         DateTime,
@@ -28,9 +35,9 @@ use {
     },
     lunk::EventGraph,
     rooting::{
+        El,
         el,
         spawn_rooted,
-        El,
     },
     shared::{
         interface::{
@@ -52,8 +59,8 @@ use {
     std::{
         cell::RefCell,
         collections::{
-            hash_map::Entry,
             HashMap,
+            hash_map::Entry,
         },
         rc::Rc,
     },
@@ -92,6 +99,9 @@ impl FormState {
                         CommitNode::File(..) => {
                             return None;
                         },
+                        CommitNode::DatetimeNow => {
+                            return None;
+                        },
                     }).collect::<HashMap<_, _>>()).unwrap(),
                 ).unwrap();
             }
@@ -123,7 +133,7 @@ fn build_field_enum(
             };
             serde_json::to_string(&match &node {
                 CommitNode::Node(node) => node,
-                CommitNode::File(..) => &choices[0].1,
+                CommitNode::File(..) | CommitNode::DatetimeNow => &choices[0].1,
             }).unwrap()
         },
         options: choices.iter().map(|(k, v)| (k.clone(), serde_json::to_string(v).unwrap())).collect(),
@@ -404,6 +414,9 @@ pub fn build_page_form(
                 });
                 out.push(input_ret.root);
             },
+            FormFieldType::DatetimeNow => {
+                fs.0.data.borrow_mut().entry(field.id.clone()).or_insert_with(|| CommitNode::DatetimeNow);
+            },
             FormFieldType::RgbU8(_field2) => {
                 fn default_() -> String {
                     return format!("#56789A");
@@ -476,7 +489,7 @@ pub fn build_page_form(
                     let field2 = field2.clone();
                     let fs = fs.clone();
                     async move {
-                        let res = req_post_json(&state().env.base_url, ReqQuery {
+                        let res = req_post_json(ReqQuery {
                             query: field2.query.clone(),
                             parameters: HashMap::new(),
                             pagination: None,
@@ -602,6 +615,7 @@ pub fn build_page_form(
                                 FormFieldType::Date => true,
                                 FormFieldType::Time => true,
                                 FormFieldType::Datetime => true,
+                                FormFieldType::DatetimeNow => false,
                                 FormFieldType::RgbU8(_) => true,
                                 FormFieldType::ConstEnum(_) => true,
                                 FormFieldType::QueryEnum(_) => true,
@@ -610,10 +624,15 @@ pub fn build_page_form(
                                 return Err(format!("Missing field {}", field.label));
                             }
                         }
+                        let id_key = form.fields.iter().find_map(|x| match x.r#type {
+                            FormFieldType::Id => Some(&x.id),
+                            _ => None,
+                        });
                         let mut params_to_post = HashMap::new();
                         let mut files_to_return = HashMap::new();
                         let mut files_to_commit = vec![];
                         let mut files_to_upload = vec![];
+                        let mut data_id = None;
                         for (k, v) in data {
                             let Some(n) =
                                 prep_node(
@@ -624,23 +643,39 @@ pub fn build_page_form(
                                 ).await else {
                                     continue;
                                 };
+                            if data_id.is_none() {
+                                if let Some(id_key) = id_key {
+                                    if k == *id_key {
+                                        data_id = Some(n.clone());
+                                    }
+                                } else {
+                                    data_id = Some(n.clone());
+                                }
+                            }
                             params_to_post.insert(k.clone(), TreeNode::Scalar(n));
                         }
-                        req_post_json(&state().env.base_url, ReqFormCommit {
+                        req_post_json(ReqFormCommit {
                             form_id: id.clone(),
                             parameters: params_to_post,
-                        }).await?;
+                        }).await;
                         upload_files(files_to_upload).await?;
-                        return Ok(());
+                        return Ok(data_id);
                     }.await {
-                        Ok(_) => {
+                        Ok(data_id) => {
                             LocalStorage::delete(&fs.0.draft_id);
                             eg.event(|pc| {
-                                set_page(
-                                    pc,
-                                    &title,
-                                    build_page_form(pc.eg(), id, title.clone(), form, initial_params).unwrap(),
-                                );
+                                if let Some(data_id) = data_id {
+                                    goto_replace_ministate(pc, &state().log, &Ministate::NodeView(MinistateNodeView {
+                                        title: format!("New node"),
+                                        node: data_id,
+                                    }));
+                                } else {
+                                    set_page(
+                                        pc,
+                                        &title,
+                                        build_page_form(pc.eg(), id, title.clone(), form, initial_params).unwrap(),
+                                    );
+                                }
                             }).unwrap();
                             return;
                         },

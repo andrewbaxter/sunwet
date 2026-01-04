@@ -727,9 +727,7 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
                     let mut covers = covers.iter().collect::<Vec<_>>();
                     covers.sort_by_cached_key(|c| *c.1);
                     if let Some((cover, _)) = covers.into_iter().next() {
-                        triples.push(
-                            triple(&node_node(&track.id), PREDICATE_COVER, &node_upload(root_dir, cover)),
-                        );
+                        triples.push(triple(&node_node(&track.id), PREDICATE_COVER, &node_upload(root_dir, cover)),);
                         break 'found;
                     }
                 }

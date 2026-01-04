@@ -20,21 +20,21 @@ use {
     },
     js_sys::{
         Array,
-        Object,
         JSON,
+        Object,
     },
     rooting::{
-        scope_any,
-        spawn_rooted,
         El,
         ScopeValue,
+        scope_any,
+        spawn_rooted,
     },
     shared::interface::{
         triple::FileHash,
         wire::{
+            GENTYPE_VTT,
             gentype_transcode,
             gentype_vtt_subpath,
-            GENTYPE_VTT,
         },
     },
     std::{
@@ -43,14 +43,14 @@ use {
         rc::Rc,
     },
     wasm_bindgen::{
-        prelude::Closure,
         JsCast,
         JsValue,
         UnwrapThrowExt,
+        prelude::Closure,
     },
     wasm_bindgen_futures::{
-        spawn_local,
         JsFuture,
+        spawn_local,
     },
     web_sys::{
         Blob,
@@ -202,9 +202,7 @@ impl Log for VecLog {
 
     fn log_js2(&self, x: &str, v: &JsValue, v2: &JsValue) {
         let mut log = self.log.borrow_mut();
-        log.push(
-            (Utc::now(), format!("{}: {}, {}", x, JSON::stringify(v).unwrap(), JSON::stringify(v2).unwrap())),
-        );
+        log.push((Utc::now(), format!("{}: {}, {}", x, JSON::stringify(v).unwrap(), JSON::stringify(v2).unwrap())));
         trim_vec_log(&mut log);
         web_sys::console::log_3(&JsValue::from(x), v, v2);
     }

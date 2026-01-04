@@ -4,6 +4,9 @@ use {
         state::state,
     },
     crate::libnonlink::api::file_post_json,
+    chrono::{
+        Utc,
+    },
     gloo::{
         file::Blob,
         timers::future::TimeoutFuture,
@@ -30,6 +33,7 @@ use {
 pub enum CommitNode {
     Node(Node),
     File(usize, File),
+    DatetimeNow,
 }
 
 impl PartialEq<CommitNode> for CommitNode {
@@ -84,6 +88,9 @@ pub async fn prep_node(
             });
             return Some(Node::File(hash));
         },
+        CommitNode::DatetimeNow => {
+            return Some(Node::Value(serde_json::Value::String(Utc::now().to_rfc3339())));
+        },
     }
 }
 
@@ -95,14 +102,13 @@ pub async fn upload_files(files: Vec<UploadFile>) -> Result<(), String> {
             let chunk_start = i * CHUNK_SIZE;
             let chunk_size = (file.size - chunk_start).min(CHUNK_SIZE);
             file_post_json(
-                &state().env.base_url,
                 &file.hash,
                 chunk_start,
                 &file.data[chunk_start as usize .. (chunk_start + chunk_size) as usize],
-            ).await?;
+            ).await;
         }
         loop {
-            let resp = req_post_json(&state().env.base_url, ReqUploadFinish(file.hash.clone())).await?;
+            let resp = req_post_json(ReqUploadFinish(file.hash.clone())).await;
             if resp.done {
                 break;
             }

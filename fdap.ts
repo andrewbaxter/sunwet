@@ -1620,6 +1620,7 @@ import * as process from "process";
         display: display_video_albums,
       },
       video_albums_search_name: {
+        parameters: { name: "text" },
         queries: {
           root: await compile_query_head_tail(
             "./sunwet/source/queries/query_video_albums_search_name.txt",
@@ -1756,10 +1757,7 @@ import * as process from "process";
             "./sunwet/source/queries/query_notes.txt",
             "./sunwet/source/queries/query_notes_select.txt",
             {
-              fields: [
-                ["desc", "album_add_timestamp"],
-                ["asc", "album_name"],
-              ],
+              fields: [["desc", "add_timestamp"]],
             }
           ),
         },
@@ -1838,7 +1836,7 @@ import * as process from "process";
       notes_new: {
         fields: [
           { id: "id", label: "", type: "id" },
-          { id: "stamp", label: "Date", type: "datetime" },
+          { id: "stamp", label: "", type: "datetime_now" },
           { id: "topic", label: "Topic", type: { text: {} } },
           { id: "text", label: "Note", type: { text: {} } },
         ],

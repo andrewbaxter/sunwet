@@ -719,6 +719,7 @@
             "date",
             "time",
             "datetime",
+            "datetime_now",
             "file"
           ]
         },

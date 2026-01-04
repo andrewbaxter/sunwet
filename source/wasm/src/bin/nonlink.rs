@@ -111,18 +111,6 @@ pub fn main() {
     let log = log1.clone() as Rc<dyn Log>;
     eg.event(|pc| {
         let env = scan_env(&log);
-        let client_config = bg_val({
-            let env = env.clone();
-            async move {
-                return Ok(
-                    Rc::new(
-                        req_post_json(&env.base_url, ReqGetClientConfig)
-                            .await
-                            .map_err(|e| format!("Error retrieving menu: {:?}", e))?,
-                    ),
-                );
-            }
-        });
         let main_title = style_export::leaf_title(style_export::LeafTitleArgs { text: "Sunwet".to_string() }).root;
         let main_body = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
         let modal_stack = style_export::cont_root_stack(style_export::ContRootStackArgs { children: vec![] }).root;
@@ -180,7 +168,7 @@ pub fn main() {
             modal_stack: modal_stack.clone(),
             main_title: main_title.clone(),
             main_body: main_body.clone(),
-            client_config: client_config.clone(),
+            client_config: Default::default(),
             log1: log1,
             log: log.clone(),
             current_list: Prim::new(shed!{
@@ -193,6 +181,12 @@ pub fn main() {
                 break None;
             }),
         })));
+        let client_config = bg_val({
+            async move {
+                return Ok(Rc::new(req_post_json(ReqGetClientConfig).await?));
+            }
+        });
+        *state().client_config.borrow_mut() = Some(client_config.clone());
 
         // Restore share state
         {
@@ -228,7 +222,7 @@ pub fn main() {
                     let env = env.clone();
                     async move {
                         ta_return!(Vec < El >, String);
-                        let whoami = req_post_json(&env.base_url, ReqWhoAmI).await?;
+                        let whoami = req_post_json(ReqWhoAmI).await?;
                         if want_logged_in() && whoami == RespWhoAmI::Public {
                             redirect_login(&env.base_url);
                         }

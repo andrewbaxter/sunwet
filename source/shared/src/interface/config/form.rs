@@ -87,6 +87,8 @@ pub enum FormFieldType {
     Date,
     Time,
     Datetime,
+    // No visible entry
+    DatetimeNow,
     RgbU8(FormFieldRgbU8),
     /// Present a selection of fixed choices.
     ConstEnum(FormFieldConstEnum),

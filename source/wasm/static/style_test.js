@@ -884,6 +884,8 @@
         break;
       case "#node_edit":
         {
+          const commit = presentation.leafButtonBigCommit({}).root;
+          commit.classList.add(presentation.classStateThinking({}).value);
           /** @type { (args: {hint: string, value: string})=> Element} */
           buildRoot([
             presentation.appMain({
@@ -892,7 +894,7 @@
                 children: nodeEditChildren(1),
                 barChildren: [
                   presentation.leafButtonBigDelete({}).root,
-                  presentation.leafButtonBigCommit({}).root,
+                  commit,
                 ],
               }).root,
               menuBody: stagingMenu,

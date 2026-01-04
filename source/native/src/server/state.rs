@@ -290,6 +290,11 @@ pub struct LinkSessionState {
     pub public_files: Mutex<HashSet<FileHash>>,
 }
 
+pub enum BackgroundJob {
+    GenerateOne(FileHash),
+    All,
+}
+
 pub struct State {
     pub oidc_state: Option<oidc::OidcState>,
     pub fdap_state: Option<FdapState>,
@@ -303,7 +308,7 @@ pub struct State {
     pub genfiles_dir: PathBuf,
     pub stage_dir: PathBuf,
     pub finishing_uploads: Mutex<HashSet<FileHash>>,
-    pub generate_files: UnboundedSender<Option<FileHash>>,
+    pub background: UnboundedSender<BackgroundJob>,
     pub http_resp_headers: HeaderMap,
     // Websockets
     pub link_sessions: Cache<String, Arc<LinkSessionState>>,

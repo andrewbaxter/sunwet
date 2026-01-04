@@ -1,9 +1,9 @@
 use {
     super::{
         ministate::{
-            record_replace_ministate,
             Ministate,
             PlaylistRestorePos,
+            record_replace_ministate,
         },
         page_form::build_page_form,
         page_history::build_page_history,
@@ -11,16 +11,29 @@ use {
         page_node_view::build_page_node_view,
         page_view::build_page_view,
         playlist::{
-            playlist_clear,
             PlaylistState,
+            playlist_clear,
         },
     },
     crate::libnonlink::{
-        ministate::MinistateView,
+        ministate::{
+            LOCALSTORAGE_PWA_MINISTATE,
+            MinistateView,
+            ministate_octothorpe,
+        },
         page_list_edit::build_page_list_edit,
         page_query::build_page_query,
     },
-    gloo::utils::document,
+    gloo::{
+        storage::{
+            LocalStorage,
+            Storage,
+        },
+        utils::{
+            document,
+            window,
+        },
+    },
     lunk::{
         EventGraph,
         Prim,
@@ -33,8 +46,8 @@ use {
     },
     shared::interface::{
         config::{
-            view::ViewId,
             ClientConfig,
+            view::ViewId,
         },
         triple::Node,
     },
@@ -46,13 +59,15 @@ use {
     wasm::{
         async_::BgVal,
         js::{
-            el_async_,
-            style_export,
             Env,
             Log,
+            LogJsErr,
             VecLog,
+            el_async_,
+            style_export,
         },
     },
+    wasm_bindgen::JsValue,
 };
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -67,7 +82,7 @@ pub struct State_ {
     pub ministate: RefCell<Ministate>,
     pub env: Env,
     pub playlist: PlaylistState,
-    pub client_config: BgVal<Result<Rc<ClientConfig>, String>>,
+    pub client_config: RefCell<Option<BgVal<Result<Rc<ClientConfig>, String>>>>,
     pub menu_open: Prim<bool>,
     // Arcmutex due to OnceLock, should El use sync alternatives?
     pub main_title: El,
@@ -121,7 +136,7 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
                 let params = v.params.clone();
                 let eg = pc.eg();
                 async move {
-                    let client_config = state().client_config.get().await?;
+                    let client_config = state().client_config.borrow().as_ref().unwrap().get().await?;
                     let Some(view) = client_config.views.get(&view_id) else {
                         return Err(format!("No view with id [{}] in config", view_id));
                     };
@@ -137,7 +152,7 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
                 let params = f.params.clone();
                 let eg = pc.eg();
                 async move {
-                    let client_config = state().client_config.get().await?;
+                    let client_config = state().client_config.borrow().as_ref().unwrap().get().await?;
                     let Some(form) = client_config.forms.get(&form_id) else {
                         return Err(format!("No menu item with id [{}] in config", form_id));
                     };
@@ -187,6 +202,16 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
             );
         },
     }
+}
+
+pub fn goto_replace_ministate(pc: &mut ProcessingContext, log: &Rc<dyn Log>, s: &Ministate) {
+    window()
+        .history()
+        .unwrap()
+        .push_state_with_url(&JsValue::null(), "", Some(&ministate_octothorpe(s)))
+        .log(log, &"Error pushing history");
+    LocalStorage::set(LOCALSTORAGE_PWA_MINISTATE, s).log(log, &"Error storing PWA ministate");
+    build_ministate(pc, s);
 }
 
 pub struct MinistateViewState_ {

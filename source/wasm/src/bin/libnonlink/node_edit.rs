@@ -7,12 +7,12 @@ use {
             CommitTriple,
         },
         ministate::{
-            ministate_octothorpe,
             MinistateNodeView,
+            ministate_octothorpe,
         },
         playlist::{
-            categorize_mime_media,
             PlaylistEntryMediaType,
+            categorize_mime_media,
         },
         state::state,
     },
@@ -28,18 +28,18 @@ use {
         Storage,
     },
     lunk::{
-        link,
         EventGraph,
         HistPrim,
         Prim,
         ProcessingContext,
+        link,
     },
     rooting::{
-        scope_any,
-        spawn_rooted,
         El,
         ScopeValue,
         WeakEl,
+        scope_any,
+        spawn_rooted,
     },
     serde::{
         Deserialize,
@@ -72,13 +72,13 @@ use {
     wasm::{
         js::{
             el_async,
+            env_preferred_audio_url,
+            env_preferred_video_url,
             style_export,
         },
         world::file_url,
     },
-    wasm_bindgen::{
-        JsCast,
-    },
+    wasm_bindgen::JsCast,
     web_sys::{
         File,
         HtmlElement,
@@ -565,7 +565,7 @@ fn build_edit_node(
             (NodeEditType::Bool, "Bool"),
             (NodeEditType::Json, "JSON"),
             (NodeEditType::File, "File"),
-            (NodeEditType::FileUpload, "Upload new file"),
+            (NodeEditType::FileUpload, "File, upload new"),
         ]
             .into_iter()
             .map(|(k, v)| (serde_json::to_string(&k).unwrap(), v.to_string()))
@@ -620,10 +620,9 @@ fn build_edit_node(
                             return s.clone();
                         },
                         NodeEditType::Json => {
-                            let Ok(serde_json::Value::String(v)) =
-                                serde_json::from_str::<serde_json::Value>(&s) else {
-                                    return s.clone();
-                                };
+                            let Ok(serde_json::Value::String(v)) = serde_json::from_str::<serde_json::Value>(&s) else {
+                                return s.clone();
+                            };
                             return v;
                         },
                         NodeEditType::File => {
@@ -862,14 +861,10 @@ fn build_edit_node(
                                     let Ok(h) = FileHash::from_str(&*input_value.borrow()) else {
                                         return None;
                                     };
-                                    let src_url = file_url(&state().env, &h);
                                     media.ref_push(el_async(async move {
                                         ta_return!(Vec < El >, String);
                                         let meta =
-                                            req_post_json(
-                                                &state().env.base_url,
-                                                ReqGetNodeMeta { node: Node::File(h.clone()) },
-                                            ).await?;
+                                            req_post_json(ReqGetNodeMeta { node: Node::File(h.clone()) },).await?;
                                         match meta {
                                             Some(meta) => {
                                                 match categorize_mime_media(
@@ -879,7 +874,9 @@ fn build_edit_node(
                                                         return Ok(
                                                             vec![
                                                                 style_export::leaf_media_audio(
-                                                                    style_export::LeafMediaAudioArgs { src: src_url },
+                                                                    style_export::LeafMediaAudioArgs {
+                                                                        src: env_preferred_audio_url(&state().env, &h)
+                                                                    },
                                                                 ).root
                                                             ],
                                                         );
@@ -888,7 +885,9 @@ fn build_edit_node(
                                                         return Ok(
                                                             vec![
                                                                 style_export::leaf_media_video(
-                                                                    style_export::LeafMediaVideoArgs { src: src_url },
+                                                                    style_export::LeafMediaVideoArgs {
+                                                                        src: env_preferred_video_url(&state().env, &h)
+                                                                    },
                                                                 ).root
                                                             ],
                                                         );
@@ -897,7 +896,9 @@ fn build_edit_node(
                                                         return Ok(
                                                             vec![
                                                                 style_export::leaf_media_img(
-                                                                    style_export::LeafMediaImgArgs { src: src_url },
+                                                                    style_export::LeafMediaImgArgs {
+                                                                        src: file_url(&state().env, &h)
+                                                                    },
                                                                 ).root
                                                             ],
                                                         );
@@ -1260,7 +1261,7 @@ pub async fn build_node_edit_contents(
     title: String,
     nodes: Vec<Node>,
 ) -> Result<BuildNodeEditContentsRes, String> {
-    let mut rels = req_post_json(&state().env.base_url, ReqGetTriplesAround { nodes: nodes.clone() }).await?;
+    let mut rels = req_post_json(ReqGetTriplesAround { nodes: nodes.clone() }).await;
     return eg.event(|pc| {
         let pivot_state;
         let draft_data;
@@ -1741,12 +1742,12 @@ pub async fn build_node_edit_contents(
                             }
 
                             // Write commit
-                            req_post_json(&state().env.base_url, ReqCommit {
+                            req_post_json(ReqCommit {
                                 comment: format!("Edit node [{}]", title),
                                 add: add1,
                                 remove: remove,
                                 files: files_to_commit,
-                            }).await?;
+                            }).await;
 
                             // Upload files
                             commit::upload_files(files_to_upload).await?;
@@ -1768,14 +1769,19 @@ pub async fn build_node_edit_contents(
                                                 CommitNode::File(unique, _) => Node::File(
                                                     file_lookup.remove(&unique).unwrap(),
                                                 ),
+                                                CommitNode::DatetimeNow => unreachable!(),
                                             };
 
                                             // Sync initial
                                             let (t, v) = node_to_type_value(&pivot_node);
                                             p.initial.set(pc, InitialNode {
-                                                node_type_: t,
-                                                node_value: v,
+                                                node_type_: t.clone(),
+                                                node_value: v.clone(),
                                             });
+
+                                            // (in case file, change current value to "file" and not "new file" too)
+                                            p.type_.set(pc, t);
+                                            p.value.set(pc, v);
 
                                             // Clear draft
                                             if let Some(draft_data) = draft_data {
@@ -1799,15 +1805,20 @@ pub async fn build_node_edit_contents(
                                             CommitNode::File(unique, _) => Node::File(
                                                 file_lookup.remove(&unique).unwrap(),
                                             ),
+                                            CommitNode::DatetimeNow => unreachable!(),
                                         });
 
                                         // Sync initial
                                         rel.0.initial_fill.set(pc, rel.0.fill.get());
                                         rel.0.initial_pred_node.set(pc, Some(RelInitialPredNode {
                                             predicate: sent_pred,
-                                            node_type_: t,
-                                            node_value: v,
+                                            node_type_: t.clone(),
+                                            node_value: v.clone(),
                                         }));
+
+                                        // (in case file, change current value to "file" and not "new file" too)
+                                        rel.0.node_type.set(pc, t);
+                                        rel.0.node_value.set(pc, v);
                                     }
                                 }).unwrap();
                             },

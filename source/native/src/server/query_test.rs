@@ -214,10 +214,7 @@ fn test_versions() {
             .into_iter()
             .map(|x| x.tail_data)
             .collect::<Vec<_>>();
-    assert_eq!(
-        got,
-        vec![[("y".to_string(), TreeNode::Scalar(s("no")))].into_iter().collect::<BTreeMap<_, _>>()]
-    );
+    assert_eq!(got, vec![[("y".to_string(), TreeNode::Scalar(s("no")))].into_iter().collect::<BTreeMap<_, _>>()]);
 }
 
 #[test]
@@ -315,10 +312,7 @@ fn test_undelete() {
             .into_iter()
             .map(|x| x.tail_data)
             .collect::<Vec<_>>();
-    assert_eq!(
-        got,
-        vec![[("y".to_string(), TreeNode::Scalar(s("no")))].into_iter().collect::<BTreeMap<_, _>>()]
-    );
+    assert_eq!(got, vec![[("y".to_string(), TreeNode::Scalar(s("no")))].into_iter().collect::<BTreeMap<_, _>>()]);
 }
 
 #[test]

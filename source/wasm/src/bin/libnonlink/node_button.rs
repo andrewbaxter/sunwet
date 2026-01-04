@@ -76,7 +76,7 @@ pub async fn req_list(node: &Node) -> Result<Vec<ReqListResEntry>, String> {
     pub const KEY_INDEX: &str = "index";
     pub const KEY_NODE: &str = "node";
     pub const KEY_NAME: &str = "name";
-    let existing = req_post_json(&state().env.base_url, ReqQuery {
+    let existing = req_post_json(ReqQuery {
         query: Query {
             chain_head: ChainHead {
                 root: Some(ChainRoot::Value(shared::interface::query::Value::Literal(node.clone()))),
@@ -157,7 +157,7 @@ pub async fn req_list(node: &Node) -> Result<Vec<ReqListResEntry>, String> {
         },
         parameters: Default::default(),
         pagination: None,
-    }).await?;
+    }).await;
     let RespQueryRows::Record(rows) = existing.rows else {
         return Err(format!("Add item to list failed; resp returned non-record rows"));
     };
@@ -315,12 +315,12 @@ pub fn setup_node_button(pc: &mut ProcessingContext, out: &El, name: String, nod
                                         ),
                                     });
                                 }
-                                req_post_json(&state().env.base_url, ReqCommit {
+                                req_post_json(ReqCommit {
                                     add: add,
                                     comment: "Add node to list via UI".to_string(),
                                     remove: vec![],
                                     files: vec![],
-                                }).await?;
+                                }).await;
                                 return Ok(());
                             }.await;
                             eg.event(|pc| {

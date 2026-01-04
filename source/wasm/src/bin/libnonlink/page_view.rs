@@ -7,29 +7,29 @@ use {
         },
         playlist::playlist_clear,
         state::{
-            state,
             MinistateViewState,
             MinistateViewState_,
+            state,
         },
     },
     crate::libnonlink::{
         api::req_post_json,
         infinite::InfPageRes,
         ministate::{
-            ministate_octothorpe,
             Ministate,
             MinistateForm,
             MinistateView,
+            ministate_octothorpe,
         },
         node_button::setup_node_button,
         playlist::{
+            PlaylistPushArg,
             categorize_mime_media,
             playlist_extend,
             playlist_next,
             playlist_previous,
             playlist_set_link,
             playlist_toggle_play,
-            PlaylistPushArg,
         },
         seekbar::setup_seekbar,
     },
@@ -47,19 +47,19 @@ use {
     },
     js_sys::Math::random,
     lunk::{
-        link,
         EventGraph,
         ProcessingContext,
+        link,
     },
     qrcode::{
-        render::svg::Color,
         QrCode,
+        render::svg::Color,
     },
     rooting::{
-        el,
-        el_from_raw,
         El,
         WeakEl,
+        el,
+        el_from_raw,
     },
     shared::{
         interface::{
@@ -89,12 +89,12 @@ use {
             },
             triple::Node,
             wire::{
-                link::SourceUrl,
                 NodeMeta,
                 Pagination,
                 ReqViewQuery,
                 RespQueryRows,
                 TreeNode,
+                link::SourceUrl,
             },
         },
         stringpattern::node_to_text,
@@ -115,11 +115,11 @@ use {
     wasm::{
         constants::LINK_HASH_PREFIX,
         js::{
+            LogJsErr,
             el_async,
             style_export::{
                 self,
             },
-            LogJsErr,
         },
         world::file_url,
     },
@@ -352,12 +352,12 @@ impl Build {
                                 params.insert(k.clone(), v);
                             }
                         }
-                        let res = req_post_json(&state().env.base_url, ReqViewQuery {
+                        let res = req_post_json(ReqViewQuery {
                             view_id: view_id.clone(),
                             query: query_id.clone(),
-                            parameters: params,
+                            parameters: params.clone(),
                             pagination: None,
-                        }).await?;
+                        }).await;
                         let mut out = vec![];
                         match res.rows {
                             RespQueryRows::Scalar(rows) => {
@@ -602,16 +602,16 @@ impl Build {
                                 let build_infinite_page = build_infinite_page.clone();
                                 let count = count.clone();
                                 async move {
-                                    let res = req_post_json(&state().env.base_url, ReqViewQuery {
+                                    let res = req_post_json(ReqViewQuery {
                                         view_id: view_id.clone(),
                                         query: query_id.clone(),
-                                        parameters: params,
+                                        parameters: params.clone(),
                                         pagination: Some(Pagination {
                                             count: 10,
                                             seed: Some(seed),
-                                            key: key,
+                                            key: key.clone(),
                                         }),
-                                    }).await?;
+                                    }).await;
                                     let mut chunk = vec![];
                                     match res.rows {
                                         RespQueryRows::Scalar(rows) => {

@@ -67,6 +67,12 @@ fn main() {
     let triple_commit;
     let triple_subject;
     let triple_object;
+    let view_current_subject;
+    let view_current_predicate;
+    let view_current_object;
+    let view_current_commit;
+    let view_current_table;
+    let view_current_ctes;
     {
         let t = latest_version.table("zQLEK3CT0", "triple");
         let subject = t.field(&mut latest_version, "zLQI9HQUQ", "subject", FieldType::with(&node_type));
@@ -89,12 +95,6 @@ fn main() {
         t.index("zBZVX51AR", "triple_index_pred_subj", &[&predicate, &subject, &commit]).build(&mut latest_version);
         t.index("zTVLKA6GQ", "triple_index_pred_obj", &[&predicate, &object, &commit]).build(&mut latest_version);
         t.index("woeehiw2a9lszj", "triple_commit_exists", &[&commit, &exist]).build(&mut latest_version);
-        let view_current_subject;
-        let view_current_predicate;
-        let view_current_object;
-        let view_current_commit;
-        let view_current_table;
-        let view_current_ctes;
         {
             let mut view_current0 =
                 CteBuilder::new(
@@ -187,9 +187,7 @@ fn main() {
             ),
             (
                 "by_predicate_object",
-                Some(
-                    expr_and(vec![expr_field_eq("eq_predicate", &predicate), expr_field_eq("eq_object", &object)]),
-                ),
+                Some(expr_and(vec![expr_field_eq("eq_predicate", &predicate), expr_field_eq("eq_object", &object)])),
             ),
         ] {
             for after in [false, true] {
@@ -481,13 +479,33 @@ fn main() {
                 .return_fields(&[&mimetype])
                 .build_query_named_res("gen_get", QueryResCount::MaybeOne, "GenMetadata"),
         );
-        queries.push(new_delete(&t).where_(Expr::Exists {
+        queries.push(new_select(&t).where_(Expr::BinOp {
+            left: Box::new(Expr::field(&node)),
+            op: BinOp::In,
+            right: Box::new(Expr::Param {
+                name: "nodes".to_string(),
+                type_: node_array_type.clone(),
+            }),
+        }).return_field(&node).build_query("gen_filter_existing", QueryResCount::Many));
+        queries.push(new_delete(&t).with(With {
+            recursive: false,
+            ctes: view_current_ctes.clone(),
+        }).where_(Expr::Exists {
             not: true,
-            body: Box::new(new_select_body(&meta_table).return_named("x", Expr::LitI32(1)).where_(Expr::BinOp {
-                left: Box::new(Expr::field(&node)),
-                op: BinOp::Equals,
-                right: Box::new(Expr::field(&meta_node)),
-            }).build()),
+            body: Box::new(
+                new_select_body(&view_current_table)
+                    .return_named("x", Expr::LitI32(1))
+                    .where_(expr_or(vec![Expr::BinOp {
+                        left: Box::new(Expr::field(&node)),
+                        op: BinOp::Equals,
+                        right: Box::new(Expr::field(&view_current_object)),
+                    }, Expr::BinOp {
+                        left: Box::new(Expr::field(&node)),
+                        op: BinOp::Equals,
+                        right: Box::new(Expr::field(&view_current_subject)),
+                    },]))
+                    .build(),
+            ),
             body_junctions: vec![],
         }).build_query("gen_gc", QueryResCount::None));
     }
@@ -517,16 +535,14 @@ fn main() {
                 .on_conflict(InsertConflict::DoNothing)
                 .build_query("file_access_insert", QueryResCount::None),
         );
-        queries.push(
-            new_delete(&t).where_(expr_and(vec![expr_field_eq("access_source", &access_source), Expr::BinOp {
-                left: Box::new(Expr::Binding(Binding::field(&spec_hash))),
-                op: BinOp::NotEquals,
-                right: Box::new(Expr::Param {
-                    name: "version_hash".into(),
-                    type_: spec_hash.type_.type_.clone(),
-                }),
-            }])).build_query("file_access_clear_nonversion", QueryResCount::None),
-        );
+        queries.push(new_delete(&t).where_(expr_and(vec![expr_field_eq("access_source", &access_source), Expr::BinOp {
+            left: Box::new(Expr::Binding(Binding::field(&spec_hash))),
+            op: BinOp::NotEquals,
+            right: Box::new(Expr::Param {
+                name: "version_hash".into(),
+                type_: spec_hash.type_.type_.clone(),
+            }),
+        }])).build_query("file_access_clear_nonversion", QueryResCount::None));
         queries.push(
             new_select(&t)
                 .where_(expr_field_eq("file", &file))
