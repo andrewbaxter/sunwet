@@ -199,7 +199,7 @@ fn refresh_query(eg: EventGraph, qstate: QueryState, text: &str) {
                             seed: Some(seed),
                             key: key,
                         }),
-                    }).await;
+                    }).await?;
                     let meta = page_data.meta.into_iter().collect::<HashMap<_, _>>();
                     let mut out = vec![];
                     match page_data.rows {
@@ -280,7 +280,7 @@ fn refresh_query(eg: EventGraph, qstate: QueryState, text: &str) {
                 query: query.clone(),
                 parameters: Default::default(),
                 pagination: None,
-            }).await;
+            }).await?;
             let out = style_export::cont_page_query_tab_json();
             let data = Rc::new(data.rows);
             out.json_results.ref_text(&serde_json::to_string_pretty(&data).unwrap());
@@ -306,7 +306,7 @@ fn refresh_query(eg: EventGraph, qstate: QueryState, text: &str) {
                 query: query.clone(),
                 parameters: Default::default(),
                 pagination: None,
-            }).await;
+            }).await?;
             let meta = data.meta.into_iter().filter_map(|x| {
                 let Node::File(k) = x.0 else {
                     return None;
@@ -516,7 +516,7 @@ fn refresh_query(eg: EventGraph, qstate: QueryState, text: &str) {
                 query: query.clone(),
                 parameters: Default::default(),
                 pagination: None,
-            }).await;
+            }).await?;
             let RespQueryRows::Scalar(nodes) = data.rows else {
                 panic!();
             };

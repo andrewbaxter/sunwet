@@ -357,7 +357,7 @@ impl Build {
                             query: query_id.clone(),
                             parameters: params.clone(),
                             pagination: None,
-                        }).await;
+                        }).await?;
                         let mut out = vec![];
                         match res.rows {
                             RespQueryRows::Scalar(rows) => {
@@ -611,7 +611,7 @@ impl Build {
                                             seed: Some(seed),
                                             key: key.clone(),
                                         }),
-                                    }).await;
+                                    }).await?;
                                     let mut chunk = vec![];
                                     match res.rows {
                                         RespQueryRows::Scalar(rows) => {

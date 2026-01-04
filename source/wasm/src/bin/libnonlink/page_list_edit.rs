@@ -435,7 +435,9 @@ pub fn build_page_list_edit(pc: &mut ProcessingContext, title: &str, node: &Node
                                             }
                                         }
                                     }
-                                    remove.extend(req_post_json(ReqGetTriplesAround { nodes: delete_nodes }).await);
+                                    remove.extend(
+                                        req_post_json(ReqGetTriplesAround { nodes: delete_nodes }).await?,
+                                    );
                                     req_post_json(ReqCommit {
                                         comment: format!("Editing list {}", title),
                                         add: add,

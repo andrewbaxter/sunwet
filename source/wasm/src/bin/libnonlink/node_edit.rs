@@ -1261,7 +1261,7 @@ pub async fn build_node_edit_contents(
     title: String,
     nodes: Vec<Node>,
 ) -> Result<BuildNodeEditContentsRes, String> {
-    let mut rels = req_post_json(ReqGetTriplesAround { nodes: nodes.clone() }).await;
+    let mut rels = req_post_json(ReqGetTriplesAround { nodes: nodes.clone() }).await?;
     return eg.event(|pc| {
         let pivot_state;
         let draft_data;

@@ -43,6 +43,7 @@ let
   ];
   wasm = naersk.buildPackage {
     pname = "sunwet-wasm";
+    name = "sunwet-wasm"; # For nix build error messages only
     root = workspaceWasm;
     release = true;
     CARGO_BUILD_TARGET = "wasm32-unknown-unknown";
@@ -95,6 +96,7 @@ let
     '';
   native = naersk.buildPackage {
     pname = "sunwet-native";
+    name = "sunwet-native"; # For nix build error messages only
     root = workspaceNative;
     release = false;
     STATIC_DIR = "${static}";

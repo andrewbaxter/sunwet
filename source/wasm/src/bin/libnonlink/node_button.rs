@@ -157,7 +157,7 @@ pub async fn req_list(node: &Node) -> Result<Vec<ReqListResEntry>, String> {
         },
         parameters: Default::default(),
         pagination: None,
-    }).await;
+    }).await?;
     let RespQueryRows::Record(rows) = existing.rows else {
         return Err(format!("Add item to list failed; resp returned non-record rows"));
     };

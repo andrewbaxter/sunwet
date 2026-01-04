@@ -41,7 +41,7 @@ pub async fn retry<T>(r: impl AsyncFn() -> Result<T, TempFinalErr>) -> Result<T,
         match r().await {
             Ok(v) => return Ok(v),
             Err(e) => match e {
-                TempFinalErr::Temp(_) => {
+                TempFinalErr::Temp(e) => {
                     state().log.log(&format!("Error making request: {}", e));
                     sleep(Duration::from_secs(1)).await;
                 },
@@ -161,10 +161,8 @@ pub async fn req_post_json<T: C2SReqTrait>(req: T) -> Result<T::Resp, String> {
             serde_json::from_slice::<T::Resp>(
                 &body,
             ).map_err(
-                |e| format!(
-                    "Error parsing JSON response from server: {}\nBody: {}",
-                    e,
-                    String::from_utf8_lossy(&body)
+                |e| TempFinalErr::Temp(
+                    format!("Error parsing JSON response from server: {}\nBody: {}", e, String::from_utf8_lossy(&body)),
                 ),
             )?,
         );
@@ -179,7 +177,7 @@ pub async fn file_post_json(hash: &FileHash, chunk_start: u64, body: &[u8]) -> R
                 .body(Uint8Array::from(body));
         post(req).await?;
         return Ok(());
-    });
+    }).await;
 }
 
 pub async fn req_file(url: &str) -> Result<Vec<u8>, String> {
