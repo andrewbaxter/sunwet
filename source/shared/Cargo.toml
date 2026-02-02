@@ -10,11 +10,13 @@ chrono = { version = "0.4", features = ["serde"] }
 schemars = { version = "0.8", features = ["chrono"] }
 sha2 = "0.10"
 hex = "0.4"
+#rustemo = { version = "0.8", git = "https://github.com/igordejanovic/rustemo", rev = "68e61f5e8872da46692bf2c2ea0318e689e89929", default-features = false }
 rustemo = { version = "0.7" }
-ts-rs = { version = "11", features = ["serde-json-impl"] }
+ts-rs = { version = "11", features = ["serde-json-impl", "no-serde-warnings"] }
 
 [build-dependencies]
-rustemo-compiler = "0.7"
+#rustemo-compiler = { version = "0.8", git = "https://github.com/igordejanovic/rustemo", rev = "68e61f5e8872da46692bf2c2ea0318e689e89929", default-features = false }
+rustemo-compiler = { version = "0.7" }
 
 [lints.clippy]
 all = "allow"

@@ -12,6 +12,7 @@ use {
             SessionStorage,
             Storage,
         },
+        timers::future::TimeoutFuture,
         utils::window,
     },
     js_sys::Uint8Array,
@@ -27,11 +28,7 @@ use {
             HEADER_OFFSET,
         },
     },
-    std::time::Duration,
-    tokio::time::sleep,
-    wasm::js::{
-        LogJsErr,
-    },
+    wasm::js::LogJsErr,
     wasm_bindgen::UnwrapThrowExt,
     web_sys::Url,
 };
@@ -43,7 +40,7 @@ pub async fn retry<T>(r: impl AsyncFn() -> Result<T, TempFinalErr>) -> Result<T,
             Err(e) => match e {
                 TempFinalErr::Temp(e) => {
                     state().log.log(&format!("Error making request: {}", e));
-                    sleep(Duration::from_secs(1)).await;
+                    TimeoutFuture::new(1000).await;
                 },
                 TempFinalErr::Final(e) => {
                     return Err(e);
@@ -120,20 +117,14 @@ async fn read_resp(resp: Response) -> Result<Vec<u8>, TempFinalErr> {
         Ok(r) => r,
     };
     if status >= 400 {
-        if status >= 400 {
-            if status >= 500 {
-                return Err(
-                    TempFinalErr::Temp(
-                        format!("Got error response [{}]: [{}]", status, String::from_utf8_lossy(&body)),
-                    ),
-                );
-            } else {
-                return Err(
-                    TempFinalErr::Final(
-                        format!("Got error response [{}]: [{}]", status, String::from_utf8_lossy(&body)),
-                    ),
-                );
-            }
+        if status >= 500 {
+            return Err(
+                TempFinalErr::Temp(format!("Got error response [{}]: [{}]", status, String::from_utf8_lossy(&body))),
+            );
+        } else {
+            return Err(
+                TempFinalErr::Final(format!("Got error response [{}]: [{}]", status, String::from_utf8_lossy(&body))),
+            );
         }
     }
     return Ok(body);

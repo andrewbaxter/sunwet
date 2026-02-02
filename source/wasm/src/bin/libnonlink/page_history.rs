@@ -220,7 +220,7 @@ pub fn build_page_history(pc: &mut ProcessingContext, ministate: &MinistateHisto
                 let button = button.weak();
                 let eg = eg.clone();
                 async move {
-                    req_post_json(ReqCommit {
+                     req_post_json(ReqCommit {
                         comment: format!("History restore"),
                         add: hist_state.revert_was_deleted.borrow().iter().cloned().collect(),
                         remove: hist_state.revert_was_added.borrow().iter().cloned().collect(),

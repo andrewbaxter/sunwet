@@ -124,7 +124,10 @@ use {
         world::file_url,
     },
     wasm_bindgen::JsCast,
-    web_sys::DomParser,
+    web_sys::{
+        DomParser,
+        HtmlElement,
+    },
 };
 
 pub const LOCALSTORAGE_SHARE_SESSION_ID: &str = "share_session_id";
@@ -1032,6 +1035,12 @@ impl Build {
                                 &style_export::attr_state().value,
                                 &style_export::attr_state_playing().value,
                             );
+                            out
+                                .raw()
+                                .dyn_into::<HtmlElement>()
+                                .unwrap()
+                                .focus()
+                                .log(&state().log, "Error focusing media button");
                         } else {
                             out.ref_attr(&style_export::attr_state().value, "");
                         }

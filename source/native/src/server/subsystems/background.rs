@@ -159,15 +159,14 @@ struct FfprobeOutput {
 }
 
 async fn ffprobe(path: &Path) -> Result<FfprobeOutput, loga::Error> {
-    let streams_res =
-        Command::new("ffprobe")
-            .stdin(Stdio::null())
-            .args(&["-v", "quiet"])
-            .args(&["-print_format", "json"])
-            .arg("-show_streams")
-            .arg(path)
-            .output()
-            .await?;
+    let mut cmd = Command::new("ffprobe");
+    cmd.kill_on_drop(true);
+    cmd.stdin(Stdio::null());
+    cmd.args(&["-v", "quiet"]);
+    cmd.args(&["-print_format", "json"]);
+    cmd.arg("-show_streams");
+    cmd.arg(path);
+    let streams_res = cmd.output().await?;
     if !streams_res.status.success() {
         return Err(
             loga::err_with("Ffprobe failed", ea!(path = path.dbg_str(), output = streams_res.pretty_dbg_str())),
@@ -209,17 +208,15 @@ async fn generate_subs(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
         }
         let tmp = tempdir_in(&state.temp_dir)?;
         let tempdest_path = tmp.path().join("out");
-        let extract_res =
-            Command::new("ffmpeg")
-                .stdin(Stdio::null())
-                .arg("-i")
-                .arg(&source)
-                .args(&["-map", "0:s:0"])
-                .args(&["-codec:s", "webvtt"])
-                .args(&["-f", "webvtt"])
-                .arg(&tempdest_path)
-                .output()
-                .await?;
+        let mut cmd = Command::new("ffmpeg");
+        cmd.kill_on_drop(true);
+        cmd.stdin(Stdio::null());
+        cmd.arg("-i").arg(&source);
+        cmd.arg("-map").arg(format!("0:{}", stream.index));
+        cmd.args(&["-codec:s", "webvtt"]);
+        cmd.args(&["-f", "webvtt"]);
+        cmd.arg(&tempdest_path);
+        let extract_res = cmd.output().await?;
         if !extract_res.status.success() {
             return Err(
                 loga::err_with(
@@ -288,6 +285,7 @@ async fn generate_webm(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
     let tempdest_path = tmp.path().join("out");
     {
         let mut cmd = Command::new("ffmpeg");
+        cmd.kill_on_drop(true);
         cmd.stdin(Stdio::null());
         cmd.arg("-i").arg(source);
 
@@ -314,6 +312,7 @@ async fn generate_webm(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
     }
     {
         let mut cmd = Command::new("ffmpeg");
+        cmd.kill_on_drop(true);
         cmd.stdin(Stdio::null());
         cmd.arg("-i").arg(source);
         for stream_i in include_streams {
@@ -363,6 +362,7 @@ async fn generate_aac(state: &Arc<State>, file: &FileHash, source: &Path) -> Res
     let tmp = tempdir_in(&state.temp_dir)?;
     let tempdest_path = tmp.path().join("out");
     let mut cmd = Command::new("ffmpeg");
+    cmd.kill_on_drop(true);
     cmd.arg("-i");
     cmd.arg(source);
     cmd.arg("-codec:a");
@@ -397,6 +397,7 @@ async fn generate_book_html_dir(
     }
     let tmp_dest = tempdir_in(&state.temp_dir)?;
     let mut cmd = Command::new("pandoc");
+    cmd.kill_on_drop(true);
     cmd.arg("--from");
     cmd.arg(match mime {
         "application/epub+zip" => "epub",
@@ -435,6 +436,7 @@ async fn generate_comic_dir(state: &Arc<State>, file: &FileHash, source: &Path) 
     }
     let tmp_dest = tempdir_in(&state.temp_dir)?;
     let mut cmd = Command::new("7zz");
+    cmd.kill_on_drop(true);
     cmd.arg("x");
     cmd.arg(source);
     let res =

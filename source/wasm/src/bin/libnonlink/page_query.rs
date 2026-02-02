@@ -21,7 +21,6 @@ use {
     },
     flowcontrol::{
         shed,
-        superif,
     },
     gloo::timers::callback::Timeout,
     js_sys::Math,
@@ -318,17 +317,16 @@ fn refresh_query(eg: EventGraph, qstate: QueryState, text: &str) {
             }).collect::<HashMap<_, _>>();
 
             fn determine_ext(row: &FileHash, mimes: &HashMap<FileHash, String>) -> &'static str {
-                superif!({
+                shed!{
                     let Some(mime) = mimes.get(row) else {
-                        break 'bad;
+                        break;
                     };
                     let Some(ext) = mime2ext::mime2ext(mime) else {
-                        break 'bad;
+                        break;
                     };
-                    ext
-                } 'bad {
-                    return "bin";
-                })
+                    return ext;
+                };
+                return "bin";
             }
 
             match data.rows {

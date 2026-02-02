@@ -53,6 +53,7 @@ web-sys = { version = "0.3", features = [
 ] }
 futures = "0.3"
 tokio = { version = "1", features = ["macros", "sync"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
 hex = "0.4"
 defer = "0.1"
 shared = { path = "../shared" }
@@ -67,7 +68,6 @@ async-trait = "0.1"
 flowcontrol = "0.2"
 structre = "0.2"
 by_address = "1"
-tokio-stream = { version = "0.1", features = ["sync"] }
 mime2ext = "0.1.54"
 
 [build-dependencies]

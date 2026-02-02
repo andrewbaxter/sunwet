@@ -20,8 +20,8 @@ import * as process from "process";
         } else {
           no(
             new Error(
-              `[${cmd}] [${args.join(", ")}] exited with non-zero code: ${code}`
-            )
+              `[${cmd}] [${args.join(", ")}] exited with non-zero code: ${code}`,
+            ),
           );
         }
       });
@@ -30,16 +30,16 @@ import * as process from "process";
   const compile_query_head_tail = async (
     head_path: string,
     tail_path: string,
-    sort?: sortquery.SortQuery
+    sort?: sortquery.SortQuery,
   ): Promise<sunwet.Query> => {
     const head: sunwet.Query = JSON.parse(
-      await run_output("sunwet", ["compile-query", "--file", head_path])
+      await run_output("sunwet", ["compile-query", "--file", head_path]),
     );
     if (head.suffix != null) {
       throw new Error();
     }
     const tail: sunwet.Query = JSON.parse(
-      await run_output("sunwet", ["compile-query", "--file", tail_path])
+      await run_output("sunwet", ["compile-query", "--file", tail_path]),
     );
     if (
       tail.suffix == null ||
@@ -58,16 +58,16 @@ import * as process from "process";
   };
   const compile_query = async (
     path: string,
-    sort?: sortquery.SortQuery
+    sort?: sortquery.SortQuery,
   ): Promise<sunwet.Query> => {
     return JSON.parse(
-      await run_output("sunwet", ["compile-query", "--file", path])
+      await run_output("sunwet", ["compile-query", "--file", path]),
     );
   };
 
   const widget_node_link = (
     name_field: string,
-    node_field: string
+    node_field: string,
   ): sunwet.Widget => {
     return {
       node: {
@@ -867,6 +867,16 @@ import * as process from "process";
                                       orientation: "right_down",
                                       font_size: "12pt",
                                       trans_align: "middle",
+                                      link: {
+                                        title: {
+                                          field: "track_index",
+                                        },
+                                        dest: {
+                                          node: {
+                                            field: "track_id",
+                                          },
+                                        },
+                                      },
                                     },
                                   },
                                   {
@@ -877,6 +887,16 @@ import * as process from "process";
                                       orientation: "right_down",
                                       font_size: "12pt",
                                       trans_align: "middle",
+                                      link: {
+                                        title: {
+                                          field: "track_index",
+                                        },
+                                        dest: {
+                                          node: {
+                                            field: "track_id",
+                                          },
+                                        },
+                                      },
                                     },
                                   },
                                   {
@@ -1145,19 +1165,19 @@ import * as process from "process";
     },
   };
   const query_audio_albums_tracks = await compile_query(
-    "./sunwet/source/queries/query_audio_albums_tracks.txt"
+    "./sunwet/source/queries/query_audio_albums_tracks.txt",
   );
   const query_video_albums_tracks = await compile_query(
-    "./sunwet/source/queries/query_video_albums_tracks.txt"
+    "./sunwet/source/queries/query_video_albums_tracks.txt",
   );
   const query_comic_albums_tracks = await compile_query(
-    "./sunwet/source/queries/query_comic_albums_tracks.txt"
+    "./sunwet/source/queries/query_comic_albums_tracks.txt",
   );
   const query_book_albums_tracks = await compile_query(
-    "./sunwet/source/queries/query_book_albums_tracks.txt"
+    "./sunwet/source/queries/query_book_albums_tracks.txt",
   );
   const query_playlists_tracks = await compile_query(
-    "./sunwet/source/queries/query_playlists_tracks.txt"
+    "./sunwet/source/queries/query_playlists_tracks.txt",
   );
   const sunwet_config: sunwet.GlobalConfig = {
     api_tokens: { [process.env.ADMIN_TOKEN]: "admin" },
@@ -1486,7 +1506,7 @@ import * as process from "process";
                 ["desc", "album_add_timestamp"],
                 ["asc", "album_name"],
               ],
-            }
+            },
           ),
           tracks: query_audio_albums_tracks,
         },
@@ -1496,7 +1516,7 @@ import * as process from "process";
         queries: {
           root: await compile_query_head_tail(
             "./sunwet/source/queries/query_audio_albums_eq_album.txt",
-            "./sunwet/source/queries/query_audio_albums_select.txt"
+            "./sunwet/source/queries/query_audio_albums_select.txt",
           ),
           tracks: query_audio_albums_tracks,
         },
@@ -1510,7 +1530,7 @@ import * as process from "process";
             "./sunwet/source/queries/query_audio_albums_select.txt",
             {
               fields: [["asc", "album_name"]],
-            }
+            },
           ),
           tracks: query_audio_albums_tracks,
         },
@@ -1522,7 +1542,7 @@ import * as process from "process";
           root: await compile_query_head_tail(
             "./sunwet/source/queries/query_audio_albums.txt",
             "./sunwet/source/queries/query_audio_albums_select.txt",
-            "shuffle"
+            "shuffle",
           ),
           tracks: query_audio_albums_tracks,
         },
@@ -1533,7 +1553,7 @@ import * as process from "process";
         queries: {
           root: await compile_query_head_tail(
             "./sunwet/source/queries/query_audio_albums_search_artist.txt",
-            "./sunwet/source/queries/query_audio_albums_select.txt"
+            "./sunwet/source/queries/query_audio_albums_select.txt",
           ),
           tracks: query_audio_albums_tracks,
         },
@@ -1544,7 +1564,7 @@ import * as process from "process";
         queries: {
           root: await compile_query_head_tail(
             "./sunwet/source/queries/query_audio_albums_search_name.txt",
-            "./sunwet/source/queries/query_audio_albums_select.txt"
+            "./sunwet/source/queries/query_audio_albums_select.txt",
           ),
           tracks: query_audio_albums_tracks,
         },
@@ -1555,7 +1575,7 @@ import * as process from "process";
           root: await compile_query_head_tail(
             "./sunwet/source/queries/query_audio_tracks.txt",
             "./sunwet/source/queries/query_audio_tracks_select.txt",
-            "shuffle"
+            "shuffle",
           ),
         },
         display: display_audio_tracks,
@@ -1565,7 +1585,7 @@ import * as process from "process";
         queries: {
           root: await compile_query_head_tail(
             "./sunwet/source/queries/query_audio_tracks_search_artist.txt",
-            "./sunwet/source/queries/query_audio_tracks_select.txt"
+            "./sunwet/source/queries/query_audio_tracks_select.txt",
           ),
         },
         display: display_audio_tracks,
@@ -1575,7 +1595,7 @@ import * as process from "process";
         queries: {
           root: await compile_query_head_tail(
             "./sunwet/source/queries/query_audio_tracks_search_name.txt",
-            "./sunwet/source/queries/query_audio_tracks_select.txt"
+            "./sunwet/source/queries/query_audio_tracks_select.txt",
           ),
         },
         display: display_audio_tracks,
@@ -1590,7 +1610,7 @@ import * as process from "process";
                 ["desc", "album_add_timestamp"],
                 ["asc", "album_name"],
               ],
-            }
+            },
           ),
           tracks: query_video_albums_tracks,
         },
@@ -1600,7 +1620,7 @@ import * as process from "process";
         queries: {
           root: await compile_query_head_tail(
             "./sunwet/source/queries/query_video_albums_eq_album.txt",
-            "./sunwet/source/queries/query_video_albums_select.txt"
+            "./sunwet/source/queries/query_video_albums_select.txt",
           ),
           tracks: query_video_albums_tracks,
         },
@@ -1613,7 +1633,7 @@ import * as process from "process";
             "./sunwet/source/queries/query_video_albums_select.txt",
             {
               fields: [["asc", "album_name"]],
-            }
+            },
           ),
           tracks: query_video_albums_tracks,
         },
@@ -1624,7 +1644,7 @@ import * as process from "process";
         queries: {
           root: await compile_query_head_tail(
             "./sunwet/source/queries/query_video_albums_search_name.txt",
-            "./sunwet/source/queries/query_video_albums_select.txt"
+            "./sunwet/source/queries/query_video_albums_select.txt",
           ),
           tracks: query_video_albums_tracks,
         },
@@ -1638,7 +1658,7 @@ import * as process from "process";
             "./sunwet/source/queries/query_comic_albums_select.txt",
             {
               fields: [["asc", "album_name"]],
-            }
+            },
           ),
           tracks: query_comic_albums_tracks,
         },
@@ -1649,7 +1669,7 @@ import * as process from "process";
         queries: {
           root: await compile_query_head_tail(
             "./sunwet/source/queries/query_comic_albums_eq_album.txt",
-            "./sunwet/source/queries/query_comic_albums_select.txt"
+            "./sunwet/source/queries/query_comic_albums_select.txt",
           ),
           tracks: query_comic_albums_tracks,
         },
@@ -1663,7 +1683,7 @@ import * as process from "process";
             "./sunwet/source/queries/query_comic_albums_select.txt",
             {
               fields: [["asc", "album_name"]],
-            }
+            },
           ),
           tracks: query_comic_albums_tracks,
         },
@@ -1674,7 +1694,7 @@ import * as process from "process";
         queries: {
           root: await compile_query_head_tail(
             "./sunwet/source/queries/query_comic_albums_search_name.txt",
-            "./sunwet/source/queries/query_comic_albums_select.txt"
+            "./sunwet/source/queries/query_comic_albums_select.txt",
           ),
           tracks: query_comic_albums_tracks,
         },
@@ -1685,7 +1705,7 @@ import * as process from "process";
         queries: {
           root: await compile_query_head_tail(
             "./sunwet/source/queries/query_comic_albums_search_artist.txt",
-            "./sunwet/source/queries/query_comic_albums_select.txt"
+            "./sunwet/source/queries/query_comic_albums_select.txt",
           ),
           tracks: query_comic_albums_tracks,
         },
@@ -1698,7 +1718,23 @@ import * as process from "process";
             "./sunwet/source/queries/query_book_albums_select.txt",
             {
               fields: [["asc", "album_name"]],
-            }
+            },
+          ),
+          tracks: query_book_albums_tracks,
+        },
+        display: display_book_albums,
+      },
+      book_albums_by_artist: {
+        queries: {
+          root: await compile_query_head_tail(
+            "./sunwet/source/queries/query_book_albums.txt",
+            "./sunwet/source/queries/query_book_albums_select.txt",
+            {
+              fields: [
+                ["asc", "album_artist_name"],
+                ["asc", "album_name"],
+              ],
+            },
           ),
           tracks: query_book_albums_tracks,
         },
@@ -1709,7 +1745,7 @@ import * as process from "process";
         queries: {
           root: await compile_query_head_tail(
             "./sunwet/source/queries/query_book_albums_eq_album.txt",
-            "./sunwet/source/queries/query_book_albums_select.txt"
+            "./sunwet/source/queries/query_book_albums_select.txt",
           ),
           tracks: query_book_albums_tracks,
         },
@@ -1723,7 +1759,7 @@ import * as process from "process";
             "./sunwet/source/queries/query_book_albums_select.txt",
             {
               fields: [["asc", "album_name"]],
-            }
+            },
           ),
           tracks: query_book_albums_tracks,
         },
@@ -1734,7 +1770,7 @@ import * as process from "process";
         queries: {
           root: await compile_query_head_tail(
             "./sunwet/source/queries/query_book_albums_search_name.txt",
-            "./sunwet/source/queries/query_book_albums_select.txt"
+            "./sunwet/source/queries/query_book_albums_select.txt",
           ),
           tracks: query_book_albums_tracks,
         },
@@ -1745,7 +1781,7 @@ import * as process from "process";
         queries: {
           root: await compile_query_head_tail(
             "./sunwet/source/queries/query_book_albums_search_artist.txt",
-            "./sunwet/source/queries/query_book_albums_select.txt"
+            "./sunwet/source/queries/query_book_albums_select.txt",
           ),
           tracks: query_book_albums_tracks,
         },
@@ -1758,7 +1794,7 @@ import * as process from "process";
             "./sunwet/source/queries/query_notes_select.txt",
             {
               fields: [["desc", "add_timestamp"]],
-            }
+            },
           ),
         },
         display: display_notes,
@@ -1768,7 +1804,7 @@ import * as process from "process";
           root: await compile_query_head_tail(
             "./sunwet/source/queries/query_notes.txt",
             "./sunwet/source/queries/query_notes_select.txt",
-            "shuffle"
+            "shuffle",
           ),
         },
         display: display_notes,
@@ -1778,7 +1814,7 @@ import * as process from "process";
         queries: {
           root: await compile_query_head_tail(
             "./sunwet/source/queries/query_notes_search_text.txt",
-            "./sunwet/source/queries/query_notes_select.txt"
+            "./sunwet/source/queries/query_notes_select.txt",
           ),
         },
         display: display_notes,
@@ -1788,7 +1824,7 @@ import * as process from "process";
         queries: {
           root: await compile_query_head_tail(
             "./sunwet/source/queries/query_notes_search_topic.txt",
-            "./sunwet/source/queries/query_notes_select.txt"
+            "./sunwet/source/queries/query_notes_select.txt",
           ),
         },
         display: display_notes,
@@ -1803,7 +1839,7 @@ import * as process from "process";
                 ["desc", "playlist_add_timestamp"],
                 ["asc", "playlist_name"],
               ],
-            }
+            },
           ),
           tracks: query_playlists_tracks,
         },
@@ -1814,7 +1850,7 @@ import * as process from "process";
           root: await compile_query_head_tail(
             "./sunwet/source/queries/query_playlists.txt",
             "./sunwet/source/queries/query_playlists_select.txt",
-            "shuffle"
+            "shuffle",
           ),
           tracks: query_playlists_tracks,
         },
@@ -1825,7 +1861,7 @@ import * as process from "process";
         queries: {
           root: await compile_query_head_tail(
             "./sunwet/source/queries/query_playlists_search_name.txt",
-            "./sunwet/source/queries/query_playlists_select.txt"
+            "./sunwet/source/queries/query_playlists_select.txt",
           ),
           tracks: query_playlists_tracks,
         },
