@@ -7,21 +7,19 @@ use {
         api::req_post_json,
         infinite::InfPageRes,
         ministate::{
-            ministate_octothorpe,
-            record_replace_ministate,
             MinistateNodeView,
             MinistateQuery,
+            ministate_octothorpe,
+            record_replace_ministate,
         },
         node_edit::build_node_edit_contents,
         playlist::{
-            categorize_mime_media,
             PlaylistEntryMediaType,
+            categorize_mime_media,
         },
         state::set_page,
     },
-    flowcontrol::{
-        shed,
-    },
+    flowcontrol::shed,
     gloo::timers::callback::Timeout,
     js_sys::Math,
     lunk::{
@@ -49,14 +47,17 @@ use {
         query_analysis::analyze_query,
         query_parser::compile_query,
         stringpattern::{
-            node_to_text,
             Pattern,
             PatternPart,
+            node_to_text,
         },
     },
     std::{
         cell::RefCell,
-        collections::HashMap,
+        collections::{
+            BTreeMap,
+            HashMap,
+        },
         rc::Rc,
         u64,
     },
@@ -72,9 +73,7 @@ use {
         world::file_url,
     },
     wasm_bindgen::JsCast,
-    web_sys::{
-        HtmlElement,
-    },
+    web_sys::HtmlElement,
 };
 
 #[derive(Clone)]
@@ -417,40 +416,46 @@ fn refresh_query(eg: EventGraph, qstate: QueryState, text: &str) {
                             results.ref_clear();
                             let field = field.borrow();
                             let pattern = Pattern::from(pattern.borrow().as_str());
+                            let mut out_ok = BTreeMap::new();
+                            let mut out_err = vec![];
                             for row in &rows {
-                                let row_el;
                                 if let Some(field) = row.get(&*field) {
                                     if let TreeNode::Scalar(Node::File(field)) = field {
-                                        row_el =
+                                        let text =
+                                            format!("{}.{}", pattern.interpolate(row), determine_ext(field, &meta));
+                                        out_ok.insert(
+                                            text.clone(),
                                             style_export::leaf_query_download_row(
                                                 style_export::LeafQueryDownloadRowArgs {
                                                     link: file_url(&state().env, field),
-                                                    filename: format!(
-                                                        "{}.{}",
-                                                        pattern.interpolate(row),
-                                                        determine_ext(field, &meta)
-                                                    ),
+                                                    filename: text,
                                                 },
-                                            ).root;
+                                            ).root,
+                                        );
                                     } else {
-                                        row_el = style_export::leaf_err_block(style_export::LeafErrBlockArgs {
+                                        out_err.push(style_export::leaf_err_block(style_export::LeafErrBlockArgs {
                                             data: format!(
                                                 "Row field is not a file: {}",
                                                 serde_json::to_string(&row).unwrap()
                                             ),
                                             in_root: false,
-                                        }).root;
+                                        }).root);
                                     }
                                 } else {
-                                    row_el = style_export::leaf_err_block(style_export::LeafErrBlockArgs {
+                                    out_err.push(style_export::leaf_err_block(style_export::LeafErrBlockArgs {
                                         data: format!(
                                             "Row missing file field: {}",
                                             serde_json::to_string(&row).unwrap()
                                         ),
                                         in_root: false,
-                                    }).root;
+                                    }).root);
                                 }
-                                results.ref_push(row_el);
+                            }
+                            for row in out_ok.into_values() {
+                                results.ref_push(row);
+                            }
+                            for row in out_err {
+                                results.ref_push(row);
                             }
                         })
                     };
