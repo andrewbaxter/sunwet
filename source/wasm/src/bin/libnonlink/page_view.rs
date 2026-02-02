@@ -503,18 +503,22 @@ impl Build {
                             data: new_data_at_top,
                             node_meta: node_meta.clone(),
                         });
-                        let mut blocks = vec![];
-                        for config_at in &config_at.row_blocks {
-                            let block_contents =
-                                build.build_widget(pc, &config_at.widget, &config_query_params, &vec![i], &data_at);
-                            blocks.push(style_export::cont_view_block(style_export::ContViewBlockArgs {
-                                children: vec![block_contents],
-                                width: config_at.width.clone(),
-                            }).root);
-                        }
-                        children.push(
-                            style_export::cont_view_row(style_export::ContViewRowArgs { blocks: blocks }).root,
-                        );
+                        children.push(style_export::cont_view_element(style_export::ContViewElementArgs {
+                            body: build.build_widget(
+                                pc,
+                                &config_at.element_body,
+                                &config_query_params,
+                                &vec![i],
+                                &data_at,
+                            ),
+                            height: config_at.element_height.clone(),
+                            expand: match &config_at.element_expansion {
+                                None => None,
+                                Some(exp) => Some(
+                                    build.build_widget(pc, &exp, &config_query_params, &vec![i], &data_at),
+                                ),
+                            },
+                        }).root);
                     }
                     playlist_extend(pc, &state().playlist, vs.clone(), build.playlist_add, &restore_playlist_pos);
                     if !build.have_media.get() && build.want_media {
@@ -1306,7 +1310,10 @@ pub fn build_page_view(
             params: params.clone(),
         })));
         let transport_slot = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
-        let body = style_export::cont_view_root_rows(style_export::ContViewRootRowsArgs { rows: vec![] }).root;
+        let body = style_export::cont_view_root(style_export::ContViewRootArgs {
+            elements: vec![],
+            element_width: view.root.element_width.clone(),
+        }).root;
         let common = Rc::new(BuildViewBodyCommon {
             id: id.clone(),
             view_ministate_state: vs.clone(),
@@ -1372,7 +1379,7 @@ pub fn build_page_view(
         return Ok(style_export::cont_page_view(style_export::ContPageViewArgs {
             transport: Some(transport_slot),
             params: param_els,
-            rows: body,
+            elements: body,
         }).root);
     }).unwrap();
 }

@@ -1,4 +1,3 @@
-export * from "./sub/Block.ts";
 export * from "./sub/Chain.ts";
 export * from "./sub/ChainHead.ts";
 export * from "./sub/ChainRoot.ts";

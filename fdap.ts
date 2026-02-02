@@ -3,7 +3,13 @@ import * as sortquery from "./source/generated/ts/sub/SortQuery.ts";
 import * as child_process from "child_process";
 import * as process from "process";
 
-(async () => {
+export const sendFdap = async (userConfig: {
+  [_: string]: {
+    // "fdap-login": fdap_login.UserConfig;
+    "fdap-login": any;
+    sunwet: sunwet.UserConfig;
+  };
+}) => {
   const run_output = async (cmd: string, args: string[]): Promise<string> => {
     return new Promise((yes, no) => {
       var p = child_process.spawn(cmd, args);
@@ -80,532 +86,671 @@ import * as process from "process";
 
   // import * as fdap_login from "./fdap-login/source/generated/ts/index";
   const album_title_block_width = "6cm";
-  const album_tracks_height = "9cm";
+  const album_title_block_height = "9cm";
+  const album_tracks_height = "min(max-content, 100dvh)";
   const display_audio_albums: sunwet.WidgetRootDataRows = {
     data: { query: "root" },
-    row_blocks: [
-      {
-        width: album_title_block_width,
-        widget: {
-          layout: {
-            trans_align: "end",
-            direction: "down",
+    element_width: album_title_block_width,
+    element_height: album_title_block_height,
+    element_body: {
+      layout: {
+        trans_align: "end",
+        direction: "down",
+        elements: [
+          {
+            media: {
+              trans_align: "start",
+              width: "100%",
+              data: { field: "cover" },
+            },
+          },
+          {
+            text: {
+              trans_align: "start",
+              font_size: "18pt",
+              conv_size_mode: "ellipsize",
+              orientation: "right_down",
+              data: { field: "album_name" },
+              link: {
+                title: {
+                  field: "album_name",
+                },
+                dest: {
+                  view: {
+                    id: "audio_albums_eq_album",
+                    parameters: {
+                      album_id: {
+                        field: "album_id",
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          {
+            text: {
+              trans_align: "start",
+              font_size: "12pt",
+              conv_size_mode: "ellipsize",
+              orientation: "right_down",
+              data: { field: "album_artist_name" },
+              link: {
+                title: {
+                  field: "album_artist_name",
+                },
+                dest: {
+                  view: {
+                    id: "audio_albums_eq_artist_by_name",
+                    parameters: {
+                      artist_id: {
+                        field: "album_artist_id",
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+    },
+    element_expansion: {
+      data_rows: {
+        data: { query: "tracks" },
+        row_widget: {
+          table: {
+            orientation: "right_down",
+            conv_scroll: true,
+            gap: "0.2cm",
+            trans_size_max: album_tracks_height,
             elements: [
               {
-                media: {
-                  trans_align: "start",
-                  width: "100%",
-                  data: { field: "cover" },
+                play_button: {
+                  trans_align: "middle",
+                  orientation: "down_left",
+                  media_file_field: "file",
+                  name_field: "track_name",
+                  album_field: "album_name",
+                  artist_field: "artist_name",
+                  cover_field: "cover",
                 },
               },
               {
                 text: {
-                  trans_align: "start",
-                  font_size: "18pt",
-                  conv_size_mode: "ellipsize",
-                  orientation: "right_down",
-                  data: { field: "album_name" },
-                  link: {
-                    title: {
-                      field: "album_name",
-                    },
-                    dest: {
-                      view: {
-                        id: "audio_albums_eq_album",
-                        parameters: {
-                          album_id: {
-                            field: "album_id",
-                          },
-                        },
-                      },
-                    },
+                  trans_align: "middle",
+                  data: {
+                    field: "track_superindex",
                   },
-                },
-              },
-              {
-                text: {
-                  trans_align: "start",
+                  suffix: ". ",
                   font_size: "12pt",
-                  conv_size_mode: "ellipsize",
-                  orientation: "right_down",
-                  data: { field: "album_artist_name" },
+                  conv_size_mode: "wrap",
+                  orientation: "down_left",
+                },
+              },
+              {
+                text: {
+                  trans_align: "middle",
+                  data: {
+                    field: "track_index",
+                  },
+                  suffix: ". ",
+                  font_size: "12pt",
+                  conv_size_mode: "wrap",
+                  orientation: "down_left",
+                },
+              },
+              {
+                text: {
+                  trans_align: "middle",
+                  data: {
+                    field: "track_name",
+                  },
                   link: {
                     title: {
-                      field: "album_artist_name",
+                      field: "track_name",
                     },
                     dest: {
-                      view: {
-                        id: "audio_albums_eq_artist_by_name",
-                        parameters: {
-                          artist_id: {
-                            field: "album_artist_id",
-                          },
-                        },
+                      node: {
+                        field: "track_id",
                       },
                     },
                   },
+                  font_size: "12pt",
+                  conv_size_mode: "wrap",
+                  orientation: "down_left",
                 },
               },
             ],
           },
         },
       },
-      {
-        widget: {
-          data_rows: {
-            data: { query: "tracks" },
-            row_widget: {
-              table: {
-                orientation: "right_down",
-                conv_scroll: true,
-                gap: "0.2cm",
-                trans_size_max: album_tracks_height,
-                elements: [
-                  {
-                    play_button: {
-                      trans_align: "middle",
-                      orientation: "down_left",
-                      media_file_field: "file",
-                      name_field: "track_name",
-                      album_field: "album_name",
-                      artist_field: "artist_name",
-                      cover_field: "cover",
-                    },
-                  },
-                  {
-                    text: {
-                      trans_align: "middle",
-                      data: {
-                        field: "track_superindex",
-                      },
-                      suffix: ". ",
-                      font_size: "12pt",
-                      conv_size_mode: "wrap",
-                      orientation: "down_left",
-                    },
-                  },
-                  {
-                    text: {
-                      trans_align: "middle",
-                      data: {
-                        field: "track_index",
-                      },
-                      suffix: ". ",
-                      font_size: "12pt",
-                      conv_size_mode: "wrap",
-                      orientation: "down_left",
-                    },
-                  },
-                  {
-                    text: {
-                      trans_align: "middle",
-                      data: {
-                        field: "track_name",
-                      },
-                      link: {
-                        title: {
-                          field: "track_name",
-                        },
-                        dest: {
-                          node: {
-                            field: "track_id",
-                          },
-                        },
-                      },
-                      font_size: "12pt",
-                      conv_size_mode: "wrap",
-                      orientation: "down_left",
-                    },
-                  },
-                ],
-              },
-            },
-          },
-        },
-      },
-    ],
+    },
   };
 
   const display_audio_albums_few: sunwet.WidgetRootDataRows = {
     data: { query: "root" },
-    row_blocks: [
-      {
-        width: "6cm",
-        widget: {
-          media: {
-            trans_align: "start",
-            width: "100%",
-            data: { field: "cover" },
+    element_body: {
+      layout: {
+        trans_align: "start",
+        direction: "right",
+        elements: [
+          {
+            media: {
+              trans_align: "start",
+              width: "6cm",
+              data: { field: "cover" },
+            },
           },
-        },
-      },
-      {
-        widget: {
-          layout: {
-            trans_align: "start",
-            direction: "down",
-            elements: [
-              {
-                layout: {
-                  trans_align: "start",
-                  direction: "right",
-                  elements: [
-                    {
-                      text: {
-                        trans_align: "start",
-                        font_size: "18pt",
-                        conv_size_mode: "ellipsize",
-                        orientation: "right_down",
-                        data: { field: "album_name" },
-                        link: {
-                          title: {
-                            field: "album_name",
-                          },
-                          dest: {
-                            view: {
-                              id: "audio_albums_eq_album",
-                              parameters: {
-                                album_id: {
-                                  field: "album_id",
+          {
+            layout: {
+              trans_align: "start",
+              direction: "down",
+              elements: [
+                {
+                  layout: {
+                    trans_align: "start",
+                    direction: "right",
+                    elements: [
+                      {
+                        text: {
+                          trans_align: "start",
+                          font_size: "18pt",
+                          conv_size_mode: "ellipsize",
+                          orientation: "right_down",
+                          data: { field: "album_name" },
+                          link: {
+                            title: {
+                              field: "album_name",
+                            },
+                            dest: {
+                              view: {
+                                id: "audio_albums_eq_album",
+                                parameters: {
+                                  album_id: {
+                                    field: "album_id",
+                                  },
                                 },
                               },
                             },
                           },
                         },
                       },
-                    },
-                    widget_node_link("album_name", "album_id"),
-                  ],
+                      widget_node_link("album_name", "album_id"),
+                    ],
+                  },
                 },
-              },
-              {
-                text: {
-                  trans_align: "start",
-                  font_size: "12pt",
-                  conv_size_mode: "ellipsize",
-                  orientation: "right_down",
-                  data: { field: "album_artist_name" },
-                  link: {
-                    title: {
-                      field: "album_artist_name",
-                    },
-                    dest: {
-                      view: {
-                        id: "audio_albums_eq_artist_by_name",
-                        parameters: {
-                          artist_id: {
-                            field: "album_artist_id",
+                {
+                  text: {
+                    trans_align: "start",
+                    font_size: "12pt",
+                    conv_size_mode: "ellipsize",
+                    orientation: "right_down",
+                    data: { field: "album_artist_name" },
+                    link: {
+                      title: {
+                        field: "album_artist_name",
+                      },
+                      dest: {
+                        view: {
+                          id: "audio_albums_eq_artist_by_name",
+                          parameters: {
+                            artist_id: {
+                              field: "album_artist_id",
+                            },
                           },
                         },
                       },
                     },
                   },
                 },
-              },
-              {
-                data_rows: {
-                  data: { query: "tracks" },
-                  row_widget: {
-                    table: {
-                      orientation: "down_right",
-                      gap: "0.2cm",
-                      elements: [
-                        {
-                          play_button: {
-                            trans_align: "middle",
-                            orientation: "right_down",
-                            media_file_field: "file",
-                            name_field: "track_name",
-                            album_field: "album_name",
-                            artist_field: "artist_name",
-                            cover_field: "cover",
-                          },
-                        },
-                        {
-                          text: {
-                            trans_align: "middle",
-                            data: {
-                              field: "track_superindex",
+                {
+                  data_rows: {
+                    data: { query: "tracks" },
+                    row_widget: {
+                      table: {
+                        orientation: "down_right",
+                        gap: "0.2cm",
+                        elements: [
+                          {
+                            play_button: {
+                              trans_align: "middle",
+                              orientation: "right_down",
+                              media_file_field: "file",
+                              name_field: "track_name",
+                              album_field: "album_name",
+                              artist_field: "artist_name",
+                              cover_field: "cover",
                             },
-                            suffix: ". ",
-                            font_size: "12pt",
-                            conv_size_mode: "wrap",
-                            orientation: "right_down",
                           },
-                        },
-                        {
-                          text: {
-                            trans_align: "middle",
-                            data: {
-                              field: "track_index",
+                          {
+                            text: {
+                              trans_align: "middle",
+                              data: {
+                                field: "track_superindex",
+                              },
+                              suffix: ". ",
+                              font_size: "12pt",
+                              conv_size_mode: "wrap",
+                              orientation: "right_down",
                             },
-                            suffix: ". ",
-                            font_size: "12pt",
-                            conv_size_mode: "wrap",
-                            orientation: "right_down",
                           },
-                        },
-                        {
-                          text: {
-                            trans_align: "middle",
-                            data: {
-                              field: "track_name",
+                          {
+                            text: {
+                              trans_align: "middle",
+                              data: {
+                                field: "track_index",
+                              },
+                              suffix: ". ",
+                              font_size: "12pt",
+                              conv_size_mode: "wrap",
+                              orientation: "right_down",
                             },
-                            link: {
-                              title: {
+                          },
+                          {
+                            text: {
+                              trans_align: "middle",
+                              data: {
                                 field: "track_name",
                               },
-                              dest: {
-                                node: {
-                                  field: "track_id",
+                              link: {
+                                title: {
+                                  field: "track_name",
+                                },
+                                dest: {
+                                  node: {
+                                    field: "track_id",
+                                  },
                                 },
                               },
+                              font_size: "12pt",
+                              conv_size_mode: "wrap",
+                              conv_size_max: "8cm",
+                              orientation: "right_down",
                             },
-                            font_size: "12pt",
-                            conv_size_mode: "wrap",
-                            conv_size_max: "8cm",
-                            orientation: "right_down",
                           },
-                        },
-                      ],
+                        ],
+                      },
                     },
                   },
                 },
-              },
-            ],
+              ],
+            },
           },
-        },
+        ],
       },
-    ],
+    },
   };
 
   const display_audio_tracks: sunwet.WidgetRootDataRows = {
     data: { query: "root" },
-    row_blocks: [
-      {
-        widget: {
-          layout: {
-            direction: "down",
-            elements: [
-              {
-                layout: {
-                  direction: "right",
-                  elements: [
-                    {
-                      play_button: {
-                        media_file_field: "file",
-                        show_image: true,
-                        width: "min(15dvw, 1.6cm)",
-                        height: "min(15dvw, 1.6cm)",
-                        name_field: "track_name",
-                        album_field: "album_name",
-                        artist_field: "artist_name",
-                        cover_field: "cover",
-                        trans_align: "start",
-                      },
-                    },
-                    {
-                      layout: {
-                        direction: "down",
-                        gap: "0.2cm",
-                        trans_align: "middle",
-                        elements: [
-                          {
-                            text: {
-                              data: {
-                                field: "track_name",
-                              },
-                              orientation: "right_down",
-                              font_size: "14pt",
-                            },
-                          },
-                          {
-                            layout: {
-                              direction: "right",
-                              gap: "0",
-                              wrap: true,
-                              elements: [
-                                {
-                                  text: {
-                                    data: {
-                                      field: "artist_name",
-                                    },
-                                    suffix: " - ",
-                                    link: {
-                                      title: {
-                                        field: "artist_name",
-                                      },
-                                      dest: {
-                                        view: {
-                                          id: "audio_albums_eq_artist_by_name",
-                                          parameters: {
-                                            artist_id: {
-                                              field: "artist_id",
-                                            },
-                                          },
-                                        },
-                                      },
-                                    },
-                                    orientation: "right_down",
-                                  },
-                                },
-                                {
-                                  text: {
-                                    data: {
-                                      field: "album_name",
-                                    },
-                                    link: {
-                                      title: {
-                                        field: "album_name",
-                                      },
-                                      dest: {
-                                        view: {
-                                          id: "audio_albums_eq_album",
-                                          parameters: {
-                                            album_id: {
-                                              field: "album_id",
-                                            },
-                                          },
-                                        },
-                                      },
-                                    },
-                                    orientation: "right_down",
-                                  },
-                                },
-                              ],
-                            },
-                          },
-                          "space",
-                        ],
-                      },
-                    },
-                    "space",
-                  ],
+    element_body: {
+      layout: {
+        direction: "down",
+        elements: [
+          {
+            layout: {
+              direction: "right",
+              elements: [
+                {
+                  play_button: {
+                    media_file_field: "file",
+                    show_image: true,
+                    width: "min(15dvw, 1.6cm)",
+                    height: "min(15dvw, 1.6cm)",
+                    name_field: "track_name",
+                    album_field: "album_name",
+                    artist_field: "artist_name",
+                    cover_field: "cover",
+                    trans_align: "start",
+                  },
                 },
-              },
-              "space",
-            ],
+                {
+                  layout: {
+                    direction: "down",
+                    gap: "0.2cm",
+                    trans_align: "middle",
+                    elements: [
+                      {
+                        text: {
+                          data: {
+                            field: "track_name",
+                          },
+                          orientation: "right_down",
+                          font_size: "14pt",
+                        },
+                      },
+                      {
+                        layout: {
+                          direction: "right",
+                          gap: "0",
+                          wrap: true,
+                          elements: [
+                            {
+                              text: {
+                                data: {
+                                  field: "artist_name",
+                                },
+                                suffix: " - ",
+                                link: {
+                                  title: {
+                                    field: "artist_name",
+                                  },
+                                  dest: {
+                                    view: {
+                                      id: "audio_albums_eq_artist_by_name",
+                                      parameters: {
+                                        artist_id: {
+                                          field: "artist_id",
+                                        },
+                                      },
+                                    },
+                                  },
+                                },
+                                orientation: "right_down",
+                              },
+                            },
+                            {
+                              text: {
+                                data: {
+                                  field: "album_name",
+                                },
+                                link: {
+                                  title: {
+                                    field: "album_name",
+                                  },
+                                  dest: {
+                                    view: {
+                                      id: "audio_albums_eq_album",
+                                      parameters: {
+                                        album_id: {
+                                          field: "album_id",
+                                        },
+                                      },
+                                    },
+                                  },
+                                },
+                                orientation: "right_down",
+                              },
+                            },
+                          ],
+                        },
+                      },
+                      "space",
+                    ],
+                  },
+                },
+                "space",
+              ],
+            },
           },
-        },
+          "space",
+        ],
       },
-    ],
+    },
   };
   const display_video_albums: sunwet.WidgetRootDataRows = {
     data: { query: "root" },
-    row_blocks: [
-      {
-        width: "6cm",
-        widget: {
-          media: {
-            trans_align: "start",
-            width: "100%",
-            data: { field: "cover" },
+    element_body: {
+      layout: {
+        direction: "right",
+        trans_align: "start",
+        elements: [
+          {
+            media: {
+              trans_align: "start",
+              width: "6cm",
+              data: { field: "cover" },
+            },
           },
-        },
-      },
-      {
-        widget: {
-          layout: {
-            trans_align: "start",
-            direction: "down",
-            elements: [
-              {
-                layout: {
-                  trans_align: "start",
-                  direction: "right",
-                  elements: [
-                    {
-                      text: {
-                        trans_align: "start",
-                        font_size: "18pt",
-                        conv_size_mode: "ellipsize",
-                        orientation: "right_down",
-                        data: { field: "album_name" },
-                        link: {
-                          title: {
-                            field: "album_name",
-                          },
-                          dest: {
-                            view: {
-                              id: "video_albums_eq_album",
-                              parameters: {
-                                album_id: {
-                                  field: "album_id",
+          {
+            layout: {
+              trans_align: "start",
+              direction: "down",
+              elements: [
+                {
+                  layout: {
+                    trans_align: "start",
+                    direction: "right",
+                    elements: [
+                      {
+                        text: {
+                          trans_align: "start",
+                          font_size: "18pt",
+                          conv_size_mode: "ellipsize",
+                          orientation: "right_down",
+                          data: { field: "album_name" },
+                          link: {
+                            title: {
+                              field: "album_name",
+                            },
+                            dest: {
+                              view: {
+                                id: "video_albums_eq_album",
+                                parameters: {
+                                  album_id: {
+                                    field: "album_id",
+                                  },
                                 },
                               },
                             },
                           },
                         },
                       },
-                    },
-                    widget_node_link("album_name", "album_id"),
-                  ],
+                      widget_node_link("album_name", "album_id"),
+                    ],
+                  },
                 },
-              },
-              {
-                data_rows: {
-                  data: { query: "tracks" },
-                  row_widget: {
-                    table: {
-                      orientation: "right_down",
-                      conv_scroll: true,
-                      gap: "0.2cm",
-                      elements: [
-                        {
-                          play_button: {
-                            trans_align: "middle",
-                            orientation: "down_left",
-                            media_file_field: "file",
-                            name_field: "track_name",
-                            album_field: "album_name",
-                            artist_field: "artist_name",
-                            cover_field: "cover",
-                          },
-                        },
-                        {
-                          text: {
-                            trans_align: "middle",
-                            data: {
-                              field: "track_superindex",
+                {
+                  data_rows: {
+                    data: { query: "tracks" },
+                    row_widget: {
+                      table: {
+                        orientation: "right_down",
+                        conv_scroll: true,
+                        gap: "0.2cm",
+                        elements: [
+                          {
+                            play_button: {
+                              trans_align: "middle",
+                              orientation: "down_left",
+                              media_file_field: "file",
+                              name_field: "track_name",
+                              album_field: "album_name",
+                              artist_field: "artist_name",
+                              cover_field: "cover",
                             },
-                            suffix: ". ",
-                            font_size: "12pt",
-                            conv_size_mode: "wrap",
-                            orientation: "down_left",
                           },
-                        },
-                        {
-                          text: {
-                            trans_align: "middle",
-                            data: {
-                              field: "track_index",
+                          {
+                            text: {
+                              trans_align: "middle",
+                              data: {
+                                field: "track_superindex",
+                              },
+                              suffix: ". ",
+                              font_size: "12pt",
+                              conv_size_mode: "wrap",
+                              orientation: "down_left",
                             },
-                            suffix: ". ",
-                            font_size: "12pt",
-                            conv_size_mode: "wrap",
-                            orientation: "down_left",
                           },
-                        },
-                        {
-                          text: {
-                            trans_align: "middle",
-                            data: {
-                              field: "track_name",
+                          {
+                            text: {
+                              trans_align: "middle",
+                              data: {
+                                field: "track_index",
+                              },
+                              suffix: ". ",
+                              font_size: "12pt",
+                              conv_size_mode: "wrap",
+                              orientation: "down_left",
                             },
-                            link: {
-                              title: {
+                          },
+                          {
+                            text: {
+                              trans_align: "middle",
+                              data: {
                                 field: "track_name",
                               },
-                              dest: {
-                                node: {
-                                  field: "track_id",
+                              link: {
+                                title: {
+                                  field: "track_name",
+                                },
+                                dest: {
+                                  node: {
+                                    field: "track_id",
+                                  },
                                 },
                               },
+                              font_size: "12pt",
+                              conv_size_mode: "wrap",
+                              conv_size_max: "8cm",
+                              orientation: "down_left",
                             },
-                            font_size: "12pt",
-                            conv_size_mode: "wrap",
-                            conv_size_max: "8cm",
-                            orientation: "down_left",
+                          },
+                        ],
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  };
+  const display_comic_albums: sunwet.WidgetRootDataRows = {
+    data: { query: "root" },
+    element_body: {
+      layout: {
+        trans_align: "start",
+        direction: "down",
+        elements: [
+          {
+            layout: {
+              trans_align: "start",
+              direction: "right",
+              elements: [
+                {
+                  text: {
+                    trans_align: "start",
+                    font_size: "18pt",
+                    conv_size_mode: "ellipsize",
+                    orientation: "right_down",
+                    data: { field: "album_name" },
+                    link: {
+                      title: {
+                        field: "album_name",
+                      },
+                      dest: {
+                        view: {
+                          id: "comic_albums_eq_album",
+                          parameters: {
+                            album_id: {
+                              field: "album_id",
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+                widget_node_link("album_name", "album_id"),
+              ],
+            },
+          },
+          {
+            text: {
+              trans_align: "start",
+              font_size: "12pt",
+              conv_size_mode: "ellipsize",
+              orientation: "right_down",
+              data: { field: "album_artist_name" },
+              link: {
+                title: {
+                  field: "album_artist_name",
+                },
+                dest: {
+                  view: {
+                    id: "comic_albums_eq_artist_by_name",
+                    parameters: {
+                      lang: { field: "lang" },
+                      artist_id: {
+                        field: "album_artist_id",
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          {
+            data_rows: {
+              data: { query: "tracks" },
+              row_widget: {
+                unaligned: {
+                  conv_scroll: true,
+                  direction: "right",
+                  widget: {
+                    layout: {
+                      direction: "down",
+                      elements: [
+                        {
+                          media: {
+                            data: {
+                              field: "track_cover",
+                            },
+                            height: "5cm",
+                          },
+                        },
+                        {
+                          layout: {
+                            direction: "right",
+                            elements: [
+                              "space",
+                              {
+                                text: {
+                                  trans_align: "middle",
+                                  data: {
+                                    field: "track_superindex",
+                                  },
+                                  suffix: ". ",
+                                  orientation: "right_down",
+                                  font_size: "12pt",
+                                },
+                              },
+                              {
+                                text: {
+                                  trans_align: "middle",
+                                  data: {
+                                    field: "track_index",
+                                  },
+                                  orientation: "right_down",
+                                  font_size: "12pt",
+                                  link: {
+                                    title: {
+                                      field: "track_index",
+                                    },
+                                    dest: {
+                                      node: {
+                                        field: "track_id",
+                                      },
+                                    },
+                                  },
+                                },
+                              },
+                              {
+                                play_button: {
+                                  trans_align: "middle",
+                                  media_file_field: "track_file",
+                                  orientation: "right_down",
+                                  name_field: "track_name",
+                                  album_field: "album_name",
+                                  artist_field: "track_artist_name",
+                                  cover_field: "track_cover",
+                                },
+                              },
+                            ],
                           },
                         },
                       ],
@@ -613,551 +758,352 @@ import * as process from "process";
                   },
                 },
               },
-            ],
+            },
           },
-        },
+        ],
       },
-    ],
-  };
-  const display_comic_albums: sunwet.WidgetRootDataRows = {
-    data: { query: "root" },
-    row_blocks: [
-      {
-        widget: {
-          layout: {
-            trans_align: "start",
-            direction: "down",
-            elements: [
-              {
-                layout: {
-                  trans_align: "start",
-                  direction: "right",
-                  elements: [
-                    {
-                      text: {
-                        trans_align: "start",
-                        font_size: "18pt",
-                        conv_size_mode: "ellipsize",
-                        orientation: "right_down",
-                        data: { field: "album_name" },
-                        link: {
-                          title: {
-                            field: "album_name",
-                          },
-                          dest: {
-                            view: {
-                              id: "comic_albums_eq_album",
-                              parameters: {
-                                album_id: {
-                                  field: "album_id",
-                                },
-                              },
-                            },
-                          },
-                        },
-                      },
-                    },
-                    widget_node_link("album_name", "album_id"),
-                  ],
-                },
-              },
-              {
-                text: {
-                  trans_align: "start",
-                  font_size: "12pt",
-                  conv_size_mode: "ellipsize",
-                  orientation: "right_down",
-                  data: { field: "album_artist_name" },
-                  link: {
-                    title: {
-                      field: "album_artist_name",
-                    },
-                    dest: {
-                      view: {
-                        id: "comic_albums_eq_artist_by_name",
-                        parameters: {
-                          lang: { field: "lang" },
-                          artist_id: {
-                            field: "album_artist_id",
-                          },
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-              {
-                data_rows: {
-                  data: { query: "tracks" },
-                  row_widget: {
-                    unaligned: {
-                      conv_scroll: true,
-                      direction: "right",
-                      widget: {
-                        layout: {
-                          direction: "down",
-                          elements: [
-                            {
-                              media: {
-                                data: {
-                                  field: "track_cover",
-                                },
-                                height: "5cm",
-                              },
-                            },
-                            {
-                              layout: {
-                                direction: "right",
-                                elements: [
-                                  "space",
-                                  {
-                                    text: {
-                                      trans_align: "middle",
-                                      data: {
-                                        field: "track_superindex",
-                                      },
-                                      suffix: ". ",
-                                      orientation: "right_down",
-                                      font_size: "12pt",
-                                    },
-                                  },
-                                  {
-                                    text: {
-                                      trans_align: "middle",
-                                      data: {
-                                        field: "track_index",
-                                      },
-                                      orientation: "right_down",
-                                      font_size: "12pt",
-                                      link: {
-                                        title: {
-                                          field: "track_index",
-                                        },
-                                        dest: {
-                                          node: {
-                                            field: "track_id",
-                                          },
-                                        },
-                                      },
-                                    },
-                                  },
-                                  {
-                                    play_button: {
-                                      trans_align: "middle",
-                                      media_file_field: "track_file",
-                                      orientation: "right_down",
-                                      name_field: "track_name",
-                                      album_field: "album_name",
-                                      artist_field: "track_artist_name",
-                                      cover_field: "track_cover",
-                                    },
-                                  },
-                                ],
-                              },
-                            },
-                          ],
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            ],
-          },
-        },
-      },
-    ],
+    },
   };
   const display_book_albums: sunwet.WidgetRootDataRows = {
     data: { query: "root" },
-    row_blocks: [
-      {
-        widget: {
-          layout: {
-            trans_align: "start",
-            direction: "down",
-            elements: [
-              {
-                layout: {
-                  trans_align: "start",
-                  direction: "right",
-                  elements: [
-                    {
-                      text: {
-                        trans_align: "start",
-                        font_size: "18pt",
-                        conv_size_mode: "ellipsize",
-                        orientation: "right_down",
-                        data: { field: "album_name" },
-                        link: {
-                          title: {
-                            field: "album_name",
-                          },
-                          dest: {
-                            view: {
-                              id: "book_albums_eq_album",
-                              parameters: {
-                                album_id: {
-                                  field: "album_id",
-                                },
-                              },
+    element_body: {
+      layout: {
+        trans_align: "start",
+        direction: "down",
+        elements: [
+          {
+            layout: {
+              trans_align: "start",
+              direction: "right",
+              elements: [
+                {
+                  text: {
+                    trans_align: "start",
+                    font_size: "18pt",
+                    conv_size_mode: "ellipsize",
+                    orientation: "right_down",
+                    data: { field: "album_name" },
+                    link: {
+                      title: {
+                        field: "album_name",
+                      },
+                      dest: {
+                        view: {
+                          id: "book_albums_eq_album",
+                          parameters: {
+                            album_id: {
+                              field: "album_id",
                             },
                           },
                         },
                       },
                     },
-                    widget_node_link("album_name", "album_id"),
-                  ],
-                },
-              },
-              {
-                text: {
-                  trans_align: "start",
-                  font_size: "12pt",
-                  conv_size_mode: "ellipsize",
-                  orientation: "right_down",
-                  data: { field: "album_artist_name" },
-                  link: {
-                    title: {
-                      field: "album_artist_name",
-                    },
-                    dest: {
-                      view: {
-                        id: "book_albums_eq_artist_by_name",
-                        parameters: {
-                          artist_id: {
-                            field: "album_artist_id",
-                          },
-                        },
-                      },
-                    },
                   },
                 },
-              },
-              {
-                data_rows: {
-                  data: { query: "tracks" },
-                  row_widget: {
-                    unaligned: {
-                      conv_scroll: true,
-                      direction: "right",
-                      widget: {
-                        layout: {
-                          direction: "down",
-                          elements: [
-                            {
-                              media: {
-                                data: {
-                                  field: "track_cover",
-                                },
-                                height: "5cm",
-                              },
-                            },
-                            {
-                              layout: {
-                                direction: "right",
-                                elements: [
-                                  "space",
-                                  {
-                                    text: {
-                                      data: {
-                                        field: "track_superindex",
-                                      },
-                                      suffix: ". ",
-                                      orientation: "right_down",
-                                      font_size: "12pt",
-                                      trans_align: "middle",
-                                      link: {
-                                        title: {
-                                          field: "track_index",
-                                        },
-                                        dest: {
-                                          node: {
-                                            field: "track_id",
-                                          },
-                                        },
-                                      },
-                                    },
-                                  },
-                                  {
-                                    text: {
-                                      data: {
-                                        field: "track_index",
-                                      },
-                                      orientation: "right_down",
-                                      font_size: "12pt",
-                                      trans_align: "middle",
-                                      link: {
-                                        title: {
-                                          field: "track_index",
-                                        },
-                                        dest: {
-                                          node: {
-                                            field: "track_id",
-                                          },
-                                        },
-                                      },
-                                    },
-                                  },
-                                  {
-                                    play_button: {
-                                      media_file_field: "track_file",
-                                      trans_align: "middle",
-                                      orientation: "right_down",
-                                      name_field: "track_name",
-                                      album_field: "album_name",
-                                      artist_field: "track_artist_name",
-                                      cover_field: "track_cover",
-                                    },
-                                  },
-                                ],
-                              },
-                            },
-                          ],
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            ],
+                widget_node_link("album_name", "album_id"),
+              ],
+            },
           },
-        },
-      },
-    ],
-  };
-  const display_notes: sunwet.WidgetRootDataRows = {
-    data: { query: "root" },
-    row_blocks: [
-      {
-        widget: {
-          layout: {
-            direction: "down",
-            gap: "0.1cm",
-            elements: [
-              {
-                layout: {
-                  direction: "right",
-                  elements: [
-                    {
-                      text: {
-                        trans_align: "start",
-                        font_size: "12pt",
-                        color: "rgba(78, 94, 119, 0.8)",
-                        conv_size_mode: "wrap",
-                        prefix: "Topic: ",
-                        data: { field: "topic" },
-                        orientation: "right_down",
-                      },
-                    },
-                    "space",
-                    {
-                      datetime: {
-                        orientation: "right_down",
-                        data: {
-                          field: "add_timestamp",
-                        },
-                        font_size: "12pt",
-                        color: "rgba(0,0,0,0.3)",
-                      },
-                    },
-                    widget_node_link("note_id", "note_id"),
-                  ],
+          {
+            text: {
+              trans_align: "start",
+              font_size: "12pt",
+              conv_size_mode: "ellipsize",
+              orientation: "right_down",
+              data: { field: "album_artist_name" },
+              link: {
+                title: {
+                  field: "album_artist_name",
                 },
-              },
-              {
-                text: {
-                  trans_align: "start",
-                  font_size: "12pt",
-                  conv_size_mode: "wrap",
-                  data: { field: "text" },
-                  orientation: "right_down",
-                },
-              },
-              {
-                media: { data: { field: "file" } },
-              },
-            ],
-          },
-        },
-      },
-    ],
-  };
-  const display_playlists: sunwet.WidgetRootDataRows = {
-    data: { query: "root" },
-    row_blocks: [
-      {
-        width: album_title_block_width,
-        widget: {
-          layout: {
-            trans_align: "end",
-            direction: "down",
-            elements: [
-              {
-                media: {
-                  trans_align: "start",
-                  width: "100%",
-                  data: { field: "cover" },
-                },
-              },
-              {
-                text: {
-                  trans_align: "start",
-                  font_size: "18pt",
-                  conv_size_mode: "ellipsize",
-                  orientation: "right_down",
-                  data: { field: "playlist_name" },
-                  link: {
-                    title: {
-                      field: "playlist_name",
-                    },
-                    dest: {
-                      view: {
-                        id: "audio_playlists_eq_playlist",
-                        parameters: {
-                          playlist_id: {
-                            field: "playlist_id",
-                          },
-                        },
+                dest: {
+                  view: {
+                    id: "book_albums_eq_artist_by_name",
+                    parameters: {
+                      artist_id: {
+                        field: "album_artist_id",
                       },
                     },
                   },
                 },
-              },
-              {
-                text: {
-                  trans_align: "start",
-                  font_size: "12pt",
-                  conv_size_mode: "ellipsize",
-                  orientation: "right_down",
-                  data: { field: "playlist_artist_name" },
-                  link: {
-                    title: {
-                      field: "playlist_artist_name",
-                    },
-                    dest: {
-                      view: {
-                        id: "audio_playlists_eq_artist_by_name",
-                        parameters: {
-                          artist_id: {
-                            field: "playlist_artist_id",
-                          },
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            ],
-          },
-        },
-      },
-      {
-        widget: {
-          data_rows: {
-            data: { query: "tracks" },
-            row_widget: {
-              table: {
-                orientation: "right_down",
-                conv_scroll: true,
-                gap: "0.2cm",
-                trans_size_max: album_tracks_height,
-                elements: [
-                  {
-                    play_button: {
-                      trans_align: "middle",
-                      orientation: "down_left",
-                      media_file_field: "file",
-                      name_field: "track_name",
-                      album_field: "playlist_name",
-                      artist_field: "artist_name",
-                      cover_field: "cover",
-                    },
-                  },
-                  {
-                    text: {
-                      trans_align: "middle",
-                      data: {
-                        field: "track_superindex",
-                      },
-                      suffix: ". ",
-                      font_size: "12pt",
-                      conv_size_mode: "wrap",
-                      orientation: "down_left",
-                    },
-                  },
-                  {
-                    text: {
-                      trans_align: "middle",
-                      data: {
-                        field: "track_index",
-                      },
-                      suffix: ". ",
-                      font_size: "12pt",
-                      conv_size_mode: "wrap",
-                      orientation: "down_left",
-                    },
-                  },
-                  {
-                    text: {
-                      trans_align: "middle",
-                      data: {
-                        field: "track_name",
-                      },
-                      link: {
-                        title: {
-                          field: "track_name",
-                        },
-                        dest: {
-                          node: {
-                            field: "track_id",
-                          },
-                        },
-                      },
-                      font_size: "12pt",
-                      conv_size_mode: "wrap",
-                      orientation: "down_left",
-                    },
-                  },
-                ],
               },
             },
           },
-        },
+          {
+            data_rows: {
+              data: { query: "tracks" },
+              row_widget: {
+                unaligned: {
+                  conv_scroll: true,
+                  direction: "right",
+                  widget: {
+                    layout: {
+                      direction: "down",
+                      elements: [
+                        {
+                          media: {
+                            data: {
+                              field: "track_cover",
+                            },
+                            height: "5cm",
+                          },
+                        },
+                        {
+                          layout: {
+                            direction: "right",
+                            elements: [
+                              "space",
+                              {
+                                text: {
+                                  data: {
+                                    field: "track_superindex",
+                                  },
+                                  suffix: ". ",
+                                  orientation: "right_down",
+                                  font_size: "12pt",
+                                  trans_align: "middle",
+                                  link: {
+                                    title: {
+                                      field: "track_index",
+                                    },
+                                    dest: {
+                                      node: {
+                                        field: "track_id",
+                                      },
+                                    },
+                                  },
+                                },
+                              },
+                              {
+                                text: {
+                                  data: {
+                                    field: "track_index",
+                                  },
+                                  orientation: "right_down",
+                                  font_size: "12pt",
+                                  trans_align: "middle",
+                                  link: {
+                                    title: {
+                                      field: "track_index",
+                                    },
+                                    dest: {
+                                      node: {
+                                        field: "track_id",
+                                      },
+                                    },
+                                  },
+                                },
+                              },
+                              {
+                                play_button: {
+                                  media_file_field: "track_file",
+                                  trans_align: "middle",
+                                  orientation: "right_down",
+                                  name_field: "track_name",
+                                  album_field: "album_name",
+                                  artist_field: "track_artist_name",
+                                  cover_field: "track_cover",
+                                },
+                              },
+                            ],
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
       },
-    ],
-  };
-  const userConfig: {
-    [_: string]: {
-      // "fdap-login": fdap_login.UserConfig;
-      "fdap-login": any;
-      sunwet: sunwet.UserConfig;
-    };
-  } = {
-    andrew: {
-      "fdap-login": { password: process.env.ANDREW_PASSWORD },
-      sunwet: { iam_grants: "admin" },
     },
-    andrewmobile: {
-      "fdap-login": { password: process.env.ANDREWMOBILE_PASSWORD },
-      sunwet: {
-        iam_grants: {
-          limited: {
-            menu_items: [
-              "audio_group",
-              "comics_group",
-              "books_group",
-              "notes_group",
-              "playlists_group",
-              "logs",
-            ],
-            views: [
-              "audio_albums_eq_artist_by_name",
-              "audio_albums_eq_album",
-              "comic_albums_eq_artist_by_name",
-              "comic_albums_eq_album",
-              "book_albums_eq_artist_by_name",
-              "book_albums_eq_album",
+  };
+  const display_notes: sunwet.WidgetRootDataRows = {
+    data: { query: "root" },
+    element_body: {
+      layout: {
+        direction: "down",
+        gap: "0.1cm",
+        elements: [
+          {
+            layout: {
+              direction: "right",
+              elements: [
+                {
+                  text: {
+                    trans_align: "start",
+                    font_size: "12pt",
+                    color: "rgba(78, 94, 119, 0.8)",
+                    conv_size_mode: "wrap",
+                    prefix: "Topic: ",
+                    data: { field: "topic" },
+                    orientation: "right_down",
+                  },
+                },
+                "space",
+                {
+                  datetime: {
+                    orientation: "right_down",
+                    data: {
+                      field: "add_timestamp",
+                    },
+                    font_size: "12pt",
+                    color: "rgba(0,0,0,0.3)",
+                  },
+                },
+                widget_node_link("note_id", "note_id"),
+              ],
+            },
+          },
+          {
+            text: {
+              trans_align: "start",
+              font_size: "12pt",
+              conv_size_mode: "wrap",
+              data: { field: "text" },
+              orientation: "right_down",
+            },
+          },
+          {
+            media: { data: { field: "file" } },
+          },
+        ],
+      },
+    },
+  };
+  const display_playlists: sunwet.WidgetRootDataRows = {
+    data: { query: "root" },
+    element_width: album_title_block_width,
+    element_height: album_title_block_height,
+    element_body: {
+      layout: {
+        trans_align: "end",
+        direction: "down",
+        elements: [
+          {
+            media: {
+              trans_align: "start",
+              width: "100%",
+              data: { field: "cover" },
+            },
+          },
+          {
+            text: {
+              trans_align: "start",
+              font_size: "18pt",
+              conv_size_mode: "ellipsize",
+              orientation: "right_down",
+              data: { field: "playlist_name" },
+              link: {
+                title: {
+                  field: "playlist_name",
+                },
+                dest: {
+                  view: {
+                    id: "audio_playlists_eq_playlist",
+                    parameters: {
+                      playlist_id: {
+                        field: "playlist_id",
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          {
+            text: {
+              trans_align: "start",
+              font_size: "12pt",
+              conv_size_mode: "ellipsize",
+              orientation: "right_down",
+              data: { field: "playlist_artist_name" },
+              link: {
+                title: {
+                  field: "playlist_artist_name",
+                },
+                dest: {
+                  view: {
+                    id: "audio_playlists_eq_artist_by_name",
+                    parameters: {
+                      artist_id: {
+                        field: "playlist_artist_id",
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+    },
+    element_expansion: {
+      data_rows: {
+        data: { query: "tracks" },
+        row_widget: {
+          table: {
+            orientation: "right_down",
+            conv_scroll: true,
+            gap: "0.2cm",
+            trans_size_max: album_tracks_height,
+            elements: [
+              {
+                play_button: {
+                  trans_align: "middle",
+                  orientation: "down_left",
+                  media_file_field: "file",
+                  name_field: "track_name",
+                  album_field: "playlist_name",
+                  artist_field: "artist_name",
+                  cover_field: "cover",
+                },
+              },
+              {
+                text: {
+                  trans_align: "middle",
+                  data: {
+                    field: "track_superindex",
+                  },
+                  suffix: ". ",
+                  font_size: "12pt",
+                  conv_size_mode: "wrap",
+                  orientation: "down_left",
+                },
+              },
+              {
+                text: {
+                  trans_align: "middle",
+                  data: {
+                    field: "track_index",
+                  },
+                  suffix: ". ",
+                  font_size: "12pt",
+                  conv_size_mode: "wrap",
+                  orientation: "down_left",
+                },
+              },
+              {
+                text: {
+                  trans_align: "middle",
+                  data: {
+                    field: "track_name",
+                  },
+                  link: {
+                    title: {
+                      field: "track_name",
+                    },
+                    dest: {
+                      node: {
+                        field: "track_id",
+                      },
+                    },
+                  },
+                  font_size: "12pt",
+                  conv_size_mode: "wrap",
+                  orientation: "down_left",
+                },
+              },
             ],
           },
         },
@@ -1975,4 +1921,4 @@ import * as process from "process";
   if (res.status >= 300) {
     throw new Error(`Failed [${res.status}]:\n${await res.text()}`);
   }
-})();
+};

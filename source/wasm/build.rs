@@ -421,7 +421,7 @@ fn main() {
         // xx Components, styles: page, view
         Func {
             name: "contPageView",
-            args: vec![("transport", &optel_), ("params", &arrel_), ("rows", &el_)],
+            args: vec![("transport", &optel_), ("params", &arrel_), ("elements", &el_)],
             returns: vec![("root", &el_)],
         },
         Func {
@@ -439,18 +439,13 @@ fn main() {
             ],
         },
         Func {
-            name: "contViewRootRows",
-            args: vec![("rows", &arrel_)],
+            name: "contViewRoot",
+            args: vec![("elements", &arrel_), ("elementWidth", &optstring_)],
             returns: vec![("root", &el_)],
         },
         Func {
-            name: "contViewRow",
-            args: vec![("blocks", &arrel_)],
-            returns: vec![("root", &el_)],
-        },
-        Func {
-            name: "contViewBlock",
-            args: vec![("children", &arrel_), ("width", &optstring_)],
+            name: "contViewElement",
+            args: vec![("body", &el_), ("height", &optstring_), ("expand", &optel_)],
             returns: vec![("root", &el_)],
         },
         Func {

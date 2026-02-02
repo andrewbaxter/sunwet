@@ -404,23 +404,28 @@ pub struct WidgetDataRows {
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct Block {
-    /// Sets the default width of the block. If not specified, space will be divided
-    /// with other unsized blocks.
-    #[serde(default)]
-    #[ts(optional, as = "Option<_>")]
-    pub width: Option<String>,
-    /// The contents of the block.
-    pub widget: Widget,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct WidgetRootDataRows {
     /// Where to get the data for the sublist.
     pub data: QueryOrField,
-    /// How the data rows are displayed.
-    pub row_blocks: Vec<Block>,
+    /// How each element is displayed
+    pub element_body: Widget,
+    /// The width of the body of each element. If blank, defaults to 100%. Takes any
+    /// css size value, including `calc`.
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub element_width: Option<String>,
+    /// The height of the body of each element. If blank, uses the row's tallest
+    /// element height. Takes any css size value, including `calc`. This must be
+    /// specified if you provide an expansion (in order to prevent the expansion from
+    /// covering up any of the row elements).
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub element_height: Option<String>,
+    /// When the element body is clicked, this expansion is toggled on the next row.
+    /// It's always 100% width.
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub element_expansion: Option<Widget>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]

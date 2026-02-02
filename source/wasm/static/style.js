@@ -18,7 +18,7 @@
 
   const shash = /** @type { (str: String, seed?: number)=>number} */ (
     str,
-    seed = 0
+    seed = 0,
   ) => {
     // cyrb53
     let h1 = 0xdeadbeef ^ seed,
@@ -150,7 +150,7 @@
   const vs = /** @type {(id:String, light: string, dark: string) => string} */ (
     id,
     light,
-    dark
+    dark,
   ) => {
     const name = `--${id}`;
     globalStyleLight.setProperty(name, light);
@@ -300,7 +300,7 @@
   const varCLinkBackground = v(uniq("link_background"), "rgb(45, 45, 46)");
   const varCLinkForegroundDark = v(
     uniq("foreground_dark"),
-    "rgb(249, 248, 240)"
+    "rgb(249, 248, 240)",
   );
 
   const varCSpinner = v(uniq("spinner"), "rgb(155, 178, 229)");
@@ -308,104 +308,104 @@
   const varCAppTitle = vs(
     uniq("app_title"),
     "rgb(93,113,134)",
-    "rgb(164, 180, 200)"
+    "rgb(164, 180, 200)",
   );
   const varCModalVeil = vs(
     uniq("modal_veil"),
     "rgba(0,0,0,0.3)",
-    "rgb(0,0,0,0.3)"
+    "rgb(0,0,0,0.3)",
   );
   const varCBackground = vs(
     uniq("background"),
     "rgb(230, 232, 238)",
-    "rgb(70, 73, 77)"
+    "rgb(70, 73, 77)",
   );
   const varCBackground2 = vs(
     uniq("node_center"),
     "rgb(215, 217, 225)",
-    "rgb(82, 87, 94)"
+    "rgb(82, 87, 94)",
   );
   const varCNodeCenterLine = vs(
     uniq("node_center_line"),
     "rgb(204, 207, 217)",
-    "rgb(89, 95, 104)"
+    "rgb(89, 95, 104)",
   );
   const varCBackgroundMenu = vs(
     uniq("background_menu"),
     "rgb(205, 208, 217)",
-    "rgb(85, 87, 90)"
+    "rgb(85, 87, 90)",
   );
   const varCBackgroundMenuBar = vs(
     uniq("background_menu_bar"),
     "rgb(219, 223, 232)",
-    "rgb(99, 102, 104)"
+    "rgb(99, 102, 104)",
   );
   const varCButtonHover = vs(
     uniq("button_hover"),
     "rgba(255, 255, 255, 0.7)",
-    "rgb(56, 61, 64)"
+    "rgb(56, 61, 64)",
   );
   const varCButtonClick = vs(
     uniq("button_click"),
     "rgba(255, 255, 255, 1)",
-    "rgb(49, 50, 53)"
+    "rgb(49, 50, 53)",
   );
   const varCSeekbarEmpty = vs(
     uniq("seekbar_empty"),
     "rgb(212, 216, 223)",
-    "rgb(58, 57, 57)"
+    "rgb(58, 57, 57)",
   );
   const varCForeground = vs(
     "c-foreground",
     "rgb(0, 0, 0)",
-    "rgb(244, 255, 255)"
+    "rgb(244, 255, 255)",
   );
   const varCForegroundFade = vs(
     uniq("foreground_fade"),
     "rgba(75, 74, 74, 0.7)",
-    "rgba(181, 192, 192, 0.7)"
+    "rgba(181, 192, 192, 0.7)",
   );
   const varCForegroundError = vs(
     uniq("foreground_error"),
     "rgb(154, 60, 74)",
-    "rgb(243, 69, 95)"
+    "rgb(243, 69, 95)",
   );
   const varCModified = vs(
     uniq("border_modified"),
     "rgb(20, 194, 121)",
-    "rgb(5, 136, 81)"
+    "rgb(5, 136, 81)",
   );
   const varCSelected = vs(
     uniq("selected"),
     "rgb(66, 104, 219)",
-    "rgb(111, 144, 245)"
+    "rgb(111, 144, 245)",
   );
   const varCBorderError = vs(
     uniq("border_error"),
     "rgb(192, 61, 80)",
-    "rgb(168, 72, 72)"
+    "rgb(168, 72, 72)",
   );
   const varCInputUnderline = vs(
     uniq("input_underline"),
     "rgba(154, 157, 168, 0.5)",
-    "rgba(128, 131, 145, 0.5)"
+    "rgba(128, 131, 145, 0.5)",
   );
   const varCHighlightBold = vs(
     uniq("highlight"),
     "rgb(140, 172, 245)",
-    "rgb(78, 129, 183)"
+    "rgb(78, 129, 183)",
   );
   const varCRemove = vs("c-remove", "rgb(238, 146, 146)", "rgb(138, 81, 81)");
   const varCAdd = vs("c-add", "rgb(96, 179, 113)", "rgb(111, 185, 126)");
   const varCLogoWhite = vs(
     uniq("logo_white"),
     "rgb(254, 254, 254)",
-    "rgb(96, 96, 96)"
+    "rgb(96, 96, 96)",
   );
   const varCLogoBlue = vs(
     uniq("logo_blue"),
     "rgb(124,167,219)",
-    "rgb(105, 140, 185)"
+    "rgb(105, 140, 185)",
   );
 
   // xx State classes
@@ -491,7 +491,7 @@
 
   const leafImg =
     /** @type { (args: {src: String, alt?: String, lazy?: boolean, styles_?: string[]})=>HTMLImageElement} */ (
-      args
+      args,
     ) => {
       const out = e("img", { src: args.src }, { styles_: args.styles_ });
       if (args.alt != null) {
@@ -509,7 +509,7 @@
             out.src = args.src;
             repair();
           },
-          { once: true }
+          { once: true },
         );
       };
       repair();
@@ -529,7 +529,7 @@
   });
 
   presentation.contRootStack = /** @type {Presentation["contRootStack"]} */ (
-    args
+    args,
   ) => ({
     root: e(
       "div",
@@ -545,7 +545,7 @@
           }),
         ],
         children_: args.children,
-      }
+      },
     ),
   });
 
@@ -571,7 +571,7 @@
         {
           styles_: [contTitleStyle],
           children_: children,
-        }
+        },
       ),
     };
   };
@@ -592,7 +592,7 @@
             },
           }),
         ],
-      }
+      },
     ),
   });
 
@@ -618,7 +618,7 @@
   });
   const leafIcon =
     /** @type {(args: {text: string, extraStyles?: string[]})=>HTMLElement} */ (
-      args
+      args,
     ) =>
       et(
         `
@@ -633,7 +633,7 @@
       `,
         {
           styles_: args.extraStyles,
-        }
+        },
       );
 
   presentation.contBar = /** @type {Presentation["contBar"]} */ (args) => {
@@ -654,7 +654,7 @@
             }),
           ],
           children_: children,
-        }
+        },
       );
 
     return {
@@ -719,11 +719,11 @@
                   newHbox(args.midChildren),
                   newHbox(args.rightMidChildren),
                 ],
-              }
+              },
             ),
             newHbox(args.rightChildren),
           ],
-        }
+        },
       ),
     };
   };
@@ -745,7 +745,7 @@
   });
 
   presentation.leafSpinner = /** @type {Presentation["leafSpinner"]} */ (
-    args
+    args,
   ) => ({
     root: et(
       `
@@ -780,12 +780,12 @@
           }),
           ...args.extraStyles,
         ],
-      }
+      },
     ),
   });
 
   presentation.leafAsyncBlock = /** @type {Presentation["leafAsyncBlock"]} */ (
-    args
+    args,
   ) => {
     const inner = e(
       "div",
@@ -801,7 +801,7 @@
           }),
         ],
         children_: [presentation.leafSpinner({ extraStyles: [] }).root],
-      }
+      },
     );
     if (args.inRoot) {
       inner.style.gridColumn = "1/4";
@@ -813,7 +813,7 @@
   };
 
   presentation.leafErrBlock = /** @type {Presentation["leafErrBlock"]} */ (
-    args
+    args,
   ) => {
     const out = e(
       "div",
@@ -835,7 +835,7 @@
           }),
         ],
         children_: [e("span", { textContent: args.data }, {})],
-      }
+      },
     );
     if (args.inRoot) {
       out.style.gridColumn = "1/4";
@@ -911,7 +911,7 @@
     const children = [];
     if (args.icon != null) {
       children.push(
-        leafIcon({ text: args.icon, extraStyles: [leafIconStyle] })
+        leafIcon({ text: args.icon, extraStyles: [leafIconStyle] }),
       );
     }
     if (args.text != null) {
@@ -926,7 +926,7 @@
         {
           styles_: [leafButtonStyle, contHboxStyle, ...args.extraStyles],
           children_: [...children],
-        }
+        },
       ),
     };
   };
@@ -944,7 +944,7 @@
     const children = [];
     if (args.icon != null) {
       children.push(
-        leafIcon({ text: args.icon, extraStyles: [leafIconStyle] })
+        leafIcon({ text: args.icon, extraStyles: [leafIconStyle] }),
       );
     }
     if (args.text != null) {
@@ -964,7 +964,7 @@
           ...args.extraStyles,
         ],
         children_: children,
-      }
+      },
     );
     if (args.download != null && args.download) {
       out.download = "";
@@ -1050,7 +1050,7 @@
     });
   const leafButtonLinkSmall =
     /** @type {(args: { title: string, icon?: string, text?: string, url: string }) => { root: HTMLElement }} */ (
-      args
+      args,
     ) =>
       leafButtonLink({
         url: args.url,
@@ -1098,7 +1098,7 @@
     },
   });
   presentation.leafMediaImg = /** @type {Presentation["leafMediaImg"]} */ (
-    args
+    args,
   ) => ({
     root: leafImg({
       src: args.src,
@@ -1114,7 +1114,7 @@
     }),
   });
   presentation.leafMediaAudio = /** @type {Presentation["leafMediaAudio"]} */ (
-    args
+    args,
   ) => ({
     root: e(
       "audio",
@@ -1122,11 +1122,11 @@
         src: args.src,
         controls: true,
       },
-      { styles_: [leafMediaStyle] }
+      { styles_: [leafMediaStyle] },
     ),
   });
   presentation.leafMediaVideo = /** @type {Presentation["leafMediaVideo"]} */ (
-    args
+    args,
   ) => ({
     root: e(
       "video",
@@ -1141,7 +1141,7 @@
             },
           }),
         ],
-      }
+      },
     ),
   });
 
@@ -1186,11 +1186,11 @@
             }),
             ...(args.extraStyles || []),
           ],
-        }
+        },
       );
 
   presentation.contPageHome = /** @type {Presentation["contPageHome"]} */ (
-    args
+    args,
   ) => ({
     root: e(
       "div",
@@ -1222,14 +1222,14 @@
             ],
           }),
         ],
-      }
+      },
     ),
   });
 
   // /////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: logs
   presentation.leafLogsLine = /** @type {Presentation["leafLogsLine"]} */ (
-    args
+    args,
   ) => ({
     root: e(
       "div",
@@ -1268,15 +1268,15 @@
               textContent: new Date(args.stamp).toLocaleTimeString(),
               dateTime: args.stamp,
             },
-            {}
+            {},
           ),
           e("span", { textContent: args.text }, {}),
         ],
-      }
+      },
     ),
   });
   presentation.contPageLogs = /** @type {Presentation["contPageLogs"]} */ (
-    args
+    args,
   ) => ({
     root: e(
       "div",
@@ -1313,11 +1313,11 @@
                 }),
               ],
               children_: args.children,
-            }
+            },
           ),
           leafSpace({}).root,
         ],
-      }
+      },
     ),
   });
 
@@ -1339,7 +1339,7 @@
     },
   });
   presentation.leafInputPair = /** @type {Presentation["leafInputPair"]} */ (
-    args
+    args,
   ) => ({
     root: e(
       "div",
@@ -1353,11 +1353,11 @@
               textContent: args.label,
               htmlFor: args.inputId,
             },
-            {}
+            {},
           ),
           args.input,
         ],
-      }
+      },
     ),
   });
 
@@ -1388,7 +1388,7 @@
   });
 
   presentation.leafInputText = /** @type {Presentation["leafInputText"]} */ (
-    args
+    args,
   ) => {
     const out = e(
       "span",
@@ -1422,7 +1422,7 @@
             },
           }),
         ],
-      }
+      },
     );
     if (args.id != null) {
       out.id = args.id;
@@ -1448,13 +1448,13 @@
             },
             {
               styles_: [leafInputStyle, leafInputBorderStyle],
-            }
+            },
           )
         );
       return { root: out };
     };
   presentation.leafInputBool = /** @type {Presentation["leafInputBool"]} */ (
-    args
+    args,
   ) => {
     const out =
       /** @type {HTMLInputElement} */
@@ -1469,7 +1469,7 @@
           },
           {
             styles_: [leafInputStyle, leafInputBorderStyle],
-          }
+          },
         )
       );
     out.checked = args.value;
@@ -1479,7 +1479,7 @@
     return { root: out };
   };
   presentation.leafInputDate = /** @type {Presentation["leafInputDate"]} */ (
-    args
+    args,
   ) => {
     const out =
       /** @type {HTMLInputElement} */
@@ -1495,7 +1495,7 @@
           },
           {
             styles_: [leafInputStyle, leafInputBorderStyle],
-          }
+          },
         )
       );
     if (args.id != null) {
@@ -1504,7 +1504,7 @@
     return { root: out };
   };
   presentation.leafInputTime = /** @type {Presentation["leafInputTime"]} */ (
-    args
+    args,
   ) => {
     const out =
       /** @type {HTMLInputElement} */
@@ -1520,7 +1520,7 @@
           },
           {
             styles_: [leafInputStyle, leafInputBorderStyle],
-          }
+          },
         )
       );
     if (args.id != null) {
@@ -1554,7 +1554,7 @@
             },
             {
               styles_: [leafInputStyle, leafInputBorderStyle],
-            }
+            },
           )
         );
       if (args.id != null) {
@@ -1563,7 +1563,7 @@
       return { root: out };
     };
   presentation.leafInputColor = /** @type {Presentation["leafInputColor"]} */ (
-    args
+    args,
   ) => {
     const out =
       /** @type {HTMLInputElement} */
@@ -1579,7 +1579,7 @@
           },
           {
             styles_: [leafInputStyle, leafInputBorderStyle],
-          }
+          },
         )
       );
     if (args.id != null) {
@@ -1588,7 +1588,7 @@
     return { root: out };
   };
   presentation.leafInputEnum = /** @type {Presentation["leafInputEnum"]} */ (
-    args
+    args,
   ) => {
     const children = [];
     const entries = Object.entries(args.options);
@@ -1607,7 +1607,7 @@
       {
         styles_: [leafInputStyle, leafInputBorderStyle],
         children_: children,
-      }
+      },
     );
     if (args.id != null) {
       out.id = args.id;
@@ -1627,7 +1627,7 @@
         },
         {
           styles_: [leafInputStyle],
-        }
+        },
       );
       if (args.id != null) {
         input.id = args.id;
@@ -1640,14 +1640,14 @@
           {
             styles_: [contVboxStyle, leafInputBorderStyle],
             children_: [media, input],
-          }
+          },
         ),
         input: input,
         media: media,
       };
     };
   presentation.leafInputFile = /** @type {Presentation["leafInputFile"]} */ (
-    args
+    args,
   ) => {
     const media = e("div", {}, { styles_: [contGroupStyle] });
     const input = e(
@@ -1658,7 +1658,7 @@
       },
       {
         styles_: [leafInputStyle],
-      }
+      },
     );
     if (args.id != null) {
       input.id = args.id;
@@ -1697,7 +1697,7 @@
         {
           styles_: [contVboxStyle, leafInputBorderStyle],
           children_: [media, input],
-        }
+        },
       ),
       input: input,
     };
@@ -1866,7 +1866,7 @@
             },
           }),
         ],
-      }
+      },
     );
     const seekbarLabel = e(
       "span",
@@ -1883,7 +1883,7 @@
             },
           }),
         ],
-      }
+      },
     );
     const seekbar = e(
       "div",
@@ -1921,11 +1921,11 @@
                 }),
               ],
               children_: [seekbarFill],
-            }
+            },
           ),
           seekbarLabel,
         ],
-      }
+      },
     );
     return {
       seekbar: seekbar,
@@ -1973,7 +1973,7 @@
       });
       buttonCenter.root.addEventListener("click", (_) => {
         for (const b of document.getElementsByClassName(
-          classStateElementSelected
+          classStateElementSelected,
         )) {
           b.scrollIntoView({ block: "center", inline: "center" });
           break;
@@ -1999,7 +1999,7 @@
     };
 
   presentation.contPageView = /** @type {Presentation["contPageView"]} */ (
-    args
+    args,
   ) => {
     const children = [];
     if (args.transport != null) {
@@ -2024,25 +2024,11 @@
               }),
             ],
             children_: args.params,
-          }
-        )
+          },
+        ),
       );
     }
-    children.push(
-      e(
-        "div",
-        {},
-        {
-          styles_: [
-            contVboxStyle,
-            ss(uniq("view_list_body"), {
-              "": (s) => {},
-            }),
-          ],
-          children_: [args.rows],
-        }
-      )
-    );
+    children.push(args.elements);
     return {
       root: e(
         "div",
@@ -2050,89 +2036,158 @@
         {
           styles_: [classMenuWantStateOpen, contVboxStyle, contBodyStyle],
           children_: children,
-        }
+        },
       ),
     };
   };
 
-  presentation.contViewRootRows =
-    /** @type {Presentation["contViewRootRows"]} */ (args) => ({
-      root: e(
-        "div",
-        {},
-        {
-          styles_: [
-            contVboxStyle,
-            ss(uniq("cont_view_root_rows"), {
-              "": (s) => {
-                s.flexGrow = "1";
-              },
-            }),
-          ],
-          children_: args.rows,
-        }
-      ),
-    });
-
-  presentation.contViewRow = /** @type {Presentation["contViewRow"]} */ (
-    args
-  ) => ({
-    root: e(
-      "div",
-      {},
-      {
-        styles_: [
-          contHboxStyle,
-          ss(uniq("cont_view_row"), {
-            "": (s) => {
-              s.padding = `${varPViewVert} ${varPViewHoriz}`;
-              s.flexWrap = "wrap";
-              s.columnGap = varPViewCol;
-              s.rowGap = varPViewList;
-              s.justifyContent = "space-around";
-              s.maxWidth = "100%";
-            },
-            ":nth-child(odd)": (s) => {
-              s.backgroundColor = varCBackground2;
-              s.borderRadius = varRMedia;
-            },
-          }),
-        ],
-        children_: args.blocks,
-      }
-    ),
-  });
-
-  presentation.contViewBlock = /** @type {Presentation["contViewBlock"]} */ (
-    args
+  presentation.contViewRoot = /** @type {Presentation["contViewRoot"]} */ (
+    args,
   ) => {
-    const out = e(
+    const grid = e(
       "div",
       {},
       {
         styles_: [
-          ss(uniq("cont_view_block"), {
+          ss(uniq("cont_view_root_rows"), {
             "": (s) => {
-              s.maxWidth = "100%";
-              s.flexBasis = "0";
+              s.display = "grid";
               s.flexGrow = "1";
-              s.minWidth = `5cm`;
+              s.justifyItems = "center";
+              s.alignItems = "start";
+              // For details body in elements
+              s.position = "relative";
+              s.maxWidth = "100%";
             },
           }),
         ],
-        children_: args.children,
-      }
+        children_: args.elements,
+      },
     );
-    if (args.width != null) {
-      const w = `max(5cm, min(${args.width}, 100%))`;
-      out.style.width = w;
-      out.style.maxWidth = w;
-      out.style.minWidth = `min(5cm, ${args.width})`;
+    if (args.elementWidth != null) {
+      grid.style.gridTemplateColumns = `repeat(auto-fit, minmax(${args.elementWidth}, 1fr))`;
+    } else {
+      grid.style.gridTemplateColumns = "1fr";
+      grid.classList.add(
+        ss(uniq("cont_view_root_zebra"), {
+          "": (s) => {},
+          ">*:nth-child(odd)": (s) => {
+            s.backgroundColor = varCBackground2;
+          },
+        }),
+      );
     }
     return {
-      root: out,
+      root: grid,
     };
   };
+
+  let viewElementResizeObserver = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      notnull(entry.target.parentElement).style.height =
+        `${entry.borderBoxSize[0].blockSize}px`;
+    }
+  });
+  presentation.contViewElement =
+    /** @type {Presentation["contViewElement"]} */ (args) => {
+      const outerBodyStyle = ss(uniq("cont_view_element_outer"), {
+        "": (s) => {
+          s.minWidth = "0";
+          s.minHeight = "0";
+        },
+      });
+      const bodyStyles = [
+        contVboxStyle,
+        ss(uniq("cont_view_element_body"), {
+          "": (s) => {
+            s.overflow = "hidden";
+            s.justifyContent = "stretch";
+            s.alignItems = "stretch";
+            s.width = "100%";
+            s.padding = `${varPViewVert} ${varPViewHoriz}`;
+          },
+        }),
+      ];
+      let out;
+      let body;
+      if (args.expand == null) {
+        body = e(
+          "div",
+          {},
+          { styles_: [...bodyStyles, outerBodyStyle], children_: [args.body] },
+        );
+        out = body;
+      } else {
+        const expand = e(
+          "div",
+          {},
+          {
+            styles_: [
+              ss(uniq("cont_view_element_expand_wide"), {
+                "": (s) => {
+                  s.position = "absolute";
+                  s.left = "0";
+                  s.right = "0";
+                  s.overflowX = "hidden";
+                  s.backgroundColor = varCBackground2;
+                  s.padding = `${varPViewVert} ${varPViewHoriz}`;
+                },
+              }),
+            ],
+            children_: [args.expand],
+          },
+        );
+        viewElementResizeObserver.observe(expand, { box: "border-box" });
+        body = e(
+          "summary",
+          {},
+          {
+            styles_: [
+              ...bodyStyles,
+              ss(uniq("cont_view_element_summary"), {
+                "": (s) => {},
+                "::marker": (s) => {
+                  s.display = "none";
+                },
+              }),
+            ],
+            children_: [args.body],
+          },
+        );
+        out = e(
+          "details",
+          { name: "cont_view_element" },
+          {
+            styles_: [
+              outerBodyStyle,
+              contVboxStyle,
+              ss(uniq("cont_view_element"), {
+                "": (s) => {},
+                "[open]": (s) => {
+                  s.backgroundColor = varCBackground2;
+                },
+              }),
+            ],
+            children_: [
+              body,
+              e(
+                "div",
+                {},
+                {
+                  children_: [expand],
+                },
+              ),
+            ],
+          },
+        );
+      }
+      if (args.height != null) {
+        body.style.height = args.height;
+      }
+      return {
+        root: out,
+      };
+    };
 
   presentation.contMediaFullscreen =
     /** @type {Presentation["contMediaFullscreen"]} */ (args) => {
@@ -2151,7 +2206,7 @@
             }),
           ],
           children_: [leafIcon({ text: textIconClose })],
-        }
+        },
       );
       const buttonFullscreen = e(
         "button",
@@ -2168,7 +2223,7 @@
             }),
           ],
           children_: [leafIcon({ text: textIconFullscreen })],
-        }
+        },
       );
       const { seekbar, seekbarFill, seekbarLabel } = leafSeekbar();
       return {
@@ -2216,10 +2271,10 @@
                     leafSpace({}).root,
                     buttonFullscreen,
                   ],
-                }
+                },
               ),
             ],
-          }
+          },
         ),
         seekbar: seekbar,
         seekbarFill: seekbarFill,
@@ -2258,7 +2313,7 @@
             },
           }),
         ],
-      }
+      },
     );
     const minimal = args.minimal || false;
     return {
@@ -2342,19 +2397,19 @@
                                 },
                               }),
                             ],
-                          }
+                          },
                         ),
                         presentation.leafSpace({}).root,
                         buttonClose,
                       ],
-                    }
+                    },
                   ),
                   args.child,
                 ],
-              }
+              },
             ),
           ],
-        }
+        },
       ),
       buttonClose: buttonClose,
     };
@@ -2379,7 +2434,7 @@
       for (const [state, icon] of statePairs) {
         buildStyleId.push(state);
         buildStyleId.push(
-          JSON.stringify(icon).replaceAll(/[^a-zA-Z0-9]*/g, "_")
+          JSON.stringify(icon).replaceAll(/[^a-zA-Z0-9]*/g, "_"),
         );
         const childMark = (() => {
           if (state == "") {
@@ -2392,7 +2447,7 @@
           s.display = "initial";
         };
         children.push(
-          leafIcon({ text: icon, extraStyles: [childMark, baseIconStyle] })
+          leafIcon({ text: icon, extraStyles: [childMark, baseIconStyle] }),
         );
       }
 
@@ -2421,7 +2476,7 @@
             ...(args.extraStyles || []),
           ],
           children_: children,
-        }
+        },
       );
       out.setAttribute("data-state", "");
       return { root: out };
@@ -2492,14 +2547,14 @@
                           }),
                         ],
                         children_: [args.qr],
-                      }
+                      },
                     ),
                   ],
-                }
+                },
               ),
               buttonUnshare.root,
             ],
-          }
+          },
         ),
       });
       return {
@@ -2569,7 +2624,7 @@
     },
   });
   const contViewListStyleWrap = /** @type {(wrap:boolean)=>string} */ (
-    wrap
+    wrap,
   ) => {
     if (wrap) {
       return ss(uniq("cont_view_list_wrap"), {
@@ -2583,7 +2638,7 @@
   };
 
   presentation.contViewList = /** @type { Presentation["contViewList"] } */ (
-    args
+    args,
   ) => {
     const out = e(
       "div",
@@ -2623,11 +2678,11 @@
                     };
                 }
               }
-            )()
+            )(),
           ),
         ],
         children_: args.children,
-      }
+      },
     );
     if (args.convScroll) {
       switch (args.direction) {
@@ -2779,7 +2834,7 @@
             }),
           ],
           children_: children1,
-        }
+        },
       );
       switch (conv(args.orientation)) {
         case "up":
@@ -2864,7 +2919,7 @@
 
   const viewLeafTransStyle =
     /** @type { (args:{orientation: Orientation, transAlign: TransAlign})=>string } */ (
-      args
+      args,
     ) =>
       ss(uniq("view_leaf_trans_style", args.orientation, args.transAlign), {
         "": (s) => {
@@ -2945,32 +3000,60 @@
     },
   });
   presentation.leafViewImage = /** @type { Presentation["leafViewImage"] } */ (
-    args
+    args,
   ) => {
+    /** @type { (s: string)=>HTMLElement} */
+    const createImg = (s) => {
+      return e(
+        "div",
+        {},
+        {
+          styles_: [
+            ss(uniq("leaf_view_image_wrap"), {
+              "": (s) => {
+                s.display = "grid";
+                s.gridTemplateColumns = "1fr";
+                s.gridTemplateRows = "1fr";
+                s.padding = "0.3cm";
+                s.margin = "-0.3cm";
+              },
+            }),
+          ],
+          children_: [
+            leafImg({
+              src: args.src,
+              lazy: true,
+              styles_: [
+                s,
+                ss(uniq("leaf_view_image"), {
+                  "": (s) => {
+                    s.minWidth = "0";
+                    s.minHeight = "0";
+                    s.maxWidth = "100%";
+                    s.maxHeight = "100%";
+                    s.filter =
+                      "drop-shadow(0.1cm 0.1cm 0.1cm rgba(0, 0, 0, 0.1))";
+                  },
+                }),
+              ],
+              alt: args.text,
+            }),
+          ],
+        },
+      );
+    };
     const out = (() => {
       if (args.link != null) {
-        const img = leafImg({
-          src: args.src,
-          lazy: true,
-          styles_: [viewMediaLinkMediaStyle],
-          alt: args.text,
-        });
         return e(
           "a",
           { href: args.link },
           {
             styles_: [viewMediaLinkStyle],
-            children_: [img],
-          }
+            children_: [createImg(viewMediaLinkMediaStyle)],
+          },
         );
       } else {
-        const img = leafImg({
-          src: args.src,
-          lazy: true,
-          styles_: [viewMediaNonlinkMediaStyle],
-          alt: args.text,
-        });
-        return img;
+        return createImg(viewMediaNonlinkMediaStyle);
       }
     })();
     // todo add viewLeafTransStyle, need to add orientation
@@ -2983,14 +3066,14 @@
     return { root: out };
   };
   presentation.leafViewVideo = /** @type { Presentation["leafViewVideo"] } */ (
-    args
+    args,
   ) => {
     const out = (() => {
       if (args.link != null) {
         const media = e(
           "video",
           { src: args.src, autoplay: true, muted: true, loop: true },
-          { styles_: [viewMediaLinkMediaStyle] }
+          { styles_: [viewMediaLinkMediaStyle] },
         );
         const out = e(
           "a",
@@ -2998,7 +3081,7 @@
           {
             styles_: [viewMediaLinkStyle],
             children_: [media],
-          }
+          },
         );
         if (args.text != null) {
           out.title = args.text;
@@ -3019,7 +3102,7 @@
                 },
               }),
             ],
-          }
+          },
         );
         if (args.src != null) {
           media.src = args.src;
@@ -3040,7 +3123,7 @@
     return { root: out };
   };
   presentation.leafViewAudio = /** @type { Presentation["leafViewAudio"] } */ (
-    args
+    args,
   ) => {
     const directionStyle = ss(
       uniq("leaf_view_audio_dir", args.direction),
@@ -3063,14 +3146,14 @@
           case "right":
             return { "": (s) => {} };
         }
-      })()
+      })(),
     );
     const out = (() => {
       if (args.link != null) {
         const media = e(
           "audio",
           { src: args.src, autoplay: true, muted: true, loop: true },
-          { styles_: [viewMediaLinkMediaStyle, directionStyle] }
+          { styles_: [viewMediaLinkMediaStyle, directionStyle] },
         );
         const out = e(
           "a",
@@ -3078,7 +3161,7 @@
           {
             styles_: [viewMediaLinkStyle],
             children_: [media],
-          }
+          },
         );
         if (args.text != null) {
           out.title = args.text;
@@ -3088,7 +3171,7 @@
         const media = e(
           "audio",
           { src: args.src, controls: true },
-          { styles_: [viewMediaNonlinkMediaStyle, directionStyle] }
+          { styles_: [viewMediaNonlinkMediaStyle, directionStyle] },
         );
         if (args.src != null) {
           media.src = args.src;
@@ -3106,7 +3189,7 @@
     return { root: out };
   };
   presentation.leafViewIcon = /** @type { Presentation["leafViewIcon"] } */ (
-    args
+    args,
   ) => {
     const alignStyle = viewLeafTransStyle({
       orientation: args.orientation,
@@ -3124,7 +3207,7 @@
           {
             styles_: [viewMediaLinkStyle, alignStyle],
             children_: [x],
-          }
+          },
         );
       } else {
         const x = leafIcon({
@@ -3146,7 +3229,7 @@
     return { root: out };
   };
   presentation.leafViewColor = /** @type { Presentation["leafViewColor"] } */ (
-    args
+    args,
   ) => {
     const out = e("div", {}, {});
     out.style.backgroundColor = args.color;
@@ -3165,7 +3248,7 @@
     },
   });
   const viewTextOrientationStyle = /** @type {(dir:Orientation)=>string} */ (
-    orient
+    orient,
   ) =>
     ss(uniq("leaf_view_text_dir", orient), {
       "": /** @type { () => ((s: CSSStyleDeclaration) => void) } */ (
@@ -3193,7 +3276,7 @@
       )(),
     });
   presentation.leafViewText = /** @type { Presentation["leafViewText"] } */ (
-    args
+    args,
   ) => {
     const alignStyle = viewLeafTransStyle({
       orientation: args.orientation,
@@ -3212,7 +3295,7 @@
               viewTextOrientationStyle(args.orientation),
               alignStyle,
             ],
-          }
+          },
         );
       } else {
         return e(
@@ -3227,7 +3310,7 @@
               viewTextOrientationStyle(args.orientation),
               alignStyle,
             ],
-          }
+          },
         );
       }
     })();
@@ -3286,7 +3369,7 @@
               viewTextOrientationStyle(args.orientation),
               alignStyle,
             ],
-          }
+          },
         );
       })();
       if (args.fontSize != null) {
@@ -3298,7 +3381,7 @@
       return { root: out };
     };
   presentation.leafViewDate = /** @type { Presentation["leafViewDate"] } */ (
-    args
+    args,
   ) => {
     const alignStyle = viewLeafTransStyle({
       orientation: args.orientation,
@@ -3321,7 +3404,7 @@
             viewTextOrientationStyle(args.orientation),
             alignStyle,
           ],
-        }
+        },
       );
     })();
     if (args.fontSize != null) {
@@ -3333,7 +3416,7 @@
     return { root: out };
   };
   presentation.leafViewTime = /** @type { Presentation["leafViewTime"] } */ (
-    args
+    args,
   ) => {
     const alignStyle = viewLeafTransStyle({
       orientation: args.orientation,
@@ -3359,7 +3442,7 @@
             viewTextOrientationStyle(args.orientation),
             alignStyle,
           ],
-        }
+        },
       );
     })();
     if (args.fontSize != null) {
@@ -3416,7 +3499,7 @@
                 };
             }
           }
-        )()
+        )(),
       );
       const buttonStyles = [
         leafButtonStyle,
@@ -3459,7 +3542,7 @@
               extraStyles: [iconStyle, iconStyleConv],
             }),
           ],
-        }
+        },
       );
       out.setAttribute("data-state", "");
       return {
@@ -3493,7 +3576,7 @@
               text: textIconNode,
             }),
           ],
-        }
+        },
       );
       return {
         root: out,
@@ -3530,7 +3613,7 @@
             }),
           ],
           children_: args.children,
-        }
+        },
       ),
     });
   presentation.contMediaComicInner =
@@ -3554,7 +3637,7 @@
               },
             }),
           ],
-        }
+        },
       );
       strut.style.aspectRatio = `${args.minAspectX}/${args.minAspectY}`;
 
@@ -3583,7 +3666,7 @@
             }),
           ],
           children_: args.children,
-        }
+        },
       );
 
       return {
@@ -3615,7 +3698,7 @@
               }),
             ],
             children_: [strut, contScroll],
-          }
+          },
         ),
       };
     };
@@ -3632,7 +3715,7 @@
               },
             }),
           ],
-        }
+        },
       ),
     });
   presentation.leafMediaComicMidPad =
@@ -3648,7 +3731,7 @@
               },
             }),
           ],
-        }
+        },
       ),
     });
   presentation.leafMediaComicPage =
@@ -3672,7 +3755,7 @@
   // xx Components, styles: page, form
 
   presentation.contPageForm = /** @type {Presentation["contPageForm"]} */ (
-    args
+    args,
   ) => ({
     root: presentation.contGroup({
       children: [
@@ -3716,11 +3799,11 @@
                     }),
                   ],
                   children_: args.entries,
-                }
+                },
               ),
               presentation.leafSpace({}).root,
             ],
-          }
+          },
         ),
       ],
     }).root,
@@ -3739,7 +3822,7 @@
               },
             }),
           ],
-        }
+        },
       ),
     });
 
@@ -3816,7 +3899,7 @@
             }),
           ],
           children_: args.children,
-        }
+        },
       ),
     });
   presentation.contNodeRowIncoming =
@@ -3842,7 +3925,7 @@
                 {
                   styles_: contentStyles,
                   children_: args.children,
-                }
+                },
               ),
               leafIcon({
                 text: textIconRelIn,
@@ -3853,7 +3936,7 @@
                 ],
               }),
             ],
-          }
+          },
         ),
       };
     };
@@ -3889,10 +3972,10 @@
                 {
                   styles_: vboxStyles,
                   children_: args.children,
-                }
+                },
               ),
             ],
-          }
+          },
         ),
       };
     };
@@ -3929,13 +4012,13 @@
             }),
           ],
           children_: args.children,
-        }
+        },
       ),
     });
   // /////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: page, view/history node
   const contNarrowBody = /** @type{(children: Element[])=>HTMLElement} */ (
-    children
+    children,
   ) =>
     e(
       "div",
@@ -3953,7 +4036,7 @@
           }),
         ],
         children_: children,
-      }
+      },
     );
   presentation.contPageNodeView =
     /** @type {Presentation["contPageNodeView"]} */ (args) => {
@@ -3977,7 +4060,7 @@
               },
             }),
           ],
-        }
+        },
       ),
     });
   presentation.leafNodeViewNodeText =
@@ -3997,7 +4080,7 @@
                 },
               }),
             ],
-          }
+          },
         ),
       };
     };
@@ -4016,7 +4099,7 @@
           {
             styles_: [contHboxStyle, contNodeToolboxStyle],
             children_: children,
-          }
+          },
         ),
       };
     };
@@ -4049,7 +4132,7 @@
   });
   const leafButtonFree =
     /** @type { (args: { icon: string, hint: string, extraStyles?: string[] }) => { root: HTMLElement } } */ (
-      args
+      args,
     ) =>
       leafButton({
         title: args.hint,
@@ -4061,7 +4144,7 @@
       });
   const leafButtonFreeLink =
     /** @type { (args: { icon: string, hint: string, url: string, download?: boolean }) => { root: HTMLElement } } */ (
-      args
+      args,
     ) =>
       leafButtonLink({
         title: args.hint,
@@ -4096,7 +4179,7 @@
   });
   const leafNodeButtons =
     /** @type { (args: {children: Element[]})=>{root: HTMLElement}} */ (
-      args
+      args,
     ) => {
       return {
         root: e(
@@ -4105,7 +4188,7 @@
           {
             styles_: [contHboxStyle, contNodeToolboxStyle],
             children_: args.children,
-          }
+          },
         ),
       };
     };
@@ -4115,7 +4198,7 @@
 
   presentation.leafNodeViewToolbarDownloadLinkButton =
     /** @type {Presentation["leafNodeViewToolbarDownloadLinkButton"]} */ (
-      args
+      args,
     ) => {
       return leafButtonFreeLink({
         icon: textIconDownload,
@@ -4126,7 +4209,7 @@
     };
   presentation.leafNodeViewToolbarHistoryLinkButton =
     /** @type {Presentation["leafNodeViewToolbarHistoryLinkButton"]} */ (
-      args
+      args,
     ) => {
       return leafButtonFreeLink({
         icon: textIconHistory,
@@ -4146,7 +4229,7 @@
     };
   presentation.leafNodeViewToolbarEditListLinkButton =
     /** @type {Presentation["leafNodeViewToolbarEditListLinkButton"]} */ (
-      args
+      args,
     ) => {
       return leafButtonFreeLink({
         icon: textIconEditList,
@@ -4264,7 +4347,7 @@
               }),
             ],
             children_: [args.inputType, args.inputValue],
-          }
+          },
         ),
       };
     };
@@ -4289,7 +4372,7 @@
               },
             }),
           ],
-        }
+        },
       ),
     });
 
@@ -4313,7 +4396,7 @@
                 },
               }),
             ],
-          }
+          },
         ),
       };
     };
@@ -4358,7 +4441,7 @@
         {
           styles_: [contBodyNarrowStyle, contVboxStyle],
           children_: args.children,
-        }
+        },
       );
       return {
         root: presentation.contGroup({
@@ -4376,7 +4459,7 @@
               {
                 styles_: [classMenuWantStateOpen, contVboxStyle, contBodyStyle],
                 children_: [body],
-              }
+              },
             ),
           ],
         }).root,
@@ -4424,11 +4507,11 @@
                     },
                   }),
                 ],
-              }
+              },
             ),
             e("p", { textContent: args.desc }, {}),
           ],
-        }
+        },
       ),
     });
   presentation.contHistorySubject =
@@ -4459,7 +4542,7 @@
                   }),
                 ],
                 children_: args.center,
-              }
+              },
             ),
             e(
               "div",
@@ -4473,15 +4556,15 @@
                     },
                   }),
                 ],
-              }
+              },
             ),
           ],
-        }
+        },
       ),
     });
   const contHistoryPredicateObject =
     /** @type {(args: {icon: Element, button?: Element, children: Element[]})=>{root: HTMLElement}} */ (
-      args
+      args,
     ) => {
       const children = /** @type {Element[]} */ ([
         args.icon,
@@ -4500,7 +4583,7 @@
               }),
             ],
             children_: args.children,
-          }
+          },
         ),
       ]);
       if (args.button != null) {
@@ -4520,7 +4603,7 @@
               }),
             ],
             children_: children,
-          }
+          },
         ),
       };
     };
@@ -4552,7 +4635,7 @@
             text: textIconRevert,
           }),
         ],
-      }
+      },
     );
   presentation.contHistoryPredicateObjectRemove =
     /** @type {Presentation["contHistoryPredicateObjectRemove"]} */ (args) => {
@@ -4614,7 +4697,7 @@
   const createPageQuerySplit =
     /** @type { (left: Element, right: Element) => HTMLElement } */ (
       left,
-      right
+      right,
     ) => {
       return e(
         "div",
@@ -4638,16 +4721,16 @@
             }),
           ],
           children_: [left, right],
-        }
+        },
       );
     };
 
   presentation.contPageQuery = /** @type {Presentation["contPageQuery"]} */ (
-    args
+    args,
   ) => {
     const createTabs =
       /** @type {(tabMap: [string, HTMLElement[]][])=>HTMLElement} */ (
-        tabMap
+        tabMap,
       ) => {
         const tabButtons = /** @type {HTMLElement[]} */ ([]);
         const tabButtonsLookup = /** @type {Map<string, HTMLElement>} */ (
@@ -4672,8 +4755,8 @@
                       },
                     }),
                   ],
-                }
-              )
+                },
+              ),
             );
           }
           const buttonKey = "tab-on";
@@ -4736,7 +4819,7 @@
               }),
             ],
             children_: tabButtons,
-          }
+          },
         );
       };
 
@@ -4763,7 +4846,7 @@
             },
           }),
         ],
-      }
+      },
     );
     const prettyResults = e(
       "div",
@@ -4792,7 +4875,7 @@
             },
           }),
         ],
-      }
+      },
     );
     {
       const queryMain = createPageQuerySplit(
@@ -4838,15 +4921,15 @@
                             },
                           }),
                         ],
-                      }
+                      },
                     ),
                   ],
-                }
+                },
               ),
             ],
-          }
+          },
         ),
-        prettyResults
+        prettyResults,
       );
       mainContents.push(queryMain);
       mainTabs.push(["Query", [queryMain]]);
@@ -4895,7 +4978,7 @@
                   }),
                 ],
                 children_: [createTabs(mainTabs)],
-              }
+              },
             ),
             e(
               "div",
@@ -4910,10 +4993,10 @@
                   }),
                 ],
                 children_: mainContents,
-              }
+              },
             ),
           ],
-        }
+        },
       ),
       query: query,
       prettyResults: prettyResults,
@@ -4952,7 +5035,7 @@
               },
             }),
           ],
-        }
+        },
       );
       const downloadButton = leafButtonFree({
         hint: "Download",
@@ -4982,9 +5065,9 @@
                 }),
               ],
               children_: [downloadButton, copyButton],
-            }
+            },
           ),
-          jsonResults
+          jsonResults,
         ),
         jsonResults: jsonResults,
         downloadButton: downloadButton,
@@ -5008,7 +5091,7 @@
                 },
               }),
             ],
-          }
+          },
         ),
       };
     };
@@ -5034,7 +5117,7 @@
               },
             }),
           ],
-        }
+        },
       );
       return {
         root: createPageQuerySplit(
@@ -5047,6 +5130,7 @@
                 ss(uniq("cont_page_query_download_inputs"), {
                   "": (s) => {
                     s.gap = varP05;
+                    s.alignItems = "start";
                   },
                   ">*": (s) => {
                     s.minWidth = "1cm";
@@ -5054,9 +5138,9 @@
                 }),
               ],
               children_: [downloadField, downloadPattern],
-            }
+            },
           ),
-          downloadResults
+          downloadResults,
         ),
         downloadField: downloadField,
         downloadPattern: downloadPattern,
@@ -5089,7 +5173,7 @@
             }),
           ],
           children_: args.children,
-        }
+        },
       );
       return {
         root: edit,
@@ -5121,7 +5205,7 @@
             }),
           ],
           children_: args.children,
-        }
+        },
       ),
     });
   presentation.leafQueryPrettyV =
@@ -5143,7 +5227,7 @@
                 },
               }),
             ],
-          }
+          },
         ),
       ];
       if (args.link != null) {
@@ -5153,7 +5237,7 @@
             hint: "View",
             url: args.link,
             download: false,
-          }).root
+          }).root,
         );
       }
       return {
@@ -5169,7 +5253,7 @@
               }),
             ],
             children_: children,
-          }
+          },
         ),
       };
     };
@@ -5206,7 +5290,7 @@
                     download: false,
                   }).root,
                 ],
-              }
+              },
             ),
             e(
               "div",
@@ -5224,10 +5308,10 @@
                   }),
                 ],
                 children_: [args.value],
-              }
+              },
             ),
           ],
-        }
+        },
       ),
     });
   const queryPrettyInlineKStyle = ss(uniq("query_pretty_inline_k"), {
@@ -5244,7 +5328,7 @@
         e(
           "div",
           { textContent: args.key },
-          { styles_: [queryPrettyInlineKStyle] }
+          { styles_: [queryPrettyInlineKStyle] },
         ),
         e(
           "div",
@@ -5258,7 +5342,7 @@
                 },
               }),
             ],
-          }
+          },
         ),
       ];
       if (args.link != null) {
@@ -5268,7 +5352,7 @@
             hint: "View",
             url: args.link,
             download: false,
-          }).root
+          }).root,
         );
       }
       return {
@@ -5284,7 +5368,7 @@
               }),
             ],
             children_: children,
-          }
+          },
         ),
       };
     };
@@ -5305,7 +5389,7 @@
             e(
               "div",
               { textContent: args.key },
-              { styles_: [queryPrettyInlineKStyle] }
+              { styles_: [queryPrettyInlineKStyle] },
             ),
             e(
               "div",
@@ -5326,7 +5410,7 @@
                     download: false,
                   }).root,
                 ],
-              }
+              },
             ),
             e(
               "div",
@@ -5344,10 +5428,10 @@
                   }),
                 ],
                 children_: [args.value],
-              }
+              },
             ),
           ],
-        }
+        },
       ),
     });
   presentation.leafQueryDownloadRow =
@@ -5373,7 +5457,7 @@
               },
             }),
           ],
-        }
+        },
       );
       out.appendChild(
         leafIcon({
@@ -5387,7 +5471,7 @@
               },
             }),
           ],
-        })
+        }),
       );
       return {
         root: out,
@@ -5430,7 +5514,7 @@
             numberedToggle,
             e("span", { textContent: "Numbered" }, {}),
           ],
-        }
+        },
       );
       return {
         root: presentation.contGroup({
@@ -5457,7 +5541,7 @@
                     }),
                   ],
                   children_: [numberedOuter, backToViewButton],
-                }
+                },
               ),
               e(
                 "div",
@@ -5472,7 +5556,7 @@
                     }),
                   ],
                   children_: args.children,
-                }
+                },
               ),
             ]),
           ],
@@ -5505,7 +5589,7 @@
               },
             }),
           ],
-        }
+        },
       );
       const deleteButton = leafButtonFree({
         icon: textIconDelete,
@@ -5527,7 +5611,7 @@
               },
             }),
           ],
-        }
+        },
       );
       return {
         root: e(
@@ -5588,7 +5672,7 @@
                                   },
                                 }),
                               ],
-                            }
+                            },
                           ),
                           deleteButton,
                           leafButtonFreeLink({
@@ -5598,7 +5682,7 @@
                             download: false,
                           }).root,
                         ],
-                      }
+                      },
                     ),
                     e(
                       "span",
@@ -5611,13 +5695,13 @@
                             },
                           }),
                         ],
-                      }
+                      },
                     ),
                   ],
-                }
+                },
               ),
             ],
-          }
+          },
         ),
         number: number,
         deleteButton: deleteButton,
@@ -5625,7 +5709,7 @@
       };
     };
   presentation.contModalNode = /** @type {Presentation["contModalNode"]} */ (
-    args
+    args,
   ) => {
     const errors = e(
       "div",
@@ -5640,7 +5724,7 @@
             },
           }),
         ],
-      }
+      },
     );
     const modalMenuButton =
       /** @type { (args: {text: string})=>HTMLElement } */ (args) => {
@@ -5699,17 +5783,17 @@
                             },
                           }),
                         ],
-                      }
+                      },
                     ),
                   ],
-                }
+                },
               ),
               presentation.leafNodeEditToolbarViewLinkButton({
                 link: args.currentListLink,
               }).root,
             ],
-          }
-        )
+          },
+        ),
       );
     }
     const buttonAddToList = modalMenuButton({ text: "Add to list" });
@@ -5754,10 +5838,10 @@
                   }),
                 ],
                 children_: listGroupChildren,
-              }
+              },
             ),
           ],
-        }
+        },
       ),
     });
     return {
@@ -5780,7 +5864,7 @@
   });
 
   presentation.contBarMenu = /** @type {Presentation["contBarMenu"]} */ (
-    args
+    args,
   ) =>
     presentation.contBar({
       extraStyles: [
@@ -5817,7 +5901,7 @@
       });
 
   presentation.contMenuGroup = /** @type {Presentation["contMenuGroup"]} */ (
-    args
+    args,
   ) => ({
     root: e(
       "details",
@@ -5873,7 +5957,7 @@
                 }),
                 e("span", { textContent: args.title }, {}),
               ],
-            }
+            },
           ),
           e(
             "div",
@@ -5881,15 +5965,15 @@
             {
               styles_: [contVboxStyle, contMenuGroupVBoxStyle],
               children_: args.children,
-            }
+            },
           ),
         ],
-      }
+      },
     ),
   });
 
   presentation.leafMenuLink = /** @type {Presentation["leafMenuLink"]} */ (
-    args
+    args,
   ) => {
     return {
       root: e(
@@ -5929,13 +6013,13 @@
                           },
                         }),
                       ],
-                    }
+                    },
                   ),
                 ],
-              }
+              },
             ),
           ],
-        }
+        },
       ),
     };
   };
@@ -5944,7 +6028,7 @@
   // xx Components, styles: Main
 
   presentation.contMenuBody = /** @type {Presentation["contMenuBody"]} */ (
-    args
+    args,
   ) => ({
     root: e(
       "div",
@@ -5984,7 +6068,7 @@
                 }),
               ],
               children_: args.children,
-            }
+            },
           ),
           presentation.contBarMenu({
             children: [
@@ -6001,14 +6085,14 @@
                       },
                     }),
                   ],
-                }
+                },
               ),
               ...args.barChildren,
             ],
           }).root,
           presentation.leafSpace({}).root,
         ],
-      }
+      },
     ),
   });
 
@@ -6066,7 +6150,7 @@
                   }).root,
                   args.mainBody,
                 ],
-              }
+              },
             ),
             e(
               "div",
@@ -6129,24 +6213,24 @@
                                   },
                                 }),
                               ],
-                            }
+                            },
                           ),
                         ],
-                      }
+                      },
                     ),
                   }).root,
                   args.menuBody,
                 ],
-              }
+              },
             ),
           ],
-        }
+        },
       ),
       admenuButton: admenuButton,
     };
   };
   presentation.contBarMain = /** @type {Presentation["contBarMain"]} */ (
-    args
+    args,
   ) =>
     presentation.contBar({
       extraStyles: [
@@ -6182,7 +6266,7 @@
   // xx Components, styles: Main
 
   presentation.appLinkPerms = /** @type {Presentation["appLinkPerms"]} */ (
-    args
+    args,
   ) => {
     const buttonStyle = uniq("app_link_perms_play");
     const button = e(
@@ -6246,7 +6330,7 @@
             ],
           }),
         ],
-      }
+      },
     );
     return {
       root: e(
@@ -6262,7 +6346,7 @@
             }),
           ],
           children_: [button],
-        }
+        },
       ),
       button: button,
     };
@@ -6288,7 +6372,7 @@
           }),
         ],
         children_: [],
-      }
+      },
     );
     const hideableStyle = ss(uniq("app_link_display_hideable"), {
       [`.${classStateHide}`]: (s) => {
@@ -6316,7 +6400,7 @@
             },
           }),
         ],
-      }
+      },
     );
     const displayOver = presentation.leafSpinner({
       extraStyles: [
@@ -6365,13 +6449,13 @@
                   },
                 }),
               ],
-            }
+            },
           ),
           displayUnder,
           display,
           displayOver,
         ],
-      }
+      },
     );
     const textStyle = ss(uniq("leaf_app_link_text"), {
       "": (s) => {
@@ -6393,13 +6477,13 @@
               },
             }),
           ],
-        }
+        },
       );
     const title = bigText("Waiting...");
     const albumArtist = e(
       "span",
       { textContent: "" },
-      { styles_: [textStyle] }
+      { styles_: [textStyle] },
     );
     return {
       root: e(
@@ -6438,11 +6522,11 @@
                   }),
                 ],
                 children_: [title, albumArtist],
-              }
+              },
             ),
             leafSpace({}).root,
           ],
-        }
+        },
       ),
       displayUnder: displayUnder,
       display: display,
@@ -6461,7 +6545,7 @@
     const resetStyle = e(
       "link",
       { rel: "stylesheet", href: "style_reset.css" },
-      {}
+      {},
     );
     document.head.appendChild(resetStyle);
     const htmlStyle = ss(uniq("html"), {

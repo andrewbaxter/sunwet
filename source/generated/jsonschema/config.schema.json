@@ -60,31 +60,6 @@
   },
   "additionalProperties": false,
   "definitions": {
-    "Block": {
-      "type": "object",
-      "required": [
-        "widget"
-      ],
-      "properties": {
-        "widget": {
-          "description": "The contents of the block.",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Widget"
-            }
-          ]
-        },
-        "width": {
-          "description": "Sets the default width of the block. If not specified, space will be divided with other unsized blocks.",
-          "default": null,
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "additionalProperties": false
-    },
     "Chain": {
       "type": "object",
       "required": [
@@ -2327,7 +2302,7 @@
       "type": "object",
       "required": [
         "data",
-        "row_blocks"
+        "element_body"
       ],
       "properties": {
         "data": {
@@ -2338,12 +2313,41 @@
             }
           ]
         },
-        "row_blocks": {
-          "description": "How the data rows are displayed.",
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/Block"
-          }
+        "element_body": {
+          "description": "How each element is displayed",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Widget"
+            }
+          ]
+        },
+        "element_expansion": {
+          "description": "When the element body is clicked, this expansion is toggled on the next row. It's always 100% width.",
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Widget"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "element_height": {
+          "description": "The height of the body of each element. If blank, uses the row's tallest element height. Takes any css size value, including `calc`. This must be specified if you provide an expansion (in order to prevent the expansion from covering up any of the row elements).",
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "element_width": {
+          "description": "The width of the body of each element. If blank, defaults to 100%. Takes any css size value, including `calc`.",
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "additionalProperties": false

@@ -186,10 +186,15 @@ pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<
                 }
             },
         }
-        for b in &v.display.row_blocks {
+        recurse_build_query_parameters(
+            &v.queries,
+            &v.display.element_body,
+            &mut query_parameters,
+        ).context(format!("Error extracting query parameters in view [{}]", k))?;
+        if let Some(b) = &v.display.element_expansion {
             recurse_build_query_parameters(
                 &v.queries,
-                &b.widget,
+                &b,
                 &mut query_parameters,
             ).context(format!("Error extracting query parameters in view [{}]", k))?;
         }
