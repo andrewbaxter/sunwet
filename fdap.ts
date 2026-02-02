@@ -1224,18 +1224,6 @@ export const sendFdap = async (userConfig: {
                 },
               },
               {
-                id: "comic_albums_by_artist",
-                name: "by author",
-                detail: {
-                  page: {
-                    view: {
-                      view_id: "comic_albums_by_artist",
-                      parameters: { lang: { t: "v", v: "en" } },
-                    },
-                  },
-                },
-              },
-              {
                 id: "comic_albums_search_name",
                 name: "search by name",
                 detail: {
@@ -1275,15 +1263,6 @@ export const sendFdap = async (userConfig: {
                 detail: {
                   page: {
                     view: { view_id: "book_albums_by_name" },
-                  },
-                },
-              },
-              {
-                id: "book_albums_by_artist",
-                name: "by artist",
-                detail: {
-                  page: {
-                    view: { view_id: "book_albums_by_artist" },
                   },
                 },
               },
@@ -1664,22 +1643,6 @@ export const sendFdap = async (userConfig: {
             "./sunwet/source/queries/query_book_albums_select.txt",
             {
               fields: [["asc", "album_name"]],
-            },
-          ),
-          tracks: query_book_albums_tracks,
-        },
-        display: display_book_albums,
-      },
-      book_albums_by_artist: {
-        queries: {
-          root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_book_albums.txt",
-            "./sunwet/source/queries/query_book_albums_select.txt",
-            {
-              fields: [
-                ["asc", "album_artist_name"],
-                ["asc", "album_name"],
-              ],
             },
           ),
           tracks: query_book_albums_tracks,
