@@ -420,7 +420,6 @@ struct RelStateArgs<'a> {
     initial_fill: bool,
     initial_pivot: RelInitialPivot,
     initial_pred_node: Option<(String, Node)>,
-    new: bool,
     incoming: bool,
 }
 
@@ -1322,7 +1321,6 @@ pub async fn build_node_edit_contents(
                         RelInitialPivot::Multi(Prim::new(objs))
                     },
                     initial_pred_node: Some((pred.clone(), subj)),
-                    new: false,
                     incoming: true,
                 });
                 rels_box.ref_push(build_edit_rel(pc, nodes.len(), &rel, false));
@@ -1337,7 +1335,6 @@ pub async fn build_node_edit_contents(
                         initial_fill: true,
                         initial_pivot: RelInitialPivot::Single,
                         initial_pred_node: None,
-                        new: true,
                         incoming: true,
                     });
                     rels_box.ref_push(build_edit_rel(pc, nodes.len(), &rel_state, true));
@@ -1371,7 +1368,6 @@ pub async fn build_node_edit_contents(
                             RelInitialPivot::Multi(Prim::new(nodes.clone()))
                         },
                         initial_pred_node: None,
-                        new: true,
                         incoming: true,
                     });
                     incoming_rels_box.ref_splice(0, 0, vec![build_edit_rel(pc, nodes.len(), &rel, true)]);
@@ -1481,7 +1477,6 @@ pub async fn build_node_edit_contents(
                         RelInitialPivot::Multi(Prim::new(subjs))
                     },
                     initial_pred_node: Some((pred.clone(), obj)),
-                    new: false,
                     incoming: false,
                 });
                 rels_box.ref_push(build_edit_rel(pc, nodes.len(), &rel, false));
@@ -1496,7 +1491,6 @@ pub async fn build_node_edit_contents(
                         initial_fill: true,
                         initial_pivot: RelInitialPivot::Single,
                         initial_pred_node: None,
-                        new: true,
                         incoming: false,
                     });
                     rels_box.ref_push(build_edit_rel(pc, nodes.len(), &rel_state, true));
@@ -1531,7 +1525,6 @@ pub async fn build_node_edit_contents(
                             RelInitialPivot::Multi(Prim::new(nodes.clone()))
                         },
                         initial_pred_node: None,
-                        new: true,
                         incoming: false,
                     });
                     outgoing_rels_box.ref_push(build_edit_rel(pc, total_nodes, &rel, true));
@@ -1747,7 +1740,7 @@ pub async fn build_node_edit_contents(
                                 add: add1,
                                 remove: remove,
                                 files: files_to_commit,
-                            }).await;
+                            }).await?;
 
                             // Upload files
                             commit::upload_files(files_to_upload).await?;

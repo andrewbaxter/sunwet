@@ -105,7 +105,7 @@ pub async fn upload_files(files: Vec<UploadFile>) -> Result<(), String> {
                 &file.hash,
                 chunk_start,
                 &file.data[chunk_start as usize .. (chunk_start + chunk_size) as usize],
-            ).await;
+            ).await?;
         }
         loop {
             let resp = req_post_json(ReqUploadFinish(file.hash.clone())).await?;

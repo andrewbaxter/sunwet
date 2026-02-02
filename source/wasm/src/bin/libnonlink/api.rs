@@ -33,7 +33,7 @@ use {
     web_sys::Url,
 };
 
-pub async fn retry<T>(r: impl AsyncFn() -> Result<T, TempFinalErr>) -> Result<T, String> {
+async fn retry<T>(r: impl AsyncFn() -> Result<T, TempFinalErr>) -> Result<T, String> {
     loop {
         match r().await {
             Ok(v) => return Ok(v),

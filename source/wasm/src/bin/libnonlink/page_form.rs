@@ -657,7 +657,7 @@ pub fn build_page_form(
                         req_post_json(ReqFormCommit {
                             form_id: id.clone(),
                             parameters: params_to_post,
-                        }).await;
+                        }).await?;
                         upload_files(files_to_upload).await?;
                         return Ok(data_id);
                     }.await {

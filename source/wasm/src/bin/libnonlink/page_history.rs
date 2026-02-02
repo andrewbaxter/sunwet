@@ -220,7 +220,7 @@ pub fn build_page_history(pc: &mut ProcessingContext, ministate: &MinistateHisto
                 let button = button.weak();
                 let eg = eg.clone();
                 async move {
-                     req_post_json(ReqCommit {
+                    let res = req_post_json(ReqCommit {
                         comment: format!("History restore"),
                         add: hist_state.revert_was_deleted.borrow().iter().cloned().collect(),
                         remove: hist_state.revert_was_added.borrow().iter().cloned().collect(),
@@ -230,9 +230,16 @@ pub fn build_page_history(pc: &mut ProcessingContext, ministate: &MinistateHisto
                         return;
                     };
                     button.ref_remove_classes(&[&style_export::class_state_thinking().value]);
-                    eg.event(|pc| {
-                        build_page_history(pc, &hist_state.ministate);
-                    });
+                    match res {
+                        Ok(_) => {
+                            eg.event(|pc| {
+                                build_page_history(pc, &hist_state.ministate);
+                            });
+                        },
+                        Err(e) => {
+                            state().log.log(&format!("Error committing history: {}", e));
+                        },
+                    };
                 }
             }));
         }

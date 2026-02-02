@@ -2,14 +2,14 @@ use {
     crate::libnonlink::{
         api::req_post_json,
         ministate::{
-            ministate_octothorpe,
             Ministate,
             MinistateNodeView,
+            ministate_octothorpe,
         },
         page_view::tree_node_to_text,
         state::{
-            state,
             CurrentList,
+            state,
         },
     },
     flowcontrol::{
@@ -22,9 +22,9 @@ use {
         Storage,
     },
     lunk::{
-        link,
         Prim,
         ProcessingContext,
+        link,
     },
     rooting::El,
     shared::{
@@ -60,7 +60,10 @@ use {
         },
         stringpattern::node_to_text,
     },
-    wasm::js::style_export,
+    wasm::js::{
+        LogJsErr,
+        style_export,
+    },
     wasm_bindgen_futures::spawn_local,
 };
 
@@ -320,12 +323,11 @@ pub fn setup_node_button(pc: &mut ProcessingContext, out: &El, name: String, nod
                                     comment: "Add node to list via UI".to_string(),
                                     remove: vec![],
                                     files: vec![],
-                                }).await;
+                                }).await?;
                                 return Ok(());
                             }.await;
                             eg.event(|pc| {
                                 thinking.set(pc, false);
-                                return Ok(()) as Result<_, ()>;
                             }).unwrap();
                             let Some(modal_errs) = modal_errs.upgrade() else {
                                 return;
@@ -365,8 +367,14 @@ pub fn setup_node_button(pc: &mut ProcessingContext, out: &El, name: String, nod
                         name: name.clone(),
                         node: node.clone(),
                     };
-                    SessionStorage::set(STORAGE_CURRENT_LIST, &new_list);
-                    LocalStorage::set(STORAGE_CURRENT_LIST, &new_list);
+                    SessionStorage::set(
+                        STORAGE_CURRENT_LIST,
+                        &new_list,
+                    ).log(&state().log, "Error storing list state in session storage");
+                    LocalStorage::set(
+                        STORAGE_CURRENT_LIST,
+                        &new_list,
+                    ).log(&state().log, "Error storing list state in local storage");
                     state().current_list.set(pc, Some(new_list));
                 }).unwrap()
             });
