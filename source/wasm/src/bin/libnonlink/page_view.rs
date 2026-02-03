@@ -119,6 +119,7 @@ use {
             el_async,
             style_export::{
                 self,
+                OrientationType,
             },
         },
         world::file_url,
@@ -282,17 +283,31 @@ impl Build {
     fn build_widget_layout(
         &mut self,
         pc: &mut ProcessingContext,
+        parent_orientation: Orientation,
+        parent_orientation_type: OrientationType,
         config_at: &WidgetLayout,
         config_query_params: &BTreeMap<String, Vec<String>>,
         data_id: &Vec<usize>,
         data_at: &Vec<DataStackLevel>,
     ) -> El {
         let mut children = vec![];
-        for config_at in &config_at.elements {
-            children.push(self.build_widget(pc, config_at, config_query_params, data_id, data_at));
+        for child_config_at in &config_at.elements {
+            children.push(
+                self.build_widget(
+                    pc,
+                    config_at.orientation,
+                    OrientationType::Flex,
+                    child_config_at,
+                    config_query_params,
+                    data_id,
+                    data_at,
+                ),
+            );
         }
         return style_export::cont_view_list(style_export::ContViewListArgs {
-            direction: config_at.direction,
+            parent_orientation: parent_orientation,
+            parent_orientation_type: parent_orientation_type,
+            orientation: config_at.orientation,
             trans_align: config_at.trans_align,
             conv_scroll: config_at.conv_scroll,
             conv_size_max: config_at.conv_size_max.clone(),
@@ -306,6 +321,8 @@ impl Build {
     fn build_widget_data_rows(
         &mut self,
         pc: &mut ProcessingContext,
+        parent_orientation: Orientation,
+        parent_orientation_type: OrientationType,
         config_at: &WidgetDataRows,
         config_query_params: &BTreeMap<String, Vec<String>>,
         data_id: &Vec<usize>,
@@ -393,6 +410,7 @@ impl Build {
                     let out;
                     match &config_at.row_widget {
                         shared::interface::config::view::DataRowsLayout::Unaligned(row_widget) => {
+                            let orientation = row_widget.orientation.unwrap_or(parent_orientation);
                             let mut children = vec![];
                             for (i, new_data_at_top) in new_data_at_tops.into_iter().enumerate() {
                                 let mut data_at = data_at.clone();
@@ -405,6 +423,8 @@ impl Build {
                                 children.push(
                                     build.build_widget(
                                         pc,
+                                        orientation,
+                                        OrientationType::Flex,
                                         &row_widget.widget,
                                         &config_query_params,
                                         &data_id,
@@ -413,8 +433,10 @@ impl Build {
                                 );
                             }
                             out = style_export::cont_view_list(style_export::ContViewListArgs {
-                                direction: row_widget.direction.unwrap_or(Direction::Down),
-                                trans_align: row_widget.trans_align,
+                                parent_orientation: parent_orientation,
+                                parent_orientation_type: parent_orientation_type,
+                                orientation: orientation,
+                                trans_align: config_at.trans_align,
                                 conv_scroll: row_widget.conv_scroll,
                                 conv_size_max: row_widget.conv_size_max.clone(),
                                 trans_size_max: row_widget.trans_size_max.clone(),
@@ -437,7 +459,15 @@ impl Build {
                                 let mut columns_raw = vec![];
                                 for config_at in &row_widget.elements {
                                     let column =
-                                        build.build_widget(pc, config_at, &config_query_params, &data_id, &data_at);
+                                        build.build_widget(
+                                            pc,
+                                            row_widget.orientation,
+                                            OrientationType::Grid,
+                                            config_at,
+                                            &config_query_params,
+                                            &data_id,
+                                            &data_at,
+                                        );
                                     columns_raw.push(column.raw());
                                     columns.push(column);
                                 }
@@ -445,7 +475,7 @@ impl Build {
                             }
                             out = style_export::cont_view_table(style_export::ContViewTableArgs {
                                 orientation: row_widget.orientation,
-                                conv_scroll: row_widget.conv_scroll,
+                                trans_scroll: row_widget.trans_scroll,
                                 conv_size_max: row_widget.conv_size_max.clone(),
                                 trans_size_max: row_widget.trans_size_max.clone(),
                                 children: rows,
@@ -506,6 +536,8 @@ impl Build {
                         children.push(style_export::cont_view_element(style_export::ContViewElementArgs {
                             body: build.build_widget(
                                 pc,
+                                Orientation::RightDown,
+                                OrientationType::Flex,
                                 &config_at.element_body,
                                 &config_query_params,
                                 &vec![i],
@@ -515,7 +547,15 @@ impl Build {
                             expand: match &config_at.element_expansion {
                                 None => None,
                                 Some(exp) => Some(
-                                    build.build_widget(pc, &exp, &config_query_params, &vec![i], &data_at),
+                                    build.build_widget(
+                                        pc,
+                                        Orientation::DownRight,
+                                        OrientationType::Grid,
+                                        &exp,
+                                        &config_query_params,
+                                        &vec![i],
+                                        &data_at,
+                                    ),
                                 ),
                             },
                         }).root);
@@ -655,10 +695,18 @@ impl Build {
         });
     }
 
-    fn build_widget_text(&mut self, config_at: &WidgetText, data_stack: &Vec<DataStackLevel>) -> El {
+    fn build_widget_text(
+        &mut self,
+        parent_orientation: Orientation,
+        parent_orientation_type: OrientationType,
+        config_at: &WidgetText,
+        data_stack: &Vec<DataStackLevel>,
+    ) -> El {
         match (|| {
             ta_return!(El, String);
             return Ok(style_export::leaf_view_text(style_export::LeafViewTextArgs {
+                parent_orientation: parent_orientation,
+                parent_orientation_type: parent_orientation_type,
                 trans_align: config_at.trans_align,
                 orientation: config_at.orientation,
                 text: format!(
@@ -690,7 +738,13 @@ impl Build {
         }
     }
 
-    fn build_widget_media(&mut self, config_at: &WidgetMedia, data_stack: &Vec<DataStackLevel>) -> El {
+    fn build_widget_media(
+        &mut self,
+        parent_orientation: Orientation,
+        parent_orientation_type: OrientationType,
+        config_at: &WidgetMedia,
+        data_stack: &Vec<DataStackLevel>,
+    ) -> El {
         match (|| {
             ta_return!(El, String);
             let Some(src) = maybe_get_field_or_literal(&config_at.data, &data_stack)? else {
@@ -705,6 +759,8 @@ impl Build {
             match meta.mime.as_ref().map(|x| x.as_str()).unwrap_or("").split("/").next().unwrap() {
                 "image" => {
                     return Ok(style_export::leaf_view_image(style_export::LeafViewImageArgs {
+                        parent_orientation: parent_orientation,
+                        parent_orientation_type: parent_orientation_type,
                         trans_align: config_at.trans_align,
                         src: match unwrap_value_media_url(&src)? {
                             SourceUrl::Url(v) => v,
@@ -731,6 +787,8 @@ impl Build {
                 },
                 "video" => {
                     return Ok(style_export::leaf_view_video(style_export::LeafViewVideoArgs {
+                        parent_orientation: parent_orientation,
+                        parent_orientation_type: parent_orientation_type,
                         trans_align: config_at.trans_align,
                         src: match unwrap_value_media_url(&src)? {
                             SourceUrl::Url(v) => v,
@@ -757,7 +815,9 @@ impl Build {
                 },
                 "audio" => {
                     return Ok(style_export::leaf_view_audio(style_export::LeafViewAudioArgs {
-                        direction: config_at.direction.unwrap_or(Direction::Right),
+                        parent_orientation: parent_orientation,
+                        parent_orientation_type: parent_orientation_type,
+                        direction: config_at.audio_direction.unwrap_or(Direction::Right),
                         trans_align: config_at.trans_align,
                         src: match unwrap_value_media_url(&src)? {
                             SourceUrl::Url(v) => v,
@@ -794,10 +854,18 @@ impl Build {
         }
     }
 
-    fn build_widget_icon(&mut self, config_at: &WidgetIcon, data_stack: &Vec<DataStackLevel>) -> El {
+    fn build_widget_icon(
+        &mut self,
+        parent_orientation: Orientation,
+        parent_orientation_type: OrientationType,
+        config_at: &WidgetIcon,
+        data_stack: &Vec<DataStackLevel>,
+    ) -> El {
         match (|| {
             ta_return!(El, String);
             return Ok(style_export::leaf_view_icon(style_export::LeafViewIconArgs {
+                parent_orientation: parent_orientation,
+                parent_orientation_type: parent_orientation_type,
                 icon: config_at.data.clone(),
                 link: shed!{
                     let Some(link) = config_at.link.as_ref() else {
@@ -808,7 +876,7 @@ impl Build {
                 width: config_at.width.clone(),
                 height: config_at.height.clone(),
                 color: config_at.color.clone(),
-                orientation: config_at.orientation.unwrap_or(Orientation::RightDown),
+                orientation: config_at.orientation.unwrap_or_default(),
                 trans_align: config_at.trans_align.clone(),
             }).root);
         })() {
@@ -820,7 +888,13 @@ impl Build {
         }
     }
 
-    fn build_widget_color(&mut self, config_at: &WidgetColor, data_stack: &Vec<DataStackLevel>) -> El {
+    fn build_widget_color(
+        &mut self,
+        parent_orientation: Orientation,
+        parent_orientation_type: OrientationType,
+        config_at: &WidgetColor,
+        data_stack: &Vec<DataStackLevel>,
+    ) -> El {
         match (|| {
             ta_return!(El, String);
             let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(src)))) =
@@ -828,6 +902,8 @@ impl Build {
                     return Ok(el("div"));
                 };
             return Ok(style_export::leaf_view_color(style_export::LeafViewColorArgs {
+                parent_orientation: parent_orientation,
+                parent_orientation_type: parent_orientation_type,
                 trans_align: config_at.trans_align,
                 color: src,
                 width: config_at.width.clone(),
@@ -842,7 +918,13 @@ impl Build {
         }
     }
 
-    fn build_widget_datetime(&mut self, config_at: &WidgetDatetime, data_stack: &Vec<DataStackLevel>) -> El {
+    fn build_widget_datetime(
+        &mut self,
+        parent_orientation: Orientation,
+        parent_orientation_type: OrientationType,
+        config_at: &WidgetDatetime,
+        data_stack: &Vec<DataStackLevel>,
+    ) -> El {
         match (|| {
             ta_return!(El, String);
             let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(src)))) =
@@ -850,6 +932,8 @@ impl Build {
                     return Ok(el("div"));
                 };
             return Ok(style_export::leaf_view_datetime(style_export::LeafViewDatetimeArgs {
+                parent_orientation: parent_orientation,
+                parent_orientation_type: parent_orientation_type,
                 trans_align: config_at.trans_align,
                 orientation: config_at.orientation,
                 value: src,
@@ -865,7 +949,13 @@ impl Build {
         }
     }
 
-    fn build_widget_date(&mut self, config_at: &WidgetDate, data_stack: &Vec<DataStackLevel>) -> El {
+    fn build_widget_date(
+        &mut self,
+        parent_orientation: Orientation,
+        parent_orientation_type: OrientationType,
+        config_at: &WidgetDate,
+        data_stack: &Vec<DataStackLevel>,
+    ) -> El {
         match (|| {
             ta_return!(El, String);
             let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(src)))) =
@@ -873,6 +963,8 @@ impl Build {
                     return Ok(el("div"));
                 };
             return Ok(style_export::leaf_view_date(style_export::LeafViewDateArgs {
+                parent_orientation: parent_orientation,
+                parent_orientation_type: parent_orientation_type,
                 trans_align: config_at.trans_align,
                 orientation: config_at.orientation,
                 value: src,
@@ -888,7 +980,13 @@ impl Build {
         }
     }
 
-    fn build_widget_time(&mut self, config_at: &WidgetTime, data_stack: &Vec<DataStackLevel>) -> El {
+    fn build_widget_time(
+        &mut self,
+        parent_orientation: Orientation,
+        parent_orientation_type: OrientationType,
+        config_at: &WidgetTime,
+        data_stack: &Vec<DataStackLevel>,
+    ) -> El {
         match (|| {
             ta_return!(El, String);
             let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(src)))) =
@@ -896,6 +994,8 @@ impl Build {
                     return Ok(el("div"));
                 };
             return Ok(style_export::leaf_view_time(style_export::LeafViewTimeArgs {
+                parent_orientation: parent_orientation,
+                parent_orientation_type: parent_orientation_type,
                 trans_align: config_at.trans_align,
                 orientation: config_at.orientation,
                 value: src,
@@ -914,6 +1014,8 @@ impl Build {
     fn build_widget_node(
         &mut self,
         pc: &mut ProcessingContext,
+        parent_orientation: Orientation,
+        parent_orientation_type: OrientationType,
         config_at: &WidgetNode,
         data_stack: &Vec<DataStackLevel>,
     ) -> El {
@@ -927,6 +1029,8 @@ impl Build {
                 return Ok(el("div"));
             };
             let out = style_export::leaf_view_node_button(style_export::LeafViewNodeButtonArgs {
+                parent_orientation: parent_orientation,
+                parent_orientation_type: parent_orientation_type,
                 trans_align: config_at.trans_align,
                 orientation: config_at.orientation,
             }).root;
@@ -944,6 +1048,8 @@ impl Build {
     fn build_widget_play_button(
         &mut self,
         pc: &mut ProcessingContext,
+        parent_orientation: Orientation,
+        parent_orientation_type: OrientationType,
         config_at: &WidgetPlayButton,
         data_id: &Vec<usize>,
         data_stack: &Vec<DataStackLevel>,
@@ -983,8 +1089,10 @@ impl Build {
                 break Some(unwrap_value_media_url(&d).map_err(|e| format!("Building cover url: {}", e))?);
             };
             let out = style_export::leaf_view_play_button(style_export::LeafViewPlayButtonArgs {
+                parent_orientation: parent_orientation,
+                parent_orientation_type: parent_orientation_type,
                 trans_align: config_at.trans_align,
-                orientation: config_at.orientation.unwrap_or(Orientation::RightDown),
+                orientation: config_at.orientation.unwrap_or_default(),
             }).root;
             self.playlist_add.push(PlaylistPushArg {
                 index: data_id.clone(),
@@ -1064,6 +1172,8 @@ impl Build {
     fn build_widget(
         &mut self,
         pc: &mut ProcessingContext,
+        parent_orientation: Orientation,
+        parent_orientation_type: OrientationType,
         config_at: &Widget,
         config_query_params: &BTreeMap<String, Vec<String>>,
         data_id: &Vec<usize>,
@@ -1072,6 +1182,8 @@ impl Build {
         match config_at {
             Widget::Layout(config_at) => return self.build_widget_layout(
                 pc,
+                parent_orientation,
+                parent_orientation_type,
                 config_at,
                 config_query_params,
                 data_id,
@@ -1079,26 +1191,71 @@ impl Build {
             ),
             Widget::DataRows(config_at) => return self.build_widget_data_rows(
                 pc,
+                parent_orientation,
+                parent_orientation_type,
                 config_at,
                 config_query_params,
                 data_id,
                 data_stack,
             ),
-            Widget::Text(config_at) => return self.build_widget_text(config_at, data_stack),
-            Widget::Media(config_at) => return self.build_widget_media(config_at, data_stack),
-            Widget::Icon(config_at) => return self.build_widget_icon(config_at, data_stack),
+            Widget::Text(config_at) => return self.build_widget_text(
+                parent_orientation,
+                parent_orientation_type,
+                config_at,
+                data_stack,
+            ),
+            Widget::Media(config_at) => return self.build_widget_media(
+                parent_orientation,
+                parent_orientation_type,
+                config_at,
+                data_stack,
+            ),
+            Widget::Icon(config_at) => return self.build_widget_icon(
+                parent_orientation,
+                parent_orientation_type,
+                config_at,
+                data_stack,
+            ),
             Widget::PlayButton(config_at) => return self.build_widget_play_button(
                 pc,
+                parent_orientation,
+                parent_orientation_type,
                 config_at,
                 data_id,
                 data_stack,
             ),
-            Widget::Color(config_at) => return self.build_widget_color(config_at, data_stack),
-            Widget::Date(config_at) => return self.build_widget_date(config_at, data_stack),
-            Widget::Datetime(config_at) => return self.build_widget_datetime(config_at, data_stack),
-            Widget::Time(config_at) => return self.build_widget_time(config_at, data_stack),
+            Widget::Color(config_at) => return self.build_widget_color(
+                parent_orientation,
+                parent_orientation_type,
+                config_at,
+                data_stack,
+            ),
+            Widget::Date(config_at) => return self.build_widget_date(
+                parent_orientation,
+                parent_orientation_type,
+                config_at,
+                data_stack,
+            ),
+            Widget::Datetime(config_at) => return self.build_widget_datetime(
+                parent_orientation,
+                parent_orientation_type,
+                config_at,
+                data_stack,
+            ),
+            Widget::Time(config_at) => return self.build_widget_time(
+                parent_orientation,
+                parent_orientation_type,
+                config_at,
+                data_stack,
+            ),
             Widget::Space => return style_export::leaf_space().root,
-            Widget::Node(config_at) => return self.build_widget_node(pc, config_at, data_stack),
+            Widget::Node(config_at) => return self.build_widget_node(
+                pc,
+                parent_orientation,
+                parent_orientation_type,
+                config_at,
+                data_stack,
+            ),
         }
     }
 }

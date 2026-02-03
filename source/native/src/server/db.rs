@@ -1040,7 +1040,7 @@ pub fn meta_get(
     Ok(None)
 }
 
-pub fn meta_filter_existing(
+pub fn meta_include_existing(
     db: &rusqlite::Connection,
     nodes: Vec<&crate::interface::triple::DbNode>,
 ) -> Result<Vec<crate::interface::triple::DbNode>, GoodError> {
@@ -1146,7 +1146,7 @@ pub fn gen_get(
     Ok(None)
 }
 
-pub fn gen_filter_existing(
+pub fn gen_include_existing(
     db: &rusqlite::Connection,
     nodes: Vec<&crate::interface::triple::DbNode>,
 ) -> Result<Vec<crate::interface::triple::DbNode>, GoodError> {

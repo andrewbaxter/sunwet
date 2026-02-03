@@ -433,7 +433,7 @@ fn main() {
                 name: "nodes".to_string(),
                 type_: node_array_type.clone(),
             }),
-        }).return_field(&meta_node).build_query("meta_filter_existing", QueryResCount::Many));
+        }).return_field(&meta_node).build_query("meta_include_existing", QueryResCount::Many));
         queries.push(new_delete(&meta_table).where_(Expr::Exists {
             not: true,
             body: Box::new(new_select_body(&triple_table).return_named("x", Expr::LitI32(1)).where_(Expr::BinOp {
@@ -486,7 +486,7 @@ fn main() {
                 name: "nodes".to_string(),
                 type_: node_array_type.clone(),
             }),
-        }).return_field(&node).build_query("gen_filter_existing", QueryResCount::Many));
+        }).return_field(&node).build_query("gen_include_existing", QueryResCount::Many));
         queries.push(new_delete(&t).with(With {
             recursive: false,
             ctes: view_current_ctes.clone(),

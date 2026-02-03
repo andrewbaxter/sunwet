@@ -238,10 +238,6 @@
         "orientation"
       ],
       "properties": {
-        "conv_scroll": {
-          "default": false,
-          "type": "boolean"
-        },
         "conv_size_max": {
           "default": null,
           "type": [
@@ -263,7 +259,16 @@
           ]
         },
         "orientation": {
-          "$ref": "#/definitions/Orientation"
+          "description": "The converse direction is the direction of cells in a row. The transitive direction is the direction of rows.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Orientation"
+            }
+          ]
+        },
+        "trans_scroll": {
+          "default": false,
+          "type": "boolean"
         },
         "trans_size_max": {
           "default": null,
@@ -281,6 +286,14 @@
         "widget"
       ],
       "properties": {
+        "conv_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
+          ]
+        },
         "conv_scroll": {
           "default": false,
           "type": "boolean"
@@ -292,16 +305,6 @@
             "null"
           ]
         },
-        "direction": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/Direction"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "gap": {
           "default": null,
           "type": [
@@ -309,11 +312,14 @@
             "null"
           ]
         },
-        "trans_align": {
-          "default": "start",
-          "allOf": [
+        "orientation": {
+          "description": "The converse direction is the direction of elements. The transverse direction is only used for `trans_align` in children. If unspecified, keep the parent widget's orientation.",
+          "anyOf": [
             {
-              "$ref": "#/definitions/TransAlign"
+              "$ref": "#/definitions/Orientation"
+            },
+            {
+              "type": "null"
             }
           ]
         },
@@ -1881,11 +1887,12 @@
     "WidgetLayout": {
       "type": "object",
       "required": [
-        "direction",
-        "elements"
+        "elements",
+        "orientation"
       ],
       "properties": {
         "conv_scroll": {
+          "description": "Add a scrollbar to the layout that appears when it exceeds bounds (typically horizontal direction only).",
           "default": false,
           "type": "boolean"
         },
@@ -1895,9 +1902,6 @@
             "string",
             "null"
           ]
-        },
-        "direction": {
-          "$ref": "#/definitions/Direction"
         },
         "elements": {
           "type": "array",
@@ -1910,6 +1914,14 @@
           "type": [
             "string",
             "null"
+          ]
+        },
+        "orientation": {
+          "description": "The converse direction is the direction of elements. The transverse direction is only important for `trans_align` in child widgets.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Orientation"
+            }
           ]
         },
         "trans_align": {
@@ -1928,6 +1940,7 @@
           ]
         },
         "wrap": {
+          "description": "Wrap layout instead of shrinking elements individually first when out of space. Can't be set at the same time as x_scroll or undefined things will happen.",
           "default": false,
           "type": "boolean"
         }
@@ -1951,10 +1964,7 @@
             }
           ]
         },
-        "data": {
-          "$ref": "#/definitions/FieldOrLiteral"
-        },
-        "direction": {
+        "audio_direction": {
           "default": null,
           "anyOf": [
             {
@@ -1964,6 +1974,9 @@
               "type": "null"
             }
           ]
+        },
+        "data": {
+          "$ref": "#/definitions/FieldOrLiteral"
         },
         "height": {
           "default": null,
@@ -1977,6 +1990,17 @@
           "anyOf": [
             {
               "$ref": "#/definitions/Link"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "orientation": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Orientation"
             },
             {
               "type": "null"

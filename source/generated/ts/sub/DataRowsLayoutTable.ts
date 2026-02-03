@@ -2,4 +2,9 @@
 import type { Orientation } from "./Orientation";
 import type { Widget } from "./Widget";
 
-export type DataRowsLayoutTable = { gap?: string | null, conv_scroll?: boolean, conv_size_max?: string | null, trans_size_max?: string | null, orientation: Orientation, elements: Array<Widget>, };
+export type DataRowsLayoutTable = { gap?: string | null, trans_scroll?: boolean, conv_size_max?: string | null, trans_size_max?: string | null, 
+/**
+ * The converse direction is the direction of cells in a row. The transitive
+ * direction is the direction of rows.
+ */
+orientation: Orientation, elements: Array<Widget>, };

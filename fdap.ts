@@ -86,7 +86,7 @@ export const sendFdap = async (userConfig: {
 
   // import * as fdap_login from "./fdap-login/source/generated/ts/index";
   const album_title_block_width = "6cm";
-  const album_title_block_height = "9cm";
+  const album_title_block_height = "8cm";
   const album_tracks_height = "min(max-content, 100dvh)";
   const display_audio_albums: sunwet.WidgetRootDataRows = {
     data: { query: "root" },
@@ -95,12 +95,14 @@ export const sendFdap = async (userConfig: {
     element_body: {
       layout: {
         trans_align: "end",
-        direction: "down",
+        orientation: "down_right",
         elements: [
           {
             media: {
-              trans_align: "start",
-              width: "100%",
+              orientation: "down_right",
+              trans_align: "middle",
+              width: album_title_block_width,
+              height: album_title_block_width,
               data: { field: "cover" },
             },
           },
@@ -109,6 +111,7 @@ export const sendFdap = async (userConfig: {
               trans_align: "start",
               font_size: "18pt",
               conv_size_mode: "ellipsize",
+              conv_size_max: "100%",
               orientation: "right_down",
               data: { field: "album_name" },
               link: {
@@ -133,6 +136,7 @@ export const sendFdap = async (userConfig: {
               trans_align: "start",
               font_size: "12pt",
               conv_size_mode: "ellipsize",
+              conv_size_max: "100%",
               orientation: "right_down",
               data: { field: "album_artist_name" },
               link: {
@@ -160,8 +164,8 @@ export const sendFdap = async (userConfig: {
         data: { query: "tracks" },
         row_widget: {
           table: {
-            orientation: "right_down",
-            conv_scroll: true,
+            orientation: "down_right",
+            trans_scroll: true,
             gap: "0.2cm",
             trans_size_max: album_tracks_height,
             elements: [
@@ -233,10 +237,11 @@ export const sendFdap = async (userConfig: {
     element_body: {
       layout: {
         trans_align: "start",
-        direction: "right",
+        orientation: "right_down",
         elements: [
           {
             media: {
+              orientation: "down_right",
               trans_align: "start",
               width: "6cm",
               data: { field: "cover" },
@@ -245,12 +250,12 @@ export const sendFdap = async (userConfig: {
           {
             layout: {
               trans_align: "start",
-              direction: "down",
+              orientation: "down_right",
               elements: [
                 {
                   layout: {
                     trans_align: "start",
-                    direction: "right",
+                    orientation: "right_down",
                     elements: [
                       {
                         text: {
@@ -386,11 +391,11 @@ export const sendFdap = async (userConfig: {
     data: { query: "root" },
     element_body: {
       layout: {
-        direction: "down",
+        orientation: "down_right",
         elements: [
           {
             layout: {
-              direction: "right",
+              orientation: "right_down",
               elements: [
                 {
                   play_button: {
@@ -407,7 +412,7 @@ export const sendFdap = async (userConfig: {
                 },
                 {
                   layout: {
-                    direction: "down",
+                    orientation: "down_right",
                     gap: "0.2cm",
                     trans_align: "middle",
                     elements: [
@@ -422,7 +427,7 @@ export const sendFdap = async (userConfig: {
                       },
                       {
                         layout: {
-                          direction: "right",
+                          orientation: "right_down",
                           gap: "0",
                           wrap: true,
                           elements: [
@@ -493,11 +498,12 @@ export const sendFdap = async (userConfig: {
     data: { query: "root" },
     element_body: {
       layout: {
-        direction: "right",
+        orientation: "right_down",
         trans_align: "start",
         elements: [
           {
             media: {
+              orientation: "down_right",
               trans_align: "start",
               width: "6cm",
               data: { field: "cover" },
@@ -506,12 +512,12 @@ export const sendFdap = async (userConfig: {
           {
             layout: {
               trans_align: "start",
-              direction: "down",
+              orientation: "down_right",
               elements: [
                 {
                   layout: {
                     trans_align: "start",
-                    direction: "right",
+                    orientation: "right_down",
                     elements: [
                       {
                         text: {
@@ -546,8 +552,8 @@ export const sendFdap = async (userConfig: {
                     data: { query: "tracks" },
                     row_widget: {
                       table: {
-                        orientation: "right_down",
-                        conv_scroll: true,
+                        orientation: "down_right",
+                        trans_scroll: true,
                         gap: "0.2cm",
                         elements: [
                           {
@@ -624,12 +630,12 @@ export const sendFdap = async (userConfig: {
     element_body: {
       layout: {
         trans_align: "start",
-        direction: "down",
+        orientation: "down_right",
         elements: [
           {
             layout: {
               trans_align: "start",
-              direction: "right",
+              orientation: "right_down",
               elements: [
                 {
                   text: {
@@ -690,10 +696,10 @@ export const sendFdap = async (userConfig: {
               row_widget: {
                 unaligned: {
                   conv_scroll: true,
-                  direction: "right",
+                  orientation: "right_down",
                   widget: {
                     layout: {
-                      direction: "down",
+                      orientation: "down_right",
                       elements: [
                         {
                           media: {
@@ -705,7 +711,7 @@ export const sendFdap = async (userConfig: {
                         },
                         {
                           layout: {
-                            direction: "right",
+                            orientation: "right_down",
                             elements: [
                               "space",
                               {
@@ -769,12 +775,12 @@ export const sendFdap = async (userConfig: {
     element_body: {
       layout: {
         trans_align: "start",
-        direction: "down",
+        orientation: "down_right",
         elements: [
           {
             layout: {
               trans_align: "start",
-              direction: "right",
+              orientation: "right_down",
               elements: [
                 {
                   text: {
@@ -834,10 +840,10 @@ export const sendFdap = async (userConfig: {
               row_widget: {
                 unaligned: {
                   conv_scroll: true,
-                  direction: "right",
+                  orientation: "right_down",
                   widget: {
                     layout: {
-                      direction: "down",
+                      orientation: "down_right",
                       elements: [
                         {
                           media: {
@@ -849,7 +855,7 @@ export const sendFdap = async (userConfig: {
                         },
                         {
                           layout: {
-                            direction: "right",
+                            orientation: "right_down",
                             elements: [
                               "space",
                               {
@@ -922,12 +928,12 @@ export const sendFdap = async (userConfig: {
     data: { query: "root" },
     element_body: {
       layout: {
-        direction: "down",
+        orientation: "down_right",
         gap: "0.1cm",
         elements: [
           {
             layout: {
-              direction: "right",
+              orientation: "right_down",
               elements: [
                 {
                   text: {
@@ -978,10 +984,11 @@ export const sendFdap = async (userConfig: {
     element_body: {
       layout: {
         trans_align: "end",
-        direction: "down",
+        orientation: "down_right",
         elements: [
           {
             media: {
+              orientation: "down_right",
               trans_align: "start",
               width: "100%",
               data: { field: "cover" },
@@ -1043,8 +1050,8 @@ export const sendFdap = async (userConfig: {
         data: { query: "tracks" },
         row_widget: {
           table: {
-            orientation: "right_down",
-            conv_scroll: true,
+            orientation: "down_right",
+            trans_scroll: true,
             gap: "0.2cm",
             trans_size_max: album_tracks_height,
             elements: [

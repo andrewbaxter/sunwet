@@ -252,6 +252,7 @@
   const varPViewList = "0.3cm";
   const varPViewHoriz = `max(0.3cm, min(${varSCol1Width}, 100dvw / 20))`;
   const varPViewVert = `max(0.15cm, min(${varSCol1Width} / 2, 100dvw / 10))`;
+  const varPElHoriz = `max(0.1cm, min(0.4cm, 100dvw / 20))`;
   const varP05 = "0.5cm";
   const varPFormCommentTop = "0.3cm";
   const varPMenu = "0.5cm";
@@ -2041,6 +2042,13 @@
     };
   };
 
+  const contViewElementStyle = ss(uniq("cont_view_element_outer"), {
+    "": (s) => {
+      s.minWidth = "0";
+      s.minHeight = "0";
+      s.justifySelf = "stretch";
+    },
+  });
   presentation.contViewRoot = /** @type {Presentation["contViewRoot"]} */ (
     args,
   ) => {
@@ -2071,7 +2079,7 @@
       grid.classList.add(
         ss(uniq("cont_view_root_zebra"), {
           "": (s) => {},
-          ">*:nth-child(odd)": (s) => {
+          [` .${contViewElementStyle}:nth-child(odd)`]: (s) => {
             s.backgroundColor = varCBackground2;
           },
         }),
@@ -2090,12 +2098,6 @@
   });
   presentation.contViewElement =
     /** @type {Presentation["contViewElement"]} */ (args) => {
-      const outerBodyStyle = ss(uniq("cont_view_element_outer"), {
-        "": (s) => {
-          s.minWidth = "0";
-          s.minHeight = "0";
-        },
-      });
       const bodyStyles = [
         contVboxStyle,
         ss(uniq("cont_view_element_body"), {
@@ -2104,7 +2106,7 @@
             s.justifyContent = "stretch";
             s.alignItems = "stretch";
             s.width = "100%";
-            s.padding = `${varPViewVert} ${varPViewHoriz}`;
+            s.padding = `${varPViewVert} ${varPElHoriz}`;
           },
         }),
       ];
@@ -2114,7 +2116,10 @@
         body = e(
           "div",
           {},
-          { styles_: [...bodyStyles, outerBodyStyle], children_: [args.body] },
+          {
+            styles_: [...bodyStyles, contViewElementStyle],
+            children_: [args.body],
+          },
         );
         out = body;
       } else {
@@ -2130,7 +2135,7 @@
                   s.right = "0";
                   s.overflowX = "hidden";
                   s.backgroundColor = varCBackground2;
-                  s.padding = `${varPViewVert} ${varPViewHoriz}`;
+                  s.padding = `${varPViewVert} ${varPElHoriz}`;
                 },
               }),
             ],
@@ -2159,7 +2164,7 @@
           { name: "cont_view_element" },
           {
             styles_: [
-              outerBodyStyle,
+              contViewElementStyle,
               contVboxStyle,
               ss(uniq("cont_view_element"), {
                 "": (s) => {},
@@ -2648,10 +2653,10 @@
           contViewListStyle,
           contViewListStyleWrap(args.wrap),
           ss(
-            uniq("cont_view_list", args.direction),
+            uniq("cont_view_list", conv(args.orientation)),
             /** @type { () => ({[prefix: string]: (s: CSSStyleDeclaration) => void}) } */ (
               () => {
-                switch (args.direction) {
+                switch (conv(args.orientation)) {
                   case "up":
                     return {
                       "": (s) => {
@@ -2685,7 +2690,7 @@
       },
     );
     if (args.convScroll) {
-      switch (args.direction) {
+      switch (conv(args.orientation)) {
         case "up":
         case "down":
           out.style.overflowY = "auto";
@@ -2697,7 +2702,7 @@
       }
     }
     if (args.convSizeMax != null) {
-      switch (args.direction) {
+      switch (conv(args.orientation)) {
         case "up":
         case "down":
           // Issue with max height for vert flex/grid auto; need to use height (please w3c)
@@ -2710,7 +2715,7 @@
       }
     }
     if (args.transSizeMax != null) {
-      switch (args.direction) {
+      switch (conv(args.orientation)) {
         case "up":
         case "down":
           out.style.maxWidth = args.transSizeMax;
@@ -2734,86 +2739,68 @@
       const spacer = e("div", {}, {});
       const convTemplate = [];
       const transTemplate = [];
-      switch (conv(args.orientation)) {
-        case "up":
-          convTemplate.push("1fr");
-          spacer.style.gridRow = "0";
-          break;
-        case "left":
-          convTemplate.push("1fr");
-          spacer.style.gridColumn = "0";
-          break;
-      }
       switch (trans(args.orientation)) {
         case "up":
           transTemplate.push("1fr");
-          spacer.style.gridRow = "0";
+          spacer.style.gridRow = "1";
+          spacer.style.gridColumn = "1";
           break;
         case "left":
           transTemplate.push("1fr");
-          spacer.style.gridColumn = "0";
+          spacer.style.gridRow = "1";
+          spacer.style.gridColumn = "1";
           break;
       }
       const children1 = /** @type { Element[] } */ ([spacer]);
-      for (let j0 = 0; j0 < args.children.length; ++j0) {
-        const j = j0 + 1;
-        const row = args.children[j0];
-        for (let i0 = 0; i0 < row.length; ++i0) {
-          const child = /** @type {HTMLElement|SVGElement} */ (row[i0]);
-          const i = i0 + 1;
+      for (let transI = 0; transI < args.children.length; ++transI) {
+        const row = args.children[transI];
+        for (let j = 0; j < row.length; ++j) {
+          const child = /** @type {HTMLElement|SVGElement} */ (row[j]);
           switch (conv(args.orientation)) {
             case "up":
-              child.style.gridRow = `${args.children.length - j0}`;
+              child.style.gridRow = `${row.length - j}`;
               break;
             case "down":
-              child.style.gridRow = `${j}`;
+              child.style.gridRow = `${j + 1}`;
               break;
             case "left":
-              child.style.gridColumn = `${args.children.length - j0}`;
+              child.style.gridColumn = `${row.length - j}`;
               break;
             case "right":
-              child.style.gridColumn = `${j}`;
+              child.style.gridColumn = `${j + 1}`;
               break;
           }
           switch (trans(args.orientation)) {
             case "up":
-              child.style.gridRow = `${row.length - i0}`;
+              child.style.gridRow = `${1 + args.children.length - transI}`;
               break;
             case "down":
-              child.style.gridRow = `${i}`;
+              child.style.gridRow = `${transI + 1}`;
               break;
             case "left":
-              child.style.gridColumn = `${row.length - i0}`;
+              child.style.gridColumn = `${1 + args.children.length - transI}`;
               break;
             case "right":
-              child.style.gridColumn = `${i}`;
+              child.style.gridColumn = `${transI + 1}`;
               break;
           }
           children1.push(child);
-          if (j0 == 0) {
-            transTemplate.push("auto");
+          if (transI == 0) {
+            convTemplate.push("auto");
           }
         }
-        convTemplate.push("auto");
-      }
-      switch (conv(args.orientation)) {
-        case "down":
-          convTemplate.push("1fr");
-          spacer.style.gridRow = `${convTemplate.length}`;
-          break;
-        case "right":
-          convTemplate.push("1fr");
-          spacer.style.gridColumn = `${convTemplate.length}`;
-          break;
+        transTemplate.push("auto");
       }
       switch (trans(args.orientation)) {
         case "down":
           transTemplate.push("1fr");
-          spacer.style.gridRow = `${transTemplate.length}`;
+          spacer.style.gridRow = `${transTemplate.length + 1}`;
+          spacer.style.gridColumn = "1";
           break;
         case "right":
           transTemplate.push("1fr");
-          spacer.style.gridColumn = `${transTemplate.length}`;
+          spacer.style.gridRow = "1";
+          spacer.style.gridColumn = `${transTemplate.length + 1}`;
           break;
       }
       children1.push(spacer);
@@ -2838,34 +2825,28 @@
       );
       switch (conv(args.orientation)) {
         case "up":
-          out.style.gridTemplateRows = `1fr ${convTemplate.join(" ")}`;
-          break;
         case "down":
-          out.style.gridTemplateRows = `${convTemplate.join(" ")} 1fr`;
+          out.style.gridTemplateRows = `${convTemplate.join(" ")}`;
+          out.style.alignItems = "start";
           break;
         case "left":
-          out.style.gridTemplateColumns = `1fr ${convTemplate.join(" ")}`;
-          break;
         case "right":
-          out.style.gridTemplateColumns = `${convTemplate.join(" ")} 1fr`;
+          out.style.gridTemplateColumns = `${convTemplate.join(" ")}`;
+          out.style.justifyItems = "start";
           break;
       }
       switch (trans(args.orientation)) {
         case "up":
-          out.style.gridTemplateRows = `1fr ${transTemplate.join(" ")}`;
-          break;
         case "down":
-          out.style.gridTemplateRows = `${transTemplate.join(" ")} 1fr`;
+          out.style.gridTemplateRows = `${transTemplate.join(" ")}`;
           break;
         case "left":
-          out.style.gridTemplateColumns = `1fr ${transTemplate.join(" ")}`;
-          break;
         case "right":
-          out.style.gridTemplateColumns = `${transTemplate.join(" ")} 1fr`;
+          out.style.gridTemplateColumns = `${transTemplate.join(" ")}`;
           break;
       }
       if (args.gap != null) {
-        switch (conv(args.orientation)) {
+        switch (trans(args.orientation)) {
           case "up":
           case "down":
             out.style.rowGap = args.gap;
@@ -2876,8 +2857,8 @@
             break;
         }
       }
-      if (args.convScroll) {
-        switch (conv(args.orientation)) {
+      if (args.transScroll) {
+        switch (trans(args.orientation)) {
           case "up":
           case "down":
             out.style.overflowY = "auto";
@@ -2918,7 +2899,7 @@
     };
 
   const viewLeafTransStyle =
-    /** @type { (args:{orientation: Orientation, transAlign: TransAlign})=>string } */ (
+    /** @type { (args:{orientation: Orientation, orientationType: OrientationType2, transAlign: TransAlign})=>string } */ (
       args,
     ) =>
       ss(uniq("view_leaf_trans_style", args.orientation, args.transAlign), {
@@ -2926,42 +2907,92 @@
           const [key, val] =
             /** @type {()=>["align"|"justify", "end"|"middle"|"start"]} */ (
               () => {
-                switch (trans(args.orientation)) {
-                  case "up":
-                    switch (args.transAlign) {
-                      case "start":
-                        return ["align", "end"];
-                      case "middle":
-                        return ["align", "center"];
-                      case "end":
-                        return ["align", "start"];
+                switch (args.orientationType) {
+                  case "flex":
+                    switch (trans(args.orientation)) {
+                      case "up":
+                        switch (args.transAlign) {
+                          case "start":
+                            return ["align", "end"];
+                          case "middle":
+                            return ["align", "center"];
+                          case "end":
+                            return ["align", "start"];
+                        }
+                        break;
+                      case "left":
+                        switch (args.transAlign) {
+                          case "start":
+                            return ["justify", "start"];
+                          case "middle":
+                            return ["justify", "center"];
+                          case "end":
+                            return ["justify", "end"];
+                        }
+                        break;
+                      case "down":
+                        switch (args.transAlign) {
+                          case "start":
+                            return ["align", "start"];
+                          case "middle":
+                            return ["align", "center"];
+                          case "end":
+                            return ["align", "end"];
+                        }
+                        break;
+                      case "right":
+                        switch (args.transAlign) {
+                          case "start":
+                            return ["justify", "end"];
+                          case "middle":
+                            return ["justify", "center"];
+                          case "end":
+                            return ["justify", "start"];
+                        }
+                        break;
                     }
-                  case "down":
-                    switch (args.transAlign) {
-                      case "start":
-                        return ["align", "start"];
-                      case "middle":
-                        return ["align", "center"];
-                      case "end":
-                        return ["align", "end"];
-                    }
-                  case "left":
-                    switch (args.transAlign) {
-                      case "start":
-                        return ["justify", "end"];
-                      case "middle":
-                        return ["justify", "center"];
-                      case "end":
-                        return ["justify", "start"];
-                    }
-                  case "right":
-                    switch (args.transAlign) {
-                      case "start":
-                        return ["justify", "start"];
-                      case "middle":
-                        return ["justify", "center"];
-                      case "end":
-                        return ["justify", "end"];
+                  case "grid":
+                    switch (trans(args.orientation)) {
+                      case "up":
+                        switch (args.transAlign) {
+                          case "start":
+                            return ["align", "end"];
+                          case "middle":
+                            return ["align", "center"];
+                          case "end":
+                            return ["align", "start"];
+                        }
+                        break;
+                      case "down":
+                        switch (args.transAlign) {
+                          case "start":
+                            return ["align", "start"];
+                          case "middle":
+                            return ["align", "center"];
+                          case "end":
+                            return ["align", "end"];
+                        }
+                        break;
+                      case "left":
+                        switch (args.transAlign) {
+                          case "start":
+                            return ["justify", "end"];
+                          case "middle":
+                            return ["justify", "center"];
+                          case "end":
+                            return ["justify", "start"];
+                        }
+                        break;
+                      case "right":
+                        switch (args.transAlign) {
+                          case "start":
+                            return ["justify", "start"];
+                          case "middle":
+                            return ["justify", "center"];
+                          case "end":
+                            return ["justify", "end"];
+                        }
+                        break;
                     }
                 }
               }
@@ -3002,6 +3033,11 @@
   presentation.leafViewImage = /** @type { Presentation["leafViewImage"] } */ (
     args,
   ) => {
+    const alignStyle = viewLeafTransStyle({
+      orientationType: args.parentOrientationType,
+      orientation: args.parentOrientation,
+      transAlign: args.transAlign,
+    });
     /** @type { (s: string)=>HTMLElement} */
     const createImg = (s) => {
       return e(
@@ -3048,15 +3084,16 @@
           "a",
           { href: args.link },
           {
-            styles_: [viewMediaLinkStyle],
+            styles_: [alignStyle, viewMediaLinkStyle],
             children_: [createImg(viewMediaLinkMediaStyle)],
           },
         );
       } else {
-        return createImg(viewMediaNonlinkMediaStyle);
+        const out = createImg(viewMediaNonlinkMediaStyle);
+        out.classList.add(alignStyle);
+        return out;
       }
     })();
-    // todo add viewLeafTransStyle, need to add orientation
     if (args.width) {
       out.style.width = args.width;
     }
@@ -3192,7 +3229,8 @@
     args,
   ) => {
     const alignStyle = viewLeafTransStyle({
-      orientation: args.orientation,
+      orientationType: args.parentOrientationType,
+      orientation: args.parentOrientation,
       transAlign: args.transAlign,
     });
     const out = (() => {
@@ -3279,7 +3317,8 @@
     args,
   ) => {
     const alignStyle = viewLeafTransStyle({
-      orientation: args.orientation,
+      orientationType: args.parentOrientationType,
+      orientation: args.parentOrientation,
       transAlign: args.transAlign,
     });
     const out = (() => {
@@ -3288,6 +3327,7 @@
           "span",
           {
             textContent: args.text,
+            title: args.text,
           },
           {
             styles_: [
@@ -3302,6 +3342,7 @@
           "a",
           {
             textContent: args.text,
+            title: args.text,
             href: args.link,
           },
           {
@@ -3339,6 +3380,23 @@
           return 0;
         case "ellipsize":
           out.style.textOverflow = "ellipsis";
+          out.style.textWrap = "nowrap";
+          switch (conv(args.orientation)) {
+            case "up":
+            case "down":
+              out.style.overflowY = "hidden";
+              if (args.convSizeMax == null) {
+                out.style.maxHeight = "100%";
+              }
+              break;
+            case "left":
+            case "right":
+              out.style.overflowX = "hidden";
+              if (args.convSizeMax == null) {
+                out.style.maxWidth = "100%";
+              }
+              break;
+          }
           return 0;
         case undefined:
           return 0;
@@ -3349,7 +3407,8 @@
   presentation.leafViewDatetime =
     /** @type { Presentation["leafViewDatetime"] } */ (args) => {
       const alignStyle = viewLeafTransStyle({
-        orientation: args.orientation,
+        orientationType: args.parentOrientationType,
+        orientation: args.parentOrientation,
         transAlign: args.transAlign,
       });
       const out = (() => {
@@ -3384,7 +3443,8 @@
     args,
   ) => {
     const alignStyle = viewLeafTransStyle({
-      orientation: args.orientation,
+      orientationType: args.parentOrientationType,
+      orientation: args.parentOrientation,
       transAlign: args.transAlign,
     });
     const out = (() => {
@@ -3419,7 +3479,8 @@
     args,
   ) => {
     const alignStyle = viewLeafTransStyle({
-      orientation: args.orientation,
+      orientationType: args.parentOrientationType,
+      orientation: args.parentOrientation,
       transAlign: args.transAlign,
     });
     const out = (() => {
@@ -3523,7 +3584,8 @@
           },
         }),
         viewLeafTransStyle({
-          orientation: args.orientation,
+          orientationType: args.parentOrientationType,
+          orientation: args.parentOrientation,
           transAlign: args.transAlign,
         }),
       ];
@@ -3562,7 +3624,8 @@
           },
         }),
         viewLeafTransStyle({
-          orientation: args.orientation,
+          orientationType: args.parentOrientationType,
+          orientation: args.parentOrientation,
           transAlign: args.transAlign,
         }),
       ];

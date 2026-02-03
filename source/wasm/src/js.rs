@@ -292,8 +292,12 @@ pub mod style_export {
     use {
         gloo::utils::format::JsValueSerdeExt,
         rooting::{
-            el_from_raw,
             El,
+            el_from_raw,
+        },
+        serde::{
+            Deserialize,
+            Serialize,
         },
         shared::interface::config::view::{
             Direction,
@@ -307,10 +311,10 @@ pub mod style_export {
             JsValue,
         },
         web_sys::{
-            console,
             Element,
             HtmlInputElement,
             HtmlSelectElement,
+            console,
         },
     };
 
@@ -490,6 +494,24 @@ pub mod style_export {
     }
 
     impl JsExport for Orientation {
+        fn from_js(v: &JsValue) -> Self {
+            return <JsValue as JsValueSerdeExt>::into_serde(v).unwrap();
+        }
+
+        fn to_js(&self) -> JsValue {
+            return <JsValue as JsValueSerdeExt>::from_serde(self).unwrap();
+        }
+    }
+
+    // More html non-orthogonality
+    #[derive(Serialize, Deserialize, Clone, Copy)]
+    #[serde(rename_all = "snake_case", deny_unknown_fields)]
+    pub enum OrientationType {
+        Grid,
+        Flex,
+    }
+
+    impl JsExport for OrientationType {
         fn from_js(v: &JsValue) -> Self {
             return <JsValue as JsValueSerdeExt>::into_serde(v).unwrap();
         }

@@ -75,6 +75,7 @@ use {
         collections::{
             BTreeMap,
             HashMap,
+            HashSet,
         },
         path::{
             Path,
@@ -582,10 +583,16 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                     slow: bool,
                                     batch: Vec<DbNode>,
                                 ) -> Result<(), loga::Error> {
-                                    let found_keys = tx(&dbc, move |txn| {
-                                        return Ok(db::gen_filter_existing(txn, batch.iter().collect())?);
-                                    }).await?;
-                                    for key in found_keys {
+                                    let found_keys = tx(&dbc, {
+                                        let batch = batch.clone();
+                                        move |txn| {
+                                            return Ok(db::gen_include_existing(txn, batch.iter().collect())?);
+                                        }
+                                    }).await?.into_iter().collect::<HashSet<_>>();
+                                    for key in batch {
+                                        if found_keys.contains(&key) {
+                                            continue;
+                                        }
                                         let file = exenum!(key.0, Node:: File(x) => x).unwrap();
                                         let log = state.log.fork(ea!(subsys = "filegen", file = file.to_string()));
                                         generate_files(&state, &log, &file, slow).await?;
@@ -662,7 +669,9 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                     let unfiltered_keys =
                                         batch.keys().map(|k| DbNode(Node::File(k.clone()))).collect::<Vec<_>>();
                                     let found_keys = tx(&dbc, move |txn| {
-                                        return Ok(db::meta_filter_existing(txn, unfiltered_keys.iter().collect())?);
+                                        return Ok(
+                                            db::meta_include_existing(txn, unfiltered_keys.iter().collect())?,
+                                        );
                                     }).await?;
                                     for key in found_keys {
                                         batch.remove(&exenum!(key.0, Node:: File(x) => x).unwrap());
@@ -749,7 +758,7 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                     let unfiltered_keys =
                                         batch.keys().map(|k| DbNode(Node::File(k.clone()))).collect::<Vec<_>>();
                                     let found_keys = tx(&dbc, move |txn| {
-                                        return Ok(db::gen_filter_existing(txn, unfiltered_keys.iter().collect())?);
+                                        return Ok(db::gen_include_existing(txn, unfiltered_keys.iter().collect())?);
                                     }).await?;
                                     for key in found_keys {
                                         batch.remove(&exenum!(key.0, Node:: File(x) => x).unwrap());

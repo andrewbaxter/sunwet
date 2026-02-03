@@ -112,6 +112,11 @@ fn main() {
         rust_type: quote!(Orientation),
         ts_type: "Orientation".to_string(),
     };
+    let orientation_type = Type {
+        mod_: TypeMod::None,
+        rust_type: quote!(OrientationType),
+        ts_type: "OrientationType2".to_string(),
+    };
     let opttextsizemode = Type {
         mod_: TypeMod::Opt,
         rust_type: quote!(TextSizeMode),
@@ -468,7 +473,9 @@ fn main() {
         Func {
             name: "contViewList",
             args: vec![
-                ("direction", &direction),
+                ("parentOrientation", &orientation),
+                ("parentOrientationType", &orientation_type),
+                ("orientation", &orientation),
                 ("transAlign", &transalign),
                 ("convScroll", &bool_),
                 ("convSizeMax", &optstring_),
@@ -483,7 +490,7 @@ fn main() {
             name: "contViewTable",
             args: vec![
                 ("orientation", &orientation),
-                ("convScroll", &bool_),
+                ("transScroll", &bool_),
                 ("convSizeMax", &optstring_),
                 ("transSizeMax", &optstring_),
                 ("children", &arrarrel_),
@@ -494,6 +501,8 @@ fn main() {
         Func {
             name: "leafViewImage",
             args: vec![
+                ("parentOrientation", &orientation),
+                ("parentOrientationType", &orientation_type),
                 ("transAlign", &transalign),
                 ("src", &string_),
                 ("link", &optstring_),
@@ -506,6 +515,8 @@ fn main() {
         Func {
             name: "leafViewVideo",
             args: vec![
+                ("parentOrientation", &orientation),
+                ("parentOrientationType", &orientation_type),
                 ("transAlign", &transalign),
                 ("src", &string_),
                 ("link", &optstring_),
@@ -518,6 +529,8 @@ fn main() {
         Func {
             name: "leafViewAudio",
             args: vec![
+                ("parentOrientation", &orientation),
+                ("parentOrientationType", &orientation_type),
                 ("transAlign", &transalign),
                 ("direction", &direction),
                 ("src", &string_),
@@ -530,6 +543,8 @@ fn main() {
         Func {
             name: "leafViewIcon",
             args: vec![
+                ("parentOrientation", &orientation),
+                ("parentOrientationType", &orientation_type),
                 ("icon", &string_),
                 ("link", &optstring_),
                 ("width", &optstring_),
@@ -543,6 +558,8 @@ fn main() {
         Func {
             name: "leafViewText",
             args: vec![
+                ("parentOrientation", &orientation),
+                ("parentOrientationType", &orientation_type),
                 ("transAlign", &transalign),
                 ("orientation", &orientation),
                 ("text", &string_),
@@ -556,17 +573,29 @@ fn main() {
         },
         Func {
             name: "leafViewPlayButton",
-            args: vec![("transAlign", &transalign), ("orientation", &orientation)],
+            args: vec![
+                ("parentOrientation", &orientation),
+                ("parentOrientationType", &orientation_type),
+                ("transAlign", &transalign),
+                ("orientation", &orientation)
+            ],
             returns: vec![("root", &el_)],
         },
         Func {
             name: "leafViewNodeButton",
-            args: vec![("transAlign", &transalign), ("orientation", &orientation)],
+            args: vec![
+                ("parentOrientation", &orientation),
+                ("parentOrientationType", &orientation_type),
+                ("transAlign", &transalign),
+                ("orientation", &orientation)
+            ],
             returns: vec![("root", &el_)],
         },
         Func {
             name: "leafViewColor",
             args: vec![
+                ("parentOrientation", &orientation),
+                ("parentOrientationType", &orientation_type),
                 ("transAlign", &transalign),
                 ("color", &string_),
                 ("width", &string_),
@@ -577,6 +606,8 @@ fn main() {
         Func {
             name: "leafViewDatetime",
             args: vec![
+                ("parentOrientation", &orientation),
+                ("parentOrientationType", &orientation_type),
                 ("transAlign", &transalign),
                 ("orientation", &orientation),
                 ("value", &string_),
@@ -588,6 +619,8 @@ fn main() {
         Func {
             name: "leafViewDate",
             args: vec![
+                ("parentOrientation", &orientation),
+                ("parentOrientationType", &orientation_type),
                 ("transAlign", &transalign),
                 ("orientation", &orientation),
                 ("value", &string_),
@@ -599,6 +632,8 @@ fn main() {
         Func {
             name: "leafViewTime",
             args: vec![
+                ("parentOrientation", &orientation),
+                ("parentOrientationType", &orientation_type),
                 ("transAlign", &transalign),
                 ("orientation", &orientation),
                 ("value", &string_),

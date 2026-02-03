@@ -100,18 +100,26 @@
       /** @type { (n: number) => HTMLElement[][] } */
       (n) => {
         const lotsOfTracks = [];
+        const parentOrientation = "down_right";
+        const parentOrientationType = "grid";
         for (let i = 0; i < n; i++) {
           lotsOfTracks.push([
             presentation.leafViewPlayButton({
+              parentOrientation: parentOrientation,
+              parentOrientationType: parentOrientationType,
               transAlign: "start",
               orientation: "down_left",
             }).root,
             presentation.leafViewText({
+              parentOrientation: parentOrientation,
+              parentOrientationType: parentOrientationType,
               transAlign: "start",
               orientation: "down_left",
               text: `${i}. `,
             }).root,
             presentation.leafViewText({
+              parentOrientation: parentOrientation,
+              parentOrientationType: parentOrientationType,
               transAlign: "start",
               orientation: "down_left",
               text: "Fabiano do Nascimento and Shin Sasakubo",
@@ -119,11 +127,15 @@
               convSizeMax: "6cm",
             }).root,
             presentation.leafViewText({
+              parentOrientation: parentOrientation,
+              parentOrientationType: parentOrientationType,
               transAlign: "start",
               orientation: "down_left",
               text: " - ",
             }).root,
             presentation.leafViewText({
+              parentOrientation: parentOrientation,
+              parentOrientationType: parentOrientationType,
               transAlign: "start",
               orientation: "down_left",
               text: "Primeiro Encontro",
@@ -135,38 +147,52 @@
       };
     /** @type { (tracks: HTMLElement[][]) => HTMLElement } */
     const buildStagingPageViewElementTextTracks = (tracks) => {
+      const parentOrientation = "down_right";
+      const parentOrientationType = "grid";
       return presentation.contViewElement({
         height: "11cm",
         body: presentation.contViewList({
-          direction: "down",
+          parentOrientation: "right_down",
+          parentOrientationType: "grid",
+          orientation: parentOrientation,
           wrap: false,
           transAlign: "start",
           convScroll: false,
           children: [
             presentation.leafViewImage({
+              parentOrientation: parentOrientation,
+              parentOrientationType: parentOrientationType,
               transAlign: "start",
               src: "testcover.jpg",
               width: "100%",
             }).root,
             presentation.contViewList({
-              direction: "right",
+              parentOrientation: parentOrientation,
+              parentOrientationType: parentOrientationType,
+              orientation: "right_down",
               wrap: false,
               transAlign: "start",
               convScroll: false,
               children: [
                 presentation.leafViewText({
+                  parentOrientation: "right_down",
+                  parentOrientationType: "flex",
                   transAlign: "start",
                   orientation: "right_down",
                   text: "Harmônicos",
                   fontSize: "20pt",
                 }).root,
                 presentation.leafViewNodeButton({
+                  parentOrientation: "right_down",
+                  parentOrientationType: "flex",
                   transAlign: "middle",
                   orientation: "right_down",
                 }).root,
               ],
             }).root,
             presentation.leafViewDatetime({
+              parentOrientation: parentOrientation,
+              parentOrientationType: parentOrientationType,
               transAlign: "start",
               orientation: "right_down",
               value: new Date().toISOString(),
@@ -175,8 +201,8 @@
           ],
         }).root,
         expand: presentation.contViewTable({
-          orientation: "right_down",
-          convScroll: true,
+          orientation: "down_right",
+          transScroll: true,
           gap: "0.2cm",
           children: tracks,
         }).root,
@@ -200,8 +226,8 @@
           elements: [
             buildStagingPageViewElementTextTracks(buildLotsOfTracks(100)),
             buildStagingPageViewElementTextTracks(buildLotsOfTracks(1)),
-            buildStagingPageViewElementTextTracks(buildLotsOfTracks(1)),
-            buildStagingPageViewElementTextTracks(buildLotsOfTracks(1)),
+            buildStagingPageViewElementTextTracks(buildLotsOfTracks(7)),
+            buildStagingPageViewElementTextTracks(buildLotsOfTracks(15)),
             buildStagingPageViewElementTextTracks(buildLotsOfTracks(1)),
             buildStagingPageViewElementTextTracks(buildLotsOfTracks(1)),
             buildStagingPageViewElementTextTracks(buildLotsOfTracks(1)),
@@ -451,21 +477,31 @@
         {
           /** @type { (n: number)=> HTMLElement } */
           const createElement = (n) => {
+            const parentOrientation = "right_down";
+            const parentOrientationType = "flex";
             const lotsOfTracks2 = [];
             for (let i = 0; i < n; i++) {
+              const parentOrientation2 = "down_right";
+              const parentOrientationType2 = "flex";
               lotsOfTracks2.push(
                 presentation.contViewList({
-                  direction: "down",
+                  parentOrientation: parentOrientation,
+                  parentOrientationType: parentOrientationType,
+                  orientation: parentOrientation2,
                   transAlign: "middle",
                   convScroll: false,
                   wrap: false,
                   children: [
                     presentation.leafViewImage({
+                      parentOrientation: parentOrientation2,
+                      parentOrientationType: parentOrientationType2,
                       src: "testcover.jpg",
                       height: "5cm",
                       transAlign: "middle",
                     }).root,
                     presentation.leafViewText({
+                      parentOrientation: parentOrientation2,
+                      parentOrientationType: parentOrientationType2,
                       text: "ex",
                       transAlign: "middle",
                       orientation: "right_down",
@@ -474,27 +510,37 @@
                 }).root,
               );
             }
+            const parentOrientation1 = "down_right";
+            const parentOrientationType1 = "flex";
             return presentation.contViewElement({
               body: presentation.contViewList({
-                direction: "down",
+                parentOrientation: "down_right",
+                parentOrientationType: "flex",
+                orientation: parentOrientation1,
                 wrap: false,
                 transAlign: "start",
                 convScroll: false,
                 children: [
                   presentation.leafViewText({
+                    parentOrientation: parentOrientation1,
+                    parentOrientationType: parentOrientationType1,
                     transAlign: "start",
                     orientation: "right_down",
                     text: "Harmônicos",
                     fontSize: "20pt",
                   }).root,
                   presentation.leafViewDatetime({
+                    parentOrientation: parentOrientation1,
+                    parentOrientationType: parentOrientationType1,
                     transAlign: "start",
                     orientation: "right_down",
                     value: new Date().toISOString(),
                     fontSize: "14pt",
                   }).root,
                   presentation.contViewList({
-                    direction: "right",
+                    parentOrientation: parentOrientation1,
+                    parentOrientationType: parentOrientationType1,
+                    orientation: parentOrientation,
                     convScroll: true,
                     transAlign: "middle",
                     children: lotsOfTracks2,

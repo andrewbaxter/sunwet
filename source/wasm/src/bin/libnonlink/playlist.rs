@@ -418,7 +418,7 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
         Interval::new(1000, {
             let state = playlist_state.clone();
             let eg = pc.eg();
-            let last_state = Cell::new(None);
+            let last_state = RefCell::new(None);
             move || {
                 let Some(playing_i) = &*state.0.playing_i.borrow() else {
                     return;
@@ -431,11 +431,11 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
                     time = entry.media.pm_get_time();
                     max_time = entry.media.pm_get_max_time();
                 }
-                let new_state = (time, max_time);
-                if Some(&new_state) == last_state.get().as_ref() {
+                let new_state = (playing_i.clone(), time, max_time, *state.0.playing.borrow());
+                if Some(&new_state) == last_state.borrow().as_ref() {
                     return;
                 }
-                last_state.set(Some(new_state));
+                *last_state.borrow_mut() = Some(new_state);
                 eg.event(|pc| {
                     state.0.media_time.set(pc, time);
                     state.0.media_max_time.set(pc, max_time);

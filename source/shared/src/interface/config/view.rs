@@ -34,7 +34,7 @@ pub enum Direction {
     Right,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, JsonSchema, TS, Hash)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, JsonSchema, TS, Hash, Default)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Orientation {
     UpLeft,
@@ -44,6 +44,7 @@ pub enum Orientation {
     LeftUp,
     LeftDown,
     RightUp,
+    #[default]
     RightDown,
 }
 
@@ -270,7 +271,10 @@ pub struct WidgetMedia {
     // For audio, the controls orientation direction.
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
-    pub direction: Option<Direction>,
+    pub audio_direction: Option<Direction>,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub orientation: Option<Orientation>,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
     pub trans_align: TransAlign,
@@ -343,10 +347,13 @@ pub struct DataRowsLayoutUnaligned {
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
     pub gap: Option<String>,
-    pub direction: Option<Direction>,
+    /// The converse direction is the direction of elements. The transverse direction
+    /// is only used for `trans_align` in children. If unspecified, keep the parent
+    /// widget's orientation.
+    pub orientation: Option<Orientation>,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
-    pub trans_align: TransAlign,
+    pub conv_align: TransAlign,
     pub widget: Box<Widget>,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
@@ -372,13 +379,15 @@ pub struct DataRowsLayoutTable {
     pub gap: Option<String>,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
-    pub conv_scroll: bool,
+    pub trans_scroll: bool,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
     pub conv_size_max: Option<String>,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
     pub trans_size_max: Option<String>,
+    /// The converse direction is the direction of cells in a row. The transitive
+    /// direction is the direction of rows.
     pub orientation: Orientation,
     pub elements: Vec<Widget>,
 }
@@ -431,7 +440,9 @@ pub struct WidgetRootDataRows {
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct WidgetLayout {
-    pub direction: Direction,
+    /// The converse direction is the direction of elements. The transverse direction
+    /// is only important for `trans_align` in child widgets.
+    pub orientation: Orientation,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
     pub trans_align: TransAlign,
@@ -439,8 +450,8 @@ pub struct WidgetLayout {
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
     pub gap: Option<String>,
-    // Add a scrollbar to the layout that appears when it exceeds bounds (typically
-    // horizontal direction only).
+    /// Add a scrollbar to the layout that appears when it exceeds bounds (typically
+    /// horizontal direction only).
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
     pub conv_scroll: bool,
@@ -450,8 +461,8 @@ pub struct WidgetLayout {
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
     pub trans_size_max: Option<String>,
-    // Wrap layout instead of shrinking elements individually first when out of space.
-    // Can't be set at the same time as x_scroll or undefined things will happen.
+    /// Wrap layout instead of shrinking elements individually first when out of space.
+    /// Can't be set at the same time as x_scroll or undefined things will happen.
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
     pub wrap: bool,

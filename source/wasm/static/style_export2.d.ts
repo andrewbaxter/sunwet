@@ -8,6 +8,7 @@ declare type Orientation =
   | "left_down"
   | "right_up"
   | "right_down";
+declare type OrientationType2 = "grid" | "flex";
 declare type TransAlign = "start" | "middle" | "end";
 declare type TextSizeMode = "wrap" | "ellipsize";
 // Merge, separated to avoid issues with rust generation
