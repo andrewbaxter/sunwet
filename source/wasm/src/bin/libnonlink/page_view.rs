@@ -747,14 +747,26 @@ impl Build {
     ) -> El {
         match (|| {
             ta_return!(El, String);
+            let standin = || -> Result<El, String> {
+                return Ok(style_export::leaf_view_image(style_export::LeafViewImageArgs {
+                    parent_orientation: parent_orientation,
+                    parent_orientation_type: parent_orientation_type,
+                    trans_align: config_at.trans_align,
+                    src: "".to_string(),
+                    link: None,
+                    text: None,
+                    width: config_at.width.clone(),
+                    height: config_at.height.clone(),
+                }).root)
+            };
             let Some(src) = maybe_get_field_or_literal(&config_at.data, &data_stack)? else {
-                return Ok(el("div"));
+                return standin();
             };
             let TreeNode::Scalar(src) = src else {
-                return Ok(el("div"));
+                return standin();
             };
             let Some(meta) = maybe_get_meta(data_stack, &src) else {
-                return Ok(el("div"));
+                return standin();
             };
             match meta.mime.as_ref().map(|x| x.as_str()).unwrap_or("").split("/").next().unwrap() {
                 "image" => {
