@@ -326,6 +326,11 @@
     "rgb(215, 217, 225)",
     "rgb(82, 87, 94)",
   );
+  const varCBackgroundViewImgStack = vs(
+    uniq("background_view_img_stack"),
+    "rgb(72, 78, 85)",
+    "rgb(46, 49, 53)",
+  );
   const varCNodeCenterLine = vs(
     uniq("node_center_line"),
     "rgb(204, 207, 217)",
@@ -3040,6 +3045,57 @@
     });
     /** @type { (s: string)=>HTMLElement} */
     const createImg = (s) => {
+      /** @type {HTMLElement} */
+      const img0 = leafImg({
+        src: args.src,
+        lazy: true,
+        alt: args.text,
+      });
+      let img;
+      if (args.width != null && args.height != null) {
+        img0.classList.add(
+          ss(uniq("leaf_view_image_img"), {
+            "": (s) => {
+              s.minWidth = "0";
+              s.minHeight = "0";
+              s.maxWidth = "100%";
+              s.maxHeight = "100%";
+            },
+          }),
+        );
+        img = e(
+          "div",
+          {},
+          {
+            styles_: [
+              contStackStyle,
+              ss(uniq("leaf_view_image_stack"), {
+                "": (s) => {
+                  s.justifyItems = "center";
+                  s.alignItems = "center";
+                  s.backgroundColor = varCBackgroundViewImgStack;
+                },
+              }),
+            ],
+            children_: [img0],
+          },
+        );
+      } else {
+        img = img0;
+      }
+      img.classList.add(
+        s,
+        ss(uniq("leaf_view_image"), {
+          "": (s) => {
+            s.minWidth = "0";
+            s.minHeight = "0";
+            s.maxWidth = "100%";
+            s.maxHeight = "100%";
+            s.filter = "drop-shadow(0.1cm 0.1cm 0.1cm rgba(0, 0, 0, 0.1))";
+            s.overflow = "hidden";
+          },
+        }),
+      );
       return e(
         "div",
         {},
@@ -3055,26 +3111,7 @@
               },
             }),
           ],
-          children_: [
-            leafImg({
-              src: args.src,
-              lazy: true,
-              styles_: [
-                s,
-                ss(uniq("leaf_view_image"), {
-                  "": (s) => {
-                    s.minWidth = "0";
-                    s.minHeight = "0";
-                    s.maxWidth = "100%";
-                    s.maxHeight = "100%";
-                    s.filter =
-                      "drop-shadow(0.1cm 0.1cm 0.1cm rgba(0, 0, 0, 0.1))";
-                  },
-                }),
-              ],
-              alt: args.text,
-            }),
-          ],
+          children_: [img],
         },
       );
     };

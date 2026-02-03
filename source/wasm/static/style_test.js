@@ -164,7 +164,8 @@
               parentOrientationType: parentOrientationType,
               transAlign: "start",
               src: "testcover.jpg",
-              width: "100%",
+              width: "5.5cm",
+              height: "6cm",
             }).root,
             presentation.contViewList({
               parentOrientation: parentOrientation,
