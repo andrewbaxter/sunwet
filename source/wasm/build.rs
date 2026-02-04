@@ -508,7 +508,8 @@ fn main() {
                 ("link", &optstring_),
                 ("text", &optstring_),
                 ("width", &optstring_),
-                ("height", &optstring_)
+                ("height", &optstring_),
+                ("aspect", &optstring_)
             ],
             returns: vec![("root", &el_)],
         },
@@ -522,7 +523,8 @@ fn main() {
                 ("link", &optstring_),
                 ("text", &optstring_),
                 ("width", &optstring_),
-                ("height", &optstring_)
+                ("height", &optstring_),
+                ("aspect", &optstring_)
             ],
             returns: vec![("root", &el_)],
         },

@@ -268,6 +268,11 @@ pub struct WidgetMedia {
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
     pub height: Option<String>,
+    /// Set the media aspect ratio. Exactly one of `width` or `height` must also be
+    /// specified. Can be any valid css aspect ratio.
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub aspect: Option<String>,
     // For audio, the controls orientation direction.
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]

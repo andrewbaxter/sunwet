@@ -10,4 +10,9 @@ export type WidgetMedia = { data: FieldOrLiteral, alt?: FieldOrLiteral | null,
  * For image/video, the width.  For audio, the length of the controls regardless
  * of direction.
  */
-width?: string | null, height?: string | null, audio_direction?: Direction | null, orientation?: Orientation | null, trans_align?: TransAlign, link?: Link | null, };
+width?: string | null, height?: string | null, 
+/**
+ * Set the media aspect ratio. Exactly one of `width` or `height` must also be
+ * specified. Can be any valid css aspect ratio.
+ */
+aspect?: string | null, audio_direction?: Direction | null, orientation?: Orientation | null, trans_align?: TransAlign, link?: Link | null, };

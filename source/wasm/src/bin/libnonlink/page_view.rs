@@ -757,6 +757,7 @@ impl Build {
                     text: None,
                     width: config_at.width.clone(),
                     height: config_at.height.clone(),
+                    aspect: config_at.aspect.clone(),
                 }).root)
             };
             let Some(src) = maybe_get_field_or_literal(&config_at.data, &data_stack)? else {
@@ -795,6 +796,7 @@ impl Build {
                         },
                         width: config_at.width.clone(),
                         height: config_at.height.clone(),
+                        aspect: config_at.aspect.clone(),
                     }).root);
                 },
                 "video" => {
@@ -823,6 +825,7 @@ impl Build {
                         },
                         width: config_at.width.clone(),
                         height: config_at.height.clone(),
+                        aspect: config_at.aspect.clone(),
                     }).root);
                 },
                 "audio" => {

@@ -85,12 +85,12 @@ export const sendFdap = async (userConfig: {
   };
 
   // import * as fdap_login from "./fdap-login/source/generated/ts/index";
-  const album_title_block_width = "6cm";
+  const audioAlbumTitleBlockSize = "6cm";
   const album_title_block_height = "8cm";
   const album_tracks_height = "min(max-content, 100dvh)";
   const display_audio_albums: sunwet.WidgetRootDataRows = {
     data: { query: "root" },
-    element_width: album_title_block_width,
+    element_width: audioAlbumTitleBlockSize,
     element_height: album_title_block_height,
     element_body: {
       layout: {
@@ -101,8 +101,8 @@ export const sendFdap = async (userConfig: {
             media: {
               orientation: "down_right",
               trans_align: "middle",
-              width: album_title_block_width,
-              height: album_title_block_width,
+              width: audioAlbumTitleBlockSize,
+              aspect: "1",
               data: { field: "cover" },
             },
           },
@@ -320,7 +320,7 @@ export const sendFdap = async (userConfig: {
                           {
                             play_button: {
                               trans_align: "middle",
-                              orientation: "right_down",
+                              orientation: "down_right",
                               media_file_field: "file",
                               name_field: "track_name",
                               album_field: "album_name",
@@ -337,7 +337,7 @@ export const sendFdap = async (userConfig: {
                               suffix: ". ",
                               font_size: "12pt",
                               conv_size_mode: "wrap",
-                              orientation: "right_down",
+                              orientation: "down_right",
                             },
                           },
                           {
@@ -349,7 +349,7 @@ export const sendFdap = async (userConfig: {
                               suffix: ". ",
                               font_size: "12pt",
                               conv_size_mode: "wrap",
-                              orientation: "right_down",
+                              orientation: "down_right",
                             },
                           },
                           {
@@ -371,7 +371,7 @@ export const sendFdap = async (userConfig: {
                               font_size: "12pt",
                               conv_size_mode: "wrap",
                               conv_size_max: "8cm",
-                              orientation: "right_down",
+                              orientation: "down_right",
                             },
                           },
                         ],
@@ -387,6 +387,7 @@ export const sendFdap = async (userConfig: {
     },
   };
 
+  const audioTracksBlockSize = "min(15dvw, 1.6cm)";
   const display_audio_tracks: sunwet.WidgetRootDataRows = {
     data: { query: "root" },
     element_body: {
@@ -401,13 +402,22 @@ export const sendFdap = async (userConfig: {
                   play_button: {
                     media_file_field: "file",
                     show_image: true,
-                    width: "min(15dvw, 1.6cm)",
-                    height: "min(15dvw, 1.6cm)",
+                    width: audioTracksBlockSize,
+                    height: audioTracksBlockSize,
                     name_field: "track_name",
                     album_field: "album_name",
                     artist_field: "artist_name",
                     cover_field: "cover",
-                    trans_align: "start",
+                    trans_align: "middle",
+                  },
+                },
+                {
+                  media: {
+                    orientation: "right_down",
+                    trans_align: "middle",
+                    width: audioTracksBlockSize,
+                    height: audioTracksBlockSize,
+                    data: { field: "cover" },
                   },
                 },
                 {
@@ -416,6 +426,7 @@ export const sendFdap = async (userConfig: {
                     gap: "0.2cm",
                     trans_align: "middle",
                     elements: [
+                      "space",
                       {
                         text: {
                           data: {
@@ -979,7 +990,7 @@ export const sendFdap = async (userConfig: {
   };
   const display_playlists: sunwet.WidgetRootDataRows = {
     data: { query: "root" },
-    element_width: album_title_block_width,
+    element_width: audioAlbumTitleBlockSize,
     element_height: album_title_block_height,
     element_body: {
       layout: {
@@ -989,8 +1000,9 @@ export const sendFdap = async (userConfig: {
           {
             media: {
               orientation: "down_right",
-              trans_align: "start",
-              width: "100%",
+              trans_align: "middle",
+              width: audioAlbumTitleBlockSize,
+              aspect: "1",
               data: { field: "cover" },
             },
           },

@@ -2155,6 +2155,14 @@
             }
           ]
         },
+        "aspect": {
+          "description": "Set the media aspect ratio. Exactly one of `width` or `height` must also be specified. Can be any valid css aspect ratio.",
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "audio_direction": {
           "default": null,
           "anyOf": [

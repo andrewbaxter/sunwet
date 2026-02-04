@@ -148,7 +148,7 @@
     /** @type { (tracks: HTMLElement[][]) => HTMLElement } */
     const buildStagingPageViewElementTextTracks = (tracks) => {
       const parentOrientation = "down_right";
-      const parentOrientationType = "grid";
+      const parentOrientationType = "flex";
       return presentation.contViewElement({
         height: "11cm",
         body: presentation.contViewList({
@@ -162,7 +162,7 @@
             presentation.leafViewImage({
               parentOrientation: parentOrientation,
               parentOrientationType: parentOrientationType,
-              transAlign: "start",
+              transAlign: "middle",
               src: "testcover.jpg",
               width: "5.5cm",
               height: "6cm",

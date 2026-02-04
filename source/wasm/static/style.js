@@ -249,7 +249,7 @@
   const varPPageBottom = "2.5cm";
   const varPViewRows = "0.4cm";
   const varPViewCol = "0.5cm";
-  const varPViewList = "0.3cm";
+  const varPViewList = "0.15cm";
   const varPViewHoriz = `max(0.3cm, min(${varSCol1Width}, 100dvw / 20))`;
   const varPViewVert = `max(0.15cm, min(${varSCol1Width} / 2, 100dvw / 10))`;
   const varPElHoriz = `max(0.1cm, min(0.4cm, 100dvw / 20))`;
@@ -2610,10 +2610,6 @@
     }
   };
 
-  const classViewTransverseStart = "trans_start";
-  const classViewTransverseMiddle = "trans_middle";
-  const classViewTransverseEnd = "trans_end";
-
   const contViewListStyle = ss(uniq("cont_view_list"), {
     "": (s) => {
       s.pointerEvents = "initial";
@@ -2625,12 +2621,6 @@
     },
     ".root": (s) => {
       s.gap = varPViewRows;
-    },
-    [`>.${classViewTransverseStart}`]: (s) => {
-      s.alignSelf = "first baseline";
-    },
-    [`>.${classViewTransverseEnd}`]: (s) => {
-      s.alignSelf = "last baseline";
     },
   });
   const contViewListStyleWrap = /** @type {(wrap:boolean)=>string} */ (
@@ -2907,111 +2897,101 @@
     /** @type { (args:{orientation: Orientation, orientationType: OrientationType2, transAlign: TransAlign})=>string } */ (
       args,
     ) =>
-      ss(uniq("view_leaf_trans_style", args.orientation, args.transAlign), {
-        "": (s) => {
-          const [key, val] =
-            /** @type {()=>["align"|"justify", "end"|"middle"|"start"]} */ (
-              () => {
-                switch (args.orientationType) {
-                  case "flex":
-                    switch (trans(args.orientation)) {
-                      case "up":
-                        switch (args.transAlign) {
-                          case "start":
-                            return ["align", "end"];
-                          case "middle":
-                            return ["align", "center"];
-                          case "end":
-                            return ["align", "start"];
-                        }
-                        break;
-                      case "left":
-                        switch (args.transAlign) {
-                          case "start":
-                            return ["justify", "start"];
-                          case "middle":
-                            return ["justify", "center"];
-                          case "end":
-                            return ["justify", "end"];
-                        }
-                        break;
-                      case "down":
-                        switch (args.transAlign) {
-                          case "start":
-                            return ["align", "start"];
-                          case "middle":
-                            return ["align", "center"];
-                          case "end":
-                            return ["align", "end"];
-                        }
-                        break;
-                      case "right":
-                        switch (args.transAlign) {
-                          case "start":
-                            return ["justify", "end"];
-                          case "middle":
-                            return ["justify", "center"];
-                          case "end":
-                            return ["justify", "start"];
-                        }
-                        break;
-                    }
-                  case "grid":
-                    switch (trans(args.orientation)) {
-                      case "up":
-                        switch (args.transAlign) {
-                          case "start":
-                            return ["align", "end"];
-                          case "middle":
-                            return ["align", "center"];
-                          case "end":
-                            return ["align", "start"];
-                        }
-                        break;
-                      case "down":
-                        switch (args.transAlign) {
-                          case "start":
-                            return ["align", "start"];
-                          case "middle":
-                            return ["align", "center"];
-                          case "end":
-                            return ["align", "end"];
-                        }
-                        break;
-                      case "left":
-                        switch (args.transAlign) {
-                          case "start":
-                            return ["justify", "end"];
-                          case "middle":
-                            return ["justify", "center"];
-                          case "end":
-                            return ["justify", "start"];
-                        }
-                        break;
-                      case "right":
-                        switch (args.transAlign) {
-                          case "start":
-                            return ["justify", "start"];
-                          case "middle":
-                            return ["justify", "center"];
-                          case "end":
-                            return ["justify", "end"];
-                        }
-                        break;
-                    }
+      ss(
+        uniq(
+          "view_leaf_trans_style",
+          args.orientationType,
+          args.orientation,
+          args.transAlign,
+        ),
+        {
+          "": (s) => {
+            const [key, val] =
+              /** @type {()=>["align"|"justify", "end"|"middle"|"start"]} */ (
+                () => {
+                  switch (args.orientationType) {
+                    case "flex":
+                      switch (trans(args.orientation)) {
+                        case "up":
+                        case "left":
+                          switch (args.transAlign) {
+                            case "start":
+                              return ["align", "end"];
+                            case "middle":
+                              return ["align", "center"];
+                            case "end":
+                              return ["align", "start"];
+                          }
+                          break;
+                        case "down":
+                        case "right":
+                          switch (args.transAlign) {
+                            case "start":
+                              return ["align", "start"];
+                            case "middle":
+                              return ["align", "center"];
+                            case "end":
+                              return ["align", "end"];
+                          }
+                          break;
+                      }
+                    case "grid":
+                      switch (trans(args.orientation)) {
+                        case "up":
+                          switch (args.transAlign) {
+                            case "start":
+                              return ["align", "end"];
+                            case "middle":
+                              return ["align", "center"];
+                            case "end":
+                              return ["align", "start"];
+                          }
+                          break;
+                        case "down":
+                          switch (args.transAlign) {
+                            case "start":
+                              return ["align", "start"];
+                            case "middle":
+                              return ["align", "center"];
+                            case "end":
+                              return ["align", "end"];
+                          }
+                          break;
+                        case "left":
+                          switch (args.transAlign) {
+                            case "start":
+                              return ["justify", "end"];
+                            case "middle":
+                              return ["justify", "center"];
+                            case "end":
+                              return ["justify", "start"];
+                          }
+                          break;
+                        case "right":
+                          switch (args.transAlign) {
+                            case "start":
+                              return ["justify", "start"];
+                            case "middle":
+                              return ["justify", "center"];
+                            case "end":
+                              return ["justify", "end"];
+                          }
+                          break;
+                      }
+                  }
                 }
-              }
-            )();
-          switch (key) {
-            case "align":
-              s.alignSelf = val;
-              break;
-            case "justify":
-              s.justifySelf = val;
-              break;
-          }
+              )();
+            switch (key) {
+              case "align":
+                s.alignSelf = val;
+                break;
+              case "justify":
+                s.justifySelf = val;
+                break;
+            }
+          },
         },
-      });
+      );
 
   const viewMediaLinkMediaStyle = ss(uniq("leaf_view_media_link_media"), {
     "": (s) => {
@@ -3038,11 +3018,6 @@
   presentation.leafViewImage = /** @type { Presentation["leafViewImage"] } */ (
     args,
   ) => {
-    const alignStyle = viewLeafTransStyle({
-      orientationType: args.parentOrientationType,
-      orientation: args.parentOrientation,
-      transAlign: args.transAlign,
-    });
     /** @type { (s: string)=>HTMLElement} */
     const createImg = (s) => {
       /** @type {HTMLElement} */
@@ -3052,14 +3027,13 @@
         alt: args.text,
       });
       let img;
-      if (args.width != null && args.height != null) {
+      if ((args.width != null && args.height != null) || args.aspect != null) {
         img0.classList.add(
           ss(uniq("leaf_view_image_img"), {
             "": (s) => {
-              s.minWidth = "0";
-              s.minHeight = "0";
-              s.maxWidth = "100%";
-              s.maxHeight = "100%";
+              s.objectFit = "contain";
+              s.height = "100%";
+              s.width = "100%";
             },
           }),
         );
@@ -3091,7 +3065,7 @@
             s.minHeight = "0";
             s.maxWidth = "100%";
             s.maxHeight = "100%";
-            s.filter = "drop-shadow(0.1cm 0.1cm 0.1cm rgba(0, 0, 0, 0.1))";
+            s.filter = "drop-shadow(0.1cm 0.1cm 0.05cm rgba(0, 0, 0, 0.1))";
             s.overflow = "hidden";
           },
         }),
@@ -3106,8 +3080,9 @@
                 s.display = "grid";
                 s.gridTemplateColumns = "1fr";
                 s.gridTemplateRows = "1fr";
-                s.padding = "0.3cm";
-                s.margin = "-0.3cm";
+                s.padding = "0.15cm";
+                s.maxWidth = "100%";
+                s.maxHeight = "100%";
               },
             }),
           ],
@@ -3115,6 +3090,11 @@
         },
       );
     };
+    const alignStyle = viewLeafTransStyle({
+      orientationType: args.parentOrientationType,
+      orientation: args.parentOrientation,
+      transAlign: args.transAlign,
+    });
     const out = (() => {
       if (args.link != null) {
         return e(
@@ -3136,6 +3116,9 @@
     }
     if (args.height) {
       out.style.height = args.height;
+    }
+    if (args.aspect) {
+      out.style.aspectRatio = args.aspect;
     }
     return { root: out };
   };
@@ -3187,7 +3170,6 @@
         return media;
       }
     })();
-    // todo add viewLeafTransStyle, need to add orientation
     if (args.width) {
       out.style.width = args.width;
     }
