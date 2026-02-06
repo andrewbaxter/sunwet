@@ -15,6 +15,7 @@ use {
             categorize_mime_media,
         },
         state::state,
+        transfers,
     },
     by_address::ByAddress,
     flowcontrol::{
@@ -52,6 +53,7 @@ use {
         },
         wire::{
             ReqCommit,
+            ReqCommitFree,
             ReqGetNodeMeta,
             ReqGetTriplesAround,
             Triple,
@@ -1734,16 +1736,13 @@ pub async fn build_node_edit_contents(
                                 });
                             }
 
-                            // Write commit
-                            req_post_json(ReqCommit {
+                            // Queue for upload
+                            transfers::ensure_commit(eg.clone(), ReqCommit::Free(ReqCommitFree {
                                 comment: format!("Edit node [{}]", title),
                                 add: add1,
                                 remove: remove,
                                 files: files_to_commit,
-                            }).await?;
-
-                            // Upload files
-                            commit::upload_files(files_to_upload).await?;
+                            }), files_to_upload).await?;
                             return Ok(files_to_return);
                         }.await;
                         button.class_list().remove_1(&style_export::class_state_thinking().value).unwrap();

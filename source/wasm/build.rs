@@ -969,7 +969,7 @@ fn main() {
         Func {
             name: "contMenuGroup",
             args: vec![("title", &string_), ("children", &arrel_)],
-            returns: vec![("root", &el_)],
+            returns: vec![("root", &el_), ("body", &el_)],
         },
         Func {
             name: "leafMenuLink",

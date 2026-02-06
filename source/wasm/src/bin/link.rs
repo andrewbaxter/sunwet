@@ -33,7 +33,6 @@ use {
             link::{
                 COOKIE_LINK_SESSION,
                 PrepareMedia,
-                SourceUrl,
                 WsL2S,
                 WsS2L,
             },
@@ -162,10 +161,9 @@ fn build_link(log: &Rc<dyn Log>, media_audio_el: HtmlMediaElement, media_video_e
                                                 state
                                                     .0
                                                     .display
-                                                    .ref_push(el("img").attr("src", &match cover_source_url {
-                                                        SourceUrl::Url(v) => v.clone(),
-                                                        SourceUrl::File(v) => file_url(&env, v),
-                                                    }))
+                                                    .ref_push(
+                                                        el("img").attr("src", &file_url(&env, cover_source_url)),
+                                                    )
                                                     .ref_attr("preload", "auto");
                                             },
                                             None => {
@@ -202,53 +200,65 @@ fn build_link(log: &Rc<dyn Log>, media_audio_el: HtmlMediaElement, media_video_e
                                     },
                                     PrepareMedia::Comic(source_url) => {
                                         state.0.display_under.ref_modify_classes(&[(&class_state_hide, true)]);
-                                        media = Rc::new(PlaylistMediaComic::new(&match source_url {
-                                            SourceUrl::Url(u) => u,
-                                            SourceUrl::File(h) => generated_file_url(&env, &h, GENTYPE_DIR, ""),
-                                        }, Rc::new({
-                                            let log = state.0.log.clone();
-                                            move |url| {
-                                                let log = log.clone();
-                                                async move {
-                                                    loop {
-                                                        match async {
-                                                            ta_return!(ComicManifest, String);
-                                                            let r =
-                                                                Request::get(&url)
-                                                                    .send()
-                                                                    .await
-                                                                    .map_err(
-                                                                        |e| format!(
-                                                                            "Error requesting comic manifest: {}",
-                                                                            e
-                                                                        ),
-                                                                    )?
-                                                                    .binary()
-                                                                    .await
-                                                                    .map_err(
-                                                                        |e| format!(
-                                                                            "Error reading comic manifest response: {}",
-                                                                            e
-                                                                        ),
-                                                                    )?;
-                                                            return Ok(
-                                                                serde_json::from_slice::<ComicManifest>(
-                                                                    &r,
-                                                                ).map_err(
-                                                                    |e| format!("Error reading comic manifest: {}", e),
-                                                                )?,
-                                                            );
-                                                        }.await {
-                                                            Ok(r) => return Ok(r),
-                                                            Err(e) => {
-                                                                log.log(&format!("Request failed, retrying: {}", e));
-                                                                sleep(Duration::from_secs(1)).await;
-                                                            },
-                                                        }
-                                                    }
-                                                }
-                                            }.boxed_local()
-                                        }), 0));
+                                        media =
+                                            Rc::new(
+                                                PlaylistMediaComic::new(
+                                                    &generated_file_url(&env, &source_url, GENTYPE_DIR, ""),
+                                                    Rc::new({
+                                                        let log = state.0.log.clone();
+                                                        move |url| {
+                                                            let log = log.clone();
+                                                            async move {
+                                                                loop {
+                                                                    match async {
+                                                                        ta_return!(ComicManifest, String);
+                                                                        let r =
+                                                                            Request::get(&url)
+                                                                                .send()
+                                                                                .await
+                                                                                .map_err(
+                                                                                    |e| format!(
+                                                                                        "Error requesting comic manifest: {}",
+                                                                                        e
+                                                                                    ),
+                                                                                )?
+                                                                                .binary()
+                                                                                .await
+                                                                                .map_err(
+                                                                                    |e| format!(
+                                                                                        "Error reading comic manifest response: {}",
+                                                                                        e
+                                                                                    ),
+                                                                                )?;
+                                                                        return Ok(
+                                                                            serde_json::from_slice::<ComicManifest>(
+                                                                                &r,
+                                                                            ).map_err(
+                                                                                |e| format!(
+                                                                                    "Error reading comic manifest: {}",
+                                                                                    e
+                                                                                ),
+                                                                            )?,
+                                                                        );
+                                                                    }.await {
+                                                                        Ok(r) => return Ok(r),
+                                                                        Err(e) => {
+                                                                            log.log(
+                                                                                &format!(
+                                                                                    "Request failed, retrying: {}",
+                                                                                    e
+                                                                                ),
+                                                                            );
+                                                                            sleep(Duration::from_secs(1)).await;
+                                                                        },
+                                                                    }
+                                                                }
+                                                            }
+                                                        }.boxed_local()
+                                                    }),
+                                                    0,
+                                                ),
+                                            );
                                         eg
                                             .event(
                                                 |pc| state.0.display.ref_push(media.pm_el(&state.0.log, pc).clone()),
@@ -257,10 +267,13 @@ fn build_link(log: &Rc<dyn Log>, media_audio_el: HtmlMediaElement, media_video_e
                                     },
                                     PrepareMedia::Book(source_url) => {
                                         state.0.display_under.ref_modify_classes(&[(&class_state_hide, true)]);
-                                        media = Rc::new(PlaylistMediaBook::new(&match source_url {
-                                            SourceUrl::Url(u) => u,
-                                            SourceUrl::File(h) => generated_file_url(&env, &h, GENTYPE_DIR, ""),
-                                        }, 0));
+                                        media =
+                                            Rc::new(
+                                                PlaylistMediaBook::new(
+                                                    &generated_file_url(&env, &source_url, GENTYPE_DIR, ""),
+                                                    0,
+                                                ),
+                                            );
                                         eg
                                             .event(
                                                 |pc| state.0.display.ref_push(media.pm_el(&state.0.log, pc).clone()),

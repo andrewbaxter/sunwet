@@ -32,9 +32,17 @@ use {
             playlist_toggle_play,
         },
         seekbar::setup_seekbar,
+        viewutil::{
+            DataStackLevel,
+            maybe_get_field,
+            maybe_get_field_or_literal,
+            maybe_get_field_or_literal_string,
+            maybe_get_meta,
+            tree_node_to_text,
+            unwrap_value_media_url,
+        },
     },
     flowcontrol::{
-        exenum,
         shed,
         ta_return,
     },
@@ -61,43 +69,37 @@ use {
         el,
         el_from_raw,
     },
-    shared::{
-        interface::{
-            config::view::{
-                ClientView,
-                Direction,
-                FieldOrLiteral,
-                FieldOrLiteralString,
-                Link,
-                LinkDest,
-                Orientation,
-                QueryOrField,
-                ViewId,
-                Widget,
-                WidgetColor,
-                WidgetDataRows,
-                WidgetDate,
-                WidgetDatetime,
-                WidgetIcon,
-                WidgetLayout,
-                WidgetMedia,
-                WidgetNode,
-                WidgetPlayButton,
-                WidgetRootDataRows,
-                WidgetText,
-                WidgetTime,
-            },
-            triple::Node,
-            wire::{
-                NodeMeta,
-                Pagination,
-                ReqViewQuery,
-                RespQueryRows,
-                TreeNode,
-                link::SourceUrl,
-            },
+    shared::interface::{
+        config::view::{
+            ClientView,
+            Direction,
+            Link,
+            LinkDest,
+            Orientation,
+            QueryOrField,
+            ViewId,
+            Widget,
+            WidgetColor,
+            WidgetDataRows,
+            WidgetDate,
+            WidgetDatetime,
+            WidgetIcon,
+            WidgetLayout,
+            WidgetMedia,
+            WidgetNode,
+            WidgetPlayButton,
+            WidgetRootDataRows,
+            WidgetText,
+            WidgetTime,
         },
-        stringpattern::node_to_text,
+        triple::Node,
+        wire::{
+            NodeMeta,
+            Pagination,
+            ReqViewQuery,
+            RespQueryRows,
+            TreeNode,
+        },
     },
     std::{
         cell::{
@@ -117,6 +119,8 @@ use {
         js::{
             LogJsErr,
             el_async,
+            env_preferred_audio_url,
+            env_preferred_video_url,
             style_export::{
                 self,
                 OrientationType,
@@ -133,85 +137,14 @@ use {
 
 pub const LOCALSTORAGE_SHARE_SESSION_ID: &str = "share_session_id";
 
-#[derive(Clone)]
-struct DataStackLevel {
-    data: TreeNode,
-    node_meta: Rc<HashMap<Node, NodeMeta>>,
-}
-
-fn maybe_get_meta<'a>(data_stack: &'a Vec<DataStackLevel>, node: &Node) -> Option<&'a NodeMeta> {
-    for data_at in data_stack.iter().rev() {
-        if let Some(meta) = data_at.node_meta.get(node) {
-            return Some(meta);
-        }
-    }
-    return None;
-}
-
-fn maybe_get_field(config_at: &String, data_stack: &Vec<DataStackLevel>) -> Option<TreeNode> {
-    for data_at in data_stack.iter().rev() {
-        let TreeNode::Record(data_at) = &data_at.data else {
-            continue;
-        };
-        let Some(data_at) = data_at.get(config_at) else {
-            continue;
-        };
-        if exenum!(data_at, TreeNode:: Scalar(Node::Value(serde_json::Value::Null)) =>()).is_some() {
-            continue;
-        }
-        return Some(data_at.clone());
-    }
-    return None;
-}
-
-fn maybe_get_field_or_literal(
-    config_at: &FieldOrLiteral,
-    data_stack: &Vec<DataStackLevel>,
-) -> Result<Option<TreeNode>, String> {
-    match config_at {
-        FieldOrLiteral::Field(config_at) => return Ok(maybe_get_field(config_at, data_stack)),
-        FieldOrLiteral::Literal(config_at) => return Ok(Some(TreeNode::Scalar(config_at.clone()))),
-    }
-}
-
-fn maybe_get_field_or_literal_string(
-    config_at: &FieldOrLiteralString,
-    data_stack: &Vec<DataStackLevel>,
-) -> Result<Option<TreeNode>, String> {
-    match config_at {
-        FieldOrLiteralString::Field(config_at) => return Ok(maybe_get_field(config_at, data_stack)),
-        FieldOrLiteralString::Literal(config_at) => return Ok(
-            Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(config_at.clone())))),
-        ),
-    }
-}
-
-pub fn tree_node_to_text(data_at: &TreeNode) -> String {
-    match data_at {
-        TreeNode::Array(v) => return serde_json::to_string(v).unwrap(),
-        TreeNode::Record(v) => return serde_json::to_string(v).unwrap(),
-        TreeNode::Scalar(v) => node_to_text(v),
-    }
-}
-
-fn unwrap_value_media_url(data_at: &Node) -> Result<SourceUrl, String> {
-    match data_at {
-        Node::File(v) => return Ok(SourceUrl::File(v.clone())),
-        Node::Value(v) => match v {
-            serde_json::Value::String(v) => return Ok(SourceUrl::Url(v.clone())),
-            _ => return Err(format!("Url is not a string: {}", serde_json::to_string(v).unwrap())),
-        },
-    }
-}
-
-fn unwrap_value_move_url(data_stack: &Vec<DataStackLevel>, link: &Link) -> Result<Option<String>, String> {
-    let title = match maybe_get_field_or_literal(&link.title, data_stack)? {
+fn unwrap_value_move_url(data_stack: &Vec<Rc<DataStackLevel>>, link: &Link) -> Result<Option<String>, String> {
+    let title = match maybe_get_field_or_literal(&link.title, data_stack) {
         Some(x) => tree_node_to_text(&x),
         None => format!("(unknown name)"),
     };
     match &link.dest {
         LinkDest::Plain(d) => {
-            let Some(TreeNode::Scalar(data_at)) = maybe_get_field_or_literal(d, data_stack)? else {
+            let Some(TreeNode::Scalar(data_at)) = maybe_get_field_or_literal(d, data_stack) else {
                 return Ok(None);
             };
             match data_at {
@@ -229,7 +162,7 @@ fn unwrap_value_move_url(data_stack: &Vec<DataStackLevel>, link: &Link) -> Resul
         LinkDest::View(d) => {
             let mut params = HashMap::new();
             for (k, v) in &d.parameters {
-                let Some(TreeNode::Scalar(v)) = maybe_get_field_or_literal(v, data_stack)? else {
+                let Some(TreeNode::Scalar(v)) = maybe_get_field_or_literal(v, data_stack) else {
                     continue;
                 };
                 params.insert(k.clone(), v);
@@ -244,7 +177,7 @@ fn unwrap_value_move_url(data_stack: &Vec<DataStackLevel>, link: &Link) -> Resul
         LinkDest::Form(d) => {
             let mut params = HashMap::new();
             for (k, v) in &d.parameters {
-                let Some(TreeNode::Scalar(v)) = maybe_get_field_or_literal(v, data_stack)? else {
+                let Some(TreeNode::Scalar(v)) = maybe_get_field_or_literal(v, data_stack) else {
                     continue;
                 };
                 params.insert(k.clone(), v);
@@ -256,7 +189,7 @@ fn unwrap_value_move_url(data_stack: &Vec<DataStackLevel>, link: &Link) -> Resul
             }))));
         },
         LinkDest::Node(d) => {
-            let Some(TreeNode::Scalar(data_at)) = maybe_get_field_or_literal(d, data_stack)? else {
+            let Some(TreeNode::Scalar(data_at)) = maybe_get_field_or_literal(d, data_stack) else {
                 return Ok(None);
             };
             return Ok(Some(ministate_octothorpe(&Ministate::NodeView(MinistateNodeView {
@@ -288,7 +221,7 @@ impl Build {
         config_at: &WidgetLayout,
         config_query_params: &BTreeMap<String, Vec<String>>,
         data_id: &Vec<usize>,
-        data_at: &Vec<DataStackLevel>,
+        data_at: &Vec<Rc<DataStackLevel>>,
     ) -> El {
         let mut children = vec![];
         for child_config_at in &config_at.elements {
@@ -326,7 +259,7 @@ impl Build {
         config_at: &WidgetDataRows,
         config_query_params: &BTreeMap<String, Vec<String>>,
         data_id: &Vec<usize>,
-        data_at: &Vec<DataStackLevel>,
+        data_at: &Vec<Rc<DataStackLevel>>,
     ) -> El {
         return el_async({
             let view_id = self.view_id.clone();
@@ -414,10 +347,10 @@ impl Build {
                             let mut children = vec![];
                             for (i, new_data_at_top) in new_data_at_tops.into_iter().enumerate() {
                                 let mut data_at = data_at.clone();
-                                data_at.push(DataStackLevel {
+                                data_at.push(Rc::new(DataStackLevel {
                                     data: new_data_at_top,
                                     node_meta: node_meta.clone(),
-                                });
+                                }));
                                 let mut data_id = data_id.clone();
                                 data_id.push(i);
                                 children.push(
@@ -449,10 +382,10 @@ impl Build {
                             let mut rows = vec![];
                             for (i, new_data_at_top) in new_data_at_tops.into_iter().enumerate() {
                                 let mut data_at = data_at.clone();
-                                data_at.push(DataStackLevel {
+                                data_at.push(Rc::new(DataStackLevel {
                                     data: new_data_at_top,
                                     node_meta: node_meta.clone(),
-                                });
+                                }));
                                 let mut data_id = data_id.clone();
                                 data_id.push(i);
                                 let mut columns = vec![];
@@ -499,7 +432,7 @@ impl Build {
         pc: &mut ProcessingContext,
         config_at: &WidgetRootDataRows,
         config_query_params: &BTreeMap<String, Vec<String>>,
-        data_at: &Vec<DataStackLevel>,
+        data_at: &Vec<Rc<DataStackLevel>>,
     ) -> El {
         let build_infinite_page = {
             let view_id = self.view_id.clone();
@@ -529,10 +462,10 @@ impl Build {
                     let mut children = vec![];
                     for (i, new_data_at_top) in chunk {
                         let mut data_at = data_at.clone();
-                        data_at.push(DataStackLevel {
+                        data_at.push(Rc::new(DataStackLevel {
                             data: new_data_at_top,
                             node_meta: node_meta.clone(),
-                        });
+                        }));
                         children.push(style_export::cont_view_element(style_export::ContViewElementArgs {
                             body: build.build_widget(
                                 pc,
@@ -700,7 +633,7 @@ impl Build {
         parent_orientation: Orientation,
         parent_orientation_type: OrientationType,
         config_at: &WidgetText,
-        data_stack: &Vec<DataStackLevel>,
+        data_stack: &Vec<Rc<DataStackLevel>>,
     ) -> El {
         match (|| {
             ta_return!(El, String);
@@ -712,7 +645,7 @@ impl Build {
                 text: format!(
                     "{}{}{}",
                     config_at.prefix,
-                    tree_node_to_text(&match maybe_get_field_or_literal_string(&config_at.data, data_stack)? {
+                    tree_node_to_text(&match maybe_get_field_or_literal_string(&config_at.data, data_stack) {
                         Some(x) => x,
                         None => return Ok(el("div")),
                     }),
@@ -743,7 +676,7 @@ impl Build {
         parent_orientation: Orientation,
         parent_orientation_type: OrientationType,
         config_at: &WidgetMedia,
-        data_stack: &Vec<DataStackLevel>,
+        data_stack: &Vec<Rc<DataStackLevel>>,
     ) -> El {
         match (|| {
             ta_return!(El, String);
@@ -760,7 +693,7 @@ impl Build {
                     aspect: config_at.aspect.clone(),
                 }).root)
             };
-            let Some(src) = maybe_get_field_or_literal(&config_at.data, &data_stack)? else {
+            let Some(src) = maybe_get_field_or_literal(&config_at.data, &data_stack) else {
                 return standin();
             };
             let TreeNode::Scalar(src) = src else {
@@ -775,10 +708,7 @@ impl Build {
                         parent_orientation: parent_orientation,
                         parent_orientation_type: parent_orientation_type,
                         trans_align: config_at.trans_align,
-                        src: match unwrap_value_media_url(&src)? {
-                            SourceUrl::Url(v) => v,
-                            SourceUrl::File(v) => file_url(&state().env, &v),
-                        },
+                        src: file_url(&state().env, &unwrap_value_media_url(&src)?),
                         link: shed!{
                             let Some(link) = config_at.link.as_ref() else {
                                 break None;
@@ -789,7 +719,7 @@ impl Build {
                             let Some(v) = &config_at.alt else {
                                 break None;
                             };
-                            let Some(d) = maybe_get_field_or_literal(v, data_stack)? else {
+                            let Some(d) = maybe_get_field_or_literal(v, data_stack) else {
                                 break None;
                             };
                             break Some(tree_node_to_text(&d));
@@ -804,10 +734,7 @@ impl Build {
                         parent_orientation: parent_orientation,
                         parent_orientation_type: parent_orientation_type,
                         trans_align: config_at.trans_align,
-                        src: match unwrap_value_media_url(&src)? {
-                            SourceUrl::Url(v) => v,
-                            SourceUrl::File(v) => file_url(&state().env, &v),
-                        },
+                        src: env_preferred_video_url(&state().env, &unwrap_value_media_url(&src)?),
                         link: shed!{
                             let Some(link) = config_at.link.as_ref() else {
                                 break None;
@@ -818,7 +745,7 @@ impl Build {
                             let Some(v) = &config_at.alt else {
                                 break None;
                             };
-                            let Some(d) = maybe_get_field_or_literal(v, data_stack)? else {
+                            let Some(d) = maybe_get_field_or_literal(v, data_stack) else {
                                 break None;
                             };
                             break Some(tree_node_to_text(&d));
@@ -834,10 +761,7 @@ impl Build {
                         parent_orientation_type: parent_orientation_type,
                         direction: config_at.audio_direction.unwrap_or(Direction::Right),
                         trans_align: config_at.trans_align,
-                        src: match unwrap_value_media_url(&src)? {
-                            SourceUrl::Url(v) => v,
-                            SourceUrl::File(v) => file_url(&state().env, &v),
-                        },
+                        src: env_preferred_audio_url(&state().env, &unwrap_value_media_url(&src)?),
                         link: shed!{
                             let Some(link) = config_at.link.as_ref() else {
                                 break None;
@@ -848,7 +772,7 @@ impl Build {
                             let Some(v) = &config_at.alt else {
                                 break None;
                             };
-                            let Some(d) = maybe_get_field_or_literal(v, data_stack)? else {
+                            let Some(d) = maybe_get_field_or_literal(v, data_stack) else {
                                 break None;
                             };
                             break Some(tree_node_to_text(&d));
@@ -874,7 +798,7 @@ impl Build {
         parent_orientation: Orientation,
         parent_orientation_type: OrientationType,
         config_at: &WidgetIcon,
-        data_stack: &Vec<DataStackLevel>,
+        data_stack: &Vec<Rc<DataStackLevel>>,
     ) -> El {
         match (|| {
             ta_return!(El, String);
@@ -908,12 +832,12 @@ impl Build {
         parent_orientation: Orientation,
         parent_orientation_type: OrientationType,
         config_at: &WidgetColor,
-        data_stack: &Vec<DataStackLevel>,
+        data_stack: &Vec<Rc<DataStackLevel>>,
     ) -> El {
         match (|| {
             ta_return!(El, String);
             let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(src)))) =
-                maybe_get_field_or_literal_string(&config_at.data, &data_stack)? else {
+                maybe_get_field_or_literal_string(&config_at.data, &data_stack) else {
                     return Ok(el("div"));
                 };
             return Ok(style_export::leaf_view_color(style_export::LeafViewColorArgs {
@@ -938,12 +862,12 @@ impl Build {
         parent_orientation: Orientation,
         parent_orientation_type: OrientationType,
         config_at: &WidgetDatetime,
-        data_stack: &Vec<DataStackLevel>,
+        data_stack: &Vec<Rc<DataStackLevel>>,
     ) -> El {
         match (|| {
             ta_return!(El, String);
             let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(src)))) =
-                maybe_get_field_or_literal_string(&config_at.data, &data_stack)? else {
+                maybe_get_field_or_literal_string(&config_at.data, &data_stack) else {
                     return Ok(el("div"));
                 };
             return Ok(style_export::leaf_view_datetime(style_export::LeafViewDatetimeArgs {
@@ -969,12 +893,12 @@ impl Build {
         parent_orientation: Orientation,
         parent_orientation_type: OrientationType,
         config_at: &WidgetDate,
-        data_stack: &Vec<DataStackLevel>,
+        data_stack: &Vec<Rc<DataStackLevel>>,
     ) -> El {
         match (|| {
             ta_return!(El, String);
             let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(src)))) =
-                maybe_get_field_or_literal_string(&config_at.data, &data_stack)? else {
+                maybe_get_field_or_literal_string(&config_at.data, &data_stack) else {
                     return Ok(el("div"));
                 };
             return Ok(style_export::leaf_view_date(style_export::LeafViewDateArgs {
@@ -1000,12 +924,12 @@ impl Build {
         parent_orientation: Orientation,
         parent_orientation_type: OrientationType,
         config_at: &WidgetTime,
-        data_stack: &Vec<DataStackLevel>,
+        data_stack: &Vec<Rc<DataStackLevel>>,
     ) -> El {
         match (|| {
             ta_return!(El, String);
             let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(src)))) =
-                maybe_get_field_or_literal_string(&config_at.data, &data_stack)? else {
+                maybe_get_field_or_literal_string(&config_at.data, &data_stack) else {
                     return Ok(el("div"));
                 };
             return Ok(style_export::leaf_view_time(style_export::LeafViewTimeArgs {
@@ -1032,15 +956,15 @@ impl Build {
         parent_orientation: Orientation,
         parent_orientation_type: OrientationType,
         config_at: &WidgetNode,
-        data_stack: &Vec<DataStackLevel>,
+        data_stack: &Vec<Rc<DataStackLevel>>,
     ) -> El {
         match (|| {
             ta_return!(El, String);
             let Some(TreeNode::Scalar(Node::Value(serde_json::Value::String(name)))) =
-                maybe_get_field_or_literal_string(&config_at.name, &data_stack)? else {
+                maybe_get_field_or_literal_string(&config_at.name, &data_stack) else {
                     return Ok(el("div"));
                 };
-            let Some(TreeNode::Scalar(node)) = maybe_get_field_or_literal(&config_at.node, &data_stack)? else {
+            let Some(TreeNode::Scalar(node)) = maybe_get_field_or_literal(&config_at.node, &data_stack) else {
                 return Ok(el("div"));
             };
             let out = style_export::leaf_view_node_button(style_export::LeafViewNodeButtonArgs {
@@ -1067,7 +991,7 @@ impl Build {
         parent_orientation_type: OrientationType,
         config_at: &WidgetPlayButton,
         data_id: &Vec<usize>,
-        data_stack: &Vec<DataStackLevel>,
+        data_stack: &Vec<Rc<DataStackLevel>>,
     ) -> El {
         match (|| {
             ta_return!(El, String);
@@ -1192,7 +1116,7 @@ impl Build {
         config_at: &Widget,
         config_query_params: &BTreeMap<String, Vec<String>>,
         data_id: &Vec<usize>,
-        data_stack: &Vec<DataStackLevel>,
+        data_stack: &Vec<Rc<DataStackLevel>>,
     ) -> El {
         match config_at {
             Widget::Layout(config_at) => return self.build_widget_layout(
@@ -1450,12 +1374,17 @@ fn build_page_view_body(
         seed: (random() * u64::MAX as f64) as u64,
     };
     body.ref_push(
-        build.build_widget_root_data_rows(pc, &common.config_at, &common.config_query_params, &vec![DataStackLevel {
-            data: TreeNode::Record(
-                param_data.iter().map(|(k, v)| (k.clone(), TreeNode::Scalar(v.clone()))).collect(),
-            ),
-            node_meta: Default::default(),
-        }]),
+        build.build_widget_root_data_rows(
+            pc,
+            &common.config_at,
+            &common.config_query_params,
+            &vec![Rc::new(DataStackLevel {
+                data: TreeNode::Record(
+                    param_data.iter().map(|(k, v)| (k.clone(), TreeNode::Scalar(v.clone()))).collect(),
+                ),
+                node_meta: Default::default(),
+            })],
+        ),
     );
     playlist_extend(
         pc,
@@ -1473,6 +1402,7 @@ pub fn build_page_view(
     view: ClientView,
     params: HashMap<String, Node>,
     restore_playlist_pos: Option<PlaylistRestorePos>,
+    offline: bool,
 ) -> Result<El, String> {
     return eg.event(|pc| {
         let vs = MinistateViewState(Rc::new(RefCell::new(MinistateViewState_ {
@@ -1492,14 +1422,14 @@ pub fn build_page_view(
             transport_slot: transport_slot.weak(),
             config_at: view.root,
             shuffle: view.shuffle,
-            config_query_params: view.query_parameters,
+            config_query_params: view.query_parameter_keys,
             body: body.weak(),
             have_media: Rc::new(Cell::new(false)),
         });
         let params_debounce = Rc::new(RefCell::new(None));
         let param_data = Rc::new(RefCell::new(params));
         let mut param_els = vec![];
-        for (k, v) in view.parameters {
+        for (k, v) in view.parameter_specs {
             match v {
                 shared::interface::config::view::ClientViewParam::Text => {
                     param_data

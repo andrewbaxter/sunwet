@@ -5984,75 +5984,79 @@
 
   presentation.contMenuGroup = /** @type {Presentation["contMenuGroup"]} */ (
     args,
-  ) => ({
-    root: e(
-      "details",
+  ) => {
+    const body = e(
+      "div",
       {},
       {
-        styles_: [
-          ss(uniq("cont_menu_group"), {
-            [`>.${contMenuGroupVBoxStyle}`]: (s) => {
-              s.padding = `${varPMenu} 0`;
-            },
-            ">summary": (s) => {
-              s.listStyle = "none";
-              s.position = "relative";
-              s.display = "flex";
-              s.flexDirection = "row";
-              s.alignContent = "center";
-              s.justifyContent = "flex-start";
-              s.fontSize = varFMenu;
-            },
-            ">summary>.icon": (s) => {
-              s.fontSize = varFMenuIcon;
-              s.width = varSMenuIndent;
-              s.opacity = varONoninteractive;
-            },
-            ">summary:hover>.icon": (s) => {
-              s.opacity = "1";
-            },
-            ">summary>.icon.open": (s) => {
-              s.display = "none";
-            },
-            "[open]>summary>.icon.closed": (s) => {
-              s.display = "none";
-            },
-            "[open]>summary>.icon.open": (s) => {
-              s.display = "grid";
-            },
-          }),
-        ],
-        children_: [
-          e(
-            "summary",
-            {},
-            {
-              styles_: [],
-              children_: [
-                leafIcon({
-                  text: textIconFoldClosed,
-                  extraStyles: ["icon", "closed"],
-                }),
-                leafIcon({
-                  text: textIconFoldOpened,
-                  extraStyles: ["icon", "open"],
-                }),
-                e("span", { textContent: args.title }, {}),
-              ],
-            },
-          ),
-          e(
-            "div",
-            {},
-            {
-              styles_: [contVboxStyle, contMenuGroupVBoxStyle],
-              children_: args.children,
-            },
-          ),
-        ],
+        styles_: [contVboxStyle, contMenuGroupVBoxStyle],
+        children_: args.children,
       },
-    ),
-  });
+    );
+    return {
+      root: e(
+        "details",
+        {},
+        {
+          styles_: [
+            ss(uniq("cont_menu_group"), {
+              [`>.${contMenuGroupVBoxStyle}`]: (s) => {
+                s.padding = `${varPMenu} 0`;
+              },
+              ">summary": (s) => {
+                s.listStyle = "none";
+                s.position = "relative";
+                s.display = "flex";
+                s.flexDirection = "row";
+                s.alignContent = "center";
+                s.justifyContent = "flex-start";
+                s.fontSize = varFMenu;
+              },
+              ">summary>.icon": (s) => {
+                s.fontSize = varFMenuIcon;
+                s.width = varSMenuIndent;
+                s.opacity = varONoninteractive;
+              },
+              ">summary:hover>.icon": (s) => {
+                s.opacity = "1";
+              },
+              ">summary>.icon.open": (s) => {
+                s.display = "none";
+              },
+              "[open]>summary>.icon.closed": (s) => {
+                s.display = "none";
+              },
+              "[open]>summary>.icon.open": (s) => {
+                s.display = "grid";
+              },
+            }),
+          ],
+          children_: [
+            e(
+              "summary",
+              {},
+              {
+                styles_: [],
+                children_: [
+                  leafIcon({
+                    text: textIconFoldClosed,
+                    extraStyles: ["icon", "closed"],
+                  }),
+                  leafIcon({
+                    text: textIconFoldOpened,
+                    extraStyles: ["icon", "open"],
+                  }),
+                  e("span", { textContent: args.title }, {}),
+                ],
+              },
+            ),
+            body,
+          ],
+        },
+      ),
+      body: body,
+    };
+  };
 
   presentation.leafMenuLink = /** @type {Presentation["leafMenuLink"]} */ (
     args,

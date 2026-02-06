@@ -56,11 +56,26 @@ pub struct CommitFile {
 
 #[derive(Serialize, Deserialize, Default, Clone, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct ReqCommit {
+pub struct ReqCommitFree {
     pub comment: String,
     pub add: Vec<Triple>,
     pub remove: Vec<Triple>,
     pub files: Vec<CommitFile>,
+}
+
+#[derive(Serialize, Deserialize, Clone, JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct ReqCommitForm {
+    pub form_id: FormId,
+    #[serde(default)]
+    pub parameters: HashMap<String, TreeNode>,
+}
+
+#[derive(Serialize, Deserialize, Clone, JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum ReqCommit {
+    Free(ReqCommitFree),
+    Form(ReqCommitForm),
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -76,25 +91,6 @@ impl Into<C2SReq> for ReqCommit {
 }
 
 impl C2SReqTrait for ReqCommit {
-    type Resp = RespCommit;
-}
-
-// # Form commit
-#[derive(Serialize, Deserialize, Clone, JsonSchema)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct ReqFormCommit {
-    pub form_id: FormId,
-    #[serde(default)]
-    pub parameters: HashMap<String, TreeNode>,
-}
-
-impl Into<C2SReq> for ReqFormCommit {
-    fn into(self) -> C2SReq {
-        return C2SReq::FormCommit(self);
-    }
-}
-
-impl C2SReqTrait for ReqFormCommit {
     type Resp = RespCommit;
 }
 
@@ -330,8 +326,6 @@ impl C2SReqTrait for ReqWhoAmI {
 pub enum C2SReq {
     /// Make changes to the graph
     Commit(ReqCommit),
-    /// Make changes to the graph via a form (uses form permissions)
-    FormCommit(ReqFormCommit),
     /// Tell the server to verify and commit a file after uploading all chunks
     UploadFinish(ReqUploadFinish),
     /// Read from the graph

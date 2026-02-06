@@ -6,11 +6,11 @@ use {
             MinistateNodeView,
             ministate_octothorpe,
         },
-        page_view::tree_node_to_text,
         state::{
             CurrentList,
             state,
         },
+        viewutil::tree_node_to_text,
     },
     flowcontrol::{
         exenum,
@@ -52,6 +52,7 @@ use {
             triple::Node,
             wire::{
                 ReqCommit,
+                ReqCommitFree,
                 ReqQuery,
                 RespQueryRows,
                 TreeNode,
@@ -318,12 +319,12 @@ pub fn setup_node_button(pc: &mut ProcessingContext, out: &El, name: String, nod
                                         ),
                                     });
                                 }
-                                req_post_json(ReqCommit {
+                                req_post_json(ReqCommit::Free(ReqCommitFree {
                                     add: add,
                                     comment: "Add node to list via UI".to_string(),
                                     remove: vec![],
                                     files: vec![],
-                                }).await?;
+                                })).await?;
                                 return Ok(());
                             }.await;
                             eg.event(|pc| {

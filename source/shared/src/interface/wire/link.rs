@@ -14,26 +14,19 @@ pub const COOKIE_LINK_SESSION: &str = "link-id";
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub enum SourceUrl {
-    Url(String),
-    File(FileHash),
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct PrepareAudio {
-    pub cover_source_url: Option<SourceUrl>,
-    pub source_url: SourceUrl,
+    pub cover_source_url: Option<FileHash>,
+    pub source_url: FileHash,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum PrepareMedia {
     Audio(PrepareAudio),
-    Video(SourceUrl),
-    Image(SourceUrl),
-    Comic(SourceUrl),
-    Book(SourceUrl),
+    Video(FileHash),
+    Image(FileHash),
+    Comic(FileHash),
+    Book(FileHash),
 }
 
 #[derive(Serialize, Deserialize, Clone)]

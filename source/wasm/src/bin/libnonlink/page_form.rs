@@ -4,7 +4,6 @@ use {
         commit::{
             CommitNode,
             prep_node,
-            upload_files,
         },
         state::{
             set_page,
@@ -17,6 +16,7 @@ use {
             MinistateNodeView,
         },
         state::goto_replace_ministate,
+        transfers,
     },
     chrono::{
         DateTime,
@@ -48,7 +48,8 @@ use {
             },
             triple::Node,
             wire::{
-                ReqFormCommit,
+                ReqCommit,
+                ReqCommitForm,
                 ReqQuery,
                 RespQueryRows,
                 TreeNode,
@@ -654,11 +655,10 @@ pub fn build_page_form(
                             }
                             params_to_post.insert(k.clone(), TreeNode::Scalar(n));
                         }
-                        req_post_json(ReqFormCommit {
+                        transfers::ensure_commit(eg.clone(), ReqCommit::Form(ReqCommitForm {
                             form_id: id.clone(),
                             parameters: params_to_post,
-                        }).await?;
-                        upload_files(files_to_upload).await?;
+                        }), files_to_upload).await?;
                         return Ok(data_id);
                     }.await {
                         Ok(data_id) => {

@@ -2,8 +2,8 @@ use {
     super::{
         ministate::PlaylistRestorePos,
         state::{
-            state,
             MinistateViewState,
+            state,
         },
     },
     crate::libnonlink::api::req_file,
@@ -18,30 +18,30 @@ use {
     },
     js_sys::Function,
     lunk::{
-        link,
         HistPrim,
         Prim,
         ProcessingContext,
+        link,
     },
     rooting::{
+        El,
         el,
         scope_any,
         spawn_rooted,
-        El,
     },
     serde::Deserialize,
     shared::interface::{
         derived::ComicManifest,
+        triple::FileHash,
         wire::{
+            GENTYPE_DIR,
             link::{
                 Prepare,
                 PrepareAudio,
                 PrepareMedia,
-                SourceUrl,
                 WsC2S,
                 WsS2C,
             },
-            GENTYPE_DIR,
         },
     },
     std::{
@@ -58,17 +58,17 @@ use {
     },
     wasm::{
         js::{
-            style_export,
             Env,
             Log,
+            style_export,
         },
         media::{
-            pm_share_ready_prep,
             PlaylistMedia,
             PlaylistMediaAudioVideo,
             PlaylistMediaBook,
             PlaylistMediaComic,
             PlaylistMediaImage,
+            pm_share_ready_prep,
         },
         websocket::Ws,
         world::{
@@ -77,9 +77,9 @@ use {
         },
     },
     wasm_bindgen::{
-        closure::Closure,
         JsCast,
         JsValue,
+        closure::Closure,
     },
     web_sys::{
         HtmlElement,
@@ -127,8 +127,8 @@ pub struct PlaylistEntry {
     pub name: Option<String>,
     pub album: Option<String>,
     pub artist: Option<String>,
-    pub cover_source_url: Option<SourceUrl>,
-    pub source_url: SourceUrl,
+    pub cover_source_url: Option<FileHash>,
+    pub source_url: FileHash,
     pub media_type: PlaylistEntryMediaType,
     pub media: Box<dyn PlaylistMedia>,
     pub play_buttons: Vec<HtmlElement>,
@@ -333,10 +333,11 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
                             if let Some(cover) = &e.cover_source_url {
                                 let arr = js_sys::Array::new();
                                 let e = js_sys::Object::new();
-                                js_sys::Reflect::set(&e, &JsValue::from("src"), &JsValue::from(&match cover {
-                                    SourceUrl::Url(v) => v.clone(),
-                                    SourceUrl::File(v) => file_url(&state().env, &v),
-                                })).unwrap();
+                                js_sys::Reflect::set(
+                                    &e,
+                                    &JsValue::from("src"),
+                                    &JsValue::from(&file_url(&state().env, &cover))
+                                ).unwrap();
                                 arr.push(e.dyn_ref().unwrap());
                                 m.set_artwork(&arr.dyn_into().unwrap());
                             }
@@ -562,8 +563,8 @@ pub struct PlaylistPushArg {
     pub name: Option<String>,
     pub album: Option<String>,
     pub artist: Option<String>,
-    pub cover_source_url: Option<SourceUrl>,
-    pub source_url: SourceUrl,
+    pub cover_source_url: Option<FileHash>,
+    pub source_url: FileHash,
     pub media_type: PlaylistEntryMediaType,
     pub play_buttons: Vec<HtmlElement>,
 }
@@ -614,30 +615,37 @@ pub fn playlist_extend(
                 });
             },
             PlaylistEntryMediaType::Comic => {
-                box_media = Box::new(PlaylistMediaComic::new(&match &entry.source_url {
-                    SourceUrl::Url(u) => u.to_string(),
-                    SourceUrl::File(h) => generated_file_url(&state().env, h, GENTYPE_DIR, ""),
-                }, Rc::new(|url| async move {
-                    return Ok(
-                        serde_json::from_slice::<ComicManifest>(
-                            &req_file(&url).await?,
-                        ).map_err(|e| format!("Error reading comic manifest: {}", e))?,
+                box_media =
+                    Box::new(
+                        PlaylistMediaComic::new(
+                            &generated_file_url(&state().env, &entry.source_url, GENTYPE_DIR, ""),
+                            Rc::new(|url| async move {
+                                return Ok(
+                                    serde_json::from_slice::<ComicManifest>(
+                                        &req_file(&url).await?,
+                                    ).map_err(|e| format!("Error reading comic manifest: {}", e))?,
+                                );
+                            }.boxed_local()),
+                            if let Some(restore_pos) = restore_pos {
+                                restore_pos.time as usize
+                            } else {
+                                0
+                            },
+                        ),
                     );
-                }.boxed_local()), if let Some(restore_pos) = restore_pos {
-                    restore_pos.time as usize
-                } else {
-                    0
-                }));
             },
             PlaylistEntryMediaType::Book => {
-                box_media = Box::new(PlaylistMediaBook::new(&match &entry.source_url {
-                    SourceUrl::Url(u) => u.to_string(),
-                    SourceUrl::File(h) => generated_file_url(&state().env, h, GENTYPE_DIR, ""),
-                }, if let Some(restore_pos) = restore_pos {
-                    restore_pos.time as usize
-                } else {
-                    0
-                }));
+                box_media =
+                    Box::new(
+                        PlaylistMediaBook::new(
+                            &generated_file_url(&state().env, &entry.source_url, GENTYPE_DIR, ""),
+                            if let Some(restore_pos) = restore_pos {
+                                restore_pos.time as usize
+                            } else {
+                                0
+                            },
+                        ),
+                    );
             },
         }
         playlist_state.0.playlist.borrow_mut().insert(entry.index.clone(), Rc::new(PlaylistEntry {

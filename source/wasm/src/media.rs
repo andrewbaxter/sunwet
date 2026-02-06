@@ -1,17 +1,17 @@
 use {
     crate::{
         js::{
+            ElExt,
+            Env,
+            Log,
+            LogJsErr,
+            MyIntersectionObserver,
             async_event,
             el_async,
             env_preferred_audio_url,
             env_preferred_video_url,
             file_derivation_subtitles_url,
             style_export,
-            ElExt,
-            Env,
-            Log,
-            LogJsErr,
-            MyIntersectionObserver,
         },
         world::file_url,
     },
@@ -35,20 +35,20 @@ use {
         },
     },
     lunk::{
-        link,
         EventGraph,
         Prim,
         ProcessingContext,
+        link,
     },
     rooting::{
-        el,
-        spawn_rooted,
         El,
         ScopeValue,
+        el,
+        spawn_rooted,
     },
     shared::interface::{
         derived::ComicManifest,
-        wire::link::SourceUrl,
+        triple::FileHash,
     },
     std::{
         cell::{
@@ -67,11 +67,11 @@ use {
     tokio::sync::watch,
     tokio_stream::wrappers::WatchStream,
     wasm_bindgen::{
+        JsCast,
         convert::{
             FromWasmAbi,
             IntoWasmAbi,
         },
-        JsCast,
     },
     wasm_bindgen_futures::JsFuture,
     web_sys::{
@@ -108,13 +108,13 @@ pub struct PlaylistMediaAudioVideo {
     pub video: bool,
     pub media_el: HtmlMediaElement,
     pub el: El,
-    pub src: SourceUrl,
+    pub src: FileHash,
     pub play_bg: Rc<RefCell<Option<ScopeValue>>>,
     pub time: Cell<f64>,
 }
 
 impl PlaylistMediaAudioVideo {
-    pub fn new_audio(el: El, src: SourceUrl, time: f64) -> PlaylistMediaAudioVideo {
+    pub fn new_audio(el: El, src: FileHash, time: f64) -> PlaylistMediaAudioVideo {
         return PlaylistMediaAudioVideo {
             video: false,
             media_el: el.raw().dyn_into().unwrap(),
@@ -125,7 +125,7 @@ impl PlaylistMediaAudioVideo {
         };
     }
 
-    pub fn new_video(el: El, src: SourceUrl, time: f64) -> PlaylistMediaAudioVideo {
+    pub fn new_video(el: El, src: FileHash, time: f64) -> PlaylistMediaAudioVideo {
         return PlaylistMediaAudioVideo {
             video: true,
             media_el: el.raw().dyn_into().unwrap(),
@@ -227,34 +227,23 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
     fn pm_preload(&self, log: &Rc<dyn Log>, env: &Env) {
         self.media_el.set_attribute("preload", "auto").log(log, "Error setting preload attribute");
         let src = if self.video {
-            match &self.src {
-                SourceUrl::Url(v) => v.clone(),
-                SourceUrl::File(v) => env_preferred_video_url(&env, &v),
-            }
+            env_preferred_video_url(&env, &self.src)
         } else {
-            match &self.src {
-                SourceUrl::Url(v) => v.clone(),
-                SourceUrl::File(v) => env_preferred_audio_url(&env, &v),
-            }
+            env_preferred_audio_url(&env, &&self.src)
         };
         if src != self.media_el.current_src() {
             if self.video {
-                match &self.src {
-                    SourceUrl::Url(_) => { },
-                    SourceUrl::File(v) => {
-                        self.media_el.set_inner_html("");
-                        for (i, lang) in env.languages.iter().enumerate() {
-                            let track =
-                                el("track")
-                                    .attr("kind", "subtitles")
-                                    .attr("src", &file_derivation_subtitles_url(&env, lang, &v))
-                                    .attr("srclang", &lang);
-                            if i == 0 {
-                                track.ref_attr("default", "default");
-                            }
-                            self.media_el.append_child(&track.raw()).log(log, "Error adding track to video element");
-                        }
-                    },
+                self.media_el.set_inner_html("");
+                for (i, lang) in env.languages.iter().enumerate() {
+                    let track =
+                        el("track")
+                            .attr("kind", "subtitles")
+                            .attr("src", &file_derivation_subtitles_url(&env, lang, &self.src))
+                            .attr("srclang", &lang);
+                    if i == 0 {
+                        track.ref_attr("default", "default");
+                    }
+                    self.media_el.append_child(&track.raw()).log(log, "Error adding track to video element");
                 }
             }
             self.media_el.set_src(&src);
@@ -293,7 +282,7 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
 
 pub struct PlaylistMediaImage {
     pub element: El,
-    pub src: SourceUrl,
+    pub src: FileHash,
 }
 
 impl PlaylistMediaImage { }
@@ -327,10 +316,7 @@ impl PlaylistMedia for PlaylistMediaImage {
 
     fn pm_preload(&self, _log: &Rc<dyn Log>, env: &Env) {
         self.element.ref_attr("loading", "eager");
-        self.element.ref_attr("src", &match &self.src {
-            SourceUrl::Url(v) => v.clone(),
-            SourceUrl::File(v) => file_url(&env, &v),
-        });
+        self.element.ref_attr("src", &file_url(&env, &self.src));
     }
 
     fn pm_unpreload(&self, _log: &Rc<dyn Log>) {

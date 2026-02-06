@@ -516,7 +516,7 @@ pub enum ClientViewParam {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ClientView {
     pub root: WidgetRootDataRows,
-    pub parameters: BTreeMap<String, ClientViewParam>,
-    pub query_parameters: BTreeMap<String, Vec<String>>,
+    pub parameter_specs: BTreeMap<String, ClientViewParam>,
+    pub query_parameter_keys: BTreeMap<String, Vec<String>>,
     pub shuffle: bool,
 }

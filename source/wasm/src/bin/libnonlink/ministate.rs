@@ -115,6 +115,7 @@ pub struct MinistateQuery {
 pub enum Ministate {
     Home,
     View(MinistateView),
+    OfflineView(MinistateView),
     Form(MinistateForm),
     NodeEdit(MinistateNodeEdit),
     NodeView(MinistateNodeView),
@@ -132,6 +133,7 @@ pub fn ministate_title(s: &Ministate) -> String {
     match s {
         Ministate::Home => return format!("Home"),
         Ministate::View(s) => return s.title.clone(),
+        Ministate::OfflineView(s) => return s.title.clone(),
         Ministate::Form(s) => return s.title.clone(),
         Ministate::NodeEdit(s) => return s.title.clone(),
         Ministate::NodeView(s) => return s.title.clone(),

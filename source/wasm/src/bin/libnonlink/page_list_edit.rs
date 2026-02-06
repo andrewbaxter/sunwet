@@ -6,17 +6,17 @@ use {
     },
     crate::libnonlink::{
         ministate::{
-            ministate_octothorpe,
             Ministate,
+            ministate_octothorpe,
         },
         node_button::req_list,
         state::state,
     },
     flowcontrol::ta_return,
     lunk::{
-        link,
         Prim,
         ProcessingContext,
+        link,
     },
     rooting::El,
     shared::{
@@ -25,6 +25,7 @@ use {
             triple::Node,
             wire::{
                 ReqCommit,
+                ReqCommitFree,
                 ReqGetTriplesAround,
                 Triple,
             },
@@ -36,9 +37,9 @@ use {
         rc::Rc,
     },
     wasm::js::{
+        LogJsErr,
         el_async_,
         style_export,
-        LogJsErr,
     },
     wasm_bindgen::JsCast,
     wasm_bindgen_futures::spawn_local,
@@ -438,12 +439,12 @@ pub fn build_page_list_edit(pc: &mut ProcessingContext, title: &str, node: &Node
                                     remove.extend(
                                         req_post_json(ReqGetTriplesAround { nodes: delete_nodes }).await?,
                                     );
-                                    req_post_json(ReqCommit {
+                                    req_post_json(ReqCommit::Free(ReqCommitFree {
                                         comment: format!("Editing list {}", title),
                                         add: add,
                                         remove: remove,
                                         files: vec![],
-                                    }).await?;
+                                    })).await?;
                                     eg.event(|pc| {
                                         initial_enable_numbers.set(pc, *enable_numbers.borrow());
                                         for state in states.borrow().iter() {

@@ -3,6 +3,10 @@ use {
         node_button::STORAGE_CURRENT_LIST,
         seekbar::setup_seekbar,
         state::CurrentList,
+        transfers::{
+            list_offline_views,
+            trigger_transfers,
+        },
     },
     flowcontrol::{
         shed,
@@ -31,16 +35,16 @@ use {
             want_logged_in,
         },
         ministate::{
-            ministate_octothorpe,
-            read_ministate,
-            record_replace_ministate,
+            LOCALSTORAGE_PWA_MINISTATE,
             Ministate,
             MinistateForm,
             MinistateHistory,
             MinistateQuery,
             MinistateView,
-            LOCALSTORAGE_PWA_MINISTATE,
             SESSIONSTORAGE_POST_REDIRECT_MINISTATE,
+            ministate_octothorpe,
+            read_ministate,
+            record_replace_ministate,
         },
         page_view::LOCALSTORAGE_SHARE_SESSION_ID,
         playlist::{
@@ -48,54 +52,61 @@ use {
             playlist_set_link,
         },
         state::{
+            STATE,
+            State_,
             build_ministate,
             state,
-            State_,
-            STATE,
         },
     },
     lunk::{
-        link,
         EventGraph,
+        List,
         Prim,
+        ProcessingContext,
+        link,
     },
     rooting::{
-        set_root,
         El,
+        set_root,
     },
     serde::Deserialize,
-    shared::interface::{
-        config::{
-            ClientConfig,
-            ClientMenuItem,
-            ClientMenuItemDetail,
-            ClientPage,
+    shared::{
+        interface::{
+            config::{
+                ClientConfig,
+                ClientMenuItem,
+                ClientMenuItemDetail,
+                ClientPage,
+            },
+            wire::{
+                ReqGetClientConfig,
+                ReqWhoAmI,
+                RespWhoAmI,
+            },
         },
-        wire::{
-            ReqGetClientConfig,
-            ReqWhoAmI,
-            RespWhoAmI,
-        },
+        stringpattern::node_to_text,
     },
     std::{
         cell::RefCell,
+        collections::BTreeMap,
         panic,
         rc::Rc,
     },
     wasm::{
         async_::bg_val,
         js::{
+            Log,
+            LogJsErr,
+            VecLog,
             el_async_,
             scan_env,
             style_export::{
                 self,
             },
-            Log,
-            LogJsErr,
-            VecLog,
         },
     },
     wasm_bindgen::JsCast,
+    wasm_bindgen_futures::spawn_local,
     web_sys::{
         HtmlElement,
         MessageEvent,
@@ -165,6 +176,10 @@ pub fn main() {
             menu_open: Prim::new(false),
             env: env.clone(),
             playlist: playlist_state,
+            transfers_uploading: Prim::new(false),
+            transfers_downloading: Prim::new(false),
+            transfers_bg: Default::default(),
+            transfers_offline: List::new(vec![]),
             modal_stack: modal_stack.clone(),
             main_title: main_title.clone(),
             main_body: main_body.clone(),
@@ -181,6 +196,15 @@ pub fn main() {
                 break None;
             }),
         })));
+        spawn_local({
+            let eg = pc.eg();
+            async move {
+                let offline = list_offline_views().await;
+                eg.event(|pc| {
+                    state().transfers_offline.extend(pc, offline);
+                }).unwrap();
+            }
+        });
         let client_config = bg_val({
             async move {
                 return Ok(Rc::new(req_post_json(ReqGetClientConfig).await?));
@@ -211,6 +235,7 @@ pub fn main() {
                 build_ministate(pc, &ministate);
             }).unwrap()
         }).forget();
+        trigger_transfers(pc.eg());
 
         // Root and display
         set_root(vec![style_export::cont_root_stack(style_export::ContRootStackArgs { children: vec![{
@@ -229,6 +254,7 @@ pub fn main() {
                         let client_config = client_config.get().await?;
 
                         fn build_menu_item(
+                            pc: &mut ProcessingContext,
                             config: &ClientConfig,
                             carry_titles: &Vec<String>,
                             item: &ClientMenuItem,
@@ -239,7 +265,7 @@ pub fn main() {
                                     sub_carry_titles.push(item.name.clone());
                                     let mut children = vec![];
                                     for child in &section.children {
-                                        children.push(build_menu_item(config, &sub_carry_titles, &child));
+                                        children.push(build_menu_item(pc, config, &sub_carry_titles, &child));
                                     }
                                     return style_export::cont_menu_group(style_export::ContMenuGroupArgs {
                                         title: item.name.clone(),
@@ -299,6 +325,63 @@ pub fn main() {
                                                 href: ministate_octothorpe(&Ministate::Logs),
                                             }).root;
                                         },
+                                        ClientPage::Offline => {
+                                            let group =
+                                                style_export::cont_menu_group(style_export::ContMenuGroupArgs {
+                                                    title: format!("Offline"),
+                                                    children: vec![]
+                                                });
+                                            group
+                                                .body
+                                                .ref_own(
+                                                    |b| link!(
+                                                        (_pc = pc),
+                                                        (offline = state().transfers_offline.clone()),
+                                                        (),
+                                                        (b = b.weak()) {
+                                                            let b = b.upgrade()?;
+                                                            for change in offline.borrow_changes().iter() {
+                                                                b.ref_splice(
+                                                                    change.offset,
+                                                                    change.remove,
+                                                                    change.add.iter().map(|(_, view)| {
+                                                                        let sorted_params =
+                                                                            view
+                                                                                .params
+                                                                                .iter()
+                                                                                .collect::<BTreeMap<_, _>>();
+                                                                        style_export::leaf_menu_link(
+                                                                            style_export::LeafMenuLinkArgs {
+                                                                                title: format!(
+                                                                                    "{}: {}",
+                                                                                    view.title,
+                                                                                    sorted_params
+                                                                                        .iter()
+                                                                                        .map(
+                                                                                            |(k, v)| format!(
+                                                                                                "{}={}",
+                                                                                                k,
+                                                                                                node_to_text(&v)
+                                                                                            )
+                                                                                        )
+                                                                                        .collect::<Vec<_>>()
+                                                                                        .join(", ")
+                                                                                ),
+                                                                                href: ministate_octothorpe(
+                                                                                    &Ministate::OfflineView(
+                                                                                        view.clone()
+                                                                                    )
+                                                                                )
+                                                                            }
+                                                                        ).root
+                                                                    }).collect()
+                                                                );
+                                                            }
+                                                        }
+                                                    )
+                                                );
+                                            return group.root;
+                                        },
                                     }
                                 },
                             }
@@ -306,7 +389,9 @@ pub fn main() {
 
                         let mut root = vec![];
                         for item in &client_config.menu {
-                            root.push(build_menu_item(&client_config, &vec![], item));
+                            eg.event(|pc| {
+                                root.push(build_menu_item(pc, &client_config, &vec![], item));
+                            }).unwrap();
                         }
                         let mut bar_children = vec![];
                         match &whoami {

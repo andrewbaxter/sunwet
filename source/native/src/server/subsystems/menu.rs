@@ -127,8 +127,8 @@ pub async fn handle_get_filtered_client_config(
     for (k, view) in &global_config.views {
         views.insert(k.clone(), ClientView {
             root: view.item.display.clone(),
-            parameters: view.item.parameters.clone(),
-            query_parameters: view.query_parameters.clone(),
+            parameter_specs: view.item.parameters.clone(),
+            parameters: view.query_parameters.clone(),
             shuffle: view.shuffle,
         });
     }

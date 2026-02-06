@@ -11,9 +11,7 @@ use {
             MinistateHistory,
             MinistateHistoryPredicate,
         },
-        state::{
-            state,
-        },
+        state::state,
     },
     lunk::ProcessingContext,
     rooting::{
@@ -23,6 +21,7 @@ use {
     },
     shared::interface::wire::{
         ReqCommit,
+        ReqCommitFree,
         ReqHistory,
         ReqHistoryFilter,
         ReqHistoryFilterPredicate,
@@ -220,12 +219,12 @@ pub fn build_page_history(pc: &mut ProcessingContext, ministate: &MinistateHisto
                 let button = button.weak();
                 let eg = eg.clone();
                 async move {
-                    let res = req_post_json(ReqCommit {
+                    let res = req_post_json(ReqCommit::Free(ReqCommitFree {
                         comment: format!("History restore"),
                         add: hist_state.revert_was_deleted.borrow().iter().cloned().collect(),
                         remove: hist_state.revert_was_added.borrow().iter().cloned().collect(),
                         files: vec![],
-                    }).await;
+                    })).await;
                     let Some(button) = button.upgrade() else {
                         return;
                     };

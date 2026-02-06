@@ -36,10 +36,14 @@ use {
     },
     lunk::{
         EventGraph,
+        List,
         Prim,
         ProcessingContext,
     },
-    rooting::El,
+    rooting::{
+        El,
+        ScopeValue,
+    },
     serde::{
         Deserialize,
         Serialize,
@@ -82,6 +86,10 @@ pub struct State_ {
     pub ministate: RefCell<Ministate>,
     pub env: Env,
     pub playlist: PlaylistState,
+    pub transfers_uploading: Prim<bool>,
+    pub transfers_downloading: Prim<bool>,
+    pub transfers_bg: RefCell<Option<ScopeValue>>,
+    pub transfers_offline: List<(String, MinistateView)>,
     pub client_config: RefCell<Option<BgVal<Result<Rc<ClientConfig>, String>>>>,
     pub menu_open: Prim<bool>,
     // Arcmutex due to OnceLock, should El use sync alternatives?
@@ -140,7 +148,23 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
                     let Some(view) = client_config.views.get(&view_id) else {
                         return Err(format!("No view with id [{}] in config", view_id));
                     };
-                    return build_page_view(eg, view_id, title, view.clone(), params, pos).map(|x| vec![x]);
+                    return build_page_view(eg, view_id, title, view.clone(), params, pos, false).map(|x| vec![x]);
+                }
+            }));
+        },
+        Ministate::OfflineView(v) => {
+            set_page(pc, &v.title, el_async_(true, {
+                let title = v.title.clone();
+                let view_id = v.id.clone();
+                let pos = v.pos.clone();
+                let params = v.params.clone();
+                let eg = pc.eg();
+                async move {
+                    let client_config = state().client_config.borrow().as_ref().unwrap().get().await?;
+                    let Some(view) = client_config.views.get(&view_id) else {
+                        return Err(format!("No view with id [{}] in config", view_id));
+                    };
+                    return build_page_view(eg, view_id, title, view.clone(), params, pos, true).map(|x| vec![x]);
                 }
             }));
         },
