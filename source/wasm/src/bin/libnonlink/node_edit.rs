@@ -10,12 +10,12 @@ use {
             MinistateNodeView,
             ministate_octothorpe,
         },
+        online,
         playlist::{
             PlaylistEntryMediaType,
             categorize_mime_media,
         },
         state::state,
-        transfers,
     },
     by_address::ByAddress,
     flowcontrol::{
@@ -1737,7 +1737,7 @@ pub async fn build_node_edit_contents(
                             }
 
                             // Queue for upload
-                            transfers::ensure_commit(eg.clone(), ReqCommit::Free(ReqCommitFree {
+                            online::ensure_commit(eg.clone(), ReqCommit::Free(ReqCommitFree {
                                 comment: format!("Edit node [{}]", title),
                                 add: add1,
                                 remove: remove,

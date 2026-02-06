@@ -1,12 +1,13 @@
 use {
     crate::libnonlink::{
         node_button::STORAGE_CURRENT_LIST,
+        offline::{
+            list_offline_views,
+            trigger_offlining,
+        },
+        online::trigger_onlining,
         seekbar::setup_seekbar,
         state::CurrentList,
-        transfers::{
-            list_offline_views,
-            trigger_transfers,
-        },
     },
     flowcontrol::{
         shed,
@@ -176,10 +177,11 @@ pub fn main() {
             menu_open: Prim::new(false),
             env: env.clone(),
             playlist: playlist_state,
-            transfers_uploading: Prim::new(false),
-            transfers_downloading: Prim::new(false),
-            transfers_bg: Default::default(),
-            transfers_offline: List::new(vec![]),
+            onlining: Prim::new(false),
+            onlining_bg: Default::default(),
+            offlining: Prim::new(false),
+            offlining_bg: Default::default(),
+            offline_list: List::new(vec![]),
             modal_stack: modal_stack.clone(),
             main_title: main_title.clone(),
             main_body: main_body.clone(),
@@ -201,7 +203,7 @@ pub fn main() {
             async move {
                 let offline = list_offline_views().await;
                 eg.event(|pc| {
-                    state().transfers_offline.extend(pc, offline);
+                    state().offline_list.extend(pc, offline);
                 }).unwrap();
             }
         });
@@ -235,7 +237,17 @@ pub fn main() {
                 build_ministate(pc, &ministate);
             }).unwrap()
         }).forget();
-        trigger_transfers(pc.eg());
+        trigger_offlining(pc.eg());
+        trigger_onlining(pc.eg());
+        if let Ok(c) = window().navigator().connection() {
+            EventListener::new(&c, "changed", {
+                let eg = pc.eg();
+                move |_| {
+                    trigger_offlining(eg.clone());
+                    trigger_onlining(eg.clone());
+                }
+            }).forget();
+        }
 
         // Root and display
         set_root(vec![style_export::cont_root_stack(style_export::ContRootStackArgs { children: vec![{
@@ -336,7 +348,7 @@ pub fn main() {
                                                 .ref_own(
                                                     |b| link!(
                                                         (_pc = pc),
-                                                        (offline = state().transfers_offline.clone()),
+                                                        (offline = state().offline_list.clone()),
                                                         (),
                                                         (b = b.weak()) {
                                                             let b = b.upgrade()?;

@@ -15,8 +15,8 @@ use {
             Ministate,
             MinistateNodeView,
         },
+        online,
         state::goto_replace_ministate,
-        transfers,
     },
     chrono::{
         DateTime,
@@ -655,7 +655,7 @@ pub fn build_page_form(
                             }
                             params_to_post.insert(k.clone(), TreeNode::Scalar(n));
                         }
-                        transfers::ensure_commit(eg.clone(), ReqCommit::Form(ReqCommitForm {
+                        online::ensure_commit(eg.clone(), ReqCommit::Form(ReqCommitForm {
                             form_id: id.clone(),
                             parameters: params_to_post,
                         }), files_to_upload).await?;
