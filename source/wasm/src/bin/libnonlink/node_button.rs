@@ -22,7 +22,6 @@ use {
         Storage,
     },
     lunk::{
-        Prim,
         ProcessingContext,
         link,
     },
@@ -63,9 +62,9 @@ use {
     },
     wasm::js::{
         LogJsErr,
+        on_thinking,
         style_export,
     },
-    wasm_bindgen_futures::spawn_local,
 };
 
 pub const STORAGE_CURRENT_LIST: &str = "current_list";
@@ -242,7 +241,6 @@ pub fn setup_node_button(pc: &mut ProcessingContext, out: &El, name: String, nod
             });
 
             // Add to list
-            let add_thinking = Prim::new(false);
             modal_res.button_add_to_list.ref_own({
                 |self0| (
                     //. .
@@ -252,105 +250,77 @@ pub fn setup_node_button(pc: &mut ProcessingContext, out: &El, name: String, nod
                             &[(&style_export::class_state_disabled().value, current_list.borrow().is_none())],
                         );
                     }),
-                    link!((_pc = pc), (thinking = add_thinking.clone()), (), (self0 = self0.weak()) {
-                        let self0 = self0.upgrade()?;
-                        self0.ref_modify_classes(
-                            &[(&style_export::class_state_thinking().value, *thinking.borrow())],
-                        );
-                    }),
                 )
             });
-            modal_res.button_add_to_list.ref_on("click", {
+            on_thinking(&modal_res.button_add_to_list, {
+                let node = node.clone();
                 let modal_el = modal_res.root.weak();
                 let modal_errs = modal_res.errors.weak();
-                let thinking = add_thinking.clone();
-                let eg = pc.eg();
-                let node = node.clone();
-                move |_| eg.event(|pc| {
-                    if *thinking.borrow() {
-                        return;
-                    }
-                    let Some(current_list) = state().current_list.borrow().clone() else {
+                async move || {
+                    let res = async {
+                        ta_return!((), String);
+                        let rows = req_list(&node).await?;
+                        let Some(current_list) = state().current_list.borrow().clone() else {
+                            return Ok(());
+                        };
+                        let middle = Node::Value(serde_json::Value::String(uuid::Uuid::new_v4().to_string()));
+                        let mut add = vec![
+                            //. .
+                            Triple {
+                                subject: current_list.node.clone(),
+                                predicate: PREDICATE_TRACK.to_string(),
+                                object: middle.clone(),
+                            },
+                            Triple {
+                                subject: middle.clone(),
+                                predicate: PREDICATE_VALUE.to_string(),
+                                object: node.clone(),
+                            },
+                        ];
+                        if rows.is_empty() || rows.iter().any(|x| x.index.is_some()) {
+                            let last_index =
+                                if let Some(last) = rows.iter().flat_map(|x| x.index).max_by(f64::total_cmp) {
+                                    serde_json::Number::from_f64(last).unwrap_or(serde_json::Number::from(0))
+                                } else {
+                                    serde_json::Number::from(0)
+                                };
+                            add.push(Triple {
+                                subject: middle.clone(),
+                                predicate: PREDICATE_INDEX.to_string(),
+                                object: Node::Value(
+                                    serde_json::Value::Number(
+                                        serde_json::Number::from(last_index.as_i64().unwrap_or(0) + 1),
+                                    ),
+                                ),
+                            });
+                        }
+                        req_post_json(ReqCommit::Free(ReqCommitFree {
+                            add: add,
+                            comment: "Add node to list via UI".to_string(),
+                            remove: vec![],
+                            files: vec![],
+                        })).await?;
+                        return Ok(());
+                    }.await;
+                    let Some(modal_errs) = modal_errs.upgrade() else {
                         return;
                     };
-                    thinking.set(pc, true);
-                    spawn_local({
-                        let eg = pc.eg();
-                        let node = node.clone();
-                        let thinking = thinking.clone();
-                        let modal_errs = modal_errs.clone();
-                        let modal_el = modal_el.clone();
-                        async move {
-                            let res = async {
-                                ta_return!((), String);
-                                let rows = req_list(&node).await?;
-                                let middle =
-                                    Node::Value(serde_json::Value::String(uuid::Uuid::new_v4().to_string()));
-                                let mut add = vec![
-                                    //. .
-                                    Triple {
-                                        subject: current_list.node.clone(),
-                                        predicate: PREDICATE_TRACK.to_string(),
-                                        object: middle.clone(),
-                                    },
-                                    Triple {
-                                        subject: middle.clone(),
-                                        predicate: PREDICATE_VALUE.to_string(),
-                                        object: node.clone(),
-                                    },
-                                ];
-                                if rows.is_empty() || rows.iter().any(|x| x.index.is_some()) {
-                                    let last_index =
-                                        if let Some(last) =
-                                            rows.iter().flat_map(|x| x.index).max_by(f64::total_cmp) {
-                                            serde_json::Number::from_f64(
-                                                last,
-                                            ).unwrap_or(serde_json::Number::from(0))
-                                        } else {
-                                            serde_json::Number::from(0)
-                                        };
-                                    add.push(Triple {
-                                        subject: middle.clone(),
-                                        predicate: PREDICATE_INDEX.to_string(),
-                                        object: Node::Value(
-                                            serde_json::Value::Number(
-                                                serde_json::Number::from(last_index.as_i64().unwrap_or(0) + 1),
-                                            ),
-                                        ),
-                                    });
-                                }
-                                req_post_json(ReqCommit::Free(ReqCommitFree {
-                                    add: add,
-                                    comment: "Add node to list via UI".to_string(),
-                                    remove: vec![],
-                                    files: vec![],
-                                })).await?;
-                                return Ok(());
-                            }.await;
-                            eg.event(|pc| {
-                                thinking.set(pc, false);
-                            }).unwrap();
-                            let Some(modal_errs) = modal_errs.upgrade() else {
+                    modal_errs.ref_clear();
+                    match res {
+                        Ok(_) => {
+                            let Some(modal_el) = modal_el.upgrade() else {
                                 return;
                             };
-                            modal_errs.ref_clear();
-                            match res {
-                                Ok(_) => {
-                                    let Some(modal_el) = modal_el.upgrade() else {
-                                        return;
-                                    };
-                                    modal_el.ref_replace(vec![]);
-                                },
-                                Err(e) => {
-                                    modal_errs.ref_push(style_export::leaf_err_block(style_export::LeafErrBlockArgs {
-                                        data: e,
-                                        in_root: false,
-                                    }).root);
-                                },
-                            }
-                        }
-                    });
-                }).unwrap()
+                            modal_el.ref_replace(vec![]);
+                        },
+                        Err(e) => {
+                            modal_errs.ref_push(style_export::leaf_err_block(style_export::LeafErrBlockArgs {
+                                data: e,
+                                in_root: false,
+                            }).root);
+                        },
+                    }
+                }
             });
 
             // Set list

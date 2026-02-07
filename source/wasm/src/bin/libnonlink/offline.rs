@@ -255,6 +255,21 @@ fn resp_query_to_rows(res: RespQuery) -> Vec<DataStackLevel> {
     return out;
 }
 
+pub async fn retrieve_offline_query(
+    key: &str,
+    query_id: &str,
+    params: &HashMap<String, Node>,
+) -> Result<RespQuery, String> {
+    let offline_dir =
+        JsFuture::from(opfs_offline_views_root().await.get_directory_handle(key))
+            .await
+            .map_err(|e| format!("Error looking up offline dir: {:?}", e.as_string()))?
+            .dyn_into::<FileSystemDirectoryHandle>()
+            .unwrap();
+    let res: RespQuery = opfs_read_json(&offline_dir, &opfs_offline_views_query_filename(&query_id, &params)).await?;
+    return Ok(res);
+}
+
 pub fn trigger_offlining(eg: EventGraph) {
     let go = if let Ok(c) = window().navigator().connection() {
         match c.type_() {

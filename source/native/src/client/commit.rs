@@ -9,8 +9,8 @@ use {
         server::filesutil::hash_file_sha256,
     },
     aargvark::{
-        traits_impls::AargvarkJson,
         Aargvark,
+        traits_impls::AargvarkJson,
     },
     http::Uri,
     htwrap::{
@@ -21,9 +21,9 @@ use {
         url::UriJoin,
     },
     loga::{
-        ea,
         Log,
         ResultContext,
+        ea,
     },
     mime_guess::MimeGuess,
     shared::interface::{
@@ -34,17 +34,18 @@ use {
         triple::Node,
         wire::{
             CommitFile,
+            HEADER_OFFSET,
             ReqCommit,
+            ReqCommitFree,
             ReqUploadFinish,
             Triple,
-            HEADER_OFFSET,
         },
     },
     std::{
         collections::{
-            hash_map::Entry,
             HashMap,
             HashSet,
+            hash_map::Entry,
         },
         env::current_dir,
         io::SeekFrom,
@@ -161,7 +162,7 @@ pub async fn handle_commit(c: CommitCommand) -> Result<(), loga::Error> {
     let files = files1;
 
     // # Build commit info
-    let mut commit = ReqCommit {
+    let mut commit = ReqCommitFree {
         comment: c.comment.unwrap_or_else(|| format!("Commit via CLI")),
         add: vec![],
         remove: vec![],
@@ -169,7 +170,7 @@ pub async fn handle_commit(c: CommitCommand) -> Result<(), loga::Error> {
     };
 
     async fn process_node(
-        commit: &mut ReqCommit,
+        commit: &mut ReqCommitFree,
         files: &HashMap<PathBuf, CommitFile>,
         base_dir: &Path,
         n: CliNode,
@@ -236,7 +237,7 @@ pub async fn handle_commit(c: CommitCommand) -> Result<(), loga::Error> {
     let headers = server_headers()?;
     let mut conn = reconnect(&log, &url).await;
     let commit_res = loop {
-        match req(&log, &mut conn, &headers, &url, commit.clone()).await {
+        match req(&log, &mut conn, &headers, &url, ReqCommit::Free(commit.clone())).await {
             Ok(r) => break r,
             Err(e) => {
                 log.log_err(loga::WARN, e.stack_context(&log, "Error posting commit"));

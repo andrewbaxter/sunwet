@@ -17,7 +17,6 @@ use {
     rooting::{
         El,
         WeakEl,
-        spawn_rooted,
     },
     shared::interface::wire::{
         ReqCommit,
@@ -35,7 +34,10 @@ use {
         collections::HashSet,
         rc::Rc,
     },
-    wasm::js::style_export,
+    wasm::js::{
+        on_thinking,
+        style_export,
+    },
 };
 
 struct HistState {
@@ -194,53 +196,38 @@ pub fn build_page_history(pc: &mut ProcessingContext, ministate: &MinistateHisto
             }
         }
     }));
-    button_commit.ref_on("click", {
+    on_thinking(&button_commit, {
         let hist_state = hist_state.clone();
         let error_slot = error_slot.weak();
-        let button = button_commit.weak();
         let eg = pc.eg();
-        let save_thinking = Rc::new(RefCell::new(None));
-        move |_ev| {
-            if save_thinking.borrow().is_some() {
-                return;
-            }
-            {
-                let Some(error_slot) = error_slot.upgrade() else {
-                    return;
-                };
-                error_slot.ref_clear();
-            }
-            let Some(button) = button.upgrade() else {
-                return;
-            };
-            button.ref_classes(&[&style_export::class_state_thinking().value]);
-            *save_thinking.borrow_mut() = Some(spawn_rooted({
-                let hist_state = hist_state.clone();
-                let button = button.weak();
-                let eg = eg.clone();
-                async move {
-                    let res = req_post_json(ReqCommit::Free(ReqCommitFree {
-                        comment: format!("History restore"),
-                        add: hist_state.revert_was_deleted.borrow().iter().cloned().collect(),
-                        remove: hist_state.revert_was_added.borrow().iter().cloned().collect(),
-                        files: vec![],
-                    })).await;
-                    let Some(button) = button.upgrade() else {
+        move || {
+            let hist_state = hist_state.clone();
+            let error_slot = error_slot.clone();
+            let eg = eg.clone();
+            async move {
+                {
+                    let Some(error_slot) = error_slot.upgrade() else {
                         return;
                     };
-                    button.ref_remove_classes(&[&style_export::class_state_thinking().value]);
-                    match res {
-                        Ok(_) => {
-                            eg.event(|pc| {
-                                build_page_history(pc, &hist_state.ministate);
-                            });
-                        },
-                        Err(e) => {
-                            state().log.log(&format!("Error committing history: {}", e));
-                        },
-                    };
+                    error_slot.ref_clear();
                 }
-            }));
+                let res = req_post_json(ReqCommit::Free(ReqCommitFree {
+                    comment: format!("History restore"),
+                    add: hist_state.revert_was_deleted.borrow().iter().cloned().collect(),
+                    remove: hist_state.revert_was_added.borrow().iter().cloned().collect(),
+                    files: vec![],
+                })).await;
+                match res {
+                    Ok(_) => {
+                        eg.event(|pc| {
+                            build_page_history(pc, &hist_state.ministate);
+                        });
+                    },
+                    Err(e) => {
+                        state().log.log(&format!("Error committing history: {}", e));
+                    },
+                };
+            }
         }
     });
     set_page(pc, "History", page_res.root);

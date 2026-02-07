@@ -209,10 +209,14 @@
         }).root,
       }).root;
     };
+    const stagingTitle = presentation.leafTitle({
+      text: "Music but a slightly longer title",
+    });
+    stagingTitle.right.appendChild(
+      presentation.leafViewTitleButtonOffline({}).root,
+    );
     const stagingPageView = presentation.appMain({
-      mainTitle: presentation.leafTitle({
-        text: "Music but a slightly longer title",
-      }).root,
+      mainTitle: stagingTitle.root,
       mainBody: presentation.contPageView({
         transport: presentation.contBarViewTransport({}).root,
         params: [
@@ -476,6 +480,12 @@
         break;
       case "#view2":
         {
+          const title = presentation.leafTitle({
+            text: "Music but a slightly longer title",
+          });
+          title.right.appendChild(
+            presentation.leafViewTitleButtonUnoffline({}).root,
+          );
           /** @type { (n: number)=> HTMLElement } */
           const createElement = (n) => {
             const parentOrientation = "right_down";
@@ -553,9 +563,7 @@
           };
           buildRoot([
             presentation.appMain({
-              mainTitle: presentation.leafTitle({
-                text: "Music but a slightly longer title",
-              }).root,
+              mainTitle: title.root,
               mainBody: presentation.contPageView({
                 transport: presentation.contBarViewTransport({}).root,
                 params: [
@@ -584,16 +592,19 @@
           }
         }
         break;
-      case "#view_modal_menu":
+      case "#view_modal_confirm_unoffline":
         {
-          buildRoot([stagingPageView, presentation.contModalViewMenu({}).root]);
+          buildRoot([
+            stagingPageView,
+            presentation.contViewModalConfirmUnoffline({}).root,
+          ]);
         }
         break;
       case "#view_modal_share":
         {
           buildRoot([
             stagingPageView,
-            presentation.contModalViewShare({
+            presentation.contViewModalShare({
               qr: /** @type {HTMLElement} */ (
                 new DOMParser().parseFromString(
                   `
@@ -708,6 +719,11 @@
                   presentation.leafInputPairFile({
                     id: "item3",
                     title: "Image",
+                  }).root,
+                  presentation.leafInputPairTextFixed({
+                    id: "item3",
+                    title: "Image",
+                    value: "this is some text parameter",
                   }).root,
                   presentation.leafSpace({}).root,
                 ],

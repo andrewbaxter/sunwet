@@ -22,7 +22,11 @@ use {
             ministate_octothorpe,
         },
         node_button::setup_node_button,
-        offline::ensure_offline,
+        offline::{
+            ensure_offline,
+            remove_offline,
+            retrieve_offline_query,
+        },
         playlist::{
             PlaylistPushArg,
             categorize_mime_media,
@@ -33,6 +37,7 @@ use {
             playlist_toggle_play,
         },
         seekbar::setup_seekbar,
+        state::goto_replace_ministate,
         viewutil::{
             DataStackLevel,
             maybe_get_field,
@@ -57,6 +62,7 @@ use {
     js_sys::Math::random,
     lunk::{
         EventGraph,
+        Prim,
         ProcessingContext,
         link,
     },
@@ -73,6 +79,7 @@ use {
     shared::interface::{
         config::view::{
             ClientView,
+            ClientViewParam,
             Direction,
             Link,
             LinkDest,
@@ -122,6 +129,7 @@ use {
             el_async,
             env_preferred_audio_url,
             env_preferred_video_url,
+            on_thinking,
             style_export::{
                 self,
                 OrientationType,
@@ -211,7 +219,7 @@ struct Build {
     transport_slot: El,
     vs: MinistateViewState,
     seed: u64,
-    offline: bool,
+    offline: Option<String>,
 }
 
 impl Build {
@@ -276,7 +284,7 @@ impl Build {
             let data_id = data_id.clone();
             let data_at = data_at.clone();
             let seed = self.seed;
-            let offline = self.offline;
+            let offline = self.offline.clone();
             async move {
                 let node_meta;
                 let new_data_at_tops;
@@ -308,8 +316,8 @@ impl Build {
                                 params.insert(k.clone(), v);
                             }
                         }
-                        let res = if offline {
-                            retrieve_offline_query().await?
+                        let res = if let Some(key) = &offline {
+                            retrieve_offline_query(key, &query_id, &params).await?
                         } else {
                             req_post_json(ReqViewQuery {
                                 view_id: view_id.clone(),
@@ -346,7 +354,7 @@ impl Build {
                         want_media: false,
                         transport_slot: transport_slot,
                         seed: seed,
-                        offline: offline,
+                        offline: offline.clone(),
                     };
                     let out;
                     match &config_at.row_widget {
@@ -454,7 +462,7 @@ impl Build {
             let config_query_params = config_query_params.clone();
             let data_at = data_at.clone();
             let seed = self.seed;
-            let offline = self.offline;
+            let offline = self.offline.clone();
             move |chunk: Vec<(usize, TreeNode)>, node_meta: Rc<HashMap<Node, NodeMeta>>| -> Vec<El> {
                 return eg.event(|pc| {
                     let mut build = Build {
@@ -467,7 +475,7 @@ impl Build {
                         transport_slot: transport_slot.clone(),
                         vs: vs.clone(),
                         seed: seed,
-                        offline: offline,
+                        offline: offline.clone(),
                     };
                     let mut children = vec![];
                     for (i, new_data_at_top) in chunk {
@@ -519,6 +527,7 @@ impl Build {
             let config_query_params = config_query_params.clone();
             let data_at = data_at.clone();
             let seed = self.seed;
+            let offline = self.offline.clone();
             async move {
                 let body = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
                 match config_at.data {
@@ -581,23 +590,33 @@ impl Build {
                                 params.insert(k.clone(), v);
                             }
                         }
-                        if self.offline {
-                            let res = retrieve_offline_query(view_id, query_id, params).await?;
+                        if let Some(key) = &offline {
+                            let res = retrieve_offline_query(key, &query_id, &params).await?;
                             let mut rows = vec![];
+                            let mut count = 0;
                             match res.rows {
-                                RespQueryRows::Scalar(rows) => {
-                                    for v in rows {
-                                        rows.push((count.get(), TreeNode::Scalar(v)));
+                                RespQueryRows::Scalar(rows1) => {
+                                    for v in rows1 {
+                                        rows.push((count, TreeNode::Scalar(v)));
+                                        count += 1;
                                     }
                                 },
-                                RespQueryRows::Record(rows) => {
-                                    for v in rows {
-                                        rows.push((count.get(), TreeNode::Record(v)));
+                                RespQueryRows::Record(rows1) => {
+                                    for v in rows1 {
+                                        rows.push((count, TreeNode::Record(v)));
+                                        count += 1;
                                     }
                                 },
                             }
                             body.ref_push(
-                                build_infinite_page(rows, Rc::new(res.meta.into_iter().collect::<HashMap<_, _>>())),
+                                style_export::cont_group(
+                                    style_export::ContGroupArgs {
+                                        children: build_infinite_page(
+                                            rows,
+                                            Rc::new(res.meta.into_iter().collect::<HashMap<_, _>>()),
+                                        ),
+                                    },
+                                ).root,
                             );
                         } else {
                             body.ref_push(build_infinite(&state().log, None, {
@@ -1231,10 +1250,52 @@ impl Build {
 
 fn build_transport(pc: &mut ProcessingContext) -> El {
     let transport_res = style_export::cont_bar_view_transport();
-    transport_res.button_menu.ref_on("click", {
+    transport_res.button_share.ref_on("click", {
         let eg = pc.eg();
         move |_| eg.event(|pc| {
-            let modal_res = style_export::cont_modal_view_menu();
+            let sess_id = state().playlist.0.share.borrow().as_ref().map(|x| x.0.clone());
+            let sess_id = match sess_id {
+                Some(sess_id) => {
+                    sess_id.clone()
+                },
+                None => {
+                    let sess_id = if let Ok(id) = LocalStorage::get::<String>(LOCALSTORAGE_SHARE_SESSION_ID) {
+                        id
+                    } else {
+                        let sess_id = Uuid::new_v4().to_string();
+                        LocalStorage::set(
+                            LOCALSTORAGE_SHARE_SESSION_ID,
+                            &sess_id,
+                        ).log(&state().log, "Error persisting session id");
+                        sess_id
+                    };
+                    playlist_set_link(pc, &state().playlist, &sess_id);
+                    sess_id
+                },
+            };
+            let link = format!("{}link.html#{}{}", state().env.base_url, LINK_HASH_PREFIX, sess_id);
+            let modal_res = style_export::cont_view_modal_share(style_export::ContViewModalShareArgs {
+                qr: el_from_raw(
+                    DomParser::new()
+                        .unwrap()
+                        .parse_from_string(
+                            &QrCode::new(&link)
+                                .unwrap()
+                                .render::<qrcode::render::svg::Color>()
+                                .dark_color(Color("currentColor"))
+                                .light_color(Color("transparent"))
+                                .quiet_zone(false)
+                                .build(),
+                            web_sys::SupportedType::ImageSvgXml,
+                        )
+                        .unwrap()
+                        .first_element_child()
+                        .unwrap()
+                        .dyn_into()
+                        .unwrap(),
+                ),
+                link: link,
+            });
             modal_res.button_close.ref_on("click", {
                 let modal_el = modal_res.root.weak();
                 let eg = pc.eg();
@@ -1255,125 +1316,7 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
                     modal_el.ref_replace(vec![]);
                 }).unwrap()
             });
-
-            // Link
-            modal_res.button_link.ref_on("click", {
-                let eg = pc.eg();
-                move |_| eg.event(|pc| {
-                    let sess_id = state().playlist.0.share.borrow().as_ref().map(|x| x.0.clone());
-                    let sess_id = match sess_id {
-                        Some(sess_id) => {
-                            sess_id.clone()
-                        },
-                        None => {
-                            let sess_id =
-                                if let Ok(id) = LocalStorage::get::<String>(LOCALSTORAGE_SHARE_SESSION_ID) {
-                                    id
-                                } else {
-                                    let sess_id = Uuid::new_v4().to_string();
-                                    LocalStorage::set(
-                                        LOCALSTORAGE_SHARE_SESSION_ID,
-                                        &sess_id,
-                                    ).log(&state().log, "Error persisting session id");
-                                    sess_id
-                                };
-                            playlist_set_link(pc, &state().playlist, &sess_id);
-                            sess_id
-                        },
-                    };
-                    let link = format!("{}link.html#{}{}", state().env.base_url, LINK_HASH_PREFIX, sess_id);
-                    let modal_res = style_export::cont_modal_view_share(style_export::ContModalViewShareArgs {
-                        qr: el_from_raw(
-                            DomParser::new()
-                                .unwrap()
-                                .parse_from_string(
-                                    &QrCode::new(&link)
-                                        .unwrap()
-                                        .render::<qrcode::render::svg::Color>()
-                                        .dark_color(Color("currentColor"))
-                                        .light_color(Color("transparent"))
-                                        .quiet_zone(false)
-                                        .build(),
-                                    web_sys::SupportedType::ImageSvgXml,
-                                )
-                                .unwrap()
-                                .first_element_child()
-                                .unwrap()
-                                .dyn_into()
-                                .unwrap(),
-                        ),
-                        link: link,
-                    });
-                    modal_res.button_close.ref_on("click", {
-                        let modal_el = modal_res.root.weak();
-                        let eg = pc.eg();
-                        move |_| eg.event(|_pc| {
-                            let Some(modal_el) = modal_el.upgrade() else {
-                                return;
-                            };
-                            modal_el.ref_replace(vec![]);
-                        }).unwrap()
-                    });
-                    modal_res.root.ref_on("click", {
-                        let modal_el = modal_res.root.weak();
-                        let eg = pc.eg();
-                        move |_| eg.event(|_pc| {
-                            let Some(modal_el) = modal_el.upgrade() else {
-                                return;
-                            };
-                            modal_el.ref_replace(vec![]);
-                        }).unwrap()
-                    });
-                    modal_res.button_unshare.ref_on("click", {
-                        let modal_el = modal_res.root.weak();
-                        let eg = pc.eg();
-                        move |_| eg.event(|pc| {
-                            let Some(modal_el) = modal_el.upgrade() else {
-                                return;
-                            };
-                            modal_el.ref_replace(vec![]);
-                            state().playlist.0.share.set(pc, None);
-                            LocalStorage::delete(LOCALSTORAGE_SHARE_SESSION_ID);
-                        }).unwrap()
-                    });
-                    state().modal_stack.ref_push(modal_res.root.clone());
-                }).unwrap()
-            });
-            modal_res
-                .button_link
-                .ref_own(|b| link!((_pc = pc), (sharing = state().playlist.0.share.clone()), (), (ele = b.weak()), {
-                    let ele = ele.upgrade()?;
-                    ele.ref_modify_classes(
-                        &[(&style_export::class_state_sharing().value, sharing.borrow().is_some())]
-                    );
-                }));
-
-            // Offline
-            modal_res.button_offline.ref_own(|b| (
-                //. .
-                link!((pc = pc), (v = v.clone()), (), (b = b.weak()) {
-                    let b = b.upgrade()?;
-                    b.ref_modify_classes(
-                        &[
-                            (
-                                &style_export::class_state_disabled().value,
-                                state().offline_list.borrow_values().iter().any(|x| x == v),
-                            )
-                        ]
-                    );
-                }),
-                link!((pc = pc), (offline = state().offline_list.clone()), (), (b = b.weak()) {
-                    let b = b.upgrade()?;
-                    b.ref_modify_classes(
-                        &[
-                            (
-                                &style_export::class_state_disabled().value,
-                                offline.borrow_values().iter().any(|x| x == v),
-                            )
-                        ]
-                    );
-                }),
-            )).ref_on("click", {
+            modal_res.button_unshare.ref_on("click", {
                 let modal_el = modal_res.root.weak();
                 let eg = pc.eg();
                 move |_| eg.event(|pc| {
@@ -1381,14 +1324,19 @@ fn build_transport(pc: &mut ProcessingContext) -> El {
                         return;
                     };
                     modal_el.ref_replace(vec![]);
-                    ensure_offline(eg, v);
+                    state().playlist.0.share.set(pc, None);
+                    LocalStorage::delete(LOCALSTORAGE_SHARE_SESSION_ID);
                 }).unwrap()
             });
-
-            // Show
             state().modal_stack.ref_push(modal_res.root.clone());
         }).unwrap()
     });
+    transport_res
+        .button_share
+        .ref_own(|b| link!((_pc = pc), (sharing = state().playlist.0.share.clone()), (), (ele = b.weak()), {
+            let ele = ele.upgrade()?;
+            ele.ref_modify_classes(&[(&style_export::class_state_sharing().value, sharing.borrow().is_some())]);
+        }));
 
     // Prev
     let button_prev = transport_res.button_prev;
@@ -1454,7 +1402,7 @@ fn build_page_view_body(
     common: &BuildViewBodyCommon,
     param_data: &HashMap<String, Node>,
     restore_playlist_pos: Option<PlaylistRestorePos>,
-    offline: bool,
+    offline: Option<String>,
 ) {
     let Some(body) = common.body.upgrade() else {
         return;
@@ -1505,7 +1453,7 @@ pub fn build_page_view(
     view: ClientView,
     params: HashMap<String, Node>,
     restore_playlist_pos: Option<PlaylistRestorePos>,
-    offline: bool,
+    offline: Option<String>,
 ) -> Result<El, String> {
     return eg.event(|pc| {
         let vs = MinistateViewState(Rc::new(RefCell::new(MinistateViewState_ {
@@ -1513,6 +1461,7 @@ pub fn build_page_view(
             title: title.clone(),
             pos: restore_playlist_pos.clone(),
             params: params.clone(),
+            offline: offline.clone(),
         })));
         let transport_slot = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
         let body = style_export::cont_view_root(style_export::ContViewRootArgs {
@@ -1529,56 +1478,177 @@ pub fn build_page_view(
             body: body.weak(),
             have_media: Rc::new(Cell::new(false)),
         });
-        let params_debounce = Rc::new(RefCell::new(None));
         let param_data = Rc::new(RefCell::new(params));
         let mut param_els = vec![];
-        for (k, v) in view.parameter_specs {
-            match v {
-                shared::interface::config::view::ClientViewParam::Text => {
-                    param_data
-                        .borrow_mut()
-                        .entry(k.clone())
-                        .or_insert_with(|| Node::Value(serde_json::Value::String(format!(""))));
-                    let pair = style_export::leaf_input_pair_text(style_export::LeafInputPairTextArgs {
-                        id: k.clone(),
-                        title: k.clone(),
-                        value: match param_data.borrow().get(&k) {
-                            Some(Node::Value(serde_json::Value::String(v))) => v.clone(),
-                            _ => format!(""),
-                        },
-                    });
-                    pair.input.ref_on("input", {
-                        let eg = pc.eg();
-                        let k = k.clone();
-                        let input = pair.input.weak();
-                        let common = common.clone();
-                        let params_debounce = params_debounce.clone();
-                        let param_data = param_data.clone();
-                        move |_| *params_debounce.borrow_mut() = Some(Timeout::new(500, {
-                            let input = input.clone();
-                            let common = common.clone();
-                            let param_data = param_data.clone();
-                            let eg = eg.clone();
-                            let k = k.clone();
-                            move || {
-                                let Some(input) = input.upgrade() else {
-                                    return;
-                                };
-                                let v =
-                                    Node::Value(
-                                        serde_json::Value::String(input.raw().text_content().unwrap_or_default()),
-                                    );
-                                common.view_ministate_state.set_param(k.clone(), v.clone());
-                                param_data.borrow_mut().insert(k, v);
-                                eg.event(|pc| {
-                                    build_page_view_body(pc, &common, &*param_data.borrow(), None, offline);
-                                }).unwrap();
-                            }
-                        }))
-                    });
-                    param_els.push(pair.root);
-                },
+        if let Some(key) = &offline {
+            for (k, v) in view.parameter_specs {
+                match v {
+                    ClientViewParam::Text => {
+                        param_data
+                            .borrow_mut()
+                            .entry(k.clone())
+                            .or_insert_with(|| Node::Value(serde_json::Value::String(format!(""))));
+                        let pair = style_export::leaf_input_pair_text_fixed(style_export::LeafInputPairTextFixedArgs {
+                            id: k.clone(),
+                            title: k.clone(),
+                            value: match param_data.borrow().get(&k) {
+                                Some(Node::Value(serde_json::Value::String(v))) => v.clone(),
+                                _ => format!(""),
+                            },
+                        });
+                        param_els.push(pair.root);
+                    },
+                }
             }
+            let unoffline_button = style_export::leaf_view_title_button_unoffline().root;
+            unoffline_button.ref_on("click", {
+                let eg = pc.eg();
+                let key = key.clone();
+                move |_| {
+                    let modal_res = style_export::cont_view_modal_confirm_unoffline();
+                    modal_res.button_close.ref_on("click", {
+                        let modal_el = modal_res.root.weak();
+                        let eg = eg.clone();
+                        move |_| eg.event(|_pc| {
+                            let Some(modal_el) = modal_el.upgrade() else {
+                                return;
+                            };
+                            modal_el.ref_replace(vec![]);
+                        }).unwrap()
+                    });
+                    modal_res.root.ref_on("click", {
+                        let modal_el = modal_res.root.weak();
+                        let eg = eg.clone();
+                        move |_| eg.event(|_pc| {
+                            let Some(modal_el) = modal_el.upgrade() else {
+                                return;
+                            };
+                            modal_el.ref_replace(vec![]);
+                        }).unwrap()
+                    });
+                    on_thinking(&modal_res.button_ok, {
+                        let key = key.clone();
+                        let eg = eg.clone();
+                        move || {
+                            let key = key.clone();
+                            let eg = eg.clone();
+                            async move {
+                                if let Err(e) = remove_offline(eg.clone(), &key).await {
+                                    state().log.log(&format!("Error removing offline for view: {}", e));
+                                } else {
+                                    eg.event(|pc| {
+                                        goto_replace_ministate(pc, &state().log, &Ministate::Home);
+                                    }).unwrap();
+                                }
+                            }
+                        }
+                    });
+                    state().modal_stack.ref_push(modal_res.root.clone());
+                }
+            });
+            state().main_title_right.ref_push(unoffline_button);
+        } else {
+            let offline_view = Prim::new(MinistateView {
+                id: id.clone(),
+                title: title.clone(),
+                pos: None,
+                params: param_data.borrow().clone(),
+            });
+            let params_debounce = Rc::new(RefCell::new(None));
+            for (k, v) in view.parameter_specs {
+                match v {
+                    ClientViewParam::Text => {
+                        param_data
+                            .borrow_mut()
+                            .entry(k.clone())
+                            .or_insert_with(|| Node::Value(serde_json::Value::String(format!(""))));
+                        let pair = style_export::leaf_input_pair_text(style_export::LeafInputPairTextArgs {
+                            id: k.clone(),
+                            title: k.clone(),
+                            value: match param_data.borrow().get(&k) {
+                                Some(Node::Value(serde_json::Value::String(v))) => v.clone(),
+                                _ => format!(""),
+                            },
+                        });
+                        pair.input.ref_on("input", {
+                            let id = id.clone();
+                            let title = title.clone();
+                            let eg = pc.eg();
+                            let k = k.clone();
+                            let input = pair.input.weak();
+                            let common = common.clone();
+                            let params_debounce = params_debounce.clone();
+                            let param_data = param_data.clone();
+                            let offline_view = offline_view.clone();
+                            move |_| *params_debounce.borrow_mut() = Some(Timeout::new(500, {
+                                let id = id.clone();
+                                let title = title.clone();
+                                let input = input.clone();
+                                let common = common.clone();
+                                let param_data = param_data.clone();
+                                let eg = eg.clone();
+                                let k = k.clone();
+                                let offline_view = offline_view.clone();
+                                move || {
+                                    let Some(input) = input.upgrade() else {
+                                        return;
+                                    };
+                                    let v =
+                                        Node::Value(
+                                            serde_json::Value::String(input.raw().text_content().unwrap_or_default()),
+                                        );
+                                    common.view_ministate_state.set_param(k.clone(), v.clone());
+                                    param_data.borrow_mut().insert(k, v);
+                                    eg.event(|pc| {
+                                        offline_view.set(pc, MinistateView {
+                                            id: id.clone(),
+                                            title: title.clone(),
+                                            pos: None,
+                                            params: param_data.borrow().clone(),
+                                        });
+                                        build_page_view_body(pc, &common, &*param_data.borrow(), None, None);
+                                    }).unwrap();
+                                }
+                            }))
+                        });
+                        param_els.push(pair.root);
+                    },
+                }
+            }
+            let offline_button = style_export::leaf_view_title_button_offline().root;
+            on_thinking(&offline_button, {
+                let view = offline_view.clone();
+                let eg = pc.eg();
+                move || {
+                    let view = view.clone();
+                    let eg = eg.clone();
+                    async move {
+                        if let Err(e) = ensure_offline(eg.clone(), view.borrow().clone()).await {
+                            state().log.log(&format!("Error triggering offline for view: {}", e));
+                        }
+                    }
+                }
+            });
+            offline_button.ref_own(
+                |b: &El| link!(
+                    (_pc = pc),
+                    (offline_view = offline_view.clone(), offline_views_list = state().offline_list.clone()),
+                    (),
+                    (b = b.weak()) {
+                        let b = b.upgrade()?;
+                        let offline_view = offline_view.borrow();
+                        b.ref_modify_classes(
+                            &[
+                                (
+                                    &style_export::class_state_disabled().value,
+                                    offline_views_list.borrow_values().iter().any(|(_, v1)| v1 == &*offline_view),
+                                )
+                            ]
+                        );
+                    }
+                ),
+            );
+            state().main_title_right.ref_push(offline_button);
         }
         build_page_view_body(pc, &common, &*param_data.borrow(), restore_playlist_pos, offline);
         return Ok(style_export::cont_page_view(style_export::ContPageViewArgs {

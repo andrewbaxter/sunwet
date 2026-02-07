@@ -196,8 +196,10 @@
   const textIconCopy = "\ue14d";
   const textIconOffline = "\uf523";
   const textIconOfflineThinking = "\ue5db";
+  const textIconUnoffline = "\ue872";
   const textIconUploadThinking = "\ue5d8";
   const textIconUnlink = "\ue16f";
+  const textIconConfirm = "\ue5ca";
   const textIconLogin = "\uea77";
   const textIconLogout = "\ue9ba";
   const textIconMenu = "\ue5d2";
@@ -251,7 +253,6 @@
   const varPBarBottom = "0.7cm";
   const varPPageBottom = "2.5cm";
   const varPViewRows = "0.4cm";
-  const varPViewCol = "0.5cm";
   const varPViewList = "0.15cm";
   const varPViewHoriz = `max(0.3cm, min(${varSCol1Width}, 100dvw / 20))`;
   const varPViewVert = `max(0.15cm, min(${varSCol1Width} / 2, 100dvw / 10))`;
@@ -290,6 +291,7 @@
 
   const varWTransportBold = "300";
   const varWLight = "100";
+  const varWSemiLight = "200";
   const varWRelIcon = "800";
   const varWNodeButton = "300";
   const varWLinkLogoText = "200";
@@ -403,11 +405,6 @@
     uniq("highlight"),
     "rgb(140, 172, 245)",
     "rgb(78, 129, 183)",
-  );
-  const varCHighlightBoldDark = vs(
-    uniq("highlight"),
-    "rgb(96, 129, 204)",
-    "rgb(111, 155, 255)",
   );
   const varCRemove = vs("c-remove", "rgb(238, 146, 146)", "rgb(138, 81, 81)");
   const varCAdd = vs("c-add", "rgb(96, 179, 113)", "rgb(111, 185, 126)");
@@ -573,42 +570,68 @@
       s.gridTemplateColumns = "subgrid";
     },
   });
-  presentation.contTitle = /** @type {Presentation["contTitle"]} */ (args) => {
-    const children = [args.left];
-    if (args.right != null) {
-      children.push(args.right);
-    }
+  const contTitle =
+    /** @type { (args: { left: HTMLElement, right?: HTMLElement }) => { root: HTMLElement } } */ (
+      args,
+    ) => {
+      const children = [args.left];
+      if (args.right != null) {
+        children.push(args.right);
+      }
+      return {
+        root: e(
+          "div",
+          {},
+          {
+            styles_: [contTitleStyle],
+            children_: children,
+          },
+        ),
+      };
+    };
+
+  presentation.leafTitle = /** @type {Presentation["leafTitle"]} */ (args) => {
+    const right = e("div", {}, { styles_: [contGroupStyle] });
     return {
+      right: right,
       root: e(
         "div",
         {},
         {
-          styles_: [contTitleStyle],
-          children_: children,
+          styles_: [
+            contHboxStyle,
+            ss(uniq("leaf_title_box"), {
+              "": (s) => {
+                s.gap = varP05;
+                s.gridColumn = "2";
+                s.gridRow = "1";
+                s.justifyContent = "space-between";
+              },
+            }),
+          ],
+          children_: [
+            e(
+              "h1",
+              {
+                textContent: args.text,
+              },
+              {
+                styles_: [
+                  ss(uniq("leaf_title"), {
+                    "": (s) => {
+                      s.alignSelf = "center";
+                      s.fontSize = varFTitle;
+                    },
+                  }),
+                ],
+              },
+            ),
+            right,
+          ],
         },
       ),
     };
   };
-
-  presentation.leafTitle = /** @type {Presentation["leafTitle"]} */ (args) => ({
-    root: e(
-      "h1",
-      {
-        textContent: args.text,
-      },
-      {
-        styles_: [
-          ss(uniq("leaf_title"), {
-            "": (s) => {
-              s.fontSize = varFTitle;
-              s.gridColumn = "2";
-              s.gridRow = "1";
-            },
-          }),
-        ],
-      },
-    ),
-  });
 
   const leafLinkStyle = ss(uniq("leafLinkStyle"), {
     ":hover": (s) => {
@@ -870,20 +893,6 @@
   });
   const leafSpace = presentation.leafSpace;
 
-  /** @type { (s: CSSStyleDeclaration, o: string)=>void} */
-  const buildThinkingAnim = (s, o) => {
-    s.position = "absolute";
-    s.content = '""';
-    s.display = "block";
-    s.inset = `${varPSmall}`;
-    s.border = `${varLMid} solid ${varCForeground}`;
-    s.borderRadius = `${varRButton}`;
-    s.maskSize = "100% 100%";
-    s.maskPosition = "center";
-    s.maskImage = `url("cross.svg")`;
-    s.maskMode = "alpha";
-    s.opacity = o;
-  };
   const leafButtonStyle = ss(uniq("leaf_button"), {
     "": (s) => {
       s.flexDirection = "row";
@@ -917,7 +926,17 @@
       s.opacity = varONoninteractive;
     },
     [`:not(.${classStateDisabled}).${classStateThinking}:after`]: (s) => {
-      buildThinkingAnim(s, "0.5");
+      s.position = "absolute";
+      s.content = '""';
+      s.display = "block";
+      s.inset = `${varPSmall}`;
+      s.border = `${varLMid} solid ${varCForeground}`;
+      s.borderRadius = `${varRButton}`;
+      s.maskSize = "100% 100%";
+      s.maskPosition = "center";
+      s.maskImage = `url("cross.svg")`;
+      s.maskMode = "alpha";
+      s.opacity = "0.5";
     },
     ">span": (s) => {
       s.minWidth = "max-content";
@@ -1753,6 +1772,16 @@
         input: input.root,
       };
     };
+  presentation.leafInputPairTextFixed =
+    /** @type {Presentation["leafInputPairTextFixed"]} */ (args) => {
+      return {
+        root: presentation.leafInputPair({
+          label: `${args.title}:`,
+          inputId: args.id,
+          input: e("span", { textContent: args.value }, {}),
+        }).root,
+      };
+    };
   presentation.leafInputPairBool =
     /** @type {Presentation["leafInputPairBool"]} */ (args) => {
       const input = presentation.leafInputBool({
@@ -1970,9 +1999,17 @@
 
   presentation.contBarViewTransport =
     /** @type {Presentation["contBarViewTransport"]} */ () => {
-      const buttonMenu = leafTransportButton({
-        title: "More options",
-        iconv: { "": textIconOverflow },
+      const buttonShare = leafTransportButton({
+        title: "Share",
+        iconv: { "": textIconLink },
+        extraStyles: [
+          ss(uniq("cont_bar_view_transport_share_button"), {
+            [`.${classStateSharing} text`]: (s) => {
+              s.color = varCHighlightBold;
+              s.fontWeight = varWTransportBold;
+            },
+          }),
+        ],
       });
       const buttonPrev = leafTransportButton({
         title: "Previous",
@@ -2008,13 +2045,13 @@
       const { seekbar, seekbarFill, seekbarLabel } = leafSeekbar();
       return {
         root: presentation.contBarMain({
-          leftChildren: [buttonMenu.root],
+          leftChildren: [buttonShare.root],
           leftMidChildren: [buttonPrev.root],
           midChildren: [seekbar, buttonPlay.root],
           rightMidChildren: [buttonNext.root],
           rightChildren: [buttonCenter.root],
         }).root,
-        buttonMenu: buttonMenu.root,
+        buttonShare: buttonShare.root,
         buttonNext: buttonNext.root,
         buttonPlay: buttonPlay.root,
         buttonPrev: buttonPrev.root,
@@ -2066,6 +2103,36 @@
       ),
     };
   };
+  const titleButtonStyle = ss(uniq("title_button"), {
+    "": (s) => {
+      s.alignSelf = "start";
+    },
+    ">svg": (s) => {
+      s.width = varSCol3Width;
+      s.height = varSCol3Width;
+      s.padding = "20%";
+    },
+  });
+  presentation.leafViewTitleButtonOffline =
+    /** @type {Presentation["leafViewTitleButtonOffline"]} */ (args) => {
+      return {
+        root: leafButton({
+          title: "Offline",
+          icon: textIconOffline,
+          extraStyles: [leafIconStyle, titleButtonStyle],
+        }).root,
+      };
+    };
+  presentation.leafViewTitleButtonUnoffline =
+    /** @type {Presentation["leafViewTitleButtonUnoffline"]} */ (args) => {
+      return {
+        root: leafButton({
+          title: "Unoffline",
+          icon: textIconUnoffline,
+          extraStyles: [leafIconStyle, titleButtonStyle],
+        }).root,
+      };
+    };
 
   const contViewElementStyle = ss(uniq("cont_view_element_outer"), {
     "": (s) => {
@@ -2512,70 +2579,66 @@
       return { root: out };
     };
 
-  presentation.contModalViewMenu =
-    /** @type {Presentation["contModalViewMenu"]} */ (args) => {
-      const errors = e(
-        "div",
-        {},
-        {
-          styles_: [
-            contVboxStyle,
-            ss(uniq("cont_modal_node_errors"), {
-              "": (s) => {
-                s.gap = varPSmall;
-                s.alignItems = "center";
-              },
-            }),
-          ],
-        },
-      );
-      const buttonLink = presentation.leafButtonBig({
-        text: "Link",
-        title: "Link",
-        icon: textIconLink,
+  presentation.contViewModalConfirmUnoffline =
+    /** @type {Presentation["contViewModalConfirmUnoffline"]} */ (args) => {
+      const buttonConfirm = presentation.leafButtonBig({
+        title: "Confirm",
+        icon: textIconConfirm,
+        text: `Confirm`,
         extraStyles: [
-          ss(uniq("cont_bar_view_menu_share_button"), {
-            [`.${classStateSharing} text`]: (s) => {
-              s.color = varCHighlightBoldDark;
+          ss(uniq("cont_view_modal_confirm_unoffline"), {
+            "": (s) => {
+              s.borderBottomLeftRadius = varRModal;
+              s.borderBottomRightRadius = varRModal;
             },
           }),
         ],
-      }).root;
-      const buttonOffline = presentation.leafButtonBig({
-        text: "Offline",
-        title: "Offline",
-        icon: textIconOffline,
-        extraStyles: [],
-      }).root;
+      });
       const out = newContModal({
+        title: "Confirm delete",
         minimal: true,
-        title: "View",
         child: e(
           "div",
           {},
           {
             styles_: [
               contVboxStyle,
-              ss(uniq("cont_modal_view_menu_vbox"), {
+              ss(uniq("cont_modal_share_vbox"), {
                 "": (s) => {
                   s.flexGrow = "1";
                 },
               }),
             ],
-            children_: [errors, buttonLink, buttonOffline],
+            children_: [
+              e(
+                "span",
+                {
+                  textContent:
+                    "Are you sure you'd like to remove this offline view?",
+                },
+                {
+                  styles_: [
+                    ss(uniq("cont_view_modal_confirm_unoffline"), {
+                      "": (s) => {
+                        s.padding = varP05;
+                      },
+                    }),
+                  ],
+                },
+              ),
+              buttonConfirm.root,
+            ],
           },
         ),
       });
       return {
         root: out.root,
         buttonClose: out.buttonClose,
-        errors: errors,
-        buttonLink: buttonLink,
-        buttonOffline: buttonOffline,
+        buttonOk: buttonConfirm.root,
       };
     };
-  presentation.contModalViewShare =
-    /** @type {Presentation["contModalViewShare"]} */ (args) => {
+  presentation.contViewModalShare =
+    /** @type {Presentation["contViewModalShare"]} */ (args) => {
       const buttonUnshare = presentation.leafButtonBig({
         title: "Unlink",
         icon: textIconUnlink,
@@ -6345,16 +6408,11 @@
       icon: textIconMenu,
       extraStyles: [
         leafIconStyle,
+        titleButtonStyle,
         ss(uniq("cont_main_title_admenu"), {
           "": (s) => {
-            s.gridColumn = "3";
             s.gridRow = "1";
-            s.alignSelf = "start";
-          },
-          ">svg": (s) => {
-            s.width = varSCol3Width;
-            s.height = varSCol3Width;
-            s.padding = "20%";
+            s.gridColumn = "3";
           },
         }),
       ],
@@ -6387,7 +6445,7 @@
                   }),
                 ],
                 children_: [
-                  presentation.contTitle({
+                  contTitle({
                     left: args.mainTitle,
                     right: admenuButton,
                   }).root,
@@ -6427,7 +6485,7 @@
                   }),
                 ],
                 children_: [
-                  presentation.contTitle({
+                  contTitle({
                     left: e(
                       "div",
                       {},

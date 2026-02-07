@@ -235,14 +235,9 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         Func {
-            name: "contTitle",
-            args: vec![("left", &el_), ("right", &optel_)],
-            returns: vec![("root", &el_)],
-        },
-        Func {
             name: "leafTitle",
             args: vec![("text", &string_)],
-            returns: vec![("root", &el_)],
+            returns: vec![("root", &el_), ("right", &el_)],
         },
         Func {
             name: "contBar",
@@ -321,7 +316,7 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
-        // xx Components, styles: page, form + edit
+        // xx Components, styles: page, form + edit, also view parameters
         Func {
             name: "leafInputText",
             args: vec![("id", &optstring_), ("title", &string_), ("value", &string_)],
@@ -383,6 +378,11 @@ fn main() {
             returns: vec![("root", &el_), ("input", &el_)],
         },
         Func {
+            name: "leafInputPairTextFixed",
+            args: vec![("id", &string_), ("title", &string_), ("value", &string_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
             name: "leafInputPairNumber",
             args: vec![("id", &string_), ("title", &string_), ("value", &string_)],
             returns: vec![("root", &el_), ("input", &el_)],
@@ -430,11 +430,21 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         Func {
+            name: "leafViewTitleButtonOffline",
+            args: vec![],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafViewTitleButtonUnoffline",
+            args: vec![],
+            returns: vec![("root", &el_)],
+        },
+        Func {
             name: "contBarViewTransport",
             args: vec![],
             returns: vec![
                 ("root", &el_),
-                ("buttonMenu", &el_),
+                ("buttonShare", &el_),
                 ("buttonPrev", &el_),
                 ("buttonNext", &el_),
                 ("buttonPlay", &el_),
@@ -466,18 +476,12 @@ fn main() {
             ],
         },
         Func {
-            name: "contModalViewMenu",
+            name: "contViewModalConfirmUnoffline",
             args: vec![],
-            returns: vec![
-                ("root", &el_),
-                ("buttonClose", &el_),
-                ("errors", &el_),
-                ("buttonLink", &el_),
-                ("buttonOffline", &el_)
-            ],
+            returns: vec![("root", &el_), ("buttonClose", &el_), ("buttonOk", &el_)],
         },
         Func {
-            name: "contModalViewShare",
+            name: "contViewModalShare",
             args: vec![("qr", &el_), ("link", &string_)],
             returns: vec![("root", &el_), ("buttonClose", &el_), ("buttonUnshare", &el_)],
         },

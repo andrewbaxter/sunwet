@@ -37,7 +37,6 @@ use {
     rooting::{
         El,
         el,
-        spawn_rooted,
     },
     shared::{
         interface::{
@@ -67,6 +66,7 @@ use {
     },
     wasm::js::{
         el_async,
+        on_thinking,
         style_export,
     },
     wasm_bindgen::JsCast,
@@ -575,9 +575,7 @@ pub fn build_page_form(
         }
     }
     let button_commit = style_export::leaf_button_big_commit().root;
-    let save_thinking = Rc::new(RefCell::new(None));
-    button_commit.ref_own(|_| save_thinking.clone());
-    button_commit.ref_on("click", {
+    on_thinking(&button_commit, {
         let eg = eg.clone();
         let error_slot = error_slot.weak();
         let fs = fs.clone();
@@ -585,114 +583,109 @@ pub fn build_page_form(
         let form = form.clone();
         let id = id.clone();
         let initial_params = initial_params.clone();
-        move |ev| {
-            {
-                let Some(error_slot) = error_slot.upgrade() else {
-                    return;
-                };
-                error_slot.ref_clear();
-            }
-            let button = ev.target().unwrap().dyn_into::<HtmlElement>().unwrap();
-            button.class_list().add_1(&style_export::class_state_thinking().value).unwrap();
-            *fs.0.draft_debounce.borrow_mut() = None;
-            *save_thinking.borrow_mut() = Some(spawn_rooted({
-                let eg = eg.clone();
-                let fs = fs.clone();
-                let error_slot = error_slot.clone();
-                let title = title.clone();
-                let form = form.clone();
-                let id = id.clone();
-                let initial_params = initial_params.clone();
-                async move {
-                    match async {
-                        let data = fs.0.data.borrow().clone();
-                        for field in &form.fields {
-                            if match &field.r#type {
-                                FormFieldType::Id => false,
-                                FormFieldType::Comment(_) => false,
-                                FormFieldType::Text(_) => true,
-                                FormFieldType::Number(_) => true,
-                                FormFieldType::Bool(_) => true,
-                                FormFieldType::Date => true,
-                                FormFieldType::Time => true,
-                                FormFieldType::Datetime => true,
-                                FormFieldType::DatetimeNow => false,
-                                FormFieldType::RgbU8(_) => true,
-                                FormFieldType::ConstEnum(_) => true,
-                                FormFieldType::QueryEnum(_) => true,
-                                FormFieldType::File => true,
-                            } && !data.contains_key(&field.id) {
-                                return Err(format!("Missing field {}", field.label));
-                            }
+        move || {
+            let eg = eg.clone();
+            let error_slot = error_slot.clone();
+            let fs = fs.clone();
+            let title = title.clone();
+            let form = form.clone();
+            let id = id.clone();
+            let initial_params = initial_params.clone();
+            async move {
+                {
+                    let Some(error_slot) = error_slot.upgrade() else {
+                        return;
+                    };
+                    error_slot.ref_clear();
+                }
+                *fs.0.draft_debounce.borrow_mut() = None;
+                match async {
+                    let data = fs.0.data.borrow().clone();
+                    for field in &form.fields {
+                        if match &field.r#type {
+                            FormFieldType::Id => false,
+                            FormFieldType::Comment(_) => false,
+                            FormFieldType::Text(_) => true,
+                            FormFieldType::Number(_) => true,
+                            FormFieldType::Bool(_) => true,
+                            FormFieldType::Date => true,
+                            FormFieldType::Time => true,
+                            FormFieldType::Datetime => true,
+                            FormFieldType::DatetimeNow => false,
+                            FormFieldType::RgbU8(_) => true,
+                            FormFieldType::ConstEnum(_) => true,
+                            FormFieldType::QueryEnum(_) => true,
+                            FormFieldType::File => true,
+                        } && !data.contains_key(&field.id) {
+                            return Err(format!("Missing field {}", field.label));
                         }
-                        let id_key = form.fields.iter().find_map(|x| match x.r#type {
-                            FormFieldType::Id => Some(&x.id),
-                            _ => None,
-                        });
-                        let mut params_to_post = HashMap::new();
-                        let mut files_to_return = HashMap::new();
-                        let mut files_to_commit = vec![];
-                        let mut files_to_upload = vec![];
-                        let mut data_id = None;
-                        for (k, v) in data {
-                            let Some(n) =
-                                prep_node(
-                                    &mut files_to_return,
-                                    &mut files_to_commit,
-                                    &mut files_to_upload,
-                                    v,
-                                ).await else {
-                                    continue;
-                                };
-                            if data_id.is_none() {
-                                if let Some(id_key) = id_key {
-                                    if k == *id_key {
-                                        data_id = Some(n.clone());
-                                    }
-                                } else {
+                    }
+                    let id_key = form.fields.iter().find_map(|x| match x.r#type {
+                        FormFieldType::Id => Some(&x.id),
+                        _ => None,
+                    });
+                    let mut params_to_post = HashMap::new();
+                    let mut files_to_return = HashMap::new();
+                    let mut files_to_commit = vec![];
+                    let mut files_to_upload = vec![];
+                    let mut data_id = None;
+                    for (k, v) in data {
+                        let Some(n) =
+                            prep_node(
+                                &mut files_to_return,
+                                &mut files_to_commit,
+                                &mut files_to_upload,
+                                v,
+                            ).await else {
+                                continue;
+                            };
+                        if data_id.is_none() {
+                            if let Some(id_key) = id_key {
+                                if k == *id_key {
                                     data_id = Some(n.clone());
                                 }
+                            } else {
+                                data_id = Some(n.clone());
                             }
-                            params_to_post.insert(k.clone(), TreeNode::Scalar(n));
                         }
-                        online::ensure_commit(eg.clone(), ReqCommit::Form(ReqCommitForm {
-                            form_id: id.clone(),
-                            parameters: params_to_post,
-                        }), files_to_upload).await?;
-                        return Ok(data_id);
-                    }.await {
-                        Ok(data_id) => {
-                            LocalStorage::delete(&fs.0.draft_id);
-                            eg.event(|pc| {
-                                if let Some(data_id) = data_id {
-                                    goto_replace_ministate(pc, &state().log, &Ministate::NodeView(MinistateNodeView {
-                                        title: format!("New node"),
-                                        node: data_id,
-                                    }));
-                                } else {
-                                    set_page(
-                                        pc,
-                                        &title,
-                                        build_page_form(pc.eg(), id, title.clone(), form, initial_params).unwrap(),
-                                    );
-                                }
-                            }).unwrap();
-                            return;
-                        },
-                        Err(e) => {
-                            let Some(error_slot) = error_slot.upgrade() else {
-                                return;
-                            };
-                            error_slot.ref_push(style_export::leaf_err_block(style_export::LeafErrBlockArgs {
-                                in_root: false,
-                                data: e,
-                            }).root);
-                            button.class_list().remove_1(&style_export::class_state_thinking().value).unwrap();
-                            return;
-                        },
+                        params_to_post.insert(k.clone(), TreeNode::Scalar(n));
                     }
+                    online::ensure_commit(eg.clone(), ReqCommit::Form(ReqCommitForm {
+                        form_id: id.clone(),
+                        parameters: params_to_post,
+                    }), files_to_upload).await?;
+                    return Ok(data_id);
+                }.await {
+                    Ok(data_id) => {
+                        LocalStorage::delete(&fs.0.draft_id);
+                        eg.event(|pc| {
+                            if let Some(data_id) = data_id {
+                                goto_replace_ministate(pc, &state().log, &Ministate::NodeView(MinistateNodeView {
+                                    title: format!("New node"),
+                                    node: data_id,
+                                }));
+                            } else {
+                                set_page(
+                                    pc,
+                                    &title,
+                                    build_page_form(pc.eg(), id, title.clone(), form, initial_params).unwrap(),
+                                );
+                            }
+                        }).unwrap();
+                        return;
+                    },
+                    Err(e) => {
+                        let Some(error_slot) = error_slot.upgrade() else {
+                            return;
+                        };
+                        error_slot.ref_push(style_export::leaf_err_block(style_export::LeafErrBlockArgs {
+                            in_root: false,
+                            data: e,
+                        }).root);
+                        return;
+                    },
                 }
-            }));
+            }
         }
     });
     bar_out.push(button_commit);

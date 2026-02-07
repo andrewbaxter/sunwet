@@ -849,6 +849,13 @@ impl PlaylistMedia for PlaylistMediaBook {
                     length: Rc<Cell<Option<usize>>>,
                     seekable: watch::Sender<bool>,
                 ) {
+                    if let Some(body) = idoc.body() {
+                        body
+                            .style()
+                            .set_property("fontSize", &style_export::base_font_size().value)
+                            .log(log, "Error setting base font size in iframe");
+                    }
+
                     // Wait for stuff to appear, not sure why this isn't handled by
                     // DOMContentLoaded... but I guess in some cases there might be js doing stuff too
                     let html_children0 = idoc.query_selector_all("h1,h2,h3,h4,h5,h6,p,img").unwrap();

@@ -1,5 +1,6 @@
 use {
     crate::libnonlink::{
+        ministate::MinistateOfflineView,
         node_button::STORAGE_CURRENT_LIST,
         offline::{
             list_offline_views,
@@ -123,7 +124,9 @@ pub fn main() {
     let log = log1.clone() as Rc<dyn Log>;
     eg.event(|pc| {
         let env = scan_env(&log);
-        let main_title = style_export::leaf_title(style_export::LeafTitleArgs { text: "Sunwet".to_string() }).root;
+        let main_title_ = style_export::leaf_title(style_export::LeafTitleArgs { text: "Sunwet".to_string() });
+        let main_title = main_title_.root;
+        let main_title_right = main_title_.right;
         let main_body = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
         let modal_stack = style_export::cont_root_stack(style_export::ContRootStackArgs { children: vec![] }).root;
 
@@ -184,6 +187,7 @@ pub fn main() {
             offline_list: List::new(vec![]),
             modal_stack: modal_stack.clone(),
             main_title: main_title.clone(),
+            main_title_right: main_title_right,
             main_body: main_body.clone(),
             client_config: Default::default(),
             log1: log1,
@@ -356,7 +360,7 @@ pub fn main() {
                                                                 b.ref_splice(
                                                                     change.offset,
                                                                     change.remove,
-                                                                    change.add.iter().map(|(_, view)| {
+                                                                    change.add.iter().map(|(key, view)| {
                                                                         let sorted_params =
                                                                             view
                                                                                 .params
@@ -381,7 +385,15 @@ pub fn main() {
                                                                                 ),
                                                                                 href: ministate_octothorpe(
                                                                                     &Ministate::OfflineView(
-                                                                                        view.clone()
+                                                                                        MinistateOfflineView {
+                                                                                            id: view.id.clone(),
+                                                                                            pos: view.pos.clone(),
+                                                                                            key: key.clone(),
+                                                                                            title: view.title.clone(),
+                                                                                            params: view
+                                                                                                .params
+                                                                                                .clone(),
+                                                                                        }
                                                                                     )
                                                                                 )
                                                                             }

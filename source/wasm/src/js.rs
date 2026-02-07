@@ -729,3 +729,30 @@ pub fn download(filename: String, data: impl serde::Serialize) {
     body.remove_child(&a).unwrap();
     Url::revoke_object_url(&url).unwrap();
 }
+
+pub fn on_thinking(e: &El, f: impl 'static + Clone + AsyncFn() -> ()) {
+    e.ref_on("click", {
+        let e = e.weak();
+        let bg = Rc::new(RefCell::new(None));
+        move |_| {
+            if bg.borrow().is_some() {
+                return;
+            }
+            if let Some(e) = e.upgrade() {
+                e.ref_classes(&[&style_export::class_state_thinking().value]);
+            }
+            *bg.borrow_mut() = Some(spawn_rooted({
+                let f = f.clone();
+                let e = e.clone();
+                let bg = bg.clone();
+                async move {
+                    f().await;
+                    if let Some(e) = e.upgrade() {
+                        e.ref_remove_classes(&[&style_export::class_state_thinking().value]);
+                    }
+                    *bg.borrow_mut() = None;
+                }
+            }));
+        }
+    });
+}
