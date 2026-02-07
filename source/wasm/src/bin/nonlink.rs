@@ -399,47 +399,73 @@ pub fn main() {
                             }
                         }
 
-                        let mut root = vec![];
-                        for item in &client_config.menu {
-                            eg.event(|pc| {
+                        return eg.event(|pc| {
+                            let mut root = vec![];
+                            for item in &client_config.menu {
                                 root.push(build_menu_item(pc, &client_config, &vec![], item));
-                            }).unwrap();
-                        }
-                        let mut bar_children = vec![];
-                        match &whoami {
-                            RespWhoAmI::Public => {
-                                let button = style_export::leaf_menu_bar_button_login().root;
-                                button.ref_on("click", {
-                                    let eg = eg.clone();
-                                    move |_| eg.event(|_pc| {
-                                        set_want_logged_in();
-                                        redirect_login(&env.base_url);
-                                    }).unwrap()
-                                });
-                                bar_children.push(button)
-                            },
-                            RespWhoAmI::User(_) => {
-                                let button = style_export::leaf_menu_bar_button_logout().root;
-                                button.ref_on("click", {
-                                    let eg = eg.clone();
-                                    move |_| eg.event(|_pc| {
-                                        unset_want_logged_in();
-                                        redirect_logout(&env.base_url);
-                                    }).unwrap()
-                                });
-                                bar_children.push(button)
-                            },
-                            RespWhoAmI::Token => { },
-                        }
-                        return Ok(vec![style_export::cont_menu_body(style_export::ContMenuBodyArgs {
-                            children: root,
-                            user: match whoami {
-                                RespWhoAmI::Public => "Guest".to_string(),
-                                RespWhoAmI::User(u) => u,
-                                RespWhoAmI::Token => "Token".to_string(),
-                            },
-                            bar_children: bar_children,
-                        }).root]);
+                            }
+                            let mut bar_children = vec![];
+                            match &whoami {
+                                RespWhoAmI::Public => {
+                                    let button = style_export::leaf_menu_bar_button_login().root;
+                                    button.ref_on("click", {
+                                        let eg = eg.clone();
+                                        move |_| eg.event(|_pc| {
+                                            set_want_logged_in();
+                                            redirect_login(&env.base_url);
+                                        }).unwrap()
+                                    });
+                                    bar_children.push(button)
+                                },
+                                RespWhoAmI::User(_) => {
+                                    let button = style_export::leaf_menu_bar_button_logout().root;
+                                    button.ref_on("click", {
+                                        let eg = eg.clone();
+                                        move |_| eg.event(|_pc| {
+                                            unset_want_logged_in();
+                                            redirect_logout(&env.base_url);
+                                        }).unwrap()
+                                    });
+                                    bar_children.push(button)
+                                },
+                                RespWhoAmI::Token => { },
+                            }
+                            let menu_body = style_export::cont_menu_body(style_export::ContMenuBodyArgs {
+                                children: root,
+                                user: match whoami {
+                                    RespWhoAmI::Public => "Guest".to_string(),
+                                    RespWhoAmI::User(u) => u,
+                                    RespWhoAmI::Token => "Token".to_string(),
+                                },
+                                bar_children: bar_children,
+                            });
+                            menu_body
+                                .upload
+                                .ref_own(
+                                    |e_| link!((_pc = pc), (thinking = state().onlining.clone()), (), (e_ = e_.weak()) {
+                                        let e_ = e_.upgrade()?;
+                                        e_.ref_modify_classes(
+                                            &[(&style_export::class_state_thinking().value, *thinking.borrow())]
+                                        )
+                                    })
+                                );
+                            menu_body
+                                .offline
+                                .ref_own(
+                                    |e_| link!(
+                                        (_pc = pc),
+                                        (thinking = state().offlining.clone()),
+                                        (),
+                                        (e_ = e_.weak()) {
+                                            let e_ = e_.upgrade()?;
+                                            e_.ref_modify_classes(
+                                                &[(&style_export::class_state_thinking().value, *thinking.borrow())]
+                                            )
+                                        }
+                                    )
+                                );
+                            return Ok(vec![menu_body.root]);
+                        }).unwrap();
                     }
                 }),
             });

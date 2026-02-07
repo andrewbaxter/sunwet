@@ -434,7 +434,7 @@ fn main() {
             args: vec![],
             returns: vec![
                 ("root", &el_),
-                ("buttonShare", &el_),
+                ("buttonMenu", &el_),
                 ("buttonPrev", &el_),
                 ("buttonNext", &el_),
                 ("buttonPlay", &el_),
@@ -463,6 +463,17 @@ fn main() {
                 ("seekbar", &el_),
                 ("seekbarFill", &el_),
                 ("seekbarLabel", &el_)
+            ],
+        },
+        Func {
+            name: "contModalViewMenu",
+            args: vec![],
+            returns: vec![
+                ("root", &el_),
+                ("buttonClose", &el_),
+                ("errors", &el_),
+                ("buttonLink", &el_),
+                ("buttonOffline", &el_)
             ],
         },
         Func {
@@ -964,7 +975,7 @@ fn main() {
         Func {
             name: "contMenuBody",
             args: vec![("children", &arrel_), ("user", &string_), ("barChildren", &arrel_)],
-            returns: vec![("root", &el_)],
+            returns: vec![("root", &el_), ("upload", &el_), ("offline", &el_)],
         },
         Func {
             name: "contMenuGroup",

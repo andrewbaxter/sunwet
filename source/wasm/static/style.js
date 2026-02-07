@@ -194,11 +194,14 @@
   const textIconCommit = "\ue161";
   const textIconDownload = "\uf090";
   const textIconCopy = "\ue14d";
-  const textIconDownloadOffline = "\uf000";
+  const textIconOffline = "\uf523";
+  const textIconOfflineThinking = "\ue5db";
+  const textIconUploadThinking = "\ue5d8";
   const textIconUnlink = "\ue16f";
   const textIconLogin = "\uea77";
   const textIconLogout = "\ue9ba";
   const textIconMenu = "\ue5d2";
+  const textIconOverflow = "\ue5d3";
   const textIconFoldClosed = "\ue316";
   const textIconFoldOpened = "\ue313";
   const textIconClose = "\ue5cd";
@@ -211,8 +214,8 @@
   const textIconHistory = "\ue889";
   const textIconCenter = "\ue3b5";
   const textIconNode = "\uf81b";
-  const textIconMoveUp = "\ue5d8";
-  const textIconMoveDown = "\ue5db";
+  const textIconMoveUp = "\ue316";
+  const textIconMoveDown = "\ue313";
   const textIconDeselect = "\ue9d5";
 
   // xx Variables
@@ -400,6 +403,11 @@
     uniq("highlight"),
     "rgb(140, 172, 245)",
     "rgb(78, 129, 183)",
+  );
+  const varCHighlightBoldDark = vs(
+    uniq("highlight"),
+    "rgb(96, 129, 204)",
+    "rgb(111, 155, 255)",
   );
   const varCRemove = vs("c-remove", "rgb(238, 146, 146)", "rgb(138, 81, 81)");
   const varCAdd = vs("c-add", "rgb(96, 179, 113)", "rgb(111, 185, 126)");
@@ -862,6 +870,20 @@
   });
   const leafSpace = presentation.leafSpace;
 
+  /** @type { (s: CSSStyleDeclaration, o: string)=>void} */
+  const buildThinkingAnim = (s, o) => {
+    s.position = "absolute";
+    s.content = '""';
+    s.display = "block";
+    s.inset = `${varPSmall}`;
+    s.border = `${varLMid} solid ${varCForeground}`;
+    s.borderRadius = `${varRButton}`;
+    s.maskSize = "100% 100%";
+    s.maskPosition = "center";
+    s.maskImage = `url("cross.svg")`;
+    s.maskMode = "alpha";
+    s.opacity = o;
+  };
   const leafButtonStyle = ss(uniq("leaf_button"), {
     "": (s) => {
       s.flexDirection = "row";
@@ -895,17 +917,7 @@
       s.opacity = varONoninteractive;
     },
     [`:not(.${classStateDisabled}).${classStateThinking}:after`]: (s) => {
-      s.position = "absolute";
-      s.content = '""';
-      s.display = "block";
-      s.inset = `${varPSmall}`;
-      s.border = `${varLMid} solid ${varCForeground}`;
-      s.borderRadius = `${varRButton}`;
-      s.maskSize = "100% 100%";
-      s.maskPosition = "center";
-      s.maskImage = `url("cross.svg")`;
-      s.maskMode = "alpha";
-      s.opacity = "0.5";
+      buildThinkingAnim(s, "0.5");
     },
     ">span": (s) => {
       s.minWidth = "max-content";
@@ -980,27 +992,43 @@
     };
   };
 
-  const leafButtonBigStyle = ss(uniq("leaf_text_button_big"), {
+  const varSBigMin = "1.3cm";
+  const leafBigStyle = ss(uniq("leaf_big"), {
     "": (s) => {
       s.padding = `0 ${varPButtonBig}`;
-      s.minHeight = "1.3cm";
-      s.minWidth = "1.3cm";
+      s.minHeight = varSBigMin;
+      s.minWidth = varSBigMin;
       s.justifyContent = "center";
       s.alignItems = "center";
     },
     ">span": (s) => {
       s.padding = `${varPButtonBig} 0`;
     },
-    ">svg": (s) => {
-      s.width = varSButtonBigIcon;
-      s.minWidth = varSButtonBigIcon;
-      s.height = varSButtonBigIcon;
-      s.minHeight = varSButtonBigIcon;
-    },
-    [`.${classStatePressed}`]: (s) => {
-      s.color = varCModified;
-    },
   });
+  const leafButtonBigStyles = [
+    leafBigStyle,
+    ss(uniq("leaf_button_big"), {
+      "": (s) => {
+        s.padding = `0 ${varPButtonBig}`;
+        s.minHeight = "1.3cm";
+        s.minWidth = "1.3cm";
+        s.justifyContent = "center";
+        s.alignItems = "center";
+      },
+      ">span": (s) => {
+        s.padding = `${varPButtonBig} 0`;
+      },
+      ">svg": (s) => {
+        s.width = varSButtonBigIcon;
+        s.minWidth = varSButtonBigIcon;
+        s.height = varSButtonBigIcon;
+        s.minHeight = varSButtonBigIcon;
+      },
+      [`.${classStatePressed}`]: (s) => {
+        s.color = varCModified;
+      },
+    }),
+  ];
   presentation.leafButtonBig =
     /** @type { Presentation["leafButtonBig"] } */
     (args) =>
@@ -1008,7 +1036,7 @@
         title: args.title,
         icon: args.icon,
         text: args.text,
-        extraStyles: [leafButtonBigStyle, ...args.extraStyles],
+        extraStyles: [...leafButtonBigStyles, ...args.extraStyles],
       });
   const leafButtonBigLink =
     /** @type { (args:{ title: string, icon?: string, text?: string, extraStyles: string[], url: string, })=>HTMLElement } */
@@ -1017,7 +1045,7 @@
         title: args.title,
         icon: args.icon,
         text: args.text,
-        extraStyles: [leafButtonBigStyle, ...args.extraStyles],
+        extraStyles: [...leafButtonBigStyles, ...args.extraStyles],
         url: args.url,
       }).root;
   presentation.leafButtonBigDelete =
@@ -1942,17 +1970,9 @@
 
   presentation.contBarViewTransport =
     /** @type {Presentation["contBarViewTransport"]} */ () => {
-      const buttonShare = leafTransportButton({
-        title: "Share",
-        iconv: { "": textIconLink },
-        extraStyles: [
-          ss(uniq("cont_bar_view_transport_share_button"), {
-            [`.${classStateSharing} text`]: (s) => {
-              s.color = varCHighlightBold;
-              s.fontWeight = varWTransportBold;
-            },
-          }),
-        ],
+      const buttonMenu = leafTransportButton({
+        title: "More options",
+        iconv: { "": textIconOverflow },
       });
       const buttonPrev = leafTransportButton({
         title: "Previous",
@@ -1988,13 +2008,13 @@
       const { seekbar, seekbarFill, seekbarLabel } = leafSeekbar();
       return {
         root: presentation.contBarMain({
-          leftChildren: [buttonShare.root],
+          leftChildren: [buttonMenu.root],
           leftMidChildren: [buttonPrev.root],
           midChildren: [seekbar, buttonPlay.root],
           rightMidChildren: [buttonNext.root],
           rightChildren: [buttonCenter.root],
         }).root,
-        buttonShare: buttonShare.root,
+        buttonMenu: buttonMenu.root,
         buttonNext: buttonNext.root,
         buttonPlay: buttonPlay.root,
         buttonPrev: buttonPrev.root,
@@ -2492,6 +2512,68 @@
       return { root: out };
     };
 
+  presentation.contModalViewMenu =
+    /** @type {Presentation["contModalViewMenu"]} */ (args) => {
+      const errors = e(
+        "div",
+        {},
+        {
+          styles_: [
+            contVboxStyle,
+            ss(uniq("cont_modal_node_errors"), {
+              "": (s) => {
+                s.gap = varPSmall;
+                s.alignItems = "center";
+              },
+            }),
+          ],
+        },
+      );
+      const buttonLink = presentation.leafButtonBig({
+        text: "Link",
+        title: "Link",
+        icon: textIconLink,
+        extraStyles: [
+          ss(uniq("cont_bar_view_menu_share_button"), {
+            [`.${classStateSharing} text`]: (s) => {
+              s.color = varCHighlightBoldDark;
+            },
+          }),
+        ],
+      }).root;
+      const buttonOffline = presentation.leafButtonBig({
+        text: "Offline",
+        title: "Offline",
+        icon: textIconOffline,
+        extraStyles: [],
+      }).root;
+      const out = newContModal({
+        minimal: true,
+        title: "View",
+        child: e(
+          "div",
+          {},
+          {
+            styles_: [
+              contVboxStyle,
+              ss(uniq("cont_modal_view_menu_vbox"), {
+                "": (s) => {
+                  s.flexGrow = "1";
+                },
+              }),
+            ],
+            children_: [errors, buttonLink, buttonOffline],
+          },
+        ),
+      });
+      return {
+        root: out.root,
+        buttonClose: out.buttonClose,
+        errors: errors,
+        buttonLink: buttonLink,
+        buttonOffline: buttonOffline,
+      };
+    };
   presentation.contModalViewShare =
     /** @type {Presentation["contModalViewShare"]} */ (args) => {
       const buttonUnshare = presentation.leafButtonBig({
@@ -6115,72 +6197,147 @@
 
   presentation.contMenuBody = /** @type {Presentation["contMenuBody"]} */ (
     args,
-  ) => ({
-    root: e(
-      "div",
-      {},
-      {
-        styles_: [
-          ss(uniq("cont_menu1"), {
-            "": (s) => {
-              s.display = "grid";
-              s.gridTemplateColumns = `${varSCol1Width} 1fr`;
-              s.gridTemplateRows = "auto auto 1fr";
-            },
-          }),
-        ],
-        children_: [
-          e(
-            "div",
-            {},
-            {
-              styles_: [
-                classMenuWantStateOpen,
-                contVboxStyle,
-                contMenuGroupVBoxStyle,
-                ss(uniq("cont_menu_body"), {
+  ) => {
+    /** @type {(icon: string) => HTMLElement} */
+    const spinIcon = (icon) => {
+      return e(
+        "div",
+        {},
+        {
+          styles_: [
+            ss(uniq("cont_menu_spin_icon"), {
+              "": (s) => {
+                s.display = "grid";
+                s.minWidth = varSBigMin;
+                s.minHeight = varSBigMin;
+                s.justifyItems = "center";
+                s.alignItems = "center";
+              },
+            }),
+          ],
+          children_: [
+            et(
+              `
+    <svg viewBox="0 0 1 1" xmlns="http://www.w3.org/2000/svg">
+      <g transform-origin="0.5 0.5">
+        <circle cx="0.5" cy="0.5" r="0.484" stroke-width="0.03" fill="none" stroke="currentColor" pathLength="1" stroke-dasharray="0.15 0.1 0.15 0.1 0.15 0.1 0.15 0.1" />
+        <animateTransform attributeType="XML" attributeName="transform" type="rotate" values="0; 360;"
+          dur="20s" repeatCount="indefinite" />
+      </g>
+    </svg>
+              `,
+              {
+                styles_: [
+                  ss(uniq("cont_menu_spin_thinking"), {
+                    "": (s) => {
+                      s.display = "none";
+                      s.gridRow = "1";
+                      s.gridColumn = "1";
+                      s.width = "75%";
+                      s.height = "75%";
+                      s.color = varCForegroundFade;
+                    },
+                    [`.${classStateThinking}`]: (s) => {
+                      s.display = "initial";
+                    },
+                  }),
+                ],
+              },
+            ),
+            leafIcon({
+              text: icon,
+              extraStyles: [
+                ss(uniq("cont_menu_spin_icon2"), {
                   "": (s) => {
-                    s.gridColumn = "2";
-
-                    s.justifyContent = "start";
-                    s.minHeight = `calc(100dvh - 5cm)`;
+                    s.gridRow = "1";
+                    s.gridColumn = "1";
+                    s.width = "1cm";
+                    s.height = "1cm";
                   },
-                  ">*": (s) => {
-                    s.maxWidth = varSColWidth;
-                  },
-                  [`.${contMenuGroupVBoxStyle}`]: (s) => {
-                    s.marginLeft = "0";
+                  " text": (s) => {
+                    s.color = varCForegroundFade;
+                    s.fontWeight = varWLight;
                   },
                 }),
               ],
-              children_: args.children,
-            },
-          ),
-          presentation.contBarMenu({
-            children: [
-              e(
-                "span",
-                {
-                  textContent: args.user,
-                },
-                {
-                  styles_: [
-                    ss(uniq("cont_bar_menu_user"), {
-                      "": (s) => {
-                        s.opacity = varOMenuBar;
-                      },
-                    }),
-                  ],
-                },
-              ),
-              ...args.barChildren,
-            ],
-          }).root,
-          presentation.leafSpace({}).root,
-        ],
-      },
-    ),
-  });
+            }),
+          ],
+        },
+      );
+    };
+    const offline = spinIcon(textIconOfflineThinking);
+    const upload = spinIcon(textIconUploadThinking);
+    return {
+      offline: offline,
+      upload: upload,
+      root: e(
+        "div",
+        {},
+        {
+          styles_: [
+            ss(uniq("cont_menu1"), {
+              "": (s) => {
+                s.display = "grid";
+                s.gridTemplateColumns = `${varSCol1Width} 1fr`;
+                s.gridTemplateRows = "auto auto 1fr";
+              },
+            }),
+          ],
+          children_: [
+            e(
+              "div",
+              {},
+              {
+                styles_: [
+                  classMenuWantStateOpen,
+                  contVboxStyle,
+                  contMenuGroupVBoxStyle,
+                  ss(uniq("cont_menu_body"), {
+                    "": (s) => {
+                      s.gridColumn = "2";
+
+                      s.justifyContent = "start";
+                      s.minHeight = `calc(100dvh - 5cm)`;
+                    },
+                    ">*": (s) => {
+                      s.maxWidth = varSColWidth;
+                    },
+                    [`.${contMenuGroupVBoxStyle}`]: (s) => {
+                      s.marginLeft = "0";
+                    },
+                  }),
+                ],
+                children_: args.children,
+              },
+            ),
+            presentation.contBarMenu({
+              children: [
+                upload,
+                offline,
+                e(
+                  "span",
+                  {
+                    textContent: args.user,
+                  },
+                  {
+                    styles_: [
+                      ss(uniq("cont_bar_menu_user"), {
+                        "": (s) => {
+                          s.opacity = varOMenuBar;
+                        },
+                      }),
+                    ],
+                  },
+                ),
+                ...args.barChildren,
+              ],
+            }).root,
+            presentation.leafSpace({}).root,
+          ],
+        },
+      ),
+    };
+  };
 
   presentation.appMain = /** @type {Presentation["appMain"]} */ (args) => {
     const admenuButton = leafButton({

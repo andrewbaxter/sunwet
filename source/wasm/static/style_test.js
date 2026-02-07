@@ -584,6 +584,11 @@
           }
         }
         break;
+      case "#view_modal_menu":
+        {
+          buildRoot([stagingPageView, presentation.contModalViewMenu({}).root]);
+        }
+        break;
       case "#view_modal_share":
         {
           buildRoot([
