@@ -345,10 +345,13 @@ pub enum C2SReq {
 
 pub fn alphanumeric_only(s: &str) -> String {
     return s.chars().map(|c| match c {
-        'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' => c,
+        'a' ..= 'z' | 'A' ..= 'Z' | '0' ..= '9' => c,
         _ => '_',
     }).collect::<String>();
 }
+
+pub const TRANSCODE_MIME_WEBM: &str = "video/webm";
+pub const TRANSCODE_MIME_AAC: &str = "audio/aac";
 
 pub fn gentype_transcode(mime: &str) -> String {
     return format!("mime_{}", alphanumeric_only(mime));
@@ -361,4 +364,6 @@ pub fn gentype_vtt_subpath(lang: &str) -> String {
     return alphanumeric_only(lang);
 }
 
-pub const GENTYPE_DIR: &str = "dir";
+pub const GENTYPE_EPUBHTML: &str = "epubhtml";
+pub const GENTYPE_CBZDIR: &str = "cbzdir";
+pub const GEN_FILENAME_COMICMANIFEST: &str = "sunwet.json";

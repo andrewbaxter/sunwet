@@ -3,7 +3,11 @@
 {
   const presentation = window.sunwetPresentation;
   addEventListener("DOMContentLoaded", async (_) => {
-    const stagingMenu = presentation.contMenuBody({
+    const stagingMenu_ = presentation.contMenuBody({
+      pageButtonChildren: [
+        presentation.leafMenuPageButtonOffline({}).root,
+        presentation.leafMenuPageButtonUnoffline({}).root,
+      ],
       children: [
         presentation.leafMenuLink({
           title: "Thing 1",
@@ -95,7 +99,8 @@
       ],
       user: "Guest",
       barChildren: [presentation.leafMenuBarButtonLogin({}).root],
-    }).root;
+    });
+    const stagingMenu = stagingMenu_.root;
     const buildLotsOfTracks =
       /** @type { (n: number) => HTMLElement[][] } */
       (n) => {
@@ -212,9 +217,6 @@
     const stagingTitle = presentation.leafTitle({
       text: "Music but a slightly longer title",
     });
-    stagingTitle.right.appendChild(
-      presentation.leafViewTitleButtonOffline({}).root,
-    );
     const stagingPageView = presentation.appMain({
       mainTitle: stagingTitle.root,
       mainBody: presentation.contPageView({
@@ -483,9 +485,6 @@
           const title = presentation.leafTitle({
             text: "Music but a slightly longer title",
           });
-          title.right.appendChild(
-            presentation.leafViewTitleButtonUnoffline({}).root,
-          );
           /** @type { (n: number)=> HTMLElement } */
           const createElement = (n) => {
             const parentOrientation = "right_down";

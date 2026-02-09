@@ -84,7 +84,7 @@ pub fn tree_node_to_text(data_at: &TreeNode) -> String {
     }
 }
 
-pub fn unwrap_value_media_url(data_at: &Node) -> Result<FileHash, String> {
+pub fn unwrap_value_media_hash(data_at: &Node) -> Result<FileHash, String> {
     match data_at {
         Node::File(v) => return Ok(v.clone()),
         _ => return Err(format!("Media source is not a file: {}", serde_json::to_string(data_at).unwrap())),

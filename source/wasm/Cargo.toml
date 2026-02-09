@@ -7,19 +7,19 @@ edition = "2021"
 chrono = { version = "0.4", features = ["serde"] }
 console_error_panic_hook = "0.1"
 ezing = "0.2"
-gloo = { version = "0.9", features = ["futures"] }
+gloo = { version = "0.11", features = ["futures"] }
 js-sys = "0.3"
 reqwasm = { version = "0.5", features = ["json"] }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
-wasm-bindgen = "=0.2.100"
+wasm-bindgen = "=0.2.108"
 wasm-bindgen-futures = { version = "0.4", features = [
     "futures-core-03-stream",
 ] }
 web-sys = { version = "0.3", features = [
+    "Blob",
     "Clipboard",
     "ClipboardItem",
-    "ConnectionType",
     "CssStyleDeclaration",
     "Document",
     "DomException",
@@ -40,8 +40,10 @@ web-sys = { version = "0.3", features = [
     "IntersectionObserverInit",
     "FileSystemDirectoryHandle",
     "FileSystemFileHandle",
+    "FileSystemGetFileOptions",
     "FileSystemWritableFileStream",
     "FileSystemGetDirectoryOptions",
+    "FileSystemRemoveOptions",
     "KeyboardEvent",
     "Location",
     "LockManager",
@@ -53,7 +55,6 @@ web-sys = { version = "0.3", features = [
     "MouseEvent",
     "MediaError",
     "Navigator",
-    "NetworkInformation",
     "NodeList",
     "StorageManager",
     "SupportedType",

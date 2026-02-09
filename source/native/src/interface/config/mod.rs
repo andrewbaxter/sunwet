@@ -74,6 +74,7 @@ pub enum MenuItemPage {
     History,
     Query,
     Logs,
+    Offline,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS)]

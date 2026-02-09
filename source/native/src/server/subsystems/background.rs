@@ -63,8 +63,12 @@ use {
                 Node,
             },
             wire::{
-                GENTYPE_DIR,
+                GEN_FILENAME_COMICMANIFEST,
+                GENTYPE_CBZDIR,
+                GENTYPE_EPUBHTML,
                 GENTYPE_VTT,
+                TRANSCODE_MIME_AAC,
+                TRANSCODE_MIME_WEBM,
                 gentype_transcode,
                 gentype_vtt_subpath,
             },
@@ -128,17 +132,23 @@ async fn generated_exists(state: &Arc<State>, file: &FileHash, gentype: &str) ->
 async fn commit_generated(
     state: &Arc<State>,
     file: FileHash,
-    gentype: String,
-    mimetype: String,
+    gentype: &str,
+    mimetype: &str,
     temp_path: &Path,
     dest_path: &Path,
 ) -> Result<(), loga::Error> {
+    delete_tree(dest_path).await?;
+    if let Some(p) = dest_path.parent() {
+        create_dirs(&p).await.context("Failed to create parent directories for generated file")?;
+    }
     tokio::fs::rename(&temp_path, &dest_path)
         .await
         .context_with(
             "Error moving generated file to final destination",
             ea!(source = temp_path.dbg_str(), dest = dest_path.dbg_str()),
         )?;
+    let gentype = gentype.to_string();
+    let mimetype = mimetype.to_string();
     tx(&state.db, move |txn| {
         return Ok(db::gen_insert(txn, &DbNode(Node::File(file)), &gentype, &mimetype)?);
     }).await?;
@@ -226,24 +236,20 @@ async fn generate_subs(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
                 ),
             );
         }
-        let dest = genfile_path(&state, file, &gentype, &gentype_vtt_subpath(&lang))?;
-        if let Some(p) = dest.parent() {
-            create_dirs(&p).await.context("Failed to create parent directories for generated subtitle file")?;
-        }
         commit_generated(
             state,
             file.clone(),
-            gentype.to_string(),
-            "text/vtt".to_string(),
+            gentype,
+            "text/vtt",
             &tempdest_path,
-            &dest,
+            &genfile_path(&state, file, &gentype, &gentype_vtt_subpath(&lang))?,
         ).await?;
     }
     return Ok(());
 }
 
 async fn generate_webm(state: &Arc<State>, file: &FileHash, source: &Path) -> Result<(), loga::Error> {
-    let mimetype = "video/webm";
+    let mimetype = TRANSCODE_MIME_WEBM;
     let gentype = gentype_transcode(mimetype);
     if generated_exists(state, file, &gentype).await? {
         return Ok(());
@@ -345,17 +351,19 @@ async fn generate_webm(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
             );
         }
     }
-    let dest = genfile_path(&state, file, &gentype, "")?;
-    delete_tree(&dest).await?;
-    if let Some(p) = dest.parent() {
-        create_dirs(&p).await.context("Failed to create parent directories for generated webm file")?;
-    }
-    commit_generated(state, file.clone(), gentype, mimetype.to_string(), &tempdest_path, &dest).await?;
+    commit_generated(
+        state,
+        file.clone(),
+        &gentype,
+        mimetype,
+        &tempdest_path,
+        &genfile_path(&state, file, &gentype, "")?,
+    ).await?;
     return Ok(());
 }
 
 async fn generate_aac(state: &Arc<State>, file: &FileHash, source: &Path) -> Result<(), loga::Error> {
-    let mimetype = "audio/aac";
+    let mimetype = TRANSCODE_MIME_AAC;
     let gentype = gentype_transcode(mimetype);
     if generated_exists(state, file, &gentype).await? {
         return Ok(());
@@ -377,12 +385,14 @@ async fn generate_aac(state: &Arc<State>, file: &FileHash, source: &Path) -> Res
             loga::err_with("Error converting audio to aac", ea!(res = res.dbg_str(), command = cmd.dbg_str())),
         );
     }
-    let dest = genfile_path(&state, file, &gentype, "")?;
-    delete_tree(&dest).await?;
-    if let Some(p) = dest.parent() {
-        create_dirs(&p).await.context("Failed to create parent directories for generated audio file")?;
-    }
-    commit_generated(state, file.clone(), gentype, mimetype.to_string(), &tempdest_path, &dest).await?;
+    commit_generated(
+        state,
+        file.clone(),
+        &gentype,
+        mimetype,
+        &tempdest_path,
+        &genfile_path(&state, file, &gentype, "")?,
+    ).await?;
     return Ok(());
 }
 
@@ -392,11 +402,12 @@ async fn generate_book_html_dir(
     source: &Path,
     mime: &str,
 ) -> Result<(), loga::Error> {
-    let gentype = GENTYPE_DIR;
+    let gentype = GENTYPE_EPUBHTML;
     if generated_exists(state, file, gentype).await? {
         return Ok(());
     }
     let tmp_dest = tempdir_in(&state.temp_dir)?;
+    let out = tmp_dest.path().join("index.html");
     let mut cmd = Command::new("pandoc");
     cmd.kill_on_drop(true);
     cmd.arg("--from");
@@ -406,6 +417,7 @@ async fn generate_book_html_dir(
     });
     cmd.arg(source);
     cmd.arg("--standalone");
+    cmd.arg("--self-contained");
     cmd.arg("--output");
     cmd.arg("index.html");
     cmd.arg("--extract-media");
@@ -421,17 +433,12 @@ async fn generate_book_html_dir(
             loga::err_with("Error converting ebook to html", ea!(res = res.dbg_str(), command = cmd.dbg_str())),
         );
     }
-    let dest = genfile_path(&state, file, gentype, "")?;
-    delete_tree(&dest).await?;
-    if let Some(p) = dest.parent() {
-        create_dirs(&p).await?;
-    }
-    commit_generated(state, file.clone(), gentype.to_string(), "".to_string(), tmp_dest.path(), &dest).await?;
+    commit_generated(state, file.clone(), gentype, "html", &out, &genfile_path(&state, file, gentype, "")?).await?;
     return Ok(());
 }
 
 async fn generate_comic_dir(state: &Arc<State>, file: &FileHash, source: &Path) -> Result<(), loga::Error> {
-    let gentype = GENTYPE_DIR;
+    let gentype = GENTYPE_CBZDIR;
     if generated_exists(state, file, gentype).await? {
         return Ok(());
     }
@@ -490,17 +497,19 @@ async fn generate_comic_dir(state: &Arc<State>, file: &FileHash, source: &Path) 
             },
         }
     }
-    let manifest_path = tmp_dest.path().join("sunwet.json");
+    let manifest_path = tmp_dest.path().join(GEN_FILENAME_COMICMANIFEST);
     write(&manifest_path, serde_json::to_string_pretty(&ComicManifest {
         rtl: rtl,
         pages: manifest.into_values().collect::<Vec<_>>(),
     }).unwrap()).await.context_with("Error creating sunwet manifest", ea!(path = manifest_path.dbg_str()))?;
-    let dest = genfile_path(&state, file, gentype, "")?;
-    delete_tree(&dest).await?;
-    if let Some(p) = dest.parent() {
-        create_dirs(&p).await?;
-    }
-    commit_generated(state, file.clone(), gentype.to_string(), "".to_string(), &tmp_dest.path(), &dest).await?;
+    commit_generated(
+        state,
+        file.clone(),
+        gentype,
+        "",
+        &tmp_dest.path(),
+        &genfile_path(&state, file, gentype, "")?,
+    ).await?;
     return Ok(());
 }
 
@@ -583,14 +592,27 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                     slow: bool,
                                     batch: Vec<DbNode>,
                                 ) -> Result<(), loga::Error> {
-                                    let found_keys = tx(&dbc, {
+                                    let (found_sub, found_obj) = tx(&dbc, {
                                         let batch = batch.clone();
                                         move |txn| {
-                                            return Ok(db::gen_include_existing(txn, batch.iter().collect())?);
+                                            return Ok(
+                                                (
+                                                    db::node_include_current_existing_subj(
+                                                        txn,
+                                                        batch.iter().collect(),
+                                                    )?,
+                                                    db::node_include_current_existing_obj(
+                                                        txn,
+                                                        batch.iter().collect(),
+                                                    )?,
+                                                ),
+                                            );
                                         }
-                                    }).await?.into_iter().collect::<HashSet<_>>();
+                                    }).await?;
+                                    let found_keys =
+                                        found_sub.into_iter().chain(found_obj.into_iter()).collect::<HashSet<_>>();
                                     for key in batch {
-                                        if found_keys.contains(&key) {
+                                        if !found_keys.contains(&key) {
                                             continue;
                                         }
                                         let file = exenum!(key.0, Node:: File(x) => x).unwrap();
@@ -753,17 +775,27 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                 async fn clean_batch(
                                     log: &Log,
                                     dbc: &Pool,
-                                    mut batch: HashMap<FileHash, PathBuf>,
+                                    batch: Vec<(FileHash, PathBuf)>,
                                 ) -> Result<(), loga::Error> {
                                     let unfiltered_keys =
-                                        batch.keys().map(|k| DbNode(Node::File(k.clone()))).collect::<Vec<_>>();
-                                    let found_keys = tx(&dbc, move |txn| {
-                                        return Ok(db::gen_include_existing(txn, unfiltered_keys.iter().collect())?);
-                                    }).await?;
-                                    for key in found_keys {
-                                        batch.remove(&exenum!(key.0, Node:: File(x) => x).unwrap());
-                                    }
-                                    for path in batch.values() {
+                                        batch
+                                            .iter()
+                                            .map(|(k, _)| DbNode(Node::File(k.clone())))
+                                            .collect::<HashSet<_>>();
+                                    let found_keys =
+                                        tx(&dbc, move |txn| {
+                                            return Ok(
+                                                db::gen_include_existing(txn, unfiltered_keys.iter().collect())?,
+                                            );
+                                        })
+                                            .await?
+                                            .into_iter()
+                                            .map(|x| exenum!(x.0, Node:: File(x) => x).unwrap())
+                                            .collect::<HashSet<_>>();
+                                    for (hash, path) in batch {
+                                        if found_keys.contains(&hash) {
+                                            continue;
+                                        }
                                         log.log_with(
                                             loga::DEBUG,
                                             "Garbage collecting generated file",
@@ -796,7 +828,7 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                     return Ok(());
                                 }
 
-                                let batch = Arc::new(Mutex::new(HashMap::new()));
+                                let batch = Arc::new(Mutex::new(vec![]));
                                 soft_read_dir(
                                     &log,
                                     &state.genfiles_dir,
@@ -824,7 +856,7 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                                                     };
                                                                 let consume_batch = {
                                                                     let mut batch = batch.lock().unwrap();
-                                                                    batch.insert(hash.clone(), path);
+                                                                    batch.push((hash.clone(), path));
                                                                     if batch.len() >= 1000 {
                                                                         Some(steal(&mut *batch))
                                                                     } else {

@@ -202,6 +202,11 @@ fn main() {
             args: vec![],
             returns: vec![("value", &string_)],
         },
+        Func {
+            name: "bookBaseFontSize",
+            args: vec![],
+            returns: vec![("value", &string_)],
+        },
         // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: all
         Func {
@@ -237,7 +242,7 @@ fn main() {
         Func {
             name: "leafTitle",
             args: vec![("text", &string_)],
-            returns: vec![("root", &el_), ("right", &el_)],
+            returns: vec![("root", &el_)],
         },
         Func {
             name: "contBar",
@@ -430,12 +435,12 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         Func {
-            name: "leafViewTitleButtonOffline",
+            name: "leafMenuPageButtonOffline",
             args: vec![],
             returns: vec![("root", &el_)],
         },
         Func {
-            name: "leafViewTitleButtonUnoffline",
+            name: "leafMenuPageButtonUnoffline",
             args: vec![],
             returns: vec![("root", &el_)],
         },
@@ -978,8 +983,19 @@ fn main() {
         },
         Func {
             name: "contMenuBody",
-            args: vec![("children", &arrel_), ("user", &string_), ("barChildren", &arrel_)],
-            returns: vec![("root", &el_), ("upload", &el_), ("offline", &el_)],
+            args: vec![
+                ("children", &arrel_),
+                ("user", &string_),
+                ("barChildren", &arrel_),
+                ("pageButtonChildren", &arrel_)
+            ],
+            returns: vec![
+                ("root", &el_),
+                ("onlining", &el_),
+                ("onliningCheckbox", &el_),
+                ("offlining", &el_),
+                ("offliningCheckbox", &el_)
+            ],
         },
         Func {
             name: "contMenuGroup",

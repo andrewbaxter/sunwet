@@ -237,7 +237,8 @@
           "enum": [
             "history",
             "query",
-            "logs"
+            "logs",
+            "offline"
           ]
         },
         {
@@ -269,19 +270,19 @@
     "ClientView": {
       "type": "object",
       "required": [
-        "parameters",
-        "query_parameters",
+        "parameter_specs",
+        "query_parameter_keys",
         "root",
         "shuffle"
       ],
       "properties": {
-        "parameters": {
+        "parameter_specs": {
           "type": "object",
           "additionalProperties": {
             "$ref": "#/definitions/ClientViewParam"
           }
         },
-        "query_parameters": {
+        "query_parameter_keys": {
           "type": "object",
           "additionalProperties": {
             "type": "array",

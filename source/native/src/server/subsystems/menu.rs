@@ -97,6 +97,9 @@ pub async fn handle_get_filtered_client_config(
                     MenuItemPage::Logs => {
                         ClientMenuItemDetail::Page(ClientPage::Logs)
                     },
+                    MenuItemPage::Offline => {
+                        ClientMenuItemDetail::Page(ClientPage::Offline)
+                    },
                 }
             },
         };

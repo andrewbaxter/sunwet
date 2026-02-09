@@ -95,7 +95,7 @@ pub struct State_ {
     pub client_config: RefCell<Option<BgVal<Result<Rc<ClientConfig>, String>>>>,
     pub menu_open: Prim<bool>,
     pub main_title: El,
-    pub main_title_right: El,
+    pub menu_page_buttons: El,
     pub main_body: El,
     pub modal_stack: El,
     pub log: Rc<dyn Log>,
@@ -133,7 +133,7 @@ pub fn build_home_page(pc: &mut ProcessingContext) {
 }
 
 pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
-    state().main_title_right.ref_clear();
+    state().menu_page_buttons.ref_clear();
     match s {
         Ministate::Home => {
             playlist_clear(pc, &state().playlist, false);

@@ -491,6 +491,10 @@
     /** @type { Presentation["classStateSelected"]} */ () => ({
       value: classStateSelected,
     });
+  presentation.bookBaseFontSize =
+    /** @type { Presentation["bookBaseFontSize"]} */ () => ({
+      value: "14pt",
+    });
 
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: all
@@ -590,48 +594,25 @@
       };
     };
 
-  presentation.leafTitle = /** @type {Presentation["leafTitle"]} */ (args) => {
-    const right = e("div", {}, { styles_: [contGroupStyle] });
-    return {
-      right: right,
-      root: e(
-        "div",
-        {},
-        {
-          styles_: [
-            contHboxStyle,
-            ss(uniq("leaf_title_box"), {
-              "": (s) => {
-                s.gap = varP05;
-                s.gridColumn = "2";
-                s.gridRow = "1";
-                s.justifyContent = "space-between";
-              },
-            }),
-          ],
-          children_: [
-            e(
-              "h1",
-              {
-                textContent: args.text,
-              },
-              {
-                styles_: [
-                  ss(uniq("leaf_title"), {
-                    "": (s) => {
-                      s.alignSelf = "center";
-                      s.fontSize = varFTitle;
-                    },
-                  }),
-                ],
-              },
-            ),
-            right,
-          ],
-        },
-      ),
-    };
-  };
+  presentation.leafTitle = /** @type {Presentation["leafTitle"]} */ (args) => ({
+    root: e(
+      "h1",
+      {
+        textContent: args.text,
+      },
+      {
+        styles_: [
+          ss(uniq("leaf_title"), {
+            "": (s) => {
+              s.fontSize = varFTitle;
+              s.gridColumn = "2";
+              s.gridRow = "1";
+            },
+          }),
+        ],
+      },
+    ),
+  });
 
   const leafLinkStyle = ss(uniq("leafLinkStyle"), {
     ":hover": (s) => {
@@ -654,7 +635,7 @@
     },
   });
   const leafIcon =
-    /** @type {(args: {text: string, extraStyles?: string[]})=>HTMLElement} */ (
+    /** @type {(args: {text: string, fontSize?: string, extraStyles?: string[]})=>HTMLElement} */ (
       args,
     ) =>
       et(
@@ -664,7 +645,7 @@
             text-anchor: middle;
             dominant-baseline: central;
             font-family: I;
-            font-size: 90px;
+            font-size: ${args.fontSize || "90px"};
           ">${args.text}</text></g>
         </svg>
       `,
@@ -1014,6 +995,8 @@
   const varSBigMin = "1.3cm";
   const leafBigStyle = ss(uniq("leaf_big"), {
     "": (s) => {
+      s.display = "flex";
+      s.flexDirection = "row";
       s.padding = `0 ${varPButtonBig}`;
       s.minHeight = varSBigMin;
       s.minWidth = varSBigMin;
@@ -1027,16 +1010,7 @@
   const leafButtonBigStyles = [
     leafBigStyle,
     ss(uniq("leaf_button_big"), {
-      "": (s) => {
-        s.padding = `0 ${varPButtonBig}`;
-        s.minHeight = "1.3cm";
-        s.minWidth = "1.3cm";
-        s.justifyContent = "center";
-        s.alignItems = "center";
-      },
-      ">span": (s) => {
-        s.padding = `${varPButtonBig} 0`;
-      },
+      "": (s) => {},
       ">svg": (s) => {
         s.width = varSButtonBigIcon;
         s.minWidth = varSButtonBigIcon;
@@ -1196,15 +1170,6 @@
         ],
       },
     ),
-  });
-
-  const pageButtonsStyle = ss(uniq("page_buttons_style"), {
-    "": (s) => {
-      s.justifyContent = "end";
-      s.paddingLeft = varPSmall;
-      s.paddingRight = varPSmall;
-      s.paddingBottom = varPSmall;
-    },
   });
 
   // /////////////////////////////////////////////////////////////////////////////
@@ -2103,33 +2068,36 @@
       ),
     };
   };
-  const titleButtonStyle = ss(uniq("title_button"), {
+  const menuPageButtonStyle = ss(uniq("menu_page_button"), {
     "": (s) => {
-      s.alignSelf = "start";
+      s.padding = varPSmall;
     },
     ">svg": (s) => {
-      s.width = varSCol3Width;
-      s.height = varSCol3Width;
-      s.padding = "20%";
+      s.height = "0.8cm";
+    },
+    " text": (s) => {
+      s.fontWeight = varWLight;
     },
   });
-  presentation.leafViewTitleButtonOffline =
-    /** @type {Presentation["leafViewTitleButtonOffline"]} */ (args) => {
+  presentation.leafMenuPageButtonOffline =
+    /** @type {Presentation["leafMenuPageButtonOffline"]} */ (args) => {
       return {
         root: leafButton({
-          title: "Offline",
+          title: "Offline view",
+          text: "Offline view",
           icon: textIconOffline,
-          extraStyles: [leafIconStyle, titleButtonStyle],
+          extraStyles: [menuPageButtonStyle],
         }).root,
       };
     };
-  presentation.leafViewTitleButtonUnoffline =
-    /** @type {Presentation["leafViewTitleButtonUnoffline"]} */ (args) => {
+  presentation.leafMenuPageButtonUnoffline =
+    /** @type {Presentation["leafMenuPageButtonUnoffline"]} */ (args) => {
       return {
         root: leafButton({
-          title: "Unoffline",
+          title: "Un-offline view",
+          text: "Un-offline view",
           icon: textIconUnoffline,
-          extraStyles: [leafIconStyle, titleButtonStyle],
+          extraStyles: [menuPageButtonStyle],
         }).root,
       };
     };
@@ -6261,78 +6229,68 @@
   presentation.contMenuBody = /** @type {Presentation["contMenuBody"]} */ (
     args,
   ) => {
-    /** @type {(icon: string) => HTMLElement} */
-    const spinIcon = (icon) => {
-      return e(
-        "div",
-        {},
-        {
-          styles_: [
-            ss(uniq("cont_menu_spin_icon"), {
-              "": (s) => {
-                s.display = "grid";
-                s.minWidth = varSBigMin;
-                s.minHeight = varSBigMin;
-                s.justifyItems = "center";
-                s.alignItems = "center";
-              },
-            }),
-          ],
-          children_: [
-            et(
-              `
-    <svg viewBox="0 0 1 1" xmlns="http://www.w3.org/2000/svg">
-      <g transform-origin="0.5 0.5">
-        <circle cx="0.5" cy="0.5" r="0.484" stroke-width="0.03" fill="none" stroke="currentColor" pathLength="1" stroke-dasharray="0.15 0.1 0.15 0.1 0.15 0.1 0.15 0.1" />
-        <animateTransform attributeType="XML" attributeName="transform" type="rotate" values="0; 360;"
-          dur="20s" repeatCount="indefinite" />
-      </g>
-    </svg>
-              `,
-              {
-                styles_: [
-                  ss(uniq("cont_menu_spin_thinking"), {
-                    "": (s) => {
-                      s.display = "none";
-                      s.gridRow = "1";
-                      s.gridColumn = "1";
-                      s.width = "75%";
-                      s.height = "75%";
-                      s.color = varCForegroundFade;
-                    },
-                    [`.${classStateThinking}`]: (s) => {
-                      s.display = "initial";
-                    },
-                  }),
-                ],
-              },
-            ),
-            leafIcon({
-              text: icon,
-              extraStyles: [
-                ss(uniq("cont_menu_spin_icon2"), {
-                  "": (s) => {
-                    s.gridRow = "1";
-                    s.gridColumn = "1";
-                    s.width = "1cm";
-                    s.height = "1cm";
-                  },
-                  " text": (s) => {
-                    s.color = varCForegroundFade;
-                    s.fontWeight = varWLight;
-                  },
-                }),
-              ],
-            }),
-          ],
+    /** @type {(hoverText: string, icon: string) => {root: HTMLElement, checkbox: HTMLElement}} */
+    const netButton = (hoverText, icon) => {
+      const iconStyle = ss(uniq("cont_menu_button_icon"), {
+        "": (s) => {
+          s.opacity = varONoninteractive;
+          s.width = "0.75cm";
+          s.height = "0.75cm";
         },
-      );
+        " text": (s) => {
+          s.fontWeight = varWLight;
+          s.fontSize = "120px";
+        },
+      });
+      const checkbox = e("input", { type: "checkbox" }, {});
+      return {
+        checkbox: checkbox,
+        root: e(
+          "label",
+          {
+            title: hoverText,
+          },
+          {
+            styles_: [
+              contHboxStyle,
+              leafButtonStyle,
+              ss(uniq("cont_menu_body_net_button"), {
+                "": (s) => {
+                  s.height = varSBigMin;
+                  s.padding = `0 ${varP05}`;
+                },
+                [`:has(> input[type='checkbox']:checked) .${iconStyle}`]: (
+                  s,
+                ) => {
+                  s.opacity = "1";
+                },
+              }),
+            ],
+            children_: [
+              leafIcon({
+                text: icon,
+                fontSize: "140px",
+                extraStyles: [iconStyle],
+              }),
+              checkbox,
+            ],
+          },
+        ),
+      };
     };
-    const offline = spinIcon(textIconOfflineThinking);
-    const upload = spinIcon(textIconUploadThinking);
+    const offlining = netButton(
+      "Enable offlining (selected views)",
+      textIconOfflineThinking,
+    );
+    const onlining = netButton(
+      "Enable onlining (form submissions, edit changes)",
+      textIconUploadThinking,
+    );
     return {
-      offline: offline,
-      upload: upload,
+      offlining: offlining.root,
+      offliningCheckbox: offlining.checkbox,
+      onlining: onlining.root,
+      onliningCheckbox: onlining.checkbox,
       root: e(
         "div",
         {},
@@ -6362,21 +6320,42 @@
                       s.justifyContent = "start";
                       s.minHeight = `calc(100dvh - 5cm)`;
                     },
-                    ">*": (s) => {
-                      s.maxWidth = varSColWidth;
-                    },
                     [`.${contMenuGroupVBoxStyle}`]: (s) => {
                       s.marginLeft = "0";
                     },
                   }),
                 ],
-                children_: args.children,
+                children_: [
+                  e(
+                    "div",
+                    {},
+                    {
+                      styles_: [
+                        contHboxStyle,
+                        ss(uniq("cont_menu_body_page_buttons"), {
+                          "": (s) => {
+                            s.border = `${varLThin} solid ${varCForegroundFade}`;
+                            s.borderLeft = "none";
+                            s.borderRight = "none";
+                            s.padding = "0.1cm";
+                            s.margin = varPSmall;
+                          },
+                          ":empty": (s) => {
+                            s.display = "none";
+                          },
+                        }),
+                      ],
+                      children_: args.pageButtonChildren,
+                    },
+                  ),
+                  ...args.children,
+                ],
               },
             ),
             presentation.contBarMenu({
               children: [
-                upload,
-                offline,
+                onlining.root,
+                offlining.root,
                 e(
                   "span",
                   {
@@ -6384,6 +6363,7 @@
                   },
                   {
                     styles_: [
+                      leafBigStyle,
                       ss(uniq("cont_bar_menu_user"), {
                         "": (s) => {
                           s.opacity = varOMenuBar;
@@ -6408,11 +6388,16 @@
       icon: textIconMenu,
       extraStyles: [
         leafIconStyle,
-        titleButtonStyle,
         ss(uniq("cont_main_title_admenu"), {
           "": (s) => {
-            s.gridRow = "1";
             s.gridColumn = "3";
+            s.gridRow = "1";
+            s.alignSelf = "start";
+          },
+          ">svg": (s) => {
+            s.width = varSCol3Width;
+            s.height = varSCol3Width;
+            s.padding = "20%";
           },
         }),
       ],

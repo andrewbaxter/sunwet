@@ -22,7 +22,7 @@ use {
         Storage,
     },
     lunk::{
-        ProcessingContext,
+        EventGraph,
         link,
     },
     rooting::El,
@@ -196,9 +196,9 @@ pub async fn req_list(node: &Node) -> Result<Vec<ReqListResEntry>, String> {
     return Ok(out);
 }
 
-pub fn setup_node_button(pc: &mut ProcessingContext, out: &El, name: String, node: Node) {
+pub fn setup_node_button(eg: &EventGraph, out: &El, name: String, node: Node) {
     out.ref_on("click", {
-        let eg = pc.eg();
+        let eg = eg.clone();
         let name = name.clone();
         let node = node.clone();
         move |_| eg.event(|pc| {

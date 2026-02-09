@@ -1441,6 +1441,11 @@ export const sendFdap = async (userConfig: {
         },
       },
       {
+        id: "offline",
+        name: "Offline",
+        detail: { page: "offline" },
+      },
+      {
         id: "history",
         name: "History",
         detail: { page: "history" },

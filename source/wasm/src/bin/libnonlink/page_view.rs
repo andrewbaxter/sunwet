@@ -24,6 +24,9 @@ use {
         node_button::setup_node_button,
         offline::{
             ensure_offline,
+            offline_audio_url,
+            offline_file_url,
+            offline_video_url,
             remove_offline,
             retrieve_offline_query,
         },
@@ -45,12 +48,16 @@ use {
             maybe_get_field_or_literal_string,
             maybe_get_meta,
             tree_node_to_text,
-            unwrap_value_media_url,
+            unwrap_value_media_hash,
         },
     },
     flowcontrol::{
         shed,
         ta_return,
+    },
+    futures::{
+        FutureExt,
+        future::LocalBoxFuture,
     },
     gloo::{
         storage::{
@@ -223,9 +230,9 @@ struct Build {
 }
 
 impl Build {
-    fn build_widget_layout(
+    async fn build_widget_layout(
         &mut self,
-        pc: &mut ProcessingContext,
+        eg: &EventGraph,
         parent_orientation: Orientation,
         parent_orientation_type: OrientationType,
         config_at: &WidgetLayout,
@@ -236,15 +243,17 @@ impl Build {
         let mut children = vec![];
         for child_config_at in &config_at.elements {
             children.push(
-                self.build_widget(
-                    pc,
-                    config_at.orientation,
-                    OrientationType::Flex,
-                    child_config_at,
-                    config_query_params,
-                    data_id,
-                    data_at,
-                ),
+                self
+                    .build_widget(
+                        eg,
+                        config_at.orientation,
+                        OrientationType::Flex,
+                        child_config_at,
+                        config_query_params,
+                        data_id,
+                        data_at,
+                    )
+                    .await,
             );
         }
         return style_export::cont_view_list(style_export::ContViewListArgs {
@@ -261,9 +270,9 @@ impl Build {
         }).root;
     }
 
-    fn build_widget_data_rows(
+    async fn build_widget_data_rows(
         &mut self,
-        pc: &mut ProcessingContext,
+        eg: &EventGraph,
         parent_orientation: Orientation,
         parent_orientation_type: OrientationType,
         config_at: &WidgetDataRows,
@@ -275,7 +284,7 @@ impl Build {
             let view_id = self.view_id.clone();
             let param_data = self.param_data.clone();
             let restore_playlist_pos = self.restore_playlist_pos.clone();
-            let eg = pc.eg();
+            let eg = eg.clone();
             let transport_slot = self.transport_slot.clone();
             let have_media = self.have_media.clone();
             let config_at = config_at.clone();
@@ -343,341 +352,118 @@ impl Build {
                         node_meta = Rc::new(res.meta.into_iter().collect::<HashMap<_, _>>());
                     },
                 };
-                return eg.event(move |pc| {
-                    let mut build = Build {
-                        view_id: view_id.clone(),
-                        vs: vs.clone(),
-                        param_data: param_data.clone(),
-                        restore_playlist_pos: restore_playlist_pos.clone(),
-                        playlist_add: Default::default(),
-                        have_media: have_media,
-                        want_media: false,
-                        transport_slot: transport_slot,
-                        seed: seed,
-                        offline: offline.clone(),
-                    };
-                    let out;
-                    match &config_at.row_widget {
-                        shared::interface::config::view::DataRowsLayout::Unaligned(row_widget) => {
-                            let orientation = row_widget.orientation.unwrap_or(parent_orientation);
-                            let mut children = vec![];
-                            for (i, new_data_at_top) in new_data_at_tops.into_iter().enumerate() {
-                                let mut data_at = data_at.clone();
-                                data_at.push(Rc::new(DataStackLevel {
-                                    data: new_data_at_top,
-                                    node_meta: node_meta.clone(),
-                                }));
-                                let mut data_id = data_id.clone();
-                                data_id.push(i);
-                                children.push(
-                                    build.build_widget(
-                                        pc,
+                let mut build = Build {
+                    view_id: view_id.clone(),
+                    vs: vs.clone(),
+                    param_data: param_data.clone(),
+                    restore_playlist_pos: restore_playlist_pos.clone(),
+                    playlist_add: Default::default(),
+                    have_media: have_media,
+                    want_media: false,
+                    transport_slot: transport_slot,
+                    seed: seed,
+                    offline: offline.clone(),
+                };
+                let out;
+                match &config_at.row_widget {
+                    shared::interface::config::view::DataRowsLayout::Unaligned(row_widget) => {
+                        let orientation = row_widget.orientation.unwrap_or(parent_orientation);
+                        let mut children = vec![];
+                        for (i, new_data_at_top) in new_data_at_tops.into_iter().enumerate() {
+                            let mut data_at = data_at.clone();
+                            data_at.push(Rc::new(DataStackLevel {
+                                data: new_data_at_top,
+                                node_meta: node_meta.clone(),
+                            }));
+                            let mut data_id = data_id.clone();
+                            data_id.push(i);
+                            children.push(
+                                build
+                                    .build_widget(
+                                        &eg,
                                         orientation,
                                         OrientationType::Flex,
                                         &row_widget.widget,
                                         &config_query_params,
                                         &data_id,
                                         &data_at,
-                                    ),
-                                );
-                            }
-                            out = style_export::cont_view_list(style_export::ContViewListArgs {
-                                parent_orientation: parent_orientation,
-                                parent_orientation_type: parent_orientation_type,
-                                orientation: orientation,
-                                trans_align: config_at.trans_align,
-                                conv_scroll: row_widget.conv_scroll,
-                                conv_size_max: row_widget.conv_size_max.clone(),
-                                trans_size_max: row_widget.trans_size_max.clone(),
-                                wrap: row_widget.wrap,
-                                children: children,
-                                gap: row_widget.gap.clone(),
-                            }).root;
-                        },
-                        shared::interface::config::view::DataRowsLayout::Table(row_widget) => {
-                            let mut rows = vec![];
-                            for (i, new_data_at_top) in new_data_at_tops.into_iter().enumerate() {
-                                let mut data_at = data_at.clone();
-                                data_at.push(Rc::new(DataStackLevel {
-                                    data: new_data_at_top,
-                                    node_meta: node_meta.clone(),
-                                }));
-                                let mut data_id = data_id.clone();
-                                data_id.push(i);
-                                let mut columns = vec![];
-                                let mut columns_raw = vec![];
-                                for config_at in &row_widget.elements {
-                                    let column =
-                                        build.build_widget(
-                                            pc,
+                                    )
+                                    .await,
+                            );
+                        }
+                        out = style_export::cont_view_list(style_export::ContViewListArgs {
+                            parent_orientation: parent_orientation,
+                            parent_orientation_type: parent_orientation_type,
+                            orientation: orientation,
+                            trans_align: config_at.trans_align,
+                            conv_scroll: row_widget.conv_scroll,
+                            conv_size_max: row_widget.conv_size_max.clone(),
+                            trans_size_max: row_widget.trans_size_max.clone(),
+                            wrap: row_widget.wrap,
+                            children: children,
+                            gap: row_widget.gap.clone(),
+                        }).root;
+                    },
+                    shared::interface::config::view::DataRowsLayout::Table(row_widget) => {
+                        let mut rows = vec![];
+                        for (i, new_data_at_top) in new_data_at_tops.into_iter().enumerate() {
+                            let mut data_at = data_at.clone();
+                            data_at.push(Rc::new(DataStackLevel {
+                                data: new_data_at_top,
+                                node_meta: node_meta.clone(),
+                            }));
+                            let mut data_id = data_id.clone();
+                            data_id.push(i);
+                            let mut columns = vec![];
+                            let mut columns_raw = vec![];
+                            for config_at in &row_widget.elements {
+                                let column =
+                                    build
+                                        .build_widget(
+                                            &eg,
                                             row_widget.orientation,
                                             OrientationType::Grid,
                                             config_at,
                                             &config_query_params,
                                             &data_id,
                                             &data_at,
-                                        );
-                                    columns_raw.push(column.raw());
-                                    columns.push(column);
-                                }
-                                rows.push(columns);
+                                        )
+                                        .await;
+                                columns_raw.push(column.raw());
+                                columns.push(column);
                             }
-                            out = style_export::cont_view_table(style_export::ContViewTableArgs {
-                                orientation: row_widget.orientation,
-                                trans_scroll: row_widget.trans_scroll,
-                                conv_size_max: row_widget.conv_size_max.clone(),
-                                trans_size_max: row_widget.trans_size_max.clone(),
-                                children: rows,
-                                gap: row_widget.gap.clone(),
-                            }).root;
-                        },
-                    }
-                    playlist_extend(pc, &state().playlist, vs.clone(), build.playlist_add, &restore_playlist_pos);
-                    if !build.have_media.get() && build.want_media {
-                        build.transport_slot.ref_push(build_transport(pc));
-                        build.have_media.set(true);
-                    }
-                    return Ok(vec![out]);
-                }).unwrap();
-            }
-        });
-    }
-
-    fn build_widget_root_data_rows(
-        &mut self,
-        pc: &mut ProcessingContext,
-        config_at: &WidgetRootDataRows,
-        config_query_params: &BTreeMap<String, Vec<String>>,
-        data_at: &Vec<Rc<DataStackLevel>>,
-    ) -> El {
-        let build_infinite_page = {
-            let view_id = self.view_id.clone();
-            let vs = self.vs.clone();
-            let param_data = self.param_data.clone();
-            let restore_playlist_pos = self.restore_playlist_pos.clone();
-            let eg = pc.eg();
-            let transport_slot = self.transport_slot.clone();
-            let have_media = self.have_media.clone();
-            let config_at = config_at.clone();
-            let config_query_params = config_query_params.clone();
-            let data_at = data_at.clone();
-            let seed = self.seed;
-            let offline = self.offline.clone();
-            move |chunk: Vec<(usize, TreeNode)>, node_meta: Rc<HashMap<Node, NodeMeta>>| -> Vec<El> {
-                return eg.event(|pc| {
-                    let mut build = Build {
-                        view_id: view_id.clone(),
-                        param_data: param_data.clone(),
-                        restore_playlist_pos: restore_playlist_pos.clone(),
-                        playlist_add: Default::default(),
-                        want_media: false,
-                        have_media: have_media.clone(),
-                        transport_slot: transport_slot.clone(),
-                        vs: vs.clone(),
-                        seed: seed,
-                        offline: offline.clone(),
-                    };
-                    let mut children = vec![];
-                    for (i, new_data_at_top) in chunk {
-                        let mut data_at = data_at.clone();
-                        data_at.push(Rc::new(DataStackLevel {
-                            data: new_data_at_top,
-                            node_meta: node_meta.clone(),
-                        }));
-                        children.push(style_export::cont_view_element(style_export::ContViewElementArgs {
-                            body: build.build_widget(
-                                pc,
-                                Orientation::RightDown,
-                                OrientationType::Flex,
-                                &config_at.element_body,
-                                &config_query_params,
-                                &vec![i],
-                                &data_at,
-                            ),
-                            height: config_at.element_height.clone(),
-                            expand: match &config_at.element_expansion {
-                                None => None,
-                                Some(exp) => Some(
-                                    build.build_widget(
-                                        pc,
-                                        Orientation::DownRight,
-                                        OrientationType::Grid,
-                                        &exp,
-                                        &config_query_params,
-                                        &vec![i],
-                                        &data_at,
-                                    ),
-                                ),
-                            },
-                        }).root);
-                    }
-                    playlist_extend(pc, &state().playlist, vs.clone(), build.playlist_add, &restore_playlist_pos);
-                    if !build.have_media.get() && build.want_media {
-                        build.transport_slot.ref_push(build_transport(pc));
-                        build.have_media.set(true);
-                    }
-                    return children;
-                }).unwrap();
-            }
-        };
-        let restore = self.restore_playlist_pos.as_ref().and_then(|x| x.index.first().copied());
-        return el_async({
-            let config_at = config_at.clone();
-            let view_id = self.view_id.clone();
-            let config_query_params = config_query_params.clone();
-            let data_at = data_at.clone();
-            let seed = self.seed;
-            let offline = self.offline.clone();
-            async move {
-                let body = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
-                match config_at.data {
-                    QueryOrField::Field(data_field) => {
-                        let Some(TreeNode::Array(res)) = maybe_get_field(&data_field, &data_at) else {
-                            return Err(
-                                format!(
-                                    "Data rows field [{}] must be an array, but it is missing or not an array",
-                                    data_field
-                                ),
-                            );
-                        };
-                        let new_data_at_tops = res;
-                        let mut chunked_data = vec![];
-                        let mut chunk_top = vec![];
-                        for e in new_data_at_tops.into_iter().enumerate() {
-                            chunk_top.push(e);
-                            if chunk_top.len() > 20 {
-                                chunked_data.push(chunk_top.split_off(0));
-                            }
+                            rows.push(columns);
                         }
-                        if !chunk_top.is_empty() {
-                            chunked_data.push(chunk_top);
-                        }
-                        if chunked_data.is_empty() {
-                            chunked_data.push(Default::default());
-                        }
-                        let mut chunked_data = chunked_data.into_iter();
-                        body.ref_push(build_infinite(&state().log, chunked_data.next().unwrap(), {
-                            let build_infinite_page = build_infinite_page.clone();
-                            move |chunk| {
-                                let immediate_advance =
-                                    Option::zip(chunk.last(), restore)
-                                        .map(|(last, restore)| restore > last.0)
-                                        .unwrap_or(false);
-                                let children = build_infinite_page(chunk, Default::default());
-                                let next_key = chunked_data.next();
-                                async move {
-                                    Ok(InfPageRes {
-                                        next_key: next_key,
-                                        page_els: children,
-                                        immediate_advance: immediate_advance,
-                                    })
-                                }
-                            }
-                        }));
-                    },
-                    QueryOrField::Query(query_id) => {
-                        let mut params = HashMap::new();
-                        if let Some(query_params) = config_query_params.get(&query_id) {
-                            for k in query_params {
-                                let Some(TreeNode::Scalar(v)) = maybe_get_field(k, &data_at) else {
-                                    return Err(
-                                        format!(
-                                            "Parameters must be scalars, but query paramter [{}] is missing or not a scalar",
-                                            k
-                                        ),
-                                    );
-                                };
-                                params.insert(k.clone(), v);
-                            }
-                        }
-                        if let Some(key) = &offline {
-                            let res = retrieve_offline_query(key, &query_id, &params).await?;
-                            let mut rows = vec![];
-                            let mut count = 0;
-                            match res.rows {
-                                RespQueryRows::Scalar(rows1) => {
-                                    for v in rows1 {
-                                        rows.push((count, TreeNode::Scalar(v)));
-                                        count += 1;
-                                    }
-                                },
-                                RespQueryRows::Record(rows1) => {
-                                    for v in rows1 {
-                                        rows.push((count, TreeNode::Record(v)));
-                                        count += 1;
-                                    }
-                                },
-                            }
-                            body.ref_push(
-                                style_export::cont_group(
-                                    style_export::ContGroupArgs {
-                                        children: build_infinite_page(
-                                            rows,
-                                            Rc::new(res.meta.into_iter().collect::<HashMap<_, _>>()),
-                                        ),
-                                    },
-                                ).root,
-                            );
-                        } else {
-                            body.ref_push(build_infinite(&state().log, None, {
-                                let view_id = view_id.clone();
-                                let query_id = query_id.clone();
-                                let count = Rc::new(Cell::new(0usize));
-                                move |key| {
-                                    let view_id = view_id.clone();
-                                    let query_id = query_id.clone();
-                                    let params = params.clone();
-                                    let build_infinite_page = build_infinite_page.clone();
-                                    let count = count.clone();
-                                    async move {
-                                        let res = req_post_json(ReqViewQuery {
-                                            view_id: view_id.clone(),
-                                            query: query_id.clone(),
-                                            parameters: params.clone(),
-                                            pagination: Some(Pagination {
-                                                count: 10,
-                                                seed: Some(seed),
-                                                key: key.clone(),
-                                            }),
-                                        }).await?;
-                                        let mut chunk = vec![];
-                                        match res.rows {
-                                            RespQueryRows::Scalar(rows) => {
-                                                for v in rows {
-                                                    chunk.push((count.get(), TreeNode::Scalar(v)));
-                                                    count.set(count.get() + 1);
-                                                }
-                                            },
-                                            RespQueryRows::Record(rows) => {
-                                                for v in rows {
-                                                    chunk.push((count.get(), TreeNode::Record(v)));
-                                                    count.set(count.get() + 1);
-                                                }
-                                            },
-                                        }
-                                        Ok(InfPageRes {
-                                            immediate_advance: restore
-                                                .as_ref()
-                                                .map(|restore| *restore >= count.get())
-                                                .unwrap_or(false),
-                                            next_key: res.next_page_key.map(|x| Some(x)),
-                                            page_els: build_infinite_page(
-                                                chunk,
-                                                Rc::new(res.meta.into_iter().collect::<HashMap<_, _>>()),
-                                            ),
-                                        })
-                                    }
-                                }
-                            }));
-                        }
+                        out = style_export::cont_view_table(style_export::ContViewTableArgs {
+                            orientation: row_widget.orientation,
+                            trans_scroll: row_widget.trans_scroll,
+                            conv_size_max: row_widget.conv_size_max.clone(),
+                            trans_size_max: row_widget.trans_size_max.clone(),
+                            children: rows,
+                            gap: row_widget.gap.clone(),
+                        }).root;
                     },
                 }
-                return Ok(vec![body]);
+                playlist_extend(
+                    &eg,
+                    &state().playlist,
+                    vs.clone(),
+                    build.playlist_add,
+                    &restore_playlist_pos,
+                    offline.is_some(),
+                ).await;
+                if !build.have_media.get() && build.want_media {
+                    eg.event(|pc| {
+                        build.transport_slot.ref_push(build_transport(pc));
+                    });
+                    build.have_media.set(true);
+                }
+                return Ok(vec![out]);
             }
         });
     }
 
-    fn build_widget_text(
+    async fn build_widget_text(
         &mut self,
         parent_orientation: Orientation,
         parent_orientation_type: OrientationType,
@@ -720,14 +506,14 @@ impl Build {
         }
     }
 
-    fn build_widget_media(
+    async fn build_widget_media(
         &mut self,
         parent_orientation: Orientation,
         parent_orientation_type: OrientationType,
         config_at: &WidgetMedia,
         data_stack: &Vec<Rc<DataStackLevel>>,
     ) -> El {
-        match (|| {
+        match async {
             ta_return!(El, String);
             let standin = || -> Result<El, String> {
                 return Ok(style_export::leaf_view_image(style_export::LeafViewImageArgs {
@@ -753,11 +539,22 @@ impl Build {
             };
             match meta.mime.as_ref().map(|x| x.as_str()).unwrap_or("").split("/").next().unwrap() {
                 "image" => {
+                    let src = unwrap_value_media_hash(&src)?;
                     return Ok(style_export::leaf_view_image(style_export::LeafViewImageArgs {
                         parent_orientation: parent_orientation,
                         parent_orientation_type: parent_orientation_type,
                         trans_align: config_at.trans_align,
-                        src: file_url(&state().env, &unwrap_value_media_url(&src)?),
+                        src: if self.offline.is_some() {
+                            match offline_file_url(&src).await {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    state().log.log(&format!("Error getting offline image url: {}", e));
+                                    format!("")
+                                },
+                            }
+                        } else {
+                            file_url(&state().env, &src)
+                        },
                         link: shed!{
                             let Some(link) = config_at.link.as_ref() else {
                                 break None;
@@ -779,11 +576,16 @@ impl Build {
                     }).root);
                 },
                 "video" => {
+                    let src = unwrap_value_media_hash(&src)?;
                     return Ok(style_export::leaf_view_video(style_export::LeafViewVideoArgs {
                         parent_orientation: parent_orientation,
                         parent_orientation_type: parent_orientation_type,
                         trans_align: config_at.trans_align,
-                        src: env_preferred_video_url(&state().env, &unwrap_value_media_url(&src)?),
+                        src: if self.offline.is_some() {
+                            offline_video_url(&src).await
+                        } else {
+                            env_preferred_video_url(&state().env, &src)
+                        },
                         link: shed!{
                             let Some(link) = config_at.link.as_ref() else {
                                 break None;
@@ -805,12 +607,17 @@ impl Build {
                     }).root);
                 },
                 "audio" => {
+                    let src = unwrap_value_media_hash(&src)?;
                     return Ok(style_export::leaf_view_audio(style_export::LeafViewAudioArgs {
                         parent_orientation: parent_orientation,
                         parent_orientation_type: parent_orientation_type,
                         direction: config_at.audio_direction.unwrap_or(Direction::Right),
                         trans_align: config_at.trans_align,
-                        src: env_preferred_audio_url(&state().env, &unwrap_value_media_url(&src)?),
+                        src: if self.offline.is_some() {
+                            offline_audio_url(&src).await
+                        } else {
+                            env_preferred_audio_url(&state().env, &src)
+                        },
                         link: shed!{
                             let Some(link) = config_at.link.as_ref() else {
                                 break None;
@@ -833,7 +640,7 @@ impl Build {
                     return Ok(el("div"));
                 },
             }
-        })() {
+        }.await {
             Ok(e) => return e,
             Err(e) => return style_export::leaf_err_block(style_export::LeafErrBlockArgs {
                 in_root: false,
@@ -842,7 +649,7 @@ impl Build {
         }
     }
 
-    fn build_widget_icon(
+    async fn build_widget_icon(
         &mut self,
         parent_orientation: Orientation,
         parent_orientation_type: OrientationType,
@@ -876,7 +683,7 @@ impl Build {
         }
     }
 
-    fn build_widget_color(
+    async fn build_widget_color(
         &mut self,
         parent_orientation: Orientation,
         parent_orientation_type: OrientationType,
@@ -906,7 +713,7 @@ impl Build {
         }
     }
 
-    fn build_widget_datetime(
+    async fn build_widget_datetime(
         &mut self,
         parent_orientation: Orientation,
         parent_orientation_type: OrientationType,
@@ -937,7 +744,7 @@ impl Build {
         }
     }
 
-    fn build_widget_date(
+    async fn build_widget_date(
         &mut self,
         parent_orientation: Orientation,
         parent_orientation_type: OrientationType,
@@ -968,7 +775,7 @@ impl Build {
         }
     }
 
-    fn build_widget_time(
+    async fn build_widget_time(
         &mut self,
         parent_orientation: Orientation,
         parent_orientation_type: OrientationType,
@@ -999,9 +806,9 @@ impl Build {
         }
     }
 
-    fn build_widget_node(
+    async fn build_widget_node(
         &mut self,
-        pc: &mut ProcessingContext,
+        eg: &EventGraph,
         parent_orientation: Orientation,
         parent_orientation_type: OrientationType,
         config_at: &WidgetNode,
@@ -1022,7 +829,7 @@ impl Build {
                 trans_align: config_at.trans_align,
                 orientation: config_at.orientation,
             }).root;
-            setup_node_button(pc, &out, name, node);
+            setup_node_button(eg, &out, name, node);
             return Ok(out);
         })() {
             Ok(e) => return e,
@@ -1033,9 +840,9 @@ impl Build {
         }
     }
 
-    fn build_widget_play_button(
+    async fn build_widget_play_button(
         &mut self,
-        pc: &mut ProcessingContext,
+        eg: &EventGraph,
         parent_orientation: Orientation,
         parent_orientation_type: OrientationType,
         config_at: &WidgetPlayButton,
@@ -1063,7 +870,7 @@ impl Build {
                 },
             }
             self.want_media = true;
-            let src_url = unwrap_value_media_url(&src)?;
+            let src_url = unwrap_value_media_hash(&src)?;
             let cover_source_url = shed!{
                 let Some(config_at) = &config_at.cover_field else {
                     break None;
@@ -1074,7 +881,7 @@ impl Build {
                 let TreeNode::Scalar(d) = d else {
                     break None;
                 };
-                break Some(unwrap_value_media_url(&d).map_err(|e| format!("Building cover url: {}", e))?);
+                break Some(unwrap_value_media_hash(&d).map_err(|e| format!("Building cover url: {}", e))?);
             };
             let out = style_export::leaf_view_play_button(style_export::LeafViewPlayButtonArgs {
                 parent_orientation: parent_orientation,
@@ -1112,41 +919,46 @@ impl Build {
                     break Some(tree_node_to_text(&d));
                 },
                 cover_source_url: cover_source_url,
-                source_url: src_url,
+                source_file: src_url,
                 media_type: media_type,
                 play_buttons: vec![out.raw().dyn_into().unwrap()],
             });
             out.ref_on("click", {
                 let data_id = data_id.clone();
-                let eg = pc.eg();
+                let eg = eg.clone();
                 move |_| eg.event(|pc| {
                     playlist_toggle_play(pc, &state().playlist, Some(data_id.clone()));
                 }).unwrap()
             });
-            out.ref_own(
-                |out| link!(
-                    (_pc = pc),
-                    (playing = state().playlist.0.playing.clone(), playing_i = state().playlist.0.playing_i.clone()),
-                    (),
-                    (index = data_id.clone(), out = out.weak()) {
-                        let out = out.upgrade()?;
-                        if playing.get() && playing_i.get().as_ref() == Some(index) {
-                            out.ref_attr(
-                                &style_export::attr_state().value,
-                                &style_export::attr_state_playing().value,
-                            );
-                            out
-                                .raw()
-                                .dyn_into::<HtmlElement>()
-                                .unwrap()
-                                .focus()
-                                .log(&state().log, "Error focusing media button");
-                        } else {
-                            out.ref_attr(&style_export::attr_state().value, "");
+            eg.event(|pc| {
+                out.ref_own(
+                    |out| link!(
+                        (_pc = pc),
+                        (
+                            playing = state().playlist.0.playing.clone(),
+                            playing_i = state().playlist.0.playing_i.clone(),
+                        ),
+                        (),
+                        (index = data_id.clone(), out = out.weak()) {
+                            let out = out.upgrade()?;
+                            if playing.get() && playing_i.get().as_ref() == Some(index) {
+                                out.ref_attr(
+                                    &style_export::attr_state().value,
+                                    &style_export::attr_state_playing().value,
+                                );
+                                out
+                                    .raw()
+                                    .dyn_into::<HtmlElement>()
+                                    .unwrap()
+                                    .focus()
+                                    .log(&state().log, "Error focusing media button");
+                            } else {
+                                out.ref_attr(&style_export::attr_state().value, "");
+                            }
                         }
-                    }
-                ),
-            );
+                    ),
+                );
+            }).unwrap();
             return Ok(out);
         })() {
             Ok(e) => return e,
@@ -1157,9 +969,9 @@ impl Build {
         }
     }
 
-    fn build_widget(
+    async fn build_widget(
         &mut self,
-        pc: &mut ProcessingContext,
+        eg: &EventGraph,
         parent_orientation: Orientation,
         parent_orientation_type: OrientationType,
         config_at: &Widget,
@@ -1168,84 +980,331 @@ impl Build {
         data_stack: &Vec<Rc<DataStackLevel>>,
     ) -> El {
         match config_at {
-            Widget::Layout(config_at) => return self.build_widget_layout(
-                pc,
-                parent_orientation,
-                parent_orientation_type,
-                config_at,
-                config_query_params,
-                data_id,
-                data_stack,
-            ),
-            Widget::DataRows(config_at) => return self.build_widget_data_rows(
-                pc,
-                parent_orientation,
-                parent_orientation_type,
-                config_at,
-                config_query_params,
-                data_id,
-                data_stack,
-            ),
-            Widget::Text(config_at) => return self.build_widget_text(
-                parent_orientation,
-                parent_orientation_type,
-                config_at,
-                data_stack,
-            ),
-            Widget::Media(config_at) => return self.build_widget_media(
-                parent_orientation,
-                parent_orientation_type,
-                config_at,
-                data_stack,
-            ),
-            Widget::Icon(config_at) => return self.build_widget_icon(
-                parent_orientation,
-                parent_orientation_type,
-                config_at,
-                data_stack,
-            ),
-            Widget::PlayButton(config_at) => return self.build_widget_play_button(
-                pc,
-                parent_orientation,
-                parent_orientation_type,
-                config_at,
-                data_id,
-                data_stack,
-            ),
-            Widget::Color(config_at) => return self.build_widget_color(
-                parent_orientation,
-                parent_orientation_type,
-                config_at,
-                data_stack,
-            ),
-            Widget::Date(config_at) => return self.build_widget_date(
-                parent_orientation,
-                parent_orientation_type,
-                config_at,
-                data_stack,
-            ),
-            Widget::Datetime(config_at) => return self.build_widget_datetime(
-                parent_orientation,
-                parent_orientation_type,
-                config_at,
-                data_stack,
-            ),
-            Widget::Time(config_at) => return self.build_widget_time(
-                parent_orientation,
-                parent_orientation_type,
-                config_at,
-                data_stack,
-            ),
+            Widget::Layout(config_at) => return self
+                .build_widget_layout(
+                    eg,
+                    parent_orientation,
+                    parent_orientation_type,
+                    config_at,
+                    config_query_params,
+                    data_id,
+                    data_stack,
+                )
+                .boxed_local()
+                .await,
+            Widget::DataRows(config_at) => return self
+                .build_widget_data_rows(
+                    eg,
+                    parent_orientation,
+                    parent_orientation_type,
+                    config_at,
+                    config_query_params,
+                    data_id,
+                    data_stack,
+                )
+                .boxed_local()
+                .await,
+            Widget::Text(config_at) => return self
+                .build_widget_text(parent_orientation, parent_orientation_type, config_at, data_stack)
+                .boxed_local()
+                .await,
+            Widget::Media(config_at) => return self
+                .build_widget_media(parent_orientation, parent_orientation_type, config_at, data_stack)
+                .boxed_local()
+                .await,
+            Widget::Icon(config_at) => return self
+                .build_widget_icon(parent_orientation, parent_orientation_type, config_at, data_stack)
+                .boxed_local()
+                .await,
+            Widget::PlayButton(config_at) => return self
+                .build_widget_play_button(
+                    eg,
+                    parent_orientation,
+                    parent_orientation_type,
+                    config_at,
+                    data_id,
+                    data_stack,
+                )
+                .boxed_local()
+                .await,
+            Widget::Color(config_at) => return self
+                .build_widget_color(parent_orientation, parent_orientation_type, config_at, data_stack)
+                .boxed_local()
+                .await,
+            Widget::Date(config_at) => return self
+                .build_widget_date(parent_orientation, parent_orientation_type, config_at, data_stack)
+                .boxed_local()
+                .await,
+            Widget::Datetime(config_at) => return self
+                .build_widget_datetime(parent_orientation, parent_orientation_type, config_at, data_stack)
+                .boxed_local()
+                .await,
+            Widget::Time(config_at) => return self
+                .build_widget_time(parent_orientation, parent_orientation_type, config_at, data_stack)
+                .boxed_local()
+                .await,
             Widget::Space => return style_export::leaf_space().root,
-            Widget::Node(config_at) => return self.build_widget_node(
-                pc,
-                parent_orientation,
-                parent_orientation_type,
-                config_at,
-                data_stack,
-            ),
+            Widget::Node(config_at) => return self
+                .build_widget_node(eg, parent_orientation, parent_orientation_type, config_at, data_stack)
+                .boxed_local()
+                .await,
         }
     }
+}
+
+fn build_widget_root_data_rows(
+    eg: &EventGraph,
+    view_id: &ViewId,
+    vs: MinistateViewState,
+    param_data: &HashMap<String, Node>,
+    restore_playlist_pos: Option<PlaylistRestorePos>,
+    have_media: Rc<Cell<bool>>,
+    transport_slot: El,
+    seed: u64,
+    offline: Option<String>,
+    config_at: &WidgetRootDataRows,
+    config_query_params: &BTreeMap<String, Vec<String>>,
+    data_at: &Vec<Rc<DataStackLevel>>,
+) -> El {
+    let build_infinite_page = {
+        let view_id = view_id.clone();
+        let vs = vs.clone();
+        let param_data = param_data.clone();
+        let restore_playlist_pos = restore_playlist_pos.clone();
+        let eg = eg.clone();
+        let transport_slot = transport_slot.clone();
+        let have_media = have_media.clone();
+        let config_at = config_at.clone();
+        let config_query_params = config_query_params.clone();
+        let data_at = data_at.clone();
+        let offline = offline.clone();
+        move |chunk: Vec<(usize, TreeNode)>, node_meta: Rc<HashMap<Node, NodeMeta>>| -> LocalBoxFuture<Vec<El>> {
+            async move {
+                let mut build = Build {
+                    view_id: view_id.clone(),
+                    param_data: param_data.clone(),
+                    restore_playlist_pos: restore_playlist_pos.clone(),
+                    playlist_add: Default::default(),
+                    want_media: false,
+                    have_media: have_media.clone(),
+                    transport_slot: transport_slot.clone(),
+                    vs: vs.clone(),
+                    seed: seed,
+                    offline: offline.clone(),
+                };
+                let mut children = vec![];
+                for (i, new_data_at_top) in chunk {
+                    let mut data_at = data_at.clone();
+                    data_at.push(Rc::new(DataStackLevel {
+                        data: new_data_at_top,
+                        node_meta: node_meta.clone(),
+                    }));
+                    children.push(style_export::cont_view_element(style_export::ContViewElementArgs {
+                        body: build
+                            .build_widget(
+                                &eg,
+                                Orientation::RightDown,
+                                OrientationType::Flex,
+                                &config_at.element_body,
+                                &config_query_params,
+                                &vec![i],
+                                &data_at,
+                            )
+                            .await,
+                        height: config_at.element_height.clone(),
+                        expand: match &config_at.element_expansion {
+                            None => None,
+                            Some(exp) => Some(
+                                build
+                                    .build_widget(
+                                        &eg,
+                                        Orientation::DownRight,
+                                        OrientationType::Grid,
+                                        &exp,
+                                        &config_query_params,
+                                        &vec![i],
+                                        &data_at,
+                                    )
+                                    .await,
+                            ),
+                        },
+                    }).root);
+                }
+                playlist_extend(
+                    &eg,
+                    &state().playlist,
+                    vs.clone(),
+                    build.playlist_add,
+                    &restore_playlist_pos,
+                    offline.is_some(),
+                ).await;
+                if !build.have_media.get() && build.want_media {
+                    eg.event(|pc| {
+                        build.transport_slot.ref_push(build_transport(pc));
+                    }).unwrap();
+                    build.have_media.set(true);
+                }
+                return children;
+            }.boxed_local()
+        }
+    };
+    let restore = restore_playlist_pos.as_ref().and_then(|x| x.index.first().copied());
+    return el_async({
+        let config_at = config_at.clone();
+        let view_id = view_id.clone();
+        let config_query_params = config_query_params.clone();
+        let data_at = data_at.clone();
+        let offline = offline.clone();
+        async move {
+            let body = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
+            match config_at.data {
+                QueryOrField::Field(data_field) => {
+                    let Some(TreeNode::Array(res)) = maybe_get_field(&data_field, &data_at) else {
+                        return Err(
+                            format!(
+                                "Data rows field [{}] must be an array, but it is missing or not an array",
+                                data_field
+                            ),
+                        );
+                    };
+                    let new_data_at_tops = res;
+                    let mut chunked_data = vec![];
+                    let mut chunk_top = vec![];
+                    for e in new_data_at_tops.into_iter().enumerate() {
+                        chunk_top.push(e);
+                        if chunk_top.len() > 20 {
+                            chunked_data.push(chunk_top.split_off(0));
+                        }
+                    }
+                    if !chunk_top.is_empty() {
+                        chunked_data.push(chunk_top);
+                    }
+                    if chunked_data.is_empty() {
+                        chunked_data.push(Default::default());
+                    }
+                    let mut chunked_data = chunked_data.into_iter();
+                    body.ref_push(build_infinite(&state().log, chunked_data.next().unwrap(), {
+                        let build_infinite_page = build_infinite_page.clone();
+                        let chunked_data = Rc::new(RefCell::new(chunked_data));
+                        move |chunk| {
+                            let build_infinite_page = build_infinite_page.clone();
+                            let chunked_data = chunked_data.clone();
+                            async move {
+                                let immediate_advance =
+                                    Option::zip(chunk.last(), restore)
+                                        .map(|(last, restore)| restore > last.0)
+                                        .unwrap_or(false);
+                                let children = build_infinite_page(chunk, Default::default()).await;
+                                let next_key = chunked_data.borrow_mut().next();
+                                Ok(InfPageRes {
+                                    next_key: next_key,
+                                    page_els: children,
+                                    immediate_advance: immediate_advance,
+                                })
+                            }
+                        }
+                    }));
+                },
+                QueryOrField::Query(query_id) => {
+                    let mut params = HashMap::new();
+                    if let Some(query_params) = config_query_params.get(&query_id) {
+                        for k in query_params {
+                            let Some(TreeNode::Scalar(v)) = maybe_get_field(k, &data_at) else {
+                                return Err(
+                                    format!(
+                                        "Parameters must be scalars, but query paramter [{}] is missing or not a scalar",
+                                        k
+                                    ),
+                                );
+                            };
+                            params.insert(k.clone(), v);
+                        }
+                    }
+                    if let Some(key) = &offline {
+                        let res = retrieve_offline_query(key, &query_id, &params).await?;
+                        let mut rows = vec![];
+                        let mut count = 0;
+                        match res.rows {
+                            RespQueryRows::Scalar(rows1) => {
+                                for v in rows1 {
+                                    rows.push((count, TreeNode::Scalar(v)));
+                                    count += 1;
+                                }
+                            },
+                            RespQueryRows::Record(rows1) => {
+                                for v in rows1 {
+                                    rows.push((count, TreeNode::Record(v)));
+                                    count += 1;
+                                }
+                            },
+                        }
+                        body.ref_push(
+                            style_export::cont_group(
+                                style_export::ContGroupArgs {
+                                    children: build_infinite_page(
+                                        rows,
+                                        Rc::new(res.meta.into_iter().collect::<HashMap<_, _>>()),
+                                    ).await,
+                                },
+                            ).root,
+                        );
+                    } else {
+                        body.ref_push(build_infinite(&state().log, None, {
+                            let view_id = view_id.clone();
+                            let query_id = query_id.clone();
+                            let count = Rc::new(Cell::new(0usize));
+                            move |key| {
+                                let view_id = view_id.clone();
+                                let query_id = query_id.clone();
+                                let params = params.clone();
+                                let build_infinite_page = build_infinite_page.clone();
+                                let count = count.clone();
+                                async move {
+                                    let res = req_post_json(ReqViewQuery {
+                                        view_id: view_id.clone(),
+                                        query: query_id.clone(),
+                                        parameters: params.clone(),
+                                        pagination: Some(Pagination {
+                                            count: 10,
+                                            seed: Some(seed),
+                                            key: key.clone(),
+                                        }),
+                                    }).await?;
+                                    let mut chunk = vec![];
+                                    match res.rows {
+                                        RespQueryRows::Scalar(rows) => {
+                                            for v in rows {
+                                                chunk.push((count.get(), TreeNode::Scalar(v)));
+                                                count.set(count.get() + 1);
+                                            }
+                                        },
+                                        RespQueryRows::Record(rows) => {
+                                            for v in rows {
+                                                chunk.push((count.get(), TreeNode::Record(v)));
+                                                count.set(count.get() + 1);
+                                            }
+                                        },
+                                    }
+                                    Ok(InfPageRes {
+                                        immediate_advance: restore
+                                            .as_ref()
+                                            .map(|restore| *restore >= count.get())
+                                            .unwrap_or(false),
+                                        next_key: res.next_page_key.map(|x| Some(x)),
+                                        page_els: build_infinite_page(
+                                            chunk,
+                                            Rc::new(res.meta.into_iter().collect::<HashMap<_, _>>()),
+                                        ).await,
+                                    })
+                                }
+                            }
+                        }));
+                    }
+                },
+            }
+            return Ok(vec![body]);
+        }
+    });
 }
 
 fn build_transport(pc: &mut ProcessingContext) -> El {
@@ -1410,23 +1469,19 @@ fn build_page_view_body(
     let Some(transport_slot) = common.transport_slot.upgrade() else {
         return;
     };
-    body.ref_clear();
     playlist_clear(pc, &state().playlist, common.shuffle);
-    let mut build = Build {
-        view_id: common.id.clone(),
-        vs: common.view_ministate_state.clone(),
-        param_data: param_data.clone(),
-        restore_playlist_pos: restore_playlist_pos.clone(),
-        playlist_add: Default::default(),
-        want_media: false,
-        have_media: common.have_media.clone(),
-        transport_slot: transport_slot,
-        seed: (random() * u64::MAX as f64) as u64,
-        offline: offline,
-    };
+    body.ref_clear();
     body.ref_push(
-        build.build_widget_root_data_rows(
-            pc,
+        build_widget_root_data_rows(
+            &pc.eg(),
+            &common.id,
+            common.view_ministate_state.clone(),
+            &param_data,
+            restore_playlist_pos.clone(),
+            common.have_media.clone(),
+            transport_slot,
+            (random() * u64::MAX as f64) as u64,
+            offline,
             &common.config_at,
             &common.config_query_params,
             &vec![Rc::new(DataStackLevel {
@@ -1436,13 +1491,6 @@ fn build_page_view_body(
                 node_meta: Default::default(),
             })],
         ),
-    );
-    playlist_extend(
-        pc,
-        &state().playlist,
-        common.view_ministate_state.clone(),
-        build.playlist_add,
-        &restore_playlist_pos,
     );
 }
 
@@ -1500,7 +1548,7 @@ pub fn build_page_view(
                     },
                 }
             }
-            let unoffline_button = style_export::leaf_view_title_button_unoffline().root;
+            let unoffline_button = style_export::leaf_menu_page_button_unoffline().root;
             unoffline_button.ref_on("click", {
                 let eg = pc.eg();
                 let key = key.clone();
@@ -1546,7 +1594,7 @@ pub fn build_page_view(
                     state().modal_stack.ref_push(modal_res.root.clone());
                 }
             });
-            state().main_title_right.ref_push(unoffline_button);
+            state().menu_page_buttons.ref_push(unoffline_button);
         } else {
             let offline_view = Prim::new(MinistateView {
                 id: id.clone(),
@@ -1615,7 +1663,7 @@ pub fn build_page_view(
                     },
                 }
             }
-            let offline_button = style_export::leaf_view_title_button_offline().root;
+            let offline_button = style_export::leaf_menu_page_button_offline().root;
             on_thinking(&offline_button, {
                 let view = offline_view.clone();
                 let eg = pc.eg();
@@ -1648,7 +1696,7 @@ pub fn build_page_view(
                     }
                 ),
             );
-            state().main_title_right.ref_push(offline_button);
+            state().menu_page_buttons.ref_push(offline_button);
         }
         build_page_view_body(pc, &common, &*param_data.borrow(), restore_playlist_pos, offline);
         return Ok(style_export::cont_page_view(style_export::ContPageViewArgs {

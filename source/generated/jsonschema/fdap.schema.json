@@ -1024,7 +1024,8 @@
           "enum": [
             "history",
             "query",
-            "logs"
+            "logs",
+            "offline"
           ]
         },
         {
