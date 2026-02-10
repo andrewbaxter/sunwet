@@ -47,7 +47,7 @@ pub async fn ensure_commit(eg: EventGraph, commit: ReqCommit, files: Vec<UploadF
     let commit_dir = opfs_root().await.ensure_dir(vec![OPFS_ONLINE_COMMIT_ROOT.to_string(), key]).await?;
     commit_dir.ensure_file(vec![OPFS_ONLINE_COMMIT_FILENAME.to_string()]).await?.write_json(&commit).await?;
     for file in files {
-        commit_dir.ensure_file(vec![file.hash.to_string()]).await?.write_json(&file.data).await?;
+        commit_dir.ensure_file(vec![file.hash.to_string()]).await?.write_binary(&file.data).await?;
     }
     trigger_onlining(eg);
     return Ok(());

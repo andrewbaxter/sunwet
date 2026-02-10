@@ -209,7 +209,6 @@ pub fn main() {
         spawn_local({
             let eg = pc.eg();
             async move {
-                state().log.log("starting restore offline views");
                 let offline = match list_offline_views().await {
                     Ok(l) => l,
                     Err(e) => {

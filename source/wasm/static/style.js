@@ -666,8 +666,13 @@
             ss(uniq("cont_bar_hbox"), {
               "": (s) => {
                 s.alignItems = "center";
-                s.gap = varPSmall;
-                s.margin = `0 ${varPSmall}`;
+                //s.gap = `calc(max(min(${varPSmall}, 2dvw - 0.1cm), 0))`;
+                s.gap = `min(${varPSmall}, 1dvw)`;
+                s.margin = `0 min(${varPSmall}, 1dvw)`;
+
+                // Hack - can't get this bar to shrink to parent size in
+                // menu bar on narrow screens... css!
+                s.maxWidth = `calc(100dvw - ${varSCol3Width})`;
               },
             }),
           ],
@@ -877,7 +882,7 @@
   const leafButtonStyle = ss(uniq("leaf_button"), {
     "": (s) => {
       s.flexDirection = "row";
-      s.gap = varPSmall;
+      s.gap = `min(${varPSmall}, 1dvw)`;
       s.alignItems = "center";
       s.position = "relative";
       s.zIndex = "0";
@@ -903,14 +908,13 @@
       s.backgroundColor = varCButtonClick;
     },
     [`:not(.${classStateDisabled}).${classStateThinking}`]: (s) => {
-      // TODO horiz line with marching dashes instead
       s.opacity = varONoninteractive;
     },
     [`:not(.${classStateDisabled}).${classStateThinking}:after`]: (s) => {
       s.position = "absolute";
       s.content = '""';
       s.display = "block";
-      s.inset = `${varPSmall}`;
+      s.inset = `${varPSmall} -0.5cm`;
       s.border = `${varLMid} solid ${varCForeground}`;
       s.borderRadius = `${varRButton}`;
       s.maskSize = "100% 100%";
@@ -997,7 +1001,7 @@
     "": (s) => {
       s.display = "flex";
       s.flexDirection = "row";
-      s.padding = `0 ${varPButtonBig}`;
+      s.padding = `0 min(${varPButtonBig}, 1dvw)`;
       s.minHeight = varSBigMin;
       s.minWidth = varSBigMin;
       s.justifyContent = "center";
@@ -1316,12 +1320,12 @@
             {},
             {
               styles_: [
-                ss(uniq("cont_page_logs"), {
+                ss(uniq("cont_page_logs_grid"), {
                   "": (s) => {
                     s.display = "grid";
                     s.justifyContent = "start";
                     s.alignItems = "start";
-                    s.gridTemplateColumns = "auto 1fr";
+                    s.gridTemplateColumns = "auto minmax(0, 1fr)";
                     s.padding = `0 ${varPViewHoriz}`;
                     s.columnGap = varPSmall;
                   },
@@ -6055,6 +6059,7 @@
     "": (s) => {
       s.marginLeft = "0.6cm";
       s.gap = "0.3cm";
+      s.minWidth = "0";
     },
   });
 
@@ -6257,7 +6262,7 @@
               ss(uniq("cont_menu_body_net_button"), {
                 "": (s) => {
                   s.height = varSBigMin;
-                  s.padding = `0 ${varP05}`;
+                  s.padding = `0 min(${varP05}, 1dvw)`;
                 },
                 [`:has(> input[type='checkbox']:checked) .${iconStyle}`]: (
                   s,
@@ -6357,7 +6362,7 @@
                 onlining.root,
                 offlining.root,
                 e(
-                  "span",
+                  "div",
                   {
                     textContent: args.user,
                   },
@@ -6365,8 +6370,17 @@
                     styles_: [
                       leafBigStyle,
                       ss(uniq("cont_bar_menu_user"), {
-                        "": (s) => {
+                        [`.${leafBigStyle}`]: (s) => {
                           s.opacity = varOMenuBar;
+
+                          // Ellipsize text (all required)
+                          s.display = "block";
+                          s.minHeight = "min-content";
+                          s.flexBasis = "0";
+                          s.textOverflow = "ellipsis";
+                          s.whiteSpace = "nowrap";
+                          s.overflowX = "hidden";
+                          s.flexGrow = "1";
                         },
                       }),
                     ],

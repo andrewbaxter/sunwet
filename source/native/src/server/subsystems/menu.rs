@@ -72,34 +72,39 @@ pub async fn handle_get_filtered_client_config(
                 ClientMenuItemDetail::Section(ClientMenuSection { children: children })
             },
             ServerConfigMenuItemDetail::Page(d) => {
-                if !has_access {
-                    return Ok(None);
-                }
-                match d {
-                    MenuItemPage::View(d) => {
-                        ClientMenuItemDetail::Page(ClientPage::View(ClientViewLink {
-                            view_id: d.view_id.clone(),
-                            parameters: d.parameters.clone(),
-                        }))
-                    },
-                    MenuItemPage::Form(d) => {
-                        ClientMenuItemDetail::Page(ClientPage::Form(ClientFormLink {
-                            form_id: d.form_id.clone(),
-                            parameters: d.parameters.clone(),
-                        }))
-                    },
-                    MenuItemPage::History => {
-                        ClientMenuItemDetail::Page(ClientPage::History)
-                    },
-                    MenuItemPage::Query => {
-                        ClientMenuItemDetail::Page(ClientPage::Query)
-                    },
-                    MenuItemPage::Logs => {
-                        ClientMenuItemDetail::Page(ClientPage::Logs)
-                    },
-                    MenuItemPage::Offline => {
-                        ClientMenuItemDetail::Page(ClientPage::Offline)
-                    },
+                if let MenuItemPage::Offline = d {
+                    ClientMenuItemDetail::Page(ClientPage::Offline)
+                } else {
+                    if !has_access {
+                        return Ok(None);
+                    }
+                    match d {
+                        MenuItemPage::View(d) => {
+                            ClientMenuItemDetail::Page(ClientPage::View(ClientViewLink {
+                                view_id: d.view_id.clone(),
+                                parameters: d.parameters.clone(),
+                            }))
+                        },
+                        MenuItemPage::Form(d) => {
+                            ClientMenuItemDetail::Page(ClientPage::Form(ClientFormLink {
+                                form_id: d.form_id.clone(),
+                                parameters: d.parameters.clone(),
+                            }))
+                        },
+                        MenuItemPage::History => {
+                            ClientMenuItemDetail::Page(ClientPage::History)
+                        },
+                        MenuItemPage::Query => {
+                            ClientMenuItemDetail::Page(ClientPage::Query)
+                        },
+                        MenuItemPage::Logs => {
+                            ClientMenuItemDetail::Page(ClientPage::Logs)
+                        },
+                        MenuItemPage::Offline => {
+                            // Handled above outside match
+                            unreachable!();
+                        },
+                    }
                 }
             },
         };

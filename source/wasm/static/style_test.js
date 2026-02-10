@@ -97,7 +97,7 @@
           ],
         }).root,
       ],
-      user: "Guest",
+      user: "Guest but longer",
       barChildren: [presentation.leafMenuBarButtonLogin({}).root],
     });
     const stagingMenu = stagingMenu_.root;
@@ -458,7 +458,7 @@
                   }).root,
                   presentation.leafLogsLine({
                     stamp: new Date().toISOString(),
-                    text: "very log line with lots of log in it this may wrap or it might not we'll have to see in practice but it's already wrapping in my editor",
+                    text: "very log line with lots of log in it this may wrap or it might not we'll have to see in practice but it's already sssssssswwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww wrapping in my editor",
                   }).root,
                   presentation.leafLogsLine({
                     stamp: new Date().toISOString(),

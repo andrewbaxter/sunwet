@@ -103,14 +103,14 @@ impl OpfsDir {
             return Err(format!("opfs_get_file called with empty segments"));
         };
         let parent = self.get_dir(segs).await?;
-        let path = self.0.join(vec![file.clone()]);
+        let debug_path = parent.0.join(vec![file.clone()]);
         let out =
             JsFuture::from(parent.1.get_file_handle(&file))
                 .await
-                .map_err(|e| format!("Error getting file in opfs [{}]: {}", path, jsstr(e)))?
+                .map_err(|e| format!("Error getting file in opfs [{}]: {}", debug_path, jsstr(e)))?
                 .dyn_into::<FileSystemFileHandle>()
                 .expect("opfs file get, cast to file handle");
-        return Ok(OpfsFile(path, out));
+        return Ok(OpfsFile(debug_path, out));
     }
 
     pub async fn ensure_file(&self, mut segs: Vec<String>) -> Result<OpfsWriteFile, String> {
@@ -118,7 +118,7 @@ impl OpfsDir {
             return Err(format!("opfs_get_file called with empty segments"));
         };
         let parent = self.get_dir(segs).await?;
-        let path = parent.0.join(vec![file.clone()]);
+        let debug_path = parent.0.join(vec![file.clone()]);
         let out =
             JsFuture::from(parent.1.get_file_handle_with_options(&file, &{
                 let o = FileSystemGetFileOptions::new();
@@ -126,10 +126,10 @@ impl OpfsDir {
                 o
             }))
                 .await
-                .map_err(|e| format!("Error getting file in opfs [{}]: {:?}", path, jsstr(e)))?
+                .map_err(|e| format!("Error getting file in opfs [{}]: {:?}", debug_path, jsstr(e)))?
                 .dyn_into::<FileSystemFileHandle>()
                 .expect("opfs file get, cast to file handle");
-        return Ok(OpfsWriteFile(path, out));
+        return Ok(OpfsWriteFile(debug_path, out));
     }
 
     pub async fn list(&self) -> Result<Vec<(String, OpfsAmbig)>, String> {
@@ -200,10 +200,13 @@ impl OpfsFile {
     }
 
     pub async fn read_json<T: DeserializeOwned>(&self) -> Result<T, String> {
+        let body = self.read_binary().await?;
         return Ok(
             serde_json::from_slice::<T>(
-                &self.read_binary().await?,
-            ).map_err(|e| format!("Error parsing json file at [{}]: {}", self.0, e))?,
+                &body,
+            ).map_err(|e| format!("Error parsing json file at [{}] (len {}): {}", self.0, body.len(), e,
+                //. String::from_utf8_lossy(&body)
+                ))?,
         );
     }
 
@@ -225,6 +228,7 @@ pub struct OpfsWriteFile(pub DebugPath, pub FileSystemFileHandle);
 
 impl OpfsWriteFile {
     pub async fn write_binary(&self, data: &[u8]) -> Result<(), String> {
+        state().log.log(&format!("Writing file at {} len {}", self.0, data.len()));
         let w =
             FileSystemWritableFileStream::from(
                 JsFuture::from(self.1.create_writable())
