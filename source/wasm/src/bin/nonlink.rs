@@ -195,7 +195,7 @@ pub fn main() {
             offline_list: List::new(vec![]),
             modal_stack: modal_stack.clone(),
             main_title: main_title.clone(),
-            menu_page_buttons: style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root,
+            menu_page_buttons: style_export::cont_menu_body_page_buttons().root,
             main_body: main_body.clone(),
             client_config: WaitVal::new(),
             whoami: Prim::new(None),
@@ -533,7 +533,7 @@ pub fn main() {
                     let menu_body = style_export::cont_menu_body(style_export::ContMenuBodyArgs {
                         children: root,
                         bar_children: bar_children,
-                        page_button_children: vec![state().menu_page_buttons.clone()],
+                        page_buttons: state().menu_page_buttons.clone(),
                     });
                     menu_body.user.ref_own(|u| link!((_pc = pc), (whoami = state().whoami.clone()), (), (u = u.weak()) {
                         let u = u.upgrade()?;

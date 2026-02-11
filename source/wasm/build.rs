@@ -982,8 +982,13 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         Func {
+            name: "contMenuBodyPageButtons",
+            args: vec![],
+            returns: vec![("root", &el_)],
+        },
+        Func {
             name: "contMenuBody",
-            args: vec![("children", &arrel_), ("barChildren", &arrel_), ("pageButtonChildren", &arrel_)],
+            args: vec![("children", &arrel_), ("barChildren", &arrel_), ("pageButtons", &el_)],
             returns: vec![
                 ("root", &el_),
                 ("user", &el_),

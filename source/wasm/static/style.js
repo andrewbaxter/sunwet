@@ -6325,6 +6325,32 @@
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: Main
 
+  presentation.contMenuBodyPageButtons =
+    /** @type {Presentation["contMenuBodyPageButtons"]} */ (args) => {
+      return {
+        root: e(
+          "div",
+          {},
+          {
+            styles_: [
+              contHboxStyle,
+              ss(uniq("cont_menu_body_page_buttons"), {
+                "": (s) => {
+                  s.border = `${varLThin} solid ${varCForegroundFade}`;
+                  s.borderLeft = "none";
+                  s.borderRight = "none";
+                  //s.padding = "0.1cm";
+                  s.margin = varPSmall;
+                },
+                ":empty": (s) => {
+                  s.display = "none";
+                },
+              }),
+            ],
+          },
+        ),
+      };
+    };
   presentation.contMenuBody = /** @type {Presentation["contMenuBody"]} */ (
     args,
   ) => {
@@ -6451,31 +6477,7 @@
                     },
                   }),
                 ],
-                children_: [
-                  e(
-                    "div",
-                    {},
-                    {
-                      styles_: [
-                        contHboxStyle,
-                        ss(uniq("cont_menu_body_page_buttons"), {
-                          "": (s) => {
-                            s.border = `${varLThin} solid ${varCForegroundFade}`;
-                            s.borderLeft = "none";
-                            s.borderRight = "none";
-                            //s.padding = "0.1cm";
-                            s.margin = varPSmall;
-                          },
-                          ":empty": (s) => {
-                            s.display = "none";
-                          },
-                        }),
-                      ],
-                      children_: args.pageButtonChildren,
-                    },
-                  ),
-                  ...args.children,
-                ],
+                children_: [args.pageButtons, ...args.children],
               },
             ),
             presentation.contBarMenu({
