@@ -7,6 +7,7 @@ use {
         commit::UploadFile,
         opfs::{
             opfs_root,
+            request_persistent,
         },
         state::state,
     },
@@ -43,6 +44,7 @@ const OPFS_ONLINE_COMMIT_FILENAME: &str = "commit.json";
 const OPFS_ONLINE_COMMIT_ROOT: &str = "online_commits";
 
 pub async fn ensure_commit(eg: EventGraph, commit: ReqCommit, files: Vec<UploadFile>) -> Result<(), String> {
+    request_persistent().await;
     let key = Utc::now().to_rfc3339();
     let commit_dir = opfs_root().await.ensure_dir(vec![OPFS_ONLINE_COMMIT_ROOT.to_string(), key]).await?;
     commit_dir.ensure_file(vec![OPFS_ONLINE_COMMIT_FILENAME.to_string()]).await?.write_json(&commit).await?;

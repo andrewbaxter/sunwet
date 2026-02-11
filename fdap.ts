@@ -1441,17 +1441,11 @@ export const sendFdap = async (userConfig: {
         },
       },
       {
-        id: "offline",
-        name: "Offline",
-        detail: { page: "offline" },
-      },
-      {
         id: "history",
         name: "History",
         detail: { page: "history" },
       },
       { id: "query", name: "Query", detail: { page: "query" } },
-      { id: "logs", name: "Logs", detail: { page: "logs" } },
     ],
     views: {
       audio_albums_by_add_date: {

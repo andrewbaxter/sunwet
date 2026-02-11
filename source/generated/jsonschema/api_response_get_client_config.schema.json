@@ -236,9 +236,7 @@
           "type": "string",
           "enum": [
             "history",
-            "query",
-            "logs",
-            "offline"
+            "query"
           ]
         },
         {

@@ -73,8 +73,6 @@ pub enum MenuItemPage {
     Form(FormLink),
     History,
     Query,
-    Logs,
-    Offline,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS)]

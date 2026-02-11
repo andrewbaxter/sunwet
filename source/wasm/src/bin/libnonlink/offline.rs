@@ -8,6 +8,7 @@ use {
         opfs::{
             OpfsDir,
             opfs_root,
+            request_persistent,
         },
         state::state,
         viewutil::{
@@ -98,6 +99,7 @@ const OPFS_OFFLINE_FILES_ROOT: &str = "offline_files";
 const OPFS_OFFLINE_FILES_META_FILENAME: &str = "meta.json";
 const OPFS_OFFLINE_FILES_FILE_FILENAME: &str = "file";
 const OPFS_OFFLINE_FILES_GEN_DIR: &str = "gen";
+pub const OPFS_OFFLINE_FILES_COMIC_PAGES_DIR: &str = "pages";
 
 fn data_to_query_params(
     view_def: &ClientView,
@@ -126,7 +128,6 @@ pub async fn list_offline_views() -> Result<Vec<(String, MinistateView)>, String
     let mut out = vec![];
     let root_dir = &opfs_root().await.get_dir(vec![OPFS_OFFLINE_VIEWS_ROOT.to_string()]).await?;
     for (k, dir) in root_dir.list().await? {
-        state().log.log(&format!("DEBUG Listing offlien views - found key {}", k));
         let dir = match dir.dir() {
             Ok(d) => d,
             Err(e) => {
@@ -156,6 +157,7 @@ pub async fn list_offline_views() -> Result<Vec<(String, MinistateView)>, String
 }
 
 pub async fn ensure_offline(eg: EventGraph, view: MinistateView) -> Result<(), String> {
+    request_persistent().await;
     let key = Utc::now().to_rfc3339();
     let views_root = &opfs_root().await.ensure_dir(vec![OPFS_OFFLINE_VIEWS_ROOT.to_string(), key.clone()]).await?;
     views_root.ensure_file(vec![OPFS_OFFLINE_VIEWS_VIEW_FILENAME.to_string()]).await?.write_json(&view).await?;
@@ -208,7 +210,6 @@ pub async fn get_opfs_url_with_colocated_mime(parent: &OpfsDir, mut path: Vec<St
     let dir = parent.get_dir(path).await?;
     let mime: String = dir.get_file(vec![mime_filename(&file)]).await?.read_json().await?;
     let file = dir.get_file(vec![file]).await?;
-    state().log.log(&format!("Getting opfs url for {} with mime {}", file.0, mime));
     return Ok(file.url(&mime).await?);
 }
 
@@ -375,8 +376,9 @@ async fn fetch_media_file(config_at: &FieldOrLiteral, data_stack: &Vec<Rc<DataSt
             let gen_dir =
                 file_dir.ensure_dir(vec![OPFS_OFFLINE_FILES_GEN_DIR.to_string(), GENTYPE_CBZDIR.to_string()]).await?;
             gen_dir.ensure_file(vec![COMIC_MANIFEST_FILENAME.to_string()]).await?.write_json(&manifest).await?;
+            let pages_dir = gen_dir.ensure_dir(vec![OPFS_OFFLINE_FILES_COMIC_PAGES_DIR.to_string()]).await?;
             for page in manifest.pages {
-                download_colocate_mime(&gen_dir, &page.path, format!("{}/{}", dir_url, page.path)).await?;
+                download_colocate_mime(&pages_dir, &page.path, format!("{}/{}", dir_url, page.path)).await?;
             }
         },
         _ => {
@@ -521,7 +523,7 @@ pub fn trigger_offlining(eg: EventGraph) {
                                     .await?
                                     .read_json()
                                     .await?;
-                            let client_config = state().client_config.borrow().as_ref().unwrap().get().await?;
+                            let client_config = state().client_config.get().await.borrow().clone();
                             let Some(view_def) = client_config.views.get(&view.id) else {
                                 return Err(format!("No view with id [{}] in config", view.id));
                             };
@@ -661,7 +663,7 @@ pub fn trigger_offlining(eg: EventGraph) {
                                     .await?
                                     .read_json()
                                     .await?;
-                            let client_config = state().client_config.borrow().as_ref().unwrap().get().await?;
+                            let client_config = state().client_config.get().await.borrow().clone();
                             let Some(view_def) = client_config.views.get(&view.id) else {
                                 return Err(format!("No view with id [{}] in config", view.id));
                             };

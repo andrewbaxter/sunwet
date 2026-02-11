@@ -33,6 +33,26 @@ use {
     },
 };
 
+pub async fn request_persistent() {
+    let f = match window().navigator().storage().persist() {
+        Ok(f) => f,
+        Err(e) => {
+            state().log.log_js("Error starting request for persistent storage", &e);
+            return;
+        },
+    };
+    match JsFuture::from(f).await {
+        Ok(v) => {
+            if !v.as_bool().unwrap_or_default() {
+                state().log.log("Persistent storage request denied by browser");
+            }
+        },
+        Err(e) => {
+            state().log.log_js("Error requesting persistent storage", &e);
+        },
+    }
+}
+
 pub struct DebugPath_ {
     pub parent: DebugPath,
     pub segs: Vec<String>,
@@ -234,7 +254,6 @@ pub struct OpfsWriteFile(pub DebugPath, pub FileSystemFileHandle);
 
 impl OpfsWriteFile {
     pub async fn write_binary(&self, data: &[u8]) -> Result<(), String> {
-        state().log.log(&format!("Writing file at {} len {}", self.0, data.len()));
         let w =
             FileSystemWritableFileStream::from(
                 JsFuture::from(self.1.create_writable())

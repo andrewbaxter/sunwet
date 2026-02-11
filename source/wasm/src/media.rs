@@ -905,7 +905,7 @@ impl PlaylistMedia for PlaylistMediaBook {
                     if let Some(body) = idoc.body() {
                         body
                             .style()
-                            .set_property("fontSize", &style_export::book_base_font_size().value)
+                            .set_property("font-size", &style_export::book_base_font_size().value)
                             .log(log, "Error setting base font size in iframe");
                     }
 

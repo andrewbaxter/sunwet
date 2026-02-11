@@ -243,8 +243,6 @@ pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<
                 },
                 MenuItemPage::History => { },
                 MenuItemPage::Query => { },
-                MenuItemPage::Logs => { },
-                MenuItemPage::Offline => { },
             },
         }
         menu_item_access_out.insert(at.id.clone(), access.clone());

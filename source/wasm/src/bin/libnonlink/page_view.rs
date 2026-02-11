@@ -454,7 +454,7 @@ impl Build {
                 ).await;
                 if !build.have_media.get() && build.want_media {
                     eg.event(|pc| {
-                        build.transport_slot.ref_push(build_transport(pc));
+                        build.transport_slot.ref_push(build_transport(pc, offline.is_some()));
                     });
                     build.have_media.set(true);
                 }
@@ -1140,7 +1140,7 @@ fn build_widget_root_data_rows(
                 ).await;
                 if !build.have_media.get() && build.want_media {
                     eg.event(|pc| {
-                        build.transport_slot.ref_push(build_transport(pc));
+                        build.transport_slot.ref_push(build_transport(pc, offline.is_some()));
                     }).unwrap();
                     build.have_media.set(true);
                 }
@@ -1307,95 +1307,99 @@ fn build_widget_root_data_rows(
     });
 }
 
-fn build_transport(pc: &mut ProcessingContext) -> El {
+fn build_transport(pc: &mut ProcessingContext, offline: bool) -> El {
     let transport_res = style_export::cont_bar_view_transport();
-    transport_res.button_share.ref_on("click", {
-        let eg = pc.eg();
-        move |_| eg.event(|pc| {
-            let sess_id = state().playlist.0.share.borrow().as_ref().map(|x| x.0.clone());
-            let sess_id = match sess_id {
-                Some(sess_id) => {
-                    sess_id.clone()
-                },
-                None => {
-                    let sess_id = if let Ok(id) = LocalStorage::get::<String>(LOCALSTORAGE_SHARE_SESSION_ID) {
-                        id
-                    } else {
-                        let sess_id = Uuid::new_v4().to_string();
-                        LocalStorage::set(
-                            LOCALSTORAGE_SHARE_SESSION_ID,
-                            &sess_id,
-                        ).log(&state().log, "Error persisting session id");
+    if offline {
+        transport_res.button_share.ref_replace(vec![]);
+    } else {
+        transport_res.button_share.ref_on("click", {
+            let eg = pc.eg();
+            move |_| eg.event(|pc| {
+                let sess_id = state().playlist.0.share.borrow().as_ref().map(|x| x.0.clone());
+                let sess_id = match sess_id {
+                    Some(sess_id) => {
+                        sess_id.clone()
+                    },
+                    None => {
+                        let sess_id = if let Ok(id) = LocalStorage::get::<String>(LOCALSTORAGE_SHARE_SESSION_ID) {
+                            id
+                        } else {
+                            let sess_id = Uuid::new_v4().to_string();
+                            LocalStorage::set(
+                                LOCALSTORAGE_SHARE_SESSION_ID,
+                                &sess_id,
+                            ).log(&state().log, "Error persisting session id");
+                            sess_id
+                        };
+                        playlist_set_link(pc, &state().playlist, &sess_id);
                         sess_id
-                    };
-                    playlist_set_link(pc, &state().playlist, &sess_id);
-                    sess_id
-                },
-            };
-            let link = format!("{}link.html#{}{}", state().env.base_url, LINK_HASH_PREFIX, sess_id);
-            let modal_res = style_export::cont_view_modal_share(style_export::ContViewModalShareArgs {
-                qr: el_from_raw(
-                    DomParser::new()
-                        .unwrap()
-                        .parse_from_string(
-                            &QrCode::new(&link)
-                                .unwrap()
-                                .render::<qrcode::render::svg::Color>()
-                                .dark_color(Color("currentColor"))
-                                .light_color(Color("transparent"))
-                                .quiet_zone(false)
-                                .build(),
-                            web_sys::SupportedType::ImageSvgXml,
-                        )
-                        .unwrap()
-                        .first_element_child()
-                        .unwrap()
-                        .dyn_into()
-                        .unwrap(),
-                ),
-                link: link,
-            });
-            modal_res.button_close.ref_on("click", {
-                let modal_el = modal_res.root.weak();
-                let eg = pc.eg();
-                move |_| eg.event(|_pc| {
-                    let Some(modal_el) = modal_el.upgrade() else {
-                        return;
-                    };
-                    modal_el.ref_replace(vec![]);
-                }).unwrap()
-            });
-            modal_res.root.ref_on("click", {
-                let modal_el = modal_res.root.weak();
-                let eg = pc.eg();
-                move |_| eg.event(|_pc| {
-                    let Some(modal_el) = modal_el.upgrade() else {
-                        return;
-                    };
-                    modal_el.ref_replace(vec![]);
-                }).unwrap()
-            });
-            modal_res.button_unshare.ref_on("click", {
-                let modal_el = modal_res.root.weak();
-                let eg = pc.eg();
-                move |_| eg.event(|pc| {
-                    let Some(modal_el) = modal_el.upgrade() else {
-                        return;
-                    };
-                    modal_el.ref_replace(vec![]);
-                    state().playlist.0.share.set(pc, None);
-                    LocalStorage::delete(LOCALSTORAGE_SHARE_SESSION_ID);
-                }).unwrap()
-            });
-            state().modal_stack.ref_push(modal_res.root.clone());
-        }).unwrap()
-    });
-    transport_res
-        .button_share
-        .ref_own(|b| link!((_pc = pc), (sharing = state().playlist.0.share.clone()), (), (ele = b.weak()), {
-            let ele = ele.upgrade()?;
-            ele.ref_modify_classes(&[(&style_export::class_state_sharing().value, sharing.borrow().is_some())]);
-        }));
+                    },
+                };
+                let link = format!("{}link.html#{}{}", state().env.base_url, LINK_HASH_PREFIX, sess_id);
+                let modal_res = style_export::cont_view_modal_share(style_export::ContViewModalShareArgs {
+                    qr: el_from_raw(
+                        DomParser::new()
+                            .unwrap()
+                            .parse_from_string(
+                                &QrCode::new(&link)
+                                    .unwrap()
+                                    .render::<qrcode::render::svg::Color>()
+                                    .dark_color(Color("currentColor"))
+                                    .light_color(Color("transparent"))
+                                    .quiet_zone(false)
+                                    .build(),
+                                web_sys::SupportedType::ImageSvgXml,
+                            )
+                            .unwrap()
+                            .first_element_child()
+                            .unwrap()
+                            .dyn_into()
+                            .unwrap(),
+                    ),
+                    link: link,
+                });
+                modal_res.button_close.ref_on("click", {
+                    let modal_el = modal_res.root.weak();
+                    let eg = pc.eg();
+                    move |_| eg.event(|_pc| {
+                        let Some(modal_el) = modal_el.upgrade() else {
+                            return;
+                        };
+                        modal_el.ref_replace(vec![]);
+                    }).unwrap()
+                });
+                modal_res.root.ref_on("click", {
+                    let modal_el = modal_res.root.weak();
+                    let eg = pc.eg();
+                    move |_| eg.event(|_pc| {
+                        let Some(modal_el) = modal_el.upgrade() else {
+                            return;
+                        };
+                        modal_el.ref_replace(vec![]);
+                    }).unwrap()
+                });
+                modal_res.button_unshare.ref_on("click", {
+                    let modal_el = modal_res.root.weak();
+                    let eg = pc.eg();
+                    move |_| eg.event(|pc| {
+                        let Some(modal_el) = modal_el.upgrade() else {
+                            return;
+                        };
+                        modal_el.ref_replace(vec![]);
+                        state().playlist.0.share.set(pc, None);
+                        LocalStorage::delete(LOCALSTORAGE_SHARE_SESSION_ID);
+                    }).unwrap()
+                });
+                state().modal_stack.ref_push(modal_res.root.clone());
+            }).unwrap()
+        });
+        transport_res
+            .button_share
+            .ref_own(|b| link!((_pc = pc), (sharing = state().playlist.0.share.clone()), (), (ele = b.weak()), {
+                let ele = ele.upgrade()?;
+                ele.ref_modify_classes(&[(&style_export::class_state_sharing().value, sharing.borrow().is_some())]);
+            }));
+    }
 
     // Prev
     let button_prev = transport_res.button_prev;

@@ -55,6 +55,7 @@ use {
             view::ViewId,
         },
         triple::Node,
+        wire::RespWhoAmI,
     },
     std::{
         cell::RefCell,
@@ -62,7 +63,7 @@ use {
         rc::Rc,
     },
     wasm::{
-        async_::BgVal,
+        async_::WaitVal,
         js::{
             Env,
             Log,
@@ -92,7 +93,8 @@ pub struct State_ {
     pub offlining: Prim<bool>,
     pub offlining_bg: RefCell<Option<ScopeValue>>,
     pub offline_list: List<(String, MinistateView)>,
-    pub client_config: RefCell<Option<BgVal<Result<Rc<ClientConfig>, String>>>>,
+    pub client_config: WaitVal<Prim<Rc<ClientConfig>>>,
+    pub whoami: Prim<Option<RespWhoAmI>>,
     pub menu_open: Prim<bool>,
     pub main_title: El,
     pub menu_page_buttons: El,
@@ -147,7 +149,7 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
                 let params = v.params.clone();
                 let eg = pc.eg();
                 async move {
-                    let client_config = state().client_config.borrow().as_ref().unwrap().get().await?;
+                    let client_config = state().client_config.get().await.borrow().clone();
                     let Some(view) = client_config.views.get(&view_id) else {
                         return Err(format!("No view with id [{}] in config", view_id));
                     };
@@ -164,7 +166,7 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
                 let key = v.key.clone();
                 let eg = pc.eg();
                 async move {
-                    let client_config = state().client_config.borrow().as_ref().unwrap().get().await?;
+                    let client_config = state().client_config.get().await.borrow().clone();
                     let Some(view) = client_config.views.get(&view_id) else {
                         return Err(format!("No view with id [{}] in config", view_id));
                     };
@@ -188,7 +190,7 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
                 let params = f.params.clone();
                 let eg = pc.eg();
                 async move {
-                    let client_config = state().client_config.borrow().as_ref().unwrap().get().await?;
+                    let client_config = state().client_config.get().await.borrow().clone();
                     let Some(form) = client_config.forms.get(&form_id) else {
                         return Err(format!("No menu item with id [{}] in config", form_id));
                     };

@@ -1178,14 +1178,14 @@ pub fn meta_gc(db: &rusqlite::Connection) -> Result<(), GoodError> {
     Ok(())
 }
 
-pub fn gen_insert(
+pub fn gen_ensure(
     db: &rusqlite::Connection,
     node: &crate::interface::triple::DbNode,
     gentype: &str,
     mimetype: &str,
 ) -> Result<(), GoodError> {
     let query =
-        "insert into \"generated\" ( \"node\" , \"gentype\" , \"mimetype\" ) values ( $1 , $2 , $3 ) on conflict do nothing";
+        "insert into \"generated\" ( \"node\" , \"gentype\" , \"mimetype\" ) values ( $1 , $2 , $3 ) on conflict do update set \"mimetype\" = $3";
     db
         .execute(
             query,

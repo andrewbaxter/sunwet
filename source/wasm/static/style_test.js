@@ -97,9 +97,9 @@
           ],
         }).root,
       ],
-      user: "Guest but longer",
       barChildren: [presentation.leafMenuBarButtonLogin({}).root],
     });
+    stagingMenu_.user.textContent = "Guest but longer";
     const stagingMenu = stagingMenu_.root;
     const buildLotsOfTracks =
       /** @type { (n: number) => HTMLElement[][] } */
@@ -403,9 +403,9 @@
       document.body.appendChild(
         presentation.contRootStack({ children: e }).root,
       );
-      for (const e of document.getElementsByClassName("leaf_button")) {
-        e.classList.add("thinking");
-      }
+      //for (const e of document.getElementsByClassName("leaf_button")) {
+      //  e.classList.add("thinking");
+      //}
     };
 
     const hash = location.hash;

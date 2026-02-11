@@ -302,7 +302,7 @@ impl C2SReqTrait for ReqGetClientConfig {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ReqWhoAmI;
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, JsonSchema, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum RespWhoAmI {
     Public,

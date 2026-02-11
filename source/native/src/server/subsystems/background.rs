@@ -150,7 +150,7 @@ async fn commit_generated(
     let gentype = gentype.to_string();
     let mimetype = mimetype.to_string();
     tx(&state.db, move |txn| {
-        return Ok(db::gen_insert(txn, &DbNode(Node::File(file)), &gentype, &mimetype)?);
+        return Ok(db::gen_ensure(txn, &DbNode(Node::File(file)), &gentype, &mimetype)?);
     }).await?;
     return Ok(());
 }

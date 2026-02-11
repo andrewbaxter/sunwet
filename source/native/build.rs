@@ -17,13 +17,12 @@ use {
                 expr_field_eq,
                 expr_field_lt,
                 expr_or,
+                field_param,
                 fn_max,
                 set_field,
             },
             insert::InsertConflict,
-            select_body::{
-                Order,
-            },
+            select_body::Order,
             utils::{
                 CteBuilder,
                 With,
@@ -502,8 +501,8 @@ fn main() {
                 &t,
                 vec![set_field("node", &node), set_field("gentype", &gentype), set_field("mimetype", &mimetype)],
             )
-                .on_conflict(InsertConflict::DoNothing)
-                .build_query("gen_insert", QueryResCount::None),
+                .on_conflict(InsertConflict::DoUpdate(vec![(mimetype.clone(), field_param("mimetype", &mimetype))]))
+                .build_query("gen_ensure", QueryResCount::None),
         );
         queries.push(
             new_select(&t)

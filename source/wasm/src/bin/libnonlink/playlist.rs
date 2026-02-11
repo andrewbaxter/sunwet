@@ -7,6 +7,7 @@ use {
         },
     },
     crate::libnonlink::offline::{
+        OPFS_OFFLINE_FILES_COMIC_PAGES_DIR,
         get_opfs_url_with_colocated_mime,
         offline_audio_url,
         offline_file_url,
@@ -706,12 +707,16 @@ pub async fn playlist_extend(
                                                 .read_json()
                                                 .await?;
                                         let mut pages = vec![];
+                                        let pages_dir =
+                                            gen_dir
+                                                .get_dir(vec![OPFS_OFFLINE_FILES_COMIC_PAGES_DIR.to_string()])
+                                                .await?;
                                         for page in raw_manifest.pages {
                                             pages.push(MediaComicManifestPage {
                                                 width: page.width,
                                                 height: page.height,
                                                 url: get_opfs_url_with_colocated_mime(
-                                                    &gen_dir,
+                                                    &pages_dir,
                                                     vec![page.path],
                                                 ).await?,
                                             });

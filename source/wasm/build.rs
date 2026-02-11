@@ -983,14 +983,10 @@ fn main() {
         },
         Func {
             name: "contMenuBody",
-            args: vec![
-                ("children", &arrel_),
-                ("user", &string_),
-                ("barChildren", &arrel_),
-                ("pageButtonChildren", &arrel_)
-            ],
+            args: vec![("children", &arrel_), ("barChildren", &arrel_), ("pageButtonChildren", &arrel_)],
             returns: vec![
                 ("root", &el_),
+                ("user", &el_),
                 ("onlining", &el_),
                 ("onliningCheckbox", &el_),
                 ("offlining", &el_),
