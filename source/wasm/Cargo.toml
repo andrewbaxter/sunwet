@@ -18,6 +18,7 @@ wasm-bindgen-futures = { version = "0.4", features = [
 ] }
 web-sys = { version = "0.3", features = [
     "Blob",
+    "BlobPropertyBag",
     "Clipboard",
     "ClipboardItem",
     "CssStyleDeclaration",

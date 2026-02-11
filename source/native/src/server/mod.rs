@@ -863,7 +863,7 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
                     .is_none() {
                     log.log(loga::DEBUG, "Initializing fts table");
                     db.execute_batch(include_str!("setup_fts.sql")).context("Error setting up meta_fts")?;
-                    log.log(loga::DEBUG, "DOne initializing fts table");
+                    log.log(loga::DEBUG, "Done initializing fts table");
                 }
                 return Ok(()) as Result<_, loga::Error>;
             }
@@ -872,7 +872,7 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
         // Setup state
         let oidc_state = match &config.oidc {
             Some(oidc_config) => {
-                Some(oidc::new_state(&log, oidc_config.clone()).await?)
+                Some(oidc::new_state(&log, oidc_config.clone()).await.context("Error creating oidc state")?)
             },
             None => None,
         };
@@ -883,7 +883,8 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
                         fdap_client: fdap::Client::builder()
                             .with_base_url(Uri::from_str(&fdap_config.url).context("Invalid fdap url")?)
                             .with_token(fdap_config.token.clone())
-                            .build()?,
+                            .build()
+                            .context("Error setting up fdap client")?,
                     },
                 )
             },
@@ -901,7 +902,7 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
                 })
             },
             MaybeFdap::Local(global_config) => {
-                GlobalState::Local(build_global_config(global_config)?)
+                GlobalState::Local(build_global_config(global_config).context("Error assembling local config")?)
             },
         };
         let users_state = match &config.user {

@@ -11,12 +11,12 @@ schemars = { version = "0.8", features = ["chrono"] }
 sha2 = "0.10"
 hex = "0.4"
 #rustemo = { version = "0.8", git = "https://github.com/igordejanovic/rustemo", rev = "68e61f5e8872da46692bf2c2ea0318e689e89929", default-features = false }
-rustemo = { version = "0.7" }
+rustemo = { version = "0.9", default-features = false }
 ts-rs = { version = "11", features = ["serde-json-impl", "no-serde-warnings"] }
 
 [build-dependencies]
 #rustemo-compiler = { version = "0.8", git = "https://github.com/igordejanovic/rustemo", rev = "68e61f5e8872da46692bf2c2ea0318e689e89929", default-features = false }
-rustemo-compiler = { version = "0.7" }
+rustemo-compiler = { version = "0.9", default-features = false }
 
 [lints.clippy]
 all = "allow"

@@ -879,7 +879,7 @@
   });
   const leafSpace = presentation.leafSpace;
 
-  const leafButtonStyle = ss(uniq("leaf_button"), {
+  const leafButtonStyle = ss("leaf_button", {
     "": (s) => {
       s.flexDirection = "row";
       s.gap = `min(${varPSmall}, 1dvw)`;
@@ -1279,7 +1279,7 @@
             ">*:nth-child(2)": (s) => {
               s.gridColumn = "2";
               s.pointerEvents = "initial";
-              s.whiteSpace = "pre-wrap";
+              s.overflowWrap = "break-word";
             },
           }),
         ],
@@ -1311,6 +1311,9 @@
             "": (s) => {
               s.gridColumn = "1/4";
               s.gridRow = "2/3";
+            },
+            [`.${classMenuStateOpen}`]: (s) => {
+              s.display = "none";
             },
           }),
         ],

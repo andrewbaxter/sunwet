@@ -210,14 +210,20 @@ impl OpfsFile {
         );
     }
 
-    pub async fn url(&self) -> Result<String, String> {
+    pub async fn url(&self, mime: &str) -> Result<String, String> {
+        let file =
+            JsFuture::from(self.1.get_file())
+                .await
+                .map_err(|e| format!("Error getting file for opfs handle at [{}]: {}", self.0, jsstr(e)))?
+                .dyn_into::<Blob>()
+                .expect("Can't convert file to blob");
+        let blob =
+            file
+                .slice_with_f64_and_f64_and_content_type(0., file.size(), mime)
+                .map_err(|e| format!("Error changing blob mime type at [{}]: {}", self.0, jsstr(e)))?;
         return Ok(
             Url::create_object_url_with_blob(
-                &JsFuture::from(self.1.get_file())
-                    .await
-                    .map_err(|e| format!("Error getting file for opfs handle at [{}]: {}", self.0, jsstr(e)))?
-                    .dyn_into::<Blob>()
-                    .map_err(|e| format!("Opfs handle get_file at [{}] didn't return blob: {}", self.0, jsstr(e)))?,
+                &blob,
             ).map_err(|e| format!("Error creating url from opfs file blob at [{}]: {}", self.0, jsstr(e)))?,
         );
     }
@@ -237,9 +243,10 @@ impl OpfsWriteFile {
                         |e| format!("Error getting file handle writable [{}]: {:?}", self.0, JSON::stringify(&e)),
                     )?,
             );
+        let arr = Uint8Array::new_from_slice(data);
         JsFuture::from(
             w
-                .write_with_u8_array(data)
+                .write_with_js_u8_array(&arr)
                 .map_err(|e| format!("Error writing message to opfs file [{}]: {:?}", self.0, jsstr(e)))?,
         )
             .await

@@ -197,16 +197,27 @@ fn media_file_hash(config_at: &FieldOrLiteral, data_stack: &Vec<Rc<DataStackLeve
     return Some(hash);
 }
 
+fn mime_filename(path: &str) -> String {
+    return format!("{}.mime", path);
+}
+
+pub async fn get_opfs_url_with_colocated_mime(parent: &OpfsDir, mut path: Vec<String>) -> Result<String, String> {
+    let Some(file) = path.pop() else {
+        return Err(format!("get_file_url_with_mime called with empty path"));
+    };
+    let dir = parent.get_dir(path).await?;
+    let mime: String = dir.get_file(vec![mime_filename(&file)]).await?.read_json().await?;
+    let file = dir.get_file(vec![file]).await?;
+    state().log.log(&format!("Getting opfs url for {} with mime {}", file.0, mime));
+    return Ok(file.url(&mime).await?);
+}
+
 pub async fn offline_file_url(h: &FileHash) -> Result<String, String> {
     return Ok(
-        opfs_root()
-            .await
-            .get_file(
-                vec![OPFS_OFFLINE_FILES_ROOT.to_string(), h.to_string(), OPFS_OFFLINE_FILES_FILE_FILENAME.to_string()],
-            )
-            .await?
-            .url()
-            .await?,
+        get_opfs_url_with_colocated_mime(
+            &opfs_root().await,
+            vec![OPFS_OFFLINE_FILES_ROOT.to_string(), h.to_string(), OPFS_OFFLINE_FILES_FILE_FILENAME.to_string()],
+        ).await?,
     );
 }
 
@@ -230,51 +241,49 @@ pub async fn offline_gen_url(h: &FileHash, gentype: &str, subpath: &str) -> Resu
     let root = opfs_root().await;
     if subpath == "" {
         return Ok(
-            root
-                .get_file(
-                    vec![
-                        OPFS_OFFLINE_FILES_ROOT.to_string(),
-                        h.to_string(),
-                        OPFS_OFFLINE_FILES_GEN_DIR.to_string(),
-                        gentype.to_string()
-                    ],
-                )
-                .await?
-                .url()
-                .await?,
+            get_opfs_url_with_colocated_mime(
+                &root,
+                vec![
+                    OPFS_OFFLINE_FILES_ROOT.to_string(),
+                    h.to_string(),
+                    OPFS_OFFLINE_FILES_GEN_DIR.to_string(),
+                    gentype.to_string()
+                ],
+            ).await?,
         );
     } else {
         return Ok(
-            root
-                .get_file(
-                    vec![
-                        OPFS_OFFLINE_FILES_ROOT.to_string(),
-                        h.to_string(),
-                        OPFS_OFFLINE_FILES_GEN_DIR.to_string(),
-                        gentype.to_string(),
-                        subpath.to_string()
-                    ],
-                )
-                .await?
-                .url()
-                .await?,
+            get_opfs_url_with_colocated_mime(
+                &root,
+                vec![
+                    OPFS_OFFLINE_FILES_ROOT.to_string(),
+                    h.to_string(),
+                    OPFS_OFFLINE_FILES_GEN_DIR.to_string(),
+                    gentype.to_string(),
+                    subpath.to_string()
+                ],
+            ).await?,
         );
     }
 }
 
 async fn fetch_media_file(config_at: &FieldOrLiteral, data_stack: &Vec<Rc<DataStackLevel>>) -> Result<(), String> {
-    async fn download(parent: &OpfsDir, seg: &str, url: String) -> Result<(), String> {
+    async fn download_colocate_mime(parent: &OpfsDir, seg: &str, url: String) -> Result<(), String> {
+        let head =
+            reqwasm::http::Request::new(&url)
+                .send()
+                .await
+                .map_err(|e| format!("Error sending get request for offline-use view file [{}]: {}", url, e))?;
+        parent
+            .ensure_file(vec![mime_filename(seg)])
+            .await?
+            .write_json(&head.headers().get("Content-Type").unwrap_or("application/binary".to_string()))
+            .await?;
         parent
             .ensure_file(vec![seg.to_string()])
             .await?
             .write_binary(
-                &reqwasm::http::Request::new(&url)
-                    .send()
-                    .await
-                    .map_err(|e| format!("Error sending get request for offline-use view file [{}]: {}", url, e))?
-                    .binary()
-                    .await
-                    .map_err(|e| format!("Error downloading media file [{}]: {}", url, e))?,
+                &head.binary().await.map_err(|e| format!("Error downloading media file [{}]: {}", url, e))?,
             )
             .await?;
         return Ok(());
@@ -296,15 +305,27 @@ async fn fetch_media_file(config_at: &FieldOrLiteral, data_stack: &Vec<Rc<DataSt
     let mime_parts = mime.split_once("/").unwrap_or((mime, ""));
     match mime_parts {
         ("image", _) => {
-            download(&file_dir, OPFS_OFFLINE_FILES_FILE_FILENAME, file_url(&state().env, &src)).await?;
+            download_colocate_mime(
+                &file_dir,
+                OPFS_OFFLINE_FILES_FILE_FILENAME,
+                file_url(&state().env, &src),
+            ).await?;
         },
         ("video", _) => {
             let gen_dir = file_dir.ensure_dir(vec![OPFS_OFFLINE_FILES_GEN_DIR.to_string()]).await?;
             if mime_parts.1 == "webm" {
-                download(&file_dir, OPFS_OFFLINE_FILES_FILE_FILENAME, file_url(&state().env, &src)).await?;
+                download_colocate_mime(
+                    &file_dir,
+                    OPFS_OFFLINE_FILES_FILE_FILENAME,
+                    file_url(&state().env, &src),
+                ).await?;
             } else {
                 let gen_type = gentype_transcode(TRANSCODE_MIME_WEBM);
-                download(&gen_dir, &gen_type, generated_file_url(&state().env, &src, &gen_type, "")).await?;
+                download_colocate_mime(
+                    &gen_dir,
+                    &gen_type,
+                    generated_file_url(&state().env, &src, &gen_type, ""),
+                ).await?;
             }
             {
                 let gentype = GENTYPE_VTT;
@@ -312,7 +333,7 @@ async fn fetch_media_file(config_at: &FieldOrLiteral, data_stack: &Vec<Rc<DataSt
                 for lang in &state().env.languages {
                     let subpath = gen_video_subtitle_subpath(lang);
                     if let Err(e) =
-                        download(
+                        download_colocate_mime(
                             &gen_dir,
                             &subpath,
                             generated_file_url(&state().env, &src, &gentype, &subpath),
@@ -323,18 +344,26 @@ async fn fetch_media_file(config_at: &FieldOrLiteral, data_stack: &Vec<Rc<DataSt
             }
         },
         ("audio", _) => {
-            download(&file_dir, OPFS_OFFLINE_FILES_FILE_FILENAME, file_url(&state().env, &src)).await?;
+            download_colocate_mime(
+                &file_dir,
+                OPFS_OFFLINE_FILES_FILE_FILENAME,
+                file_url(&state().env, &src),
+            ).await?;
             let gen_dir = file_dir.ensure_dir(vec![OPFS_OFFLINE_FILES_GEN_DIR.to_string()]).await?;
             let gentype = gentype_transcode(TRANSCODE_MIME_AAC);
             if let Err(e) =
-                download(&gen_dir, &gentype, generated_file_url(&state().env, &src, &gentype, "")).await {
+                download_colocate_mime(
+                    &gen_dir,
+                    &gentype,
+                    generated_file_url(&state().env, &src, &gentype, ""),
+                ).await {
                 state().log.log(&format!("Failed to offline aac transcode file: {}", e));
             }
         },
         ("application", "epub+zip") => {
             let gen_dir = file_dir.ensure_dir(vec![OPFS_OFFLINE_FILES_GEN_DIR.to_string()]).await?;
             let gentype = GENTYPE_EPUBHTML;
-            download(&gen_dir, gentype, generated_file_url(&state().env, &src, gentype, "")).await?;
+            download_colocate_mime(&gen_dir, gentype, generated_file_url(&state().env, &src, gentype, "")).await?;
         },
         ("application", "x-cbr") | ("application", "x-cbz") | ("application", "x-cb7") => {
             let dir_url = generated_file_url(&state().env, &src, GENTYPE_CBZDIR, "");
@@ -347,7 +376,7 @@ async fn fetch_media_file(config_at: &FieldOrLiteral, data_stack: &Vec<Rc<DataSt
                 file_dir.ensure_dir(vec![OPFS_OFFLINE_FILES_GEN_DIR.to_string(), GENTYPE_CBZDIR.to_string()]).await?;
             gen_dir.ensure_file(vec![COMIC_MANIFEST_FILENAME.to_string()]).await?.write_json(&manifest).await?;
             for page in manifest.pages {
-                download(&gen_dir, &page.path, format!("{}/{}", dir_url, page.path)).await?;
+                download_colocate_mime(&gen_dir, &page.path, format!("{}/{}", dir_url, page.path)).await?;
             }
         },
         _ => {

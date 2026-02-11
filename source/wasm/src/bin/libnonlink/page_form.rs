@@ -7,16 +7,10 @@ use {
         },
         state::{
             set_page,
-            state,
         },
     },
     crate::libnonlink::{
-        ministate::{
-            Ministate,
-            MinistateNodeView,
-        },
         online,
-        state::goto_replace_ministate,
     },
     chrono::{
         DateTime,
@@ -25,7 +19,9 @@ use {
         NaiveDateTime,
         Utc,
     },
-    flowcontrol::exenum,
+    flowcontrol::{
+        exenum,
+    },
     gloo::{
         storage::{
             LocalStorage,
@@ -656,21 +652,14 @@ pub fn build_page_form(
                     }), files_to_upload).await?;
                     return Ok(data_id);
                 }.await {
-                    Ok(data_id) => {
+                    Ok(_data_id) => {
                         LocalStorage::delete(&fs.0.draft_id);
                         eg.event(|pc| {
-                            if let Some(data_id) = data_id {
-                                goto_replace_ministate(pc, &state().log, &Ministate::NodeView(MinistateNodeView {
-                                    title: format!("New node"),
-                                    node: data_id,
-                                }));
-                            } else {
-                                set_page(
-                                    pc,
-                                    &title,
-                                    build_page_form(pc.eg(), id, title.clone(), form, initial_params).unwrap(),
-                                );
-                            }
+                            set_page(
+                                pc,
+                                &title,
+                                build_page_form(pc.eg(), id, title.clone(), form, initial_params).unwrap(),
+                            );
                         }).unwrap();
                         return;
                     },

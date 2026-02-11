@@ -433,7 +433,14 @@ async fn generate_book_html_dir(
             loga::err_with("Error converting ebook to html", ea!(res = res.dbg_str(), command = cmd.dbg_str())),
         );
     }
-    commit_generated(state, file.clone(), gentype, "html", &out, &genfile_path(&state, file, gentype, "")?).await?;
+    commit_generated(
+        state,
+        file.clone(),
+        gentype,
+        "text/html",
+        &out,
+        &genfile_path(&state, file, gentype, "")?,
+    ).await?;
     return Ok(());
 }
 

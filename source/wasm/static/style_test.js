@@ -403,6 +403,9 @@
       document.body.appendChild(
         presentation.contRootStack({ children: e }).root,
       );
+      for (const e of document.getElementsByClassName("leaf_button")) {
+        e.classList.add("thinking");
+      }
     };
 
     const hash = location.hash;

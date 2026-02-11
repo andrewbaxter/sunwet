@@ -228,6 +228,7 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
                             .log
                             .borrow()
                             .iter()
+                            .rev()
                             .map(|x| style_export::leaf_logs_line(style_export::LeafLogsLineArgs {
                                 stamp: x.0.to_rfc3339(),
                                 text: x.1.clone(),

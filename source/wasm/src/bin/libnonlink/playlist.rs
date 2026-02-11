@@ -7,6 +7,7 @@ use {
         },
     },
     crate::libnonlink::offline::{
+        get_opfs_url_with_colocated_mime,
         offline_audio_url,
         offline_file_url,
         offline_gen_dir,
@@ -709,7 +710,10 @@ pub async fn playlist_extend(
                                             pages.push(MediaComicManifestPage {
                                                 width: page.width,
                                                 height: page.height,
-                                                url: gen_dir.get_file(vec![page.path]).await?.url().await?,
+                                                url: get_opfs_url_with_colocated_mime(
+                                                    &gen_dir,
+                                                    vec![page.path],
+                                                ).await?,
                                             });
                                         }
                                         return Ok(MediaComicManifest {

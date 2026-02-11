@@ -117,8 +117,14 @@ async fn oidc_http_client(
         req1 = req1.header(k.to_string(), http::HeaderValue::from_bytes(v.as_bytes()).unwrap());
     }
     let req1 = req1.body(body_full(req.body)).unwrap();
-    let (code, headers, continue_) = htreq::send(&log, htreq::Limits::default(), &mut conn, req1).await?;
-    let body = htreq::receive(htreq::Limits::default(), continue_).await?;
+    let (code, headers, continue_) =
+        htreq::send(&log, htreq::Limits::default(), &mut conn, req1)
+            .await
+            .context(&format!("Error sending http request: {} {}", req.method, req.url))?;
+    let body =
+        htreq::receive(htreq::Limits::default(), continue_)
+            .await
+            .context(&format!("Error reading request body: {} {}", req.method, req.url))?;
     return Ok(openidconnect::HttpResponse {
         status_code: openidconnect::http::StatusCode::from_u16(code.as_u16()).unwrap(),
         headers: {
@@ -182,9 +188,12 @@ pub async fn new_state(log: &Log, oidc_config: OidcConfig) -> Result<OidcState, 
     let log = log.fork(ea!(subsystem = "oidc"));
     let client =
         CoreClient::from_provider_metadata(
-            CoreProviderMetadata::discover_async(IssuerUrl::new(oidc_config.provider_url)?, cap_fn!((r)(log) {
-                return oidc_http_client(&log, r).await.map_err(|e| std::io::Error::other(e.to_string()));
-            })).await?,
+            CoreProviderMetadata::discover_async(
+                IssuerUrl::new(oidc_config.provider_url).context("Invalid provider url")?,
+                cap_fn!((r)(log) {
+                    return oidc_http_client(&log, r).await.map_err(|e| std::io::Error::other(e.to_string()));
+                }),
+            ).await.context("Error getting oidc provider metadata from well known url")?,
             ClientId::new(oidc_config.client_id.clone()),
             oidc_config.client_secret.as_ref().map(|s| ClientSecret::new(s.clone())),
         );
