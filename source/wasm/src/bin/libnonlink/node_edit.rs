@@ -10,6 +10,7 @@ use {
             MinistateNodeView,
             ministate_octothorpe,
         },
+        online,
         playlist::{
             PlaylistEntryMediaType,
             categorize_mime_media,
@@ -39,7 +40,6 @@ use {
         ScopeValue,
         WeakEl,
         scope_any,
-        spawn_rooted,
     },
     serde::{
         Deserialize,
@@ -52,6 +52,7 @@ use {
         },
         wire::{
             ReqCommit,
+            ReqCommitFree,
             ReqGetNodeMeta,
             ReqGetTriplesAround,
             Triple,
@@ -74,6 +75,7 @@ use {
             el_async,
             env_preferred_audio_url,
             env_preferred_video_url,
+            on_thinking,
             style_export,
         },
         world::file_url,
@@ -1549,284 +1551,273 @@ pub async fn build_node_edit_contents(
         }),));
         bar_out.push(button_delete);
         let button_commit = style_export::leaf_button_big_commit().root;
-        button_commit.ref_on("click", {
+        on_thinking(&button_commit, {
             let rel_states = rel_states.clone();
             let pivot_state = pivot_state.clone();
             let error_slot = error_slot.weak();
-            let save_thinking = Rc::new(RefCell::new(None));
             let draft_data = draft_data.clone();
+            let delete_all = delete_all.clone();
             let eg = pc.eg();
-            move |ev| {
-                if save_thinking.borrow().is_some() {
-                    return;
-                }
-                {
-                    let Some(error_slot) = error_slot.upgrade() else {
-                        return;
-                    };
-                    error_slot.ref_clear();
-                }
-                let button = ev.target().unwrap().dyn_into::<web_sys::HtmlElement>().unwrap();
-                button.class_list().add_1(&style_export::class_state_thinking().value).unwrap();
-                *save_thinking.borrow_mut() = Some(spawn_rooted({
-                    let rel_states = rel_states.clone();
-                    let pivot_state = pivot_state.clone();
-                    let error_slot = error_slot.clone();
-                    let draft_data = draft_data.clone();
-                    let title = title.clone();
-                    let eg = eg.clone();
-                    let delete_all = delete_all.clone();
-                    async move {
-                        let mut rel_nodes_predicates = vec![];
-                        let mut file_unique = 0usize;
-                        let old_pivot;
-                        let new_pivot;
-                        let pivot_changed;
-                        match &*pivot_state.0 {
-                            PivotState_::Single(p) => {
-                                let old_pivot0 = initial_type_value_to_node(&*p.type_.borrow(), &*p.value.borrow());
-                                let new_pivot0 = type_value_to_node({
-                                    file_unique += 1;
-                                    file_unique
-                                }, &*p.type_.borrow(), &*p.value.borrow());
-                                pivot_changed = Some(&old_pivot0) != exenum!(&new_pivot0, CommitNode:: Node(x) => x);
-                                old_pivot = vec![old_pivot0];
-                                new_pivot = vec![new_pivot0];
-                            },
-                            PivotState_::Multi(p) => {
-                                old_pivot = p.initial.borrow().clone();
-                                new_pivot =
-                                    old_pivot.iter().map(|n| CommitNode::Node(n.clone())).collect::<Vec<_>>();
-                                pivot_changed = false;
-                            },
-                        }
-                        let res = async {
-                            ta_return!(HashMap < usize, FileHash >, String);
-                            let mut add = vec![];
-                            let mut remove = vec![];
-                            let delete_all = delete_all.get();
-                            for rel in &*RefCell::borrow(&rel_states) {
-                                // Get current values
-                                let rel_node = type_value_to_node({
-                                    file_unique += 1;
-                                    file_unique
-                                }, &*rel.0.node_type.borrow(), &*rel.0.node_value.borrow());
-                                let rel_pred = rel.0.predicate.borrow().clone();
-                                rel_nodes_predicates.push((rel_pred.clone(), rel_node.clone()));
+            let title = title.clone();
+            move || {
+                let rel_states = rel_states.clone();
+                let pivot_state = pivot_state.clone();
+                let error_slot = error_slot.clone();
+                let draft_data = draft_data.clone();
+                let eg = eg.clone();
+                let delete_all = delete_all.clone();
+                let title = title.clone();
+                async move {
+                    {
+                        let Some(error_slot) = error_slot.upgrade() else {
+                            return;
+                        };
+                        error_slot.ref_clear();
+                    }
+                    let mut rel_nodes_predicates = vec![];
+                    let mut file_unique = 0usize;
+                    let old_pivot;
+                    let new_pivot;
+                    let pivot_changed;
+                    match &*pivot_state.0 {
+                        PivotState_::Single(p) => {
+                            let old_pivot0 = initial_type_value_to_node(&*p.type_.borrow(), &*p.value.borrow());
+                            let new_pivot0 = type_value_to_node({
+                                file_unique += 1;
+                                file_unique
+                            }, &*p.type_.borrow(), &*p.value.borrow());
+                            pivot_changed = Some(&old_pivot0) != exenum!(&new_pivot0, CommitNode:: Node(x) => x);
+                            old_pivot = vec![old_pivot0];
+                            new_pivot = vec![new_pivot0];
+                        },
+                        PivotState_::Multi(p) => {
+                            old_pivot = p.initial.borrow().clone();
+                            new_pivot = old_pivot.iter().map(|n| CommitNode::Node(n.clone())).collect::<Vec<_>>();
+                            pivot_changed = false;
+                        },
+                    }
+                    let res = async {
+                        ta_return!(HashMap < usize, FileHash >, String);
+                        let mut add = vec![];
+                        let mut remove = vec![];
+                        let delete_all = delete_all.get();
+                        for rel in &*RefCell::borrow(&rel_states) {
+                            // Get current values
+                            let rel_node = type_value_to_node({
+                                file_unique += 1;
+                                file_unique
+                            }, &*rel.0.node_type.borrow(), &*rel.0.node_value.borrow());
+                            let rel_pred = rel.0.predicate.borrow().clone();
+                            rel_nodes_predicates.push((rel_pred.clone(), rel_node.clone()));
 
-                                // Get original values for comparison
-                                let rel_old_pivot;
-                                let rel_new_pivot;
-                                match &rel.0.initial_pivot {
-                                    RelInitialPivot::Single => {
-                                        rel_old_pivot = old_pivot.clone();
-                                        rel_new_pivot = new_pivot.clone();
-                                    },
-                                    RelInitialPivot::Multi(initial_pivot) => {
-                                        rel_old_pivot = initial_pivot.borrow().clone();
-                                        rel_new_pivot =
-                                            rel_old_pivot
-                                                .iter()
-                                                .map(|x| CommitNode::Node(x.clone()))
-                                                .collect::<Vec<_>>();
-                                    },
-                                }
-                                let rel_initial = match &*rel.0.initial_pred_node.borrow() {
-                                    Some(initial_pred_node) => Some(
-                                        (
-                                            initial_pred_node.predicate.clone(),
-                                            initial_type_value_to_node(
-                                                &initial_pred_node.node_type_,
-                                                &initial_pred_node.node_value,
-                                            ),
+                            // Get original values for comparison
+                            let rel_old_pivot;
+                            let rel_new_pivot;
+                            match &rel.0.initial_pivot {
+                                RelInitialPivot::Single => {
+                                    rel_old_pivot = old_pivot.clone();
+                                    rel_new_pivot = new_pivot.clone();
+                                },
+                                RelInitialPivot::Multi(initial_pivot) => {
+                                    rel_old_pivot = initial_pivot.borrow().clone();
+                                    rel_new_pivot =
+                                        rel_old_pivot
+                                            .iter()
+                                            .map(|x| CommitNode::Node(x.clone()))
+                                            .collect::<Vec<_>>();
+                                },
+                            }
+                            let rel_initial = match &*rel.0.initial_pred_node.borrow() {
+                                Some(initial_pred_node) => Some(
+                                    (
+                                        initial_pred_node.predicate.clone(),
+                                        initial_type_value_to_node(
+                                            &initial_pred_node.node_type_,
+                                            &initial_pred_node.node_value,
                                         ),
                                     ),
-                                    None => None,
-                                };
+                                ),
+                                None => None,
+                            };
 
-                                // Classify if changed/deleted
-                                let changed;
-                                let new;
-                                if let Some((rel_predicate_initial, rel_node_initial)) = &rel_initial {
-                                    new = false;
-                                    changed =
-                                        pivot_changed ||
-                                            exenum!(&rel_node, CommitNode:: Node(x) => x) != Some(rel_node_initial) ||
-                                            rel.0.predicate.borrow().as_str() != rel_predicate_initial.as_str();
-                                } else {
-                                    new = true;
-                                    changed = false;
-                                }
+                            // Classify if changed/deleted
+                            let changed;
+                            let new;
+                            if let Some((rel_predicate_initial, rel_node_initial)) = &rel_initial {
+                                new = false;
+                                changed =
+                                    pivot_changed ||
+                                        exenum!(&rel_node, CommitNode:: Node(x) => x) != Some(rel_node_initial) ||
+                                        rel.0.predicate.borrow().as_str() != rel_predicate_initial.as_str();
+                            } else {
+                                new = true;
+                                changed = false;
+                            }
 
-                                // If not new but deleted or changed, delete first
-                                if let Some((rel_predicate_initial, rel_node_initial)) = rel_initial {
-                                    if delete_all || rel.0.delete.get() || changed {
-                                        for initial_pivot in &rel_old_pivot {
-                                            let old_subject;
-                                            let old_object;
-                                            if rel.0.incoming {
-                                                old_subject = rel_node_initial.clone();
-                                                old_object = initial_pivot.clone();
-                                            } else {
-                                                old_subject = initial_pivot.clone();
-                                                old_object = rel_node_initial.clone();
-                                            }
-                                            remove.push(Triple {
-                                                subject: old_subject,
-                                                predicate: rel_predicate_initial.clone(),
-                                                object: old_object,
-                                            });
-                                        }
-                                    }
-                                }
-
-                                // If new or changed, write the new relation
-                                if new || changed {
-                                    for new_pivot in &rel_new_pivot {
-                                        let subject;
-                                        let object;
+                            // If not new but deleted or changed, delete first
+                            if let Some((rel_predicate_initial, rel_node_initial)) = rel_initial {
+                                if delete_all || rel.0.delete.get() || changed {
+                                    for initial_pivot in &rel_old_pivot {
+                                        let old_subject;
+                                        let old_object;
                                         if rel.0.incoming {
-                                            subject = rel_node.clone();
-                                            object = new_pivot.clone();
+                                            old_subject = rel_node_initial.clone();
+                                            old_object = initial_pivot.clone();
                                         } else {
-                                            subject = new_pivot.clone();
-                                            object = rel_node.clone();
+                                            old_subject = initial_pivot.clone();
+                                            old_object = rel_node_initial.clone();
                                         }
-                                        add.push(CommitTriple {
-                                            subject: subject,
-                                            predicate: rel.0.predicate.borrow().clone(),
-                                            object: object,
+                                        remove.push(Triple {
+                                            subject: old_subject,
+                                            predicate: rel_predicate_initial.clone(),
+                                            object: old_object,
                                         });
                                     }
                                 }
                             }
 
-                            // # Send compiled changes
-                            //
-                            // Preprocess
-                            let mut add1 = vec![];
-                            let mut files_to_return = HashMap::new();
-                            let mut files_to_commit = vec![];
-                            let mut files_to_upload = vec![];
-                            for rel in add {
-                                let Some(subject) =
-                                    commit::prep_node(
-                                        &mut files_to_return,
-                                        &mut files_to_commit,
-                                        &mut files_to_upload,
-                                        rel.subject,
-                                    ).await else {
-                                        continue;
-                                    };
-                                let Some(object) =
-                                    commit::prep_node(
-                                        &mut files_to_return,
-                                        &mut files_to_commit,
-                                        &mut files_to_upload,
-                                        rel.object,
-                                    ).await else {
-                                        continue;
-                                    };
-                                add1.push(Triple {
-                                    subject: subject,
-                                    predicate: rel.predicate,
-                                    object: object,
-                                });
-                            }
-
-                            // Write commit
-                            req_post_json(ReqCommit {
-                                comment: format!("Edit node [{}]", title),
-                                add: add1,
-                                remove: remove,
-                                files: files_to_commit,
-                            }).await?;
-
-                            // Upload files
-                            commit::upload_files(files_to_upload).await?;
-                            return Ok(files_to_return);
-                        }.await;
-                        button.class_list().remove_1(&style_export::class_state_thinking().value).unwrap();
-                        match res {
-                            Ok(mut file_lookup) => {
-                                eg.event(|pc| {
-                                    delete_all.set(pc, false);
-
-                                    // Get committed nodes (files replaced with hashes) and update initial values,
-                                    // clear draft
-                                    match &*pivot_state.0 {
-                                        PivotState_::Single(p) => {
-                                            // Replace files with file nodes
-                                            let pivot_node = match new_pivot.into_iter().next().unwrap() {
-                                                CommitNode::Node(n) => n,
-                                                CommitNode::File(unique, _) => Node::File(
-                                                    file_lookup.remove(&unique).unwrap(),
-                                                ),
-                                                CommitNode::DatetimeNow => unreachable!(),
-                                            };
-
-                                            // Sync initial
-                                            let (t, v) = node_to_type_value(&pivot_node);
-                                            p.initial.set(pc, InitialNode {
-                                                node_type_: t.clone(),
-                                                node_value: v.clone(),
-                                            });
-
-                                            // (in case file, change current value to "file" and not "new file" too)
-                                            p.type_.set(pc, t);
-                                            p.value.set(pc, v);
-
-                                            // Clear draft
-                                            if let Some(draft_data) = draft_data {
-                                                clear_draft(&draft_data, &pivot_node);
-                                            }
-                                        },
-                                        PivotState_::Multi(_) => {
-                                            // nop
-                                        },
+                            // If new or changed, write the new relation
+                            if new || changed {
+                                for new_pivot in &rel_new_pivot {
+                                    let subject;
+                                    let object;
+                                    if rel.0.incoming {
+                                        subject = rel_node.clone();
+                                        object = new_pivot.clone();
+                                    } else {
+                                        subject = new_pivot.clone();
+                                        object = rel_node.clone();
                                     }
-                                    for (
-                                        rel,
-                                        (sent_pred, sent_node),
-                                    ) in Iterator::zip(
-                                        RefCell::borrow(&rel_states).iter(),
-                                        rel_nodes_predicates.into_iter(),
-                                    ) {
+                                    add.push(CommitTriple {
+                                        subject: subject,
+                                        predicate: rel.0.predicate.borrow().clone(),
+                                        object: object,
+                                    });
+                                }
+                            }
+                        }
+
+                        // # Send compiled changes
+                        //
+                        // Preprocess
+                        let mut add1 = vec![];
+                        let mut files_to_return = HashMap::new();
+                        let mut files_to_commit = vec![];
+                        let mut files_to_upload = vec![];
+                        for rel in add {
+                            let Some(subject) =
+                                commit::prep_node(
+                                    &mut files_to_return,
+                                    &mut files_to_commit,
+                                    &mut files_to_upload,
+                                    rel.subject,
+                                ).await else {
+                                    continue;
+                                };
+                            let Some(object) =
+                                commit::prep_node(
+                                    &mut files_to_return,
+                                    &mut files_to_commit,
+                                    &mut files_to_upload,
+                                    rel.object,
+                                ).await else {
+                                    continue;
+                                };
+                            add1.push(Triple {
+                                subject: subject,
+                                predicate: rel.predicate,
+                                object: object,
+                            });
+                        }
+
+                        // Queue for upload
+                        online::ensure_commit(eg.clone(), ReqCommit::Free(ReqCommitFree {
+                            comment: format!("Edit node [{}]", title),
+                            add: add1,
+                            remove: remove,
+                            files: files_to_commit,
+                        }), files_to_upload).await?;
+                        return Ok(files_to_return);
+                    }.await;
+                    match res {
+                        Ok(mut file_lookup) => {
+                            eg.event(|pc| {
+                                delete_all.set(pc, false);
+
+                                // Get committed nodes (files replaced with hashes) and update initial values,
+                                // clear draft
+                                match &*pivot_state.0 {
+                                    PivotState_::Single(p) => {
                                         // Replace files with file nodes
-                                        let (t, v) = node_to_type_value(&match sent_node {
+                                        let pivot_node = match new_pivot.into_iter().next().unwrap() {
                                             CommitNode::Node(n) => n,
                                             CommitNode::File(unique, _) => Node::File(
                                                 file_lookup.remove(&unique).unwrap(),
                                             ),
                                             CommitNode::DatetimeNow => unreachable!(),
-                                        });
+                                        };
 
                                         // Sync initial
-                                        rel.0.initial_fill.set(pc, rel.0.fill.get());
-                                        rel.0.initial_pred_node.set(pc, Some(RelInitialPredNode {
-                                            predicate: sent_pred,
+                                        let (t, v) = node_to_type_value(&pivot_node);
+                                        p.initial.set(pc, InitialNode {
                                             node_type_: t.clone(),
                                             node_value: v.clone(),
-                                        }));
+                                        });
 
                                         // (in case file, change current value to "file" and not "new file" too)
-                                        rel.0.node_type.set(pc, t);
-                                        rel.0.node_value.set(pc, v);
-                                    }
-                                }).unwrap();
-                            },
-                            Err(e) => {
-                                let Some(error_slot) = error_slot.upgrade() else {
-                                    return;
-                                };
-                                error_slot.ref_push(style_export::leaf_err_block(style_export::LeafErrBlockArgs {
-                                    in_root: false,
-                                    data: e,
-                                }).root);
-                            },
-                        }
+                                        p.type_.set(pc, t);
+                                        p.value.set(pc, v);
+
+                                        // Clear draft
+                                        if let Some(draft_data) = draft_data {
+                                            clear_draft(&draft_data, &pivot_node);
+                                        }
+                                    },
+                                    PivotState_::Multi(_) => {
+                                        // nop
+                                    },
+                                }
+                                for (
+                                    rel,
+                                    (sent_pred, sent_node),
+                                ) in Iterator::zip(
+                                    RefCell::borrow(&rel_states).iter(),
+                                    rel_nodes_predicates.into_iter(),
+                                ) {
+                                    // Replace files with file nodes
+                                    let (t, v) = node_to_type_value(&match sent_node {
+                                        CommitNode::Node(n) => n,
+                                        CommitNode::File(unique, _) => Node::File(
+                                            file_lookup.remove(&unique).unwrap(),
+                                        ),
+                                        CommitNode::DatetimeNow => unreachable!(),
+                                    });
+
+                                    // Sync initial
+                                    rel.0.initial_fill.set(pc, rel.0.fill.get());
+                                    rel.0.initial_pred_node.set(pc, Some(RelInitialPredNode {
+                                        predicate: sent_pred,
+                                        node_type_: t.clone(),
+                                        node_value: v.clone(),
+                                    }));
+
+                                    // (in case file, change current value to "file" and not "new file" too)
+                                    rel.0.node_type.set(pc, t);
+                                    rel.0.node_value.set(pc, v);
+                                }
+                            }).unwrap();
+                        },
+                        Err(e) => {
+                            let Some(error_slot) = error_slot.upgrade() else {
+                                return;
+                            };
+                            error_slot.ref_push(style_export::leaf_err_block(style_export::LeafErrBlockArgs {
+                                in_root: false,
+                                data: e,
+                            }).root);
+                        },
                     }
-                }));
+                }
             }
         });
         bar_out.push(button_commit);

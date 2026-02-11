@@ -160,74 +160,83 @@ export const sendFdap = async (userConfig: {
       },
     },
     element_expansion: {
-      data_rows: {
-        data: { query: "tracks" },
-        row_widget: {
-          table: {
-            orientation: "down_right",
-            trans_scroll: true,
-            gap: "0.2cm",
-            trans_size_max: album_tracks_height,
-            elements: [
-              {
-                play_button: {
-                  trans_align: "middle",
-                  orientation: "down_left",
-                  media_file_field: "file",
-                  name_field: "track_name",
-                  album_field: "album_name",
-                  artist_field: "artist_name",
-                  cover_field: "cover",
-                },
-              },
-              {
-                text: {
-                  trans_align: "middle",
-                  data: {
-                    field: "track_superindex",
-                  },
-                  suffix: ". ",
-                  font_size: "12pt",
-                  conv_size_mode: "wrap",
-                  orientation: "down_left",
-                },
-              },
-              {
-                text: {
-                  trans_align: "middle",
-                  data: {
-                    field: "track_index",
-                  },
-                  suffix: ". ",
-                  font_size: "12pt",
-                  conv_size_mode: "wrap",
-                  orientation: "down_left",
-                },
-              },
-              {
-                text: {
-                  trans_align: "middle",
-                  data: {
-                    field: "track_name",
-                  },
-                  link: {
-                    title: {
-                      field: "track_name",
-                    },
-                    dest: {
-                      node: {
-                        field: "track_id",
+      layout: {
+        orientation: "right_down",
+        elements: [
+          "space",
+          {
+            data_rows: {
+              data: { query: "tracks" },
+              row_widget: {
+                table: {
+                  orientation: "down_right",
+                  trans_scroll: true,
+                  gap: "0.2cm",
+                  trans_size_max: album_tracks_height,
+                  elements: [
+                    {
+                      play_button: {
+                        trans_align: "middle",
+                        orientation: "down_left",
+                        media_file_field: "file",
+                        name_field: "track_name",
+                        album_field: "album_name",
+                        artist_field: "artist_name",
+                        cover_field: "cover",
                       },
                     },
-                  },
-                  font_size: "12pt",
-                  conv_size_mode: "wrap",
-                  orientation: "down_left",
+                    {
+                      text: {
+                        trans_align: "middle",
+                        data: {
+                          field: "track_superindex",
+                        },
+                        suffix: ". ",
+                        font_size: "12pt",
+                        conv_size_mode: "wrap",
+                        orientation: "down_left",
+                      },
+                    },
+                    {
+                      text: {
+                        trans_align: "middle",
+                        data: {
+                          field: "track_index",
+                        },
+                        suffix: ". ",
+                        font_size: "12pt",
+                        conv_size_mode: "wrap",
+                        orientation: "down_left",
+                      },
+                    },
+                    {
+                      text: {
+                        trans_align: "middle",
+                        data: {
+                          field: "track_name",
+                        },
+                        link: {
+                          title: {
+                            field: "track_name",
+                          },
+                          dest: {
+                            node: {
+                              field: "track_id",
+                            },
+                          },
+                        },
+                        font_size: "12pt",
+                        conv_size_mode: "wrap",
+                        orientation: "down_left",
+                      },
+                    },
+                  ],
                 },
               },
-            ],
+            },
           },
-        },
+          "space",
+        ],
       },
     },
   };
@@ -1437,7 +1446,6 @@ export const sendFdap = async (userConfig: {
         detail: { page: "history" },
       },
       { id: "query", name: "Query", detail: { page: "query" } },
-      { id: "logs", name: "Logs", detail: { page: "logs" } },
     ],
     views: {
       audio_albums_by_add_date: {

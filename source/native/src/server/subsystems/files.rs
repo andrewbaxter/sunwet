@@ -67,8 +67,8 @@ use {
         },
         wire::{
             HEADER_OFFSET,
-            ReqCommit,
-            ReqFormCommit,
+            ReqCommitForm,
+            ReqCommitFree,
             RespCommit,
             RespUploadFinish,
             TreeNode,
@@ -101,7 +101,7 @@ use {
 
 async fn commit(
     state: Arc<State>,
-    c: ReqCommit,
+    c: ReqCommitFree,
     update_access_reqs: Option<(FormId, u64)>,
 ) -> Result<RespCommit, loga::Error> {
     // Preallocate files for upload, confirm already present files
@@ -214,11 +214,11 @@ async fn commit(
     return Ok(RespCommit { incomplete: incomplete });
 }
 
-pub async fn handle_commit(state: Arc<State>, c: ReqCommit) -> Result<RespCommit, loga::Error> {
+pub async fn handle_commit(state: Arc<State>, c: ReqCommitFree) -> Result<RespCommit, loga::Error> {
     return Ok(commit(state, c, None).await?);
 }
 
-pub async fn handle_form_commit(state: Arc<State>, c: ReqFormCommit) -> Result<RespCommit, VisErr<loga::Error>> {
+pub async fn handle_form_commit(state: Arc<State>, c: ReqCommitForm) -> Result<RespCommit, VisErr<loga::Error>> {
     let global_config = get_global_config(&state).await.err_internal()?;
     let Some(form) = global_config.forms.get(&c.form_id) else {
         return Err(loga::err_with("No known form with id", ea!(id = c.form_id))).err_external();
@@ -295,7 +295,7 @@ pub async fn handle_form_commit(state: Arc<State>, c: ReqFormCommit) -> Result<R
             }
         }
     }
-    return Ok(commit(state, ReqCommit {
+    return Ok(commit(state, ReqCommitFree {
         comment: format!("Form [{}]", c.form_id),
         add: add,
         remove: vec![],

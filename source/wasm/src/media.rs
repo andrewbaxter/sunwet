@@ -1,19 +1,20 @@
+//! TODO - instead of playing media, there should be one "player" that has all the
+//! methods. It should keep a `bg` element, where each action clears and sets the
+//! bg action if asynchronous, so the methods return immediately but are
+//! synchronized.
+//!
+//! This should allow nixing the play_bg. Also the hash could be passed in instead
+//! of all the urls.
 use {
-    crate::{
-        js::{
-            async_event,
-            el_async,
-            env_preferred_audio_url,
-            env_preferred_video_url,
-            file_derivation_subtitles_url,
-            style_export,
-            ElExt,
-            Env,
-            Log,
-            LogJsErr,
-            MyIntersectionObserver,
-        },
-        world::file_url,
+    crate::js::{
+        ElExt,
+        Env,
+        Log,
+        LogJsErr,
+        MyIntersectionObserver,
+        async_event,
+        el_async,
+        style_export,
     },
     flowcontrol::ta_return,
     futures::{
@@ -27,7 +28,10 @@ use {
         },
         timers::{
             callback::Timeout,
-            future::TimeoutFuture,
+            future::{
+                TimeoutFuture,
+                sleep,
+            },
         },
         utils::{
             document,
@@ -35,20 +39,21 @@ use {
         },
     },
     lunk::{
-        link,
         EventGraph,
         Prim,
         ProcessingContext,
+        link,
     },
+    reqwasm::http::Request,
     rooting::{
-        el,
-        spawn_rooted,
         El,
         ScopeValue,
+        el,
+        spawn_rooted,
     },
     shared::interface::{
         derived::ComicManifest,
-        wire::link::SourceUrl,
+        wire::GEN_FILENAME_COMICMANIFEST,
     },
     std::{
         cell::{
@@ -63,15 +68,16 @@ use {
         pin::Pin,
         rc::Rc,
         str::FromStr,
+        time::Duration,
     },
     tokio::sync::watch,
     tokio_stream::wrappers::WatchStream,
     wasm_bindgen::{
+        JsCast,
         convert::{
             FromWasmAbi,
             IntoWasmAbi,
         },
-        JsCast,
     },
     wasm_bindgen_futures::JsFuture,
     web_sys::{
@@ -108,29 +114,32 @@ pub struct PlaylistMediaAudioVideo {
     pub video: bool,
     pub media_el: HtmlMediaElement,
     pub el: El,
-    pub src: SourceUrl,
+    pub src: String,
+    pub sub_src: HashMap<String, String>,
     pub play_bg: Rc<RefCell<Option<ScopeValue>>>,
     pub time: Cell<f64>,
 }
 
 impl PlaylistMediaAudioVideo {
-    pub fn new_audio(el: El, src: SourceUrl, time: f64) -> PlaylistMediaAudioVideo {
+    pub fn new_audio(el: El, src: String, time: f64) -> PlaylistMediaAudioVideo {
         return PlaylistMediaAudioVideo {
             video: false,
             media_el: el.raw().dyn_into().unwrap(),
             el: el,
             src: src,
+            sub_src: Default::default(),
             play_bg: Default::default(),
             time: Cell::new(time),
         };
     }
 
-    pub fn new_video(el: El, src: SourceUrl, time: f64) -> PlaylistMediaAudioVideo {
+    pub fn new_video(el: El, src: String, sub_src: HashMap<String, String>, time: f64) -> PlaylistMediaAudioVideo {
         return PlaylistMediaAudioVideo {
             video: true,
             media_el: el.raw().dyn_into().unwrap(),
             el: el,
             src: src,
+            sub_src: sub_src,
             play_bg: Default::default(),
             time: Cell::new(time),
         };
@@ -226,38 +235,21 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
 
     fn pm_preload(&self, log: &Rc<dyn Log>, env: &Env) {
         self.media_el.set_attribute("preload", "auto").log(log, "Error setting preload attribute");
-        let src = if self.video {
-            match &self.src {
-                SourceUrl::Url(v) => v.clone(),
-                SourceUrl::File(v) => env_preferred_video_url(&env, &v),
-            }
-        } else {
-            match &self.src {
-                SourceUrl::Url(v) => v.clone(),
-                SourceUrl::File(v) => env_preferred_audio_url(&env, &v),
-            }
-        };
-        if src != self.media_el.current_src() {
+        if self.src != self.media_el.current_src() {
             if self.video {
-                match &self.src {
-                    SourceUrl::Url(_) => { },
-                    SourceUrl::File(v) => {
-                        self.media_el.set_inner_html("");
-                        for (i, lang) in env.languages.iter().enumerate() {
-                            let track =
-                                el("track")
-                                    .attr("kind", "subtitles")
-                                    .attr("src", &file_derivation_subtitles_url(&env, lang, &v))
-                                    .attr("srclang", &lang);
-                            if i == 0 {
-                                track.ref_attr("default", "default");
-                            }
-                            self.media_el.append_child(&track.raw()).log(log, "Error adding track to video element");
-                        }
-                    },
+                self.media_el.set_inner_html("");
+                for (i, lang) in env.languages.iter().enumerate() {
+                    let Some(sub_src) = self.sub_src.get(lang) else {
+                        continue;
+                    };
+                    let track = el("track").attr("kind", "subtitles").attr("src", &sub_src).attr("srclang", &lang);
+                    if i == 0 {
+                        track.ref_attr("default", "default");
+                    }
+                    self.media_el.append_child(&track.raw()).log(log, "Error adding track to video element");
                 }
             }
-            self.media_el.set_src(&src);
+            self.media_el.set_src(&self.src);
 
             // iOS doesn't load unless load called. Load resets currentTime to 0 on chrome
             // (desktop/android). Avoid calling load again unless the url changes (to avoid
@@ -293,7 +285,7 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
 
 pub struct PlaylistMediaImage {
     pub element: El,
-    pub src: SourceUrl,
+    pub src: String,
 }
 
 impl PlaylistMediaImage { }
@@ -325,12 +317,9 @@ impl PlaylistMedia for PlaylistMediaImage {
 
     fn pm_seek(&self, _pc: &mut ProcessingContext, _time: f64) { }
 
-    fn pm_preload(&self, _log: &Rc<dyn Log>, env: &Env) {
+    fn pm_preload(&self, _log: &Rc<dyn Log>, _env: &Env) {
         self.element.ref_attr("loading", "eager");
-        self.element.ref_attr("src", &match &self.src {
-            SourceUrl::Url(v) => v.clone(),
-            SourceUrl::File(v) => file_url(&env, &v),
-        });
+        self.element.ref_attr("src", &self.src);
     }
 
     fn pm_unpreload(&self, _log: &Rc<dyn Log>) {
@@ -347,27 +336,78 @@ impl PlaylistMedia for PlaylistMediaImage {
 }
 
 const ATTR_INDEX: &str = "data-index";
+
+pub struct MediaComicManifestPage {
+    pub width: u32,
+    pub height: u32,
+    pub url: String,
+}
+
+pub struct MediaComicManifest {
+    pub rtl: bool,
+    pub pages: Vec<MediaComicManifestPage>,
+}
+
 type PlaylistMediaComicReqManifestFn =
-    Rc<dyn Fn(String) -> Pin<Box<dyn Future<Output = Result<ComicManifest, String>>>>>;
+    Rc<dyn Fn() -> Pin<Box<dyn Future<Output = Result<MediaComicManifest, String>>>>>;
 
 pub struct PlaylistMediaComic {
     pub length: Rc<Cell<Option<usize>>>,
     pub seekable: watch::Sender<bool>,
     pub at: Prim<usize>,
-    pub url: String,
     pub req_manifest: PlaylistMediaComicReqManifestFn,
 }
 
 impl PlaylistMediaComic {
-    pub fn new(url: &str, req_manifest: PlaylistMediaComicReqManifestFn, restore_index: usize) -> Self {
+    pub fn new(req_manifest: PlaylistMediaComicReqManifestFn, restore_index: usize) -> Self {
         return Self {
             seekable: watch::channel(false).0,
             length: Rc::new(Cell::new(None)),
             at: Prim::new(restore_index),
-            url: url.to_string(),
             req_manifest: req_manifest,
         };
     }
+}
+
+pub fn comic_req_fn_online(log: &Rc<dyn Log>, base_url: String) -> PlaylistMediaComicReqManifestFn {
+    let log = log.clone();
+    return Rc::new(move || {
+        let log = log.clone();
+        let dir_url = base_url.clone();
+        async move {
+            loop {
+                match async {
+                    ta_return!(MediaComicManifest, String);
+                    let r =
+                        Request::get(&format!("{}/{}", dir_url, GEN_FILENAME_COMICMANIFEST))
+                            .send()
+                            .await
+                            .map_err(|e| format!("Error requesting comic manifest: {}", e))?
+                            .binary()
+                            .await
+                            .map_err(|e| format!("Error reading comic manifest response: {}", e))?;
+                    let raw_manifest =
+                        serde_json::from_slice::<ComicManifest>(
+                            &r,
+                        ).map_err(|e| format!("Error reading comic manifest: {}", e))?;
+                    return Ok(MediaComicManifest {
+                        rtl: raw_manifest.rtl,
+                        pages: raw_manifest.pages.into_iter().map(|x| MediaComicManifestPage {
+                            width: x.width,
+                            height: x.height,
+                            url: format!("{}/{}", dir_url, x.path),
+                        }).collect(),
+                    });
+                }.await {
+                    Ok(r) => return Ok(r),
+                    Err(e) => {
+                        log.log(&format!("Request failed, retrying: {}", e));
+                        sleep(Duration::from_secs(1)).await;
+                    },
+                }
+            }
+        }
+    }.boxed_local());
 }
 
 impl PlaylistMedia for PlaylistMediaComic {
@@ -378,7 +418,6 @@ impl PlaylistMedia for PlaylistMediaComic {
     fn pm_el(&self, _log: &Rc<dyn Log>, pc: &mut ProcessingContext) -> El {
         _ = self.seekable.send(false);
         let req_manifest = self.req_manifest.clone();
-        let url = self.url.clone();
         let at = self.at.clone();
         let length = self.length.clone();
         let eg = pc.eg();
@@ -388,7 +427,7 @@ impl PlaylistMedia for PlaylistMediaComic {
         let root = style_export::cont_media_comic_outer(style_export::ContMediaComicOuterArgs { children: vec![] }).root;
         root.ref_push(el_async(async move {
             ta_return!(Vec < El >, String);
-            let manifest = req_manifest(format!("{}/sunwet.json", url)).await?;
+            let manifest = req_manifest().await?;
             let rtl = manifest.rtl;
 
             // Populate pages, gather page info, organize
@@ -421,7 +460,7 @@ impl PlaylistMedia for PlaylistMediaComic {
             let mut min_aspect = 1.;
             for (i, page) in manifest.pages.iter().enumerate() {
                 let page_el = style_export::leaf_media_comic_page(style_export::LeafMediaComicPageArgs {
-                    src: format!("{}/{}", url, page.path),
+                    src: page.url.clone(),
                     aspect_x: page.width.to_string(),
                     aspect_y: page.height.to_string(),
                 }).root;
@@ -831,7 +870,7 @@ impl PlaylistMedia for PlaylistMediaBook {
 
     fn pm_el(&self, log: &Rc<dyn Log>, pc: &mut ProcessingContext) -> El {
         _ = self.seekable.send(false);
-        let iframe = el("iframe").attr("src", &format!("{}/index.html", self.url));
+        let iframe = el("iframe").attr("src", &self.url);
         iframe
             .html()
             .style()
@@ -863,6 +902,13 @@ impl PlaylistMedia for PlaylistMediaBook {
                     length: Rc<Cell<Option<usize>>>,
                     seekable: watch::Sender<bool>,
                 ) {
+                    if let Some(body) = idoc.body() {
+                        body
+                            .style()
+                            .set_property("font-size", &style_export::book_base_font_size().value)
+                            .log(log, "Error setting base font size in iframe");
+                    }
+
                     // Wait for stuff to appear, not sure why this isn't handled by
                     // DOMContentLoaded... but I guess in some cases there might be js doing stuff too
                     let html_children0 = idoc.query_selector_all("h1,h2,h3,h4,h5,h6,p,img").unwrap();

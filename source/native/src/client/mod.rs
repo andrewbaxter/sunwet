@@ -1,6 +1,7 @@
 use {
     crate::client::req::req_simple,
     aargvark::{
+        Aargvark,
         help::{
             HelpPattern,
             HelpPatternElement,
@@ -10,7 +11,6 @@ use {
             AargvarkFromStr,
             AargvarkJson,
         },
-        Aargvark,
     },
     chrono::{
         DateTime,
@@ -32,6 +32,7 @@ use {
             },
             wire::{
                 ReqCommit,
+                ReqCommitFree,
                 ReqGetTriplesAround,
                 ReqHistory,
                 ReqHistoryFilter,
@@ -40,9 +41,7 @@ use {
                 Triple,
             },
         },
-        query_parser::{
-            compile_query,
-        },
+        query_parser::compile_query,
     },
     std::{
         collections::{
@@ -165,7 +164,7 @@ pub async fn handle_delete_nodes(args: DeleteNodesCommand) -> Result<(), loga::E
     } else {
         loga::INFO
     });
-    req_simple(&log, ReqCommit {
+    req_simple(&log, ReqCommit::Free(ReqCommitFree {
         comment: format!("CLI delete note"),
         add: vec![],
         remove: req_simple(
@@ -173,7 +172,7 @@ pub async fn handle_delete_nodes(args: DeleteNodesCommand) -> Result<(), loga::E
             ReqGetTriplesAround { nodes: args.nodes.into_iter().map(|x| x.0).collect() },
         ).await?,
         files: vec![],
-    }).await?;
+    })).await?;
     return Ok(());
 }
 
@@ -212,12 +211,12 @@ pub async fn handle_merge_nodes_command(args: MergeNodesCommand) -> Result<(), l
         }
         remove.push(t);
     }
-    req_simple(&log, ReqCommit {
+    req_simple(&log, ReqCommit::Free(ReqCommitFree {
         comment: format!("CLI merge nodes"),
         add: add,
         remove: remove,
         files: vec![],
-    }).await?;
+    })).await?;
     return Ok(());
 }
 
@@ -252,12 +251,12 @@ pub async fn handle_duplicate_nodes_command(args: DuplicateNodesCommand) -> Resu
             });
         }
     }
-    req_simple(&log, ReqCommit {
+    req_simple(&log, ReqCommit::Free(ReqCommitFree {
         comment: format!("CLI duplicate [{}]", serde_json::to_string(&args.node.0).unwrap()),
         add: add,
         remove: vec![],
         files: vec![],
-    }).await?;
+    })).await?;
     print!("{}", dest_str);
     return Ok(());
 }
@@ -350,9 +349,7 @@ pub async fn handle_history(args: HistoryCommand) -> Result<(), loga::Error> {
     }
     println!(
         "{}",
-        serde_json::to_string_pretty(
-            &commits.values().filter(|x| !x.events.is_empty()).collect::<Vec<_>>(),
-        ).unwrap()
+        serde_json::to_string_pretty(&commits.values().filter(|x| !x.events.is_empty()).collect::<Vec<_>>(),).unwrap()
     );
     return Ok(());
 }

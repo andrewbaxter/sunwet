@@ -1,15 +1,12 @@
 use {
     super::{
-        api::req_post_json,
         state::state,
     },
-    crate::libnonlink::api::file_post_json,
     chrono::{
         Utc,
     },
     gloo::{
         file::Blob,
-        timers::future::TimeoutFuture,
     },
     sha2::{
         Digest,
@@ -22,7 +19,6 @@ use {
         },
         wire::{
             CommitFile,
-            ReqUploadFinish,
         },
     },
     std::collections::HashMap,
@@ -52,9 +48,8 @@ pub struct CommitTriple {
 }
 
 pub struct UploadFile {
-    data: Vec<u8>,
-    hash: FileHash,
-    size: u64,
+    pub data: Vec<u8>,
+    pub hash: FileHash,
 }
 
 pub async fn prep_node(
@@ -79,7 +74,6 @@ pub async fn prep_node(
             upload_files.push(UploadFile {
                 data: b,
                 hash: hash.clone(),
-                size: size,
             });
             commit_files.push(CommitFile {
                 hash: hash.clone(),
@@ -92,28 +86,4 @@ pub async fn prep_node(
             return Some(Node::Value(serde_json::Value::String(Utc::now().to_rfc3339())));
         },
     }
-}
-
-pub async fn upload_files(files: Vec<UploadFile>) -> Result<(), String> {
-    for file in files {
-        const CHUNK_SIZE: u64 = 1024 * 1024 * 8;
-        let chunks = file.size.div_ceil(CHUNK_SIZE);
-        for i in 0 .. chunks {
-            let chunk_start = i * CHUNK_SIZE;
-            let chunk_size = (file.size - chunk_start).min(CHUNK_SIZE);
-            file_post_json(
-                &file.hash,
-                chunk_start,
-                &file.data[chunk_start as usize .. (chunk_start + chunk_size) as usize],
-            ).await?;
-        }
-        loop {
-            let resp = req_post_json(ReqUploadFinish(file.hash.clone())).await?;
-            if resp.done {
-                break;
-            }
-            TimeoutFuture::new(1000).await;
-        }
-    }
-    return Ok(());
 }

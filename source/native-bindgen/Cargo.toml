@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 aargvark = "0.8"
-wasm-bindgen-cli-support = "=0.2.100"
+wasm-bindgen-cli-support = "=0.2.108"
 wasm2map = "0.1"
 
 [lints.clippy]

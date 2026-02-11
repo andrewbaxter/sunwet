@@ -75,6 +75,8 @@ impl std::str::FromStr for FileHash {
 
 derive_canonical_serde!(FileHash);
 
+/// Node de/serialization is deterministic - to_str/from_str are canonical.
+/// Therefore nodes can be used as keys to lookups.
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Node {
     File(FileHash),

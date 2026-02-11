@@ -108,6 +108,7 @@ use {
             C2SReq,
             NodeMeta,
             Pagination,
+            ReqCommit,
             ReqHistoryFilterPredicate,
             RespHistory,
             RespHistoryEvent,
@@ -364,8 +365,6 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
 
                             impl ReqResp for shared::interface::wire::ReqCommit { }
 
-                            impl ReqResp for shared::interface::wire::ReqFormCommit { }
-
                             impl ReqResp for shared::interface::wire::ReqGetClientConfig { }
 
                             impl ReqResp for shared::interface::wire::ReqQuery { }
@@ -388,68 +387,70 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                         let resp: (resp::RespToken, resp::Resp);
                         match req {
                             C2SReq::Commit(req) => {
-                                {
-                                    // Check access
-                                    match check_is_admin(&state, &identity, "Commit").await.err_internal()? {
-                                        AccessRes::Yes => { },
-                                        AccessRes::NoAccess => {
-                                            return Ok(response_403());
-                                        },
-                                        AccessRes::NoIdent => {
-                                            return Ok(response_401());
-                                        },
-                                    }
-                                }
-                                resp = req.respond()(handle_commit(state, req).await.err_internal()?);
-                            },
-                            C2SReq::FormCommit(req) => {
                                 let responder = req.respond();
-                                {
-                                    // Check access
-                                    let grants = get_iam_grants(&state, &identity).await.err_internal()?;
-                                    let res = shed!{
-                                        'ok _;
-                                        match &grants {
-                                            IamGrants::Admin => {
-                                                break 'ok AccessRes::Yes;
+                                match req {
+                                    ReqCommit::Free(req) => {
+                                        // Check access
+                                        match check_is_admin(&state, &identity, "Commit").await.err_internal()? {
+                                            AccessRes::Yes => { },
+                                            AccessRes::NoAccess => {
+                                                return Ok(response_403());
                                             },
-                                            IamGrants::Limited(grants) => {
-                                                if grants.forms.contains(&req.form_id) {
-                                                    break 'ok AccessRes::Yes;
+                                            AccessRes::NoIdent => {
+                                                return Ok(response_401());
+                                            },
+                                        }
+                                        resp = responder(handle_commit(state, req).await.err_internal()?);
+                                    },
+                                    ReqCommit::Form(req) => {
+                                        {
+                                            // Check access
+                                            let grants = get_iam_grants(&state, &identity).await.err_internal()?;
+                                            let res = shed!{
+                                                'ok _;
+                                                match &grants {
+                                                    IamGrants::Admin => {
+                                                        break 'ok AccessRes::Yes;
+                                                    },
+                                                    IamGrants::Limited(grants) => {
+                                                        if grants.forms.contains(&req.form_id) {
+                                                            break 'ok AccessRes::Yes;
+                                                        }
+                                                    },
                                                 }
-                                            },
+                                                if matches!(identity, Identity::Public) {
+                                                    break 'ok AccessRes::NoIdent;
+                                                }
+                                                else {
+                                                    break 'ok AccessRes::NoAccess;
+                                                    return Ok(response_403());
+                                                }
+                                            };
+                                            state
+                                                .log
+                                                .log_with(
+                                                    loga::DEBUG,
+                                                    "Form commit access result",
+                                                    ea!(
+                                                        identity = identity.dbg_str(),
+                                                        grants = grants.dbg_str(),
+                                                        form_id = req.form_id,
+                                                        result = res.dbg_str()
+                                                    ),
+                                                );
+                                            match res {
+                                                AccessRes::Yes => { },
+                                                AccessRes::NoIdent => {
+                                                    return Ok(response_401());
+                                                },
+                                                AccessRes::NoAccess => {
+                                                    return Ok(response_403());
+                                                },
+                                            }
                                         }
-                                        if matches!(identity, Identity::Public) {
-                                            break 'ok AccessRes::NoIdent;
-                                        }
-                                        else {
-                                            break 'ok AccessRes::NoAccess;
-                                            return Ok(response_403());
-                                        }
-                                    };
-                                    state
-                                        .log
-                                        .log_with(
-                                            loga::DEBUG,
-                                            "Form commit access result",
-                                            ea!(
-                                                identity = identity.dbg_str(),
-                                                grants = grants.dbg_str(),
-                                                form_id = req.form_id,
-                                                result = res.dbg_str()
-                                            ),
-                                        );
-                                    match res {
-                                        AccessRes::Yes => { },
-                                        AccessRes::NoIdent => {
-                                            return Ok(response_401());
-                                        },
-                                        AccessRes::NoAccess => {
-                                            return Ok(response_403());
-                                        },
-                                    }
+                                        resp = responder(handle_form_commit(state, req).await?);
+                                    },
                                 }
-                                resp = responder(handle_form_commit(state, req).await?);
                             },
                             C2SReq::UploadFinish(req) => {
                                 let responder = req.respond();
@@ -862,7 +863,7 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
                     .is_none() {
                     log.log(loga::DEBUG, "Initializing fts table");
                     db.execute_batch(include_str!("setup_fts.sql")).context("Error setting up meta_fts")?;
-                    log.log(loga::DEBUG, "DOne initializing fts table");
+                    log.log(loga::DEBUG, "Done initializing fts table");
                 }
                 return Ok(()) as Result<_, loga::Error>;
             }
@@ -871,7 +872,7 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
         // Setup state
         let oidc_state = match &config.oidc {
             Some(oidc_config) => {
-                Some(oidc::new_state(&log, oidc_config.clone()).await?)
+                Some(oidc::new_state(&log, oidc_config.clone()).await.context("Error creating oidc state")?)
             },
             None => None,
         };
@@ -882,7 +883,8 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
                         fdap_client: fdap::Client::builder()
                             .with_base_url(Uri::from_str(&fdap_config.url).context("Invalid fdap url")?)
                             .with_token(fdap_config.token.clone())
-                            .build()?,
+                            .build()
+                            .context("Error setting up fdap client")?,
                     },
                 )
             },
@@ -900,7 +902,7 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
                 })
             },
             MaybeFdap::Local(global_config) => {
-                GlobalState::Local(build_global_config(global_config)?)
+                GlobalState::Local(build_global_config(global_config).context("Error assembling local config")?)
             },
         };
         let users_state = match &config.user {

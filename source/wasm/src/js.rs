@@ -143,7 +143,31 @@ pub fn scan_env(log: &Rc<dyn Log>) -> Env {
     }
 }
 
-pub fn file_derivation_subtitles_url(env: &Env, nav_lang: &str, hash: &FileHash) -> String {
+pub fn env_preferred_audio_gentype(env: &Env) -> Option<String> {
+    if env.engine == Some(Engine::IosSafari) {
+        return Some(gentype_transcode("audio/aac"));
+    } else {
+        return None;
+    }
+}
+
+pub fn env_preferred_audio_url(env: &Env, hash: &FileHash) -> String {
+    if let Some(gentype) = env_preferred_audio_gentype(env) {
+        return generated_file_url(env, hash, &gentype, "");
+    } else {
+        return file_url(env, hash);
+    }
+}
+
+pub fn env_preferred_video_gentype() -> String {
+    return gentype_transcode("video/webm");
+}
+
+pub fn env_preferred_video_url(env: &Env, hash: &FileHash) -> String {
+    return generated_file_url(env, hash, &env_preferred_video_gentype(), "");
+}
+
+pub fn gen_video_subtitle_subpath(nav_lang: &str) -> String {
     let short_lang = if let Some((l, _)) = nav_lang.split_once("-") {
         l
     } else {
@@ -154,19 +178,11 @@ pub fn file_derivation_subtitles_url(env: &Env, nav_lang: &str, hash: &FileHash)
         "jp" => "jpn",
         x => x,
     };
-    return generated_file_url(env, hash, GENTYPE_VTT, &gentype_vtt_subpath(vtt_lang));
+    return gentype_vtt_subpath(vtt_lang);
 }
 
-pub fn env_preferred_audio_url(env: &Env, hash: &FileHash) -> String {
-    if env.engine == Some(Engine::IosSafari) {
-        return generated_file_url(env, hash, &gentype_transcode("audio/aac"), "");
-    } else {
-        return file_url(env, hash);
-    }
-}
-
-pub fn env_preferred_video_url(env: &Env, hash: &FileHash) -> String {
-    return generated_file_url(env, hash, &gentype_transcode("video/webm"), "");
+pub fn env_video_subtitle_url(env: &Env, nav_lang: &str, hash: &FileHash) -> String {
+    return generated_file_url(env, hash, GENTYPE_VTT, &gen_video_subtitle_subpath(nav_lang));
 }
 
 pub trait Log {
@@ -728,4 +744,38 @@ pub fn download(filename: String, data: impl serde::Serialize) {
     a.click();
     body.remove_child(&a).unwrap();
     Url::revoke_object_url(&url).unwrap();
+}
+
+pub fn on_thinking(e: &El, f: impl 'static + Clone + AsyncFn() -> ()) {
+    e.ref_on("click", {
+        let e = e.weak();
+        let bg = Rc::new(RefCell::new(None));
+        move |_| {
+            if bg.borrow().is_some() {
+                return;
+            }
+            if let Some(e) = e.upgrade() {
+                e.ref_classes(&[&style_export::class_state_thinking().value]);
+            }
+            *bg.borrow_mut() = Some(spawn_rooted({
+                let f = f.clone();
+                let e = e.clone();
+                let bg = bg.clone();
+                async move {
+                    f().await;
+                    if let Some(e) = e.upgrade() {
+                        e.ref_remove_classes(&[&style_export::class_state_thinking().value]);
+                    }
+                    *bg.borrow_mut() = None;
+                }
+            }));
+        }
+    });
+}
+
+pub fn jsstr(v: JsValue) -> String {
+    return match v.dyn_ref::<Object>() {
+        Some(v) => v.to_string().as_string(),
+        None => v.js_typeof().as_string(),
+    }.unwrap();
 }

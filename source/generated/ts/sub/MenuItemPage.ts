@@ -2,4 +2,4 @@
 import type { FormLink } from "./FormLink";
 import type { ViewLink } from "./ViewLink";
 
-export type MenuItemPage = { "view": ViewLink } | { "form": FormLink } | "history" | "query" | "logs";
+export type MenuItemPage = { "view": ViewLink } | { "form": FormLink } | "history" | "query";

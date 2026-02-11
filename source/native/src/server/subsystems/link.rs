@@ -36,7 +36,6 @@ use {
         ResultContext,
     },
     shared::interface::wire::link::{
-        SourceUrl,
         WsC2S,
         WsL2S,
         WsS2C,
@@ -117,32 +116,22 @@ pub async fn handle_ws_main(state: Arc<State>, session: String, websocket: Hyper
                                                     link_public.clear();
                                                     match &prepare.media {
                                                         shared::interface::wire::link::PrepareMedia::Audio(m) => {
-                                                            if let SourceUrl::File(file) = &m.source_url {
-                                                                link_public.insert(file.clone());
-                                                            }
-                                                            if let Some(SourceUrl::File(file)) = &m.cover_source_url {
-                                                                link_public.insert(file.clone());
+                                                            link_public.insert(m.source_url.clone());
+                                                            if let Some(h) = &m.cover_source_url {
+                                                                link_public.insert(h.clone());
                                                             }
                                                         },
                                                         shared::interface::wire::link::PrepareMedia::Video(m) => {
-                                                            if let SourceUrl::File(file) = m {
-                                                                link_public.insert(file.clone());
-                                                            }
+                                                            link_public.insert(m.clone());
                                                         },
                                                         shared::interface::wire::link::PrepareMedia::Image(m) => {
-                                                            if let SourceUrl::File(file) = m {
-                                                                link_public.insert(file.clone());
-                                                            }
+                                                            link_public.insert(m.clone());
                                                         },
                                                         shared::interface::wire::link::PrepareMedia::Comic(m) => {
-                                                            if let SourceUrl::File(file) = m {
-                                                                link_public.insert(file.clone());
-                                                            }
+                                                            link_public.insert(m.clone());
                                                         },
                                                         shared::interface::wire::link::PrepareMedia::Book(m) => {
-                                                            if let SourceUrl::File(file) = m {
-                                                                link_public.insert(file.clone());
-                                                            }
+                                                            link_public.insert(m.clone());
                                                         },
                                                     }
                                                 }
@@ -187,10 +176,7 @@ pub async fn handle_ws_main(state: Arc<State>, session: String, websocket: Hyper
                                                         let start_at = Utc::now() + delay * 5;
                                                         let mut bg =
                                                             vec![
-                                                                s2c_tx
-                                                                    .send(WsS2C::Play(start_at))
-                                                                    .map(|_| ())
-                                                                    .boxed()
+                                                                s2c_tx.send(WsS2C::Play(start_at)).map(|_| ()).boxed()
                                                             ];
                                                         for link in &links {
                                                             bg.push(

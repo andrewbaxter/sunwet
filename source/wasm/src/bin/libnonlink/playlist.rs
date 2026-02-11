@@ -2,46 +2,61 @@ use {
     super::{
         ministate::PlaylistRestorePos,
         state::{
-            state,
             MinistateViewState,
+            state,
         },
     },
-    crate::libnonlink::api::req_file,
+    crate::libnonlink::offline::{
+        OPFS_OFFLINE_FILES_COMIC_PAGES_DIR,
+        get_opfs_url_with_colocated_mime,
+        offline_audio_url,
+        offline_file_url,
+        offline_gen_dir,
+        offline_gen_url,
+        offline_video_url,
+    },
     chrono::Utc,
+    flowcontrol::ta_return,
     futures::FutureExt,
     gloo::{
         timers::{
             callback::Interval,
-            future::TimeoutFuture,
+            future::{
+                TimeoutFuture,
+                sleep,
+            },
         },
         utils::window,
     },
     js_sys::Function,
     lunk::{
-        link,
+        EventGraph,
         HistPrim,
         Prim,
         ProcessingContext,
+        link,
     },
     rooting::{
+        El,
         el,
         scope_any,
         spawn_rooted,
-        El,
     },
     serde::Deserialize,
     shared::interface::{
         derived::ComicManifest,
+        triple::FileHash,
         wire::{
+            GENTYPE_CBZDIR,
+            GENTYPE_EPUBHTML,
+            GENTYPE_VTT,
             link::{
                 Prepare,
                 PrepareAudio,
                 PrepareMedia,
-                SourceUrl,
                 WsC2S,
                 WsS2C,
             },
-            GENTYPE_DIR,
         },
     },
     std::{
@@ -49,26 +64,36 @@ use {
             Cell,
             RefCell,
         },
-        collections::BTreeMap,
+        collections::{
+            BTreeMap,
+            HashMap,
+        },
         ops::Bound,
         rc::{
             Rc,
             Weak,
         },
+        time::Duration,
     },
     wasm::{
         js::{
-            style_export,
             Env,
             Log,
+            env_preferred_audio_url,
+            env_video_subtitle_url,
+            gen_video_subtitle_subpath,
+            style_export,
         },
         media::{
-            pm_share_ready_prep,
+            MediaComicManifest,
+            MediaComicManifestPage,
             PlaylistMedia,
             PlaylistMediaAudioVideo,
             PlaylistMediaBook,
             PlaylistMediaComic,
             PlaylistMediaImage,
+            comic_req_fn_online,
+            pm_share_ready_prep,
         },
         websocket::Ws,
         world::{
@@ -77,9 +102,9 @@ use {
         },
     },
     wasm_bindgen::{
-        closure::Closure,
         JsCast,
         JsValue,
+        closure::Closure,
     },
     web_sys::{
         HtmlElement,
@@ -127,8 +152,8 @@ pub struct PlaylistEntry {
     pub name: Option<String>,
     pub album: Option<String>,
     pub artist: Option<String>,
-    pub cover_source_url: Option<SourceUrl>,
-    pub source_url: SourceUrl,
+    pub cover_source_url: Option<FileHash>,
+    pub source_file: FileHash,
     pub media_type: PlaylistEntryMediaType,
     pub media: Box<dyn PlaylistMedia>,
     pub play_buttons: Vec<HtmlElement>,
@@ -333,10 +358,11 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
                             if let Some(cover) = &e.cover_source_url {
                                 let arr = js_sys::Array::new();
                                 let e = js_sys::Object::new();
-                                js_sys::Reflect::set(&e, &JsValue::from("src"), &JsValue::from(&match cover {
-                                    SourceUrl::Url(v) => v.clone(),
-                                    SourceUrl::File(v) => file_url(&state().env, &v),
-                                })).unwrap();
+                                js_sys::Reflect::set(
+                                    &e,
+                                    &JsValue::from("src"),
+                                    &JsValue::from(&file_url(&state().env, &cover))
+                                ).unwrap();
                                 arr.push(e.dyn_ref().unwrap());
                                 m.set_artwork(&arr.dyn_into().unwrap());
                             }
@@ -394,12 +420,12 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
                                     media: match e.media_type {
                                         PlaylistEntryMediaType::Audio => PrepareMedia::Audio(PrepareAudio {
                                             cover_source_url: e.cover_source_url.clone(),
-                                            source_url: e.source_url.clone(),
+                                            source_url: e.source_file.clone(),
                                         }),
-                                        PlaylistEntryMediaType::Video => PrepareMedia::Video(e.source_url.clone()),
-                                        PlaylistEntryMediaType::Image => PrepareMedia::Image(e.source_url.clone()),
-                                        PlaylistEntryMediaType::Comic => PrepareMedia::Comic(e.source_url.clone()),
-                                        PlaylistEntryMediaType::Book => PrepareMedia::Book(e.source_url.clone()),
+                                        PlaylistEntryMediaType::Video => PrepareMedia::Video(e.source_file.clone()),
+                                        PlaylistEntryMediaType::Image => PrepareMedia::Image(e.source_file.clone()),
+                                        PlaylistEntryMediaType::Comic => PrepareMedia::Comic(e.source_file.clone()),
+                                        PlaylistEntryMediaType::Book => PrepareMedia::Book(e.source_file.clone()),
                                     },
                                     media_time: e.media.pm_get_time(),
                                 })).await;
@@ -490,12 +516,12 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
                                     media: match e.media_type {
                                         PlaylistEntryMediaType::Audio => PrepareMedia::Audio(PrepareAudio {
                                             cover_source_url: e.cover_source_url.clone(),
-                                            source_url: e.source_url.clone(),
+                                            source_url: e.source_file.clone(),
                                         }),
-                                        PlaylistEntryMediaType::Video => PrepareMedia::Video(e.source_url.clone()),
-                                        PlaylistEntryMediaType::Image => PrepareMedia::Image(e.source_url.clone()),
-                                        PlaylistEntryMediaType::Comic => PrepareMedia::Comic(e.source_url.clone()),
-                                        PlaylistEntryMediaType::Book => PrepareMedia::Book(e.source_url.clone()),
+                                        PlaylistEntryMediaType::Video => PrepareMedia::Video(e.source_file.clone()),
+                                        PlaylistEntryMediaType::Image => PrepareMedia::Image(e.source_file.clone()),
+                                        PlaylistEntryMediaType::Comic => PrepareMedia::Comic(e.source_file.clone()),
+                                        PlaylistEntryMediaType::Book => PrepareMedia::Book(e.source_file.clone()),
                                     },
                                     media_time: new_time,
                                 })).await;
@@ -562,29 +588,36 @@ pub struct PlaylistPushArg {
     pub name: Option<String>,
     pub album: Option<String>,
     pub artist: Option<String>,
-    pub cover_source_url: Option<SourceUrl>,
-    pub source_url: SourceUrl,
+    pub cover_source_url: Option<FileHash>,
+    pub source_file: FileHash,
     pub media_type: PlaylistEntryMediaType,
     pub play_buttons: Vec<HtmlElement>,
 }
 
-pub fn playlist_extend(
-    pc: &mut ProcessingContext,
+pub async fn playlist_extend(
+    eg: &EventGraph,
     playlist_state: &PlaylistState,
     vs: MinistateViewState,
     entries: Vec<PlaylistPushArg>,
     restore_pos: &Option<PlaylistRestorePos>,
+    offline: bool,
 ) {
     *playlist_state.0.view_ministate_state.borrow_mut() = Some(vs);
     for entry in entries {
         let box_media: Box<dyn PlaylistMedia>;
         match entry.media_type {
             PlaylistEntryMediaType::Audio => {
+                let src;
+                if offline {
+                    src = offline_audio_url(&entry.source_file).await;
+                } else {
+                    src = env_preferred_audio_url(&state().env, &entry.source_file);
+                }
                 box_media =
                     Box::new(
                         PlaylistMediaAudioVideo::new_audio(
                             playlist_state.0.media_el_audio.clone(),
-                            entry.source_url.clone(),
+                            src,
                             if let Some(restore_pos) = restore_pos {
                                 restore_pos.time
                             } else {
@@ -594,11 +627,40 @@ pub fn playlist_extend(
                     );
             },
             PlaylistEntryMediaType::Video => {
+                let src;
+                let mut sub_src = HashMap::new();
+                if offline {
+                    src = offline_video_url(&entry.source_file).await;
+                    for lang in &state().env.languages {
+                        match offline_gen_url(
+                            &entry.source_file,
+                            GENTYPE_VTT,
+                            &gen_video_subtitle_subpath(lang),
+                        ).await {
+                            Ok(u) => {
+                                sub_src.insert(lang.clone(), u);
+                            },
+                            Err(e) => {
+                                state().log.log(&format!("Error determining offline video subtitle url: {}", e));
+                                sub_src.insert(lang.clone(), format!(""));
+                            },
+                        }
+                    }
+                } else {
+                    src = env_preferred_audio_url(&state().env, &entry.source_file);
+                    for lang in &state().env.languages {
+                        sub_src.insert(
+                            lang.clone(),
+                            env_video_subtitle_url(&state().env, lang, &entry.source_file),
+                        );
+                    }
+                }
                 box_media =
                     Box::new(
                         PlaylistMediaAudioVideo::new_video(
                             playlist_state.0.media_el_video.clone(),
-                            entry.source_url.clone(),
+                            src,
+                            sub_src,
                             if let Some(restore_pos) = restore_pos {
                                 restore_pos.time
                             } else {
@@ -608,32 +670,97 @@ pub fn playlist_extend(
                     );
             },
             PlaylistEntryMediaType::Image => {
+                let src;
+                if offline {
+                    src = match offline_file_url(&entry.source_file).await {
+                        Ok(v) => v,
+                        Err(e) => {
+                            state().log.log(&format!("Error getting opfs file url: {}", e));
+                            format!("")
+                        },
+                    };
+                } else {
+                    src = file_url(&state().env, &entry.source_file);
+                }
                 box_media = Box::new(PlaylistMediaImage {
                     element: playlist_state.0.media_el_image.clone(),
-                    src: entry.source_url.clone(),
+                    src: src,
                 });
             },
             PlaylistEntryMediaType::Comic => {
-                box_media = Box::new(PlaylistMediaComic::new(&match &entry.source_url {
-                    SourceUrl::Url(u) => u.to_string(),
-                    SourceUrl::File(h) => generated_file_url(&state().env, h, GENTYPE_DIR, ""),
-                }, Rc::new(|url| async move {
-                    return Ok(
-                        serde_json::from_slice::<ComicManifest>(
-                            &req_file(&url).await?,
-                        ).map_err(|e| format!("Error reading comic manifest: {}", e))?,
-                    );
-                }.boxed_local()), if let Some(restore_pos) = restore_pos {
+                box_media = Box::new(PlaylistMediaComic::new(if offline {
+                    Rc::new({
+                        let log = state().log.clone();
+                        let hash = entry.source_file.clone();
+                        move || {
+                            let log = log.clone();
+                            let hash = hash.clone();
+                            async move {
+                                loop {
+                                    match async {
+                                        ta_return!(MediaComicManifest, String);
+                                        let gen_dir = offline_gen_dir(&hash, GENTYPE_CBZDIR).await?;
+                                        let raw_manifest: ComicManifest =
+                                            gen_dir
+                                                .get_file(vec!["sunwet.json".to_string()])
+                                                .await?
+                                                .read_json()
+                                                .await?;
+                                        let mut pages = vec![];
+                                        let pages_dir =
+                                            gen_dir
+                                                .get_dir(vec![OPFS_OFFLINE_FILES_COMIC_PAGES_DIR.to_string()])
+                                                .await?;
+                                        for page in raw_manifest.pages {
+                                            pages.push(MediaComicManifestPage {
+                                                width: page.width,
+                                                height: page.height,
+                                                url: get_opfs_url_with_colocated_mime(
+                                                    &pages_dir,
+                                                    vec![page.path],
+                                                ).await?,
+                                            });
+                                        }
+                                        return Ok(MediaComicManifest {
+                                            rtl: raw_manifest.rtl,
+                                            pages: pages,
+                                        });
+                                    }.await {
+                                        Ok(r) => return Ok(r),
+                                        Err(e) => {
+                                            log.log(&format!("Request failed, retrying: {}", e));
+                                            sleep(Duration::from_secs(1)).await;
+                                        },
+                                    }
+                                }
+                            }
+                        }.boxed_local()
+                    })
+                } else {
+                    comic_req_fn_online(
+                        &state().log,
+                        generated_file_url(&state().env, &entry.source_file, GENTYPE_CBZDIR, ""),
+                    )
+                }, if let Some(restore_pos) = restore_pos {
                     restore_pos.time as usize
                 } else {
                     0
                 }));
             },
             PlaylistEntryMediaType::Book => {
-                box_media = Box::new(PlaylistMediaBook::new(&match &entry.source_url {
-                    SourceUrl::Url(u) => u.to_string(),
-                    SourceUrl::File(h) => generated_file_url(&state().env, h, GENTYPE_DIR, ""),
-                }, if let Some(restore_pos) = restore_pos {
+                let src;
+                if offline {
+                    src = match offline_gen_url(&entry.source_file, GENTYPE_EPUBHTML, "").await {
+                        Ok(v) => v,
+                        Err(e) => {
+                            state().log.log(&format!("Error getting opfs generated url: {}", e));
+                            format!("")
+                        },
+                    };
+                } else {
+                    src = generated_file_url(&state().env, &entry.source_file, GENTYPE_EPUBHTML, "");
+                }
+                box_media = Box::new(PlaylistMediaBook::new(&src, if let Some(restore_pos) = restore_pos {
                     restore_pos.time as usize
                 } else {
                     0
@@ -645,18 +772,20 @@ pub fn playlist_extend(
             album: entry.album,
             artist: entry.artist,
             cover_source_url: entry.cover_source_url,
-            source_url: entry.source_url,
+            source_file: entry.source_file,
             media_type: entry.media_type,
             media: box_media,
             play_buttons: entry.play_buttons,
         }));
         if let Some(restore_pos) = restore_pos {
-            if restore_pos.index == entry.index && !playlist_state.0.playing.get() {
-                playlist_state.0.playing_i.set(pc, Some(entry.index.clone()));
-                if restore_pos.play {
-                    playlist_state.0.playing.set(pc, true);
+            eg.event(|pc| {
+                if restore_pos.index == entry.index && !playlist_state.0.playing.get() {
+                    playlist_state.0.playing_i.set(pc, Some(entry.index.clone()));
+                    if restore_pos.play {
+                        playlist_state.0.playing.set(pc, true);
+                    }
                 }
-            }
+            }).unwrap();
         }
     }
 }

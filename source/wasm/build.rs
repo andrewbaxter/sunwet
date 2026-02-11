@@ -202,6 +202,11 @@ fn main() {
             args: vec![],
             returns: vec![("value", &string_)],
         },
+        Func {
+            name: "bookBaseFontSize",
+            args: vec![],
+            returns: vec![("value", &string_)],
+        },
         // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: all
         Func {
@@ -232,11 +237,6 @@ fn main() {
         Func {
             name: "leafErrBlock",
             args: vec![("data", &string_), ("inRoot", &bool_)],
-            returns: vec![("root", &el_)],
-        },
-        Func {
-            name: "contTitle",
-            args: vec![("left", &el_), ("right", &optel_)],
             returns: vec![("root", &el_)],
         },
         Func {
@@ -321,7 +321,7 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
-        // xx Components, styles: page, form + edit
+        // xx Components, styles: page, form + edit, also view parameters
         Func {
             name: "leafInputText",
             args: vec![("id", &optstring_), ("title", &string_), ("value", &string_)],
@@ -383,6 +383,11 @@ fn main() {
             returns: vec![("root", &el_), ("input", &el_)],
         },
         Func {
+            name: "leafInputPairTextFixed",
+            args: vec![("id", &string_), ("title", &string_), ("value", &string_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
             name: "leafInputPairNumber",
             args: vec![("id", &string_), ("title", &string_), ("value", &string_)],
             returns: vec![("root", &el_), ("input", &el_)],
@@ -430,6 +435,16 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         Func {
+            name: "leafMenuPageButtonOffline",
+            args: vec![],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafMenuPageButtonUnoffline",
+            args: vec![],
+            returns: vec![("root", &el_)],
+        },
+        Func {
             name: "contBarViewTransport",
             args: vec![],
             returns: vec![
@@ -466,7 +481,12 @@ fn main() {
             ],
         },
         Func {
-            name: "contModalViewShare",
+            name: "contViewModalConfirmUnoffline",
+            args: vec![],
+            returns: vec![("root", &el_), ("buttonClose", &el_), ("buttonOk", &el_)],
+        },
+        Func {
+            name: "contViewModalShare",
             args: vec![("qr", &el_), ("link", &string_)],
             returns: vec![("root", &el_), ("buttonClose", &el_), ("buttonUnshare", &el_)],
         },
@@ -963,13 +983,20 @@ fn main() {
         },
         Func {
             name: "contMenuBody",
-            args: vec![("children", &arrel_), ("user", &string_), ("barChildren", &arrel_)],
-            returns: vec![("root", &el_)],
+            args: vec![("children", &arrel_), ("barChildren", &arrel_), ("pageButtonChildren", &arrel_)],
+            returns: vec![
+                ("root", &el_),
+                ("user", &el_),
+                ("onlining", &el_),
+                ("onliningCheckbox", &el_),
+                ("offlining", &el_),
+                ("offliningCheckbox", &el_)
+            ],
         },
         Func {
             name: "contMenuGroup",
             args: vec![("title", &string_), ("children", &arrel_)],
-            returns: vec![("root", &el_)],
+            returns: vec![("root", &el_), ("body", &el_)],
         },
         Func {
             name: "leafMenuLink",

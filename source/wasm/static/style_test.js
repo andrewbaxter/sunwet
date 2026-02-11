@@ -3,7 +3,11 @@
 {
   const presentation = window.sunwetPresentation;
   addEventListener("DOMContentLoaded", async (_) => {
-    const stagingMenu = presentation.contMenuBody({
+    const stagingMenu_ = presentation.contMenuBody({
+      pageButtonChildren: [
+        presentation.leafMenuPageButtonOffline({}).root,
+        presentation.leafMenuPageButtonUnoffline({}).root,
+      ],
       children: [
         presentation.leafMenuLink({
           title: "Thing 1",
@@ -93,9 +97,10 @@
           ],
         }).root,
       ],
-      user: "Guest",
       barChildren: [presentation.leafMenuBarButtonLogin({}).root],
-    }).root;
+    });
+    stagingMenu_.user.textContent = "Guest but longer";
+    const stagingMenu = stagingMenu_.root;
     const buildLotsOfTracks =
       /** @type { (n: number) => HTMLElement[][] } */
       (n) => {
@@ -209,10 +214,11 @@
         }).root,
       }).root;
     };
+    const stagingTitle = presentation.leafTitle({
+      text: "Music but a slightly longer title",
+    });
     const stagingPageView = presentation.appMain({
-      mainTitle: presentation.leafTitle({
-        text: "Music but a slightly longer title",
-      }).root,
+      mainTitle: stagingTitle.root,
       mainBody: presentation.contPageView({
         transport: presentation.contBarViewTransport({}).root,
         params: [
@@ -397,6 +403,9 @@
       document.body.appendChild(
         presentation.contRootStack({ children: e }).root,
       );
+      //for (const e of document.getElementsByClassName("leaf_button")) {
+      //  e.classList.add("thinking");
+      //}
     };
 
     const hash = location.hash;
@@ -452,7 +461,7 @@
                   }).root,
                   presentation.leafLogsLine({
                     stamp: new Date().toISOString(),
-                    text: "very log line with lots of log in it this may wrap or it might not we'll have to see in practice but it's already wrapping in my editor",
+                    text: "very log line with lots of log in it this may wrap or it might not we'll have to see in practice but it's already sssssssswwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww wrapping in my editor",
                   }).root,
                   presentation.leafLogsLine({
                     stamp: new Date().toISOString(),
@@ -476,6 +485,9 @@
         break;
       case "#view2":
         {
+          const title = presentation.leafTitle({
+            text: "Music but a slightly longer title",
+          });
           /** @type { (n: number)=> HTMLElement } */
           const createElement = (n) => {
             const parentOrientation = "right_down";
@@ -553,9 +565,7 @@
           };
           buildRoot([
             presentation.appMain({
-              mainTitle: presentation.leafTitle({
-                text: "Music but a slightly longer title",
-              }).root,
+              mainTitle: title.root,
               mainBody: presentation.contPageView({
                 transport: presentation.contBarViewTransport({}).root,
                 params: [
@@ -584,11 +594,19 @@
           }
         }
         break;
+      case "#view_modal_confirm_unoffline":
+        {
+          buildRoot([
+            stagingPageView,
+            presentation.contViewModalConfirmUnoffline({}).root,
+          ]);
+        }
+        break;
       case "#view_modal_share":
         {
           buildRoot([
             stagingPageView,
-            presentation.contModalViewShare({
+            presentation.contViewModalShare({
               qr: /** @type {HTMLElement} */ (
                 new DOMParser().parseFromString(
                   `
@@ -703,6 +721,11 @@
                   presentation.leafInputPairFile({
                     id: "item3",
                     title: "Image",
+                  }).root,
+                  presentation.leafInputPairTextFixed({
+                    id: "item3",
+                    title: "Image",
+                    value: "this is some text parameter",
                   }).root,
                   presentation.leafSpace({}).root,
                 ],

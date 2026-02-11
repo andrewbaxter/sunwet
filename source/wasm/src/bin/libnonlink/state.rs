@@ -18,6 +18,7 @@ use {
     crate::libnonlink::{
         ministate::{
             LOCALSTORAGE_PWA_MINISTATE,
+            MinistateOfflineView,
             MinistateView,
             ministate_octothorpe,
         },
@@ -36,10 +37,14 @@ use {
     },
     lunk::{
         EventGraph,
+        List,
         Prim,
         ProcessingContext,
     },
-    rooting::El,
+    rooting::{
+        El,
+        ScopeValue,
+    },
     serde::{
         Deserialize,
         Serialize,
@@ -50,6 +55,7 @@ use {
             view::ViewId,
         },
         triple::Node,
+        wire::RespWhoAmI,
     },
     std::{
         cell::RefCell,
@@ -57,7 +63,7 @@ use {
         rc::Rc,
     },
     wasm::{
-        async_::BgVal,
+        async_::WaitVal,
         js::{
             Env,
             Log,
@@ -82,10 +88,16 @@ pub struct State_ {
     pub ministate: RefCell<Ministate>,
     pub env: Env,
     pub playlist: PlaylistState,
-    pub client_config: RefCell<Option<BgVal<Result<Rc<ClientConfig>, String>>>>,
+    pub onlining: Prim<bool>,
+    pub onlining_bg: RefCell<Option<ScopeValue>>,
+    pub offlining: Prim<bool>,
+    pub offlining_bg: RefCell<Option<ScopeValue>>,
+    pub offline_list: List<(String, MinistateView)>,
+    pub client_config: WaitVal<Prim<Rc<ClientConfig>>>,
+    pub whoami: Prim<Option<RespWhoAmI>>,
     pub menu_open: Prim<bool>,
-    // Arcmutex due to OnceLock, should El use sync alternatives?
     pub main_title: El,
+    pub menu_page_buttons: El,
     pub main_body: El,
     pub modal_stack: El,
     pub log: Rc<dyn Log>,
@@ -123,6 +135,7 @@ pub fn build_home_page(pc: &mut ProcessingContext) {
 }
 
 pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
+    state().menu_page_buttons.ref_clear();
     match s {
         Ministate::Home => {
             playlist_clear(pc, &state().playlist, false);
@@ -136,11 +149,36 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
                 let params = v.params.clone();
                 let eg = pc.eg();
                 async move {
-                    let client_config = state().client_config.borrow().as_ref().unwrap().get().await?;
+                    let client_config = state().client_config.get().await.borrow().clone();
                     let Some(view) = client_config.views.get(&view_id) else {
                         return Err(format!("No view with id [{}] in config", view_id));
                     };
-                    return build_page_view(eg, view_id, title, view.clone(), params, pos).map(|x| vec![x]);
+                    return build_page_view(eg, view_id, title, view.clone(), params, pos, None).map(|x| vec![x]);
+                }
+            }));
+        },
+        Ministate::OfflineView(v) => {
+            set_page(pc, &v.title, el_async_(true, {
+                let title = v.title.clone();
+                let view_id = v.id.clone();
+                let pos = v.pos.clone();
+                let params = v.params.clone();
+                let key = v.key.clone();
+                let eg = pc.eg();
+                async move {
+                    let client_config = state().client_config.get().await.borrow().clone();
+                    let Some(view) = client_config.views.get(&view_id) else {
+                        return Err(format!("No view with id [{}] in config", view_id));
+                    };
+                    return build_page_view(
+                        eg,
+                        view_id,
+                        title,
+                        view.clone(),
+                        params,
+                        pos,
+                        Some(key),
+                    ).map(|x| vec![x]);
                 }
             }));
         },
@@ -152,7 +190,7 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
                 let params = f.params.clone();
                 let eg = pc.eg();
                 async move {
-                    let client_config = state().client_config.borrow().as_ref().unwrap().get().await?;
+                    let client_config = state().client_config.get().await.borrow().clone();
                     let Some(form) = client_config.forms.get(&form_id) else {
                         return Err(format!("No menu item with id [{}] in config", form_id));
                     };
@@ -192,6 +230,7 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
                             .log
                             .borrow()
                             .iter()
+                            .rev()
                             .map(|x| style_export::leaf_logs_line(style_export::LeafLogsLineArgs {
                                 stamp: x.0.to_rfc3339(),
                                 text: x.1.clone(),
@@ -219,6 +258,7 @@ pub struct MinistateViewState_ {
     pub title: String,
     pub pos: Option<PlaylistRestorePos>,
     pub params: HashMap<String, Node>,
+    pub offline: Option<String>,
 }
 
 #[derive(Clone)]
@@ -228,22 +268,42 @@ impl MinistateViewState {
     pub fn set_pos(&self, pos: Option<PlaylistRestorePos>) {
         let mut s = self.0.borrow_mut();
         s.pos = pos;
-        record_replace_ministate(&state().log, &Ministate::View(MinistateView {
-            id: s.view_id.clone(),
-            title: s.title.clone(),
-            pos: s.pos.clone(),
-            params: s.params.clone(),
-        }));
+        if let Some(key) = &s.offline {
+            record_replace_ministate(&state().log, &Ministate::OfflineView(MinistateOfflineView {
+                id: s.view_id.clone(),
+                title: s.title.clone(),
+                pos: s.pos.clone(),
+                params: s.params.clone(),
+                key: key.clone(),
+            }));
+        } else {
+            record_replace_ministate(&state().log, &Ministate::View(MinistateView {
+                id: s.view_id.clone(),
+                title: s.title.clone(),
+                pos: s.pos.clone(),
+                params: s.params.clone(),
+            }));
+        }
     }
 
     pub fn set_param(&self, k: String, v: Node) {
         let mut s = self.0.borrow_mut();
         s.params.insert(k, v);
-        record_replace_ministate(&state().log, &Ministate::View(MinistateView {
-            id: s.view_id.clone(),
-            title: s.title.clone(),
-            pos: s.pos.clone(),
-            params: s.params.clone(),
-        }));
+        if let Some(key) = &s.offline {
+            record_replace_ministate(&state().log, &Ministate::OfflineView(MinistateOfflineView {
+                id: s.view_id.clone(),
+                title: s.title.clone(),
+                pos: s.pos.clone(),
+                params: s.params.clone(),
+                key: key.clone(),
+            }));
+        } else {
+            record_replace_ministate(&state().log, &Ministate::View(MinistateView {
+                id: s.view_id.clone(),
+                title: s.title.clone(),
+                pos: s.pos.clone(),
+                params: s.params.clone(),
+            }));
+        }
     }
 }

@@ -16,19 +16,6 @@
       "additionalProperties": false
     },
     {
-      "description": "Make changes to the graph via a form (uses form permissions)",
-      "type": "object",
-      "required": [
-        "form_commit"
-      ],
-      "properties": {
-        "form_commit": {
-          "$ref": "#/definitions/ReqFormCommit"
-        }
-      },
-      "additionalProperties": false
-    },
-    {
       "description": "Tell the server to verify and commit a file after uploading all chunks",
       "type": "object",
       "required": [
@@ -505,6 +492,53 @@
       "additionalProperties": false
     },
     "ReqCommit": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "free"
+          ],
+          "properties": {
+            "free": {
+              "$ref": "#/definitions/ReqCommitFree"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "form"
+          ],
+          "properties": {
+            "form": {
+              "$ref": "#/definitions/ReqCommitForm"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ReqCommitForm": {
+      "type": "object",
+      "required": [
+        "form_id"
+      ],
+      "properties": {
+        "form_id": {
+          "$ref": "#/definitions/FormId"
+        },
+        "parameters": {
+          "default": {},
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/TreeNode"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReqCommitFree": {
       "type": "object",
       "required": [
         "add",
@@ -532,25 +566,6 @@
           "type": "array",
           "items": {
             "$ref": "#/definitions/Triple"
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    "ReqFormCommit": {
-      "type": "object",
-      "required": [
-        "form_id"
-      ],
-      "properties": {
-        "form_id": {
-          "$ref": "#/definitions/FormId"
-        },
-        "parameters": {
-          "default": {},
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/definitions/TreeNode"
           }
         }
       },

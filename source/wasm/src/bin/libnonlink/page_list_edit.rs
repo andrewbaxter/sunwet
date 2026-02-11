@@ -6,17 +6,17 @@ use {
     },
     crate::libnonlink::{
         ministate::{
-            ministate_octothorpe,
             Ministate,
+            ministate_octothorpe,
         },
         node_button::req_list,
         state::state,
     },
     flowcontrol::ta_return,
     lunk::{
-        link,
         Prim,
         ProcessingContext,
+        link,
     },
     rooting::El,
     shared::{
@@ -25,6 +25,7 @@ use {
             triple::Node,
             wire::{
                 ReqCommit,
+                ReqCommitFree,
                 ReqGetTriplesAround,
                 Triple,
             },
@@ -36,12 +37,12 @@ use {
         rc::Rc,
     },
     wasm::js::{
-        el_async_,
-        style_export,
         LogJsErr,
+        el_async_,
+        on_thinking,
+        style_export,
     },
     wasm_bindgen::JsCast,
-    wasm_bindgen_futures::spawn_local,
     web_sys::{
         Event,
         HtmlElement,
@@ -370,110 +371,90 @@ pub fn build_page_list_edit(pc: &mut ProcessingContext, title: &str, node: &Node
                 });
 
                 // Commit
-                let commit_thinking = Prim::new(false);
-                out
-                    .button_commit
-                    .ref_own(|b| link!((_pc = pc), (thinking = commit_thinking.clone()), (), (b = b.weak()) {
-                        let b = b.upgrade()?;
-                        b.ref_modify_classes(&[(&style_export::class_state_thinking().value, *thinking.borrow())]);
-                    }));
-                out.button_commit.ref_on("click", {
-                    let thinking = commit_thinking.clone();
+                on_thinking(&out.button_commit, {
                     let states = states.clone();
                     let eg = pc.eg();
                     let initial_enable_numbers = initial_enable_numbers.clone();
                     let enable_numbers = enable_numbers.clone();
                     let title = title.clone();
-                    move |_| eg.event(|pc| {
-                        if *thinking.borrow() {
-                            return;
-                        }
-                        thinking.set(pc, true);
-                        spawn_local({
-                            let states = states.clone();
-                            let eg = pc.eg();
-                            let initial_enable_numbers = initial_enable_numbers.clone();
-                            let enable_numbers = enable_numbers.clone();
-                            let thinking = thinking.clone();
-                            let title = title.clone();
-                            let selected_indices = selected_indices.clone();
-                            async move {
-                                let res = async {
-                                    ta_return!((), String);
-                                    let mut add = vec![];
-                                    let mut remove = vec![];
-                                    let mut delete_nodes = vec![];
-                                    for el in states.borrow().iter() {
-                                        if *el.delete.borrow() && !*el.initial_delete.borrow() {
-                                            delete_nodes.push(el.node.clone());
-                                        } else {
-                                            let new_index = *el.index.borrow();
-                                            let old_index = *el.initial_index.borrow();
-                                            if new_index != old_index ||
-                                                (!*enable_numbers.borrow() && *initial_enable_numbers.borrow()) {
-                                                remove.push(Triple {
-                                                    subject: el.node.clone(),
-                                                    predicate: PREDICATE_INDEX.to_string(),
-                                                    object: Node::Value(
-                                                        serde_json::Value::Number(
-                                                            serde_json::Number::from_f64(old_index).unwrap(),
-                                                        ),
+                    let selected_indices = selected_indices.clone();
+                    move || {
+                        let states = states.clone();
+                        let eg = eg.clone();
+                        let initial_enable_numbers = initial_enable_numbers.clone();
+                        let enable_numbers = enable_numbers.clone();
+                        let title = title.clone();
+                        let selected_indices = selected_indices.clone();
+                        async move {
+                            match async {
+                                ta_return!((), String);
+                                let mut add = vec![];
+                                let mut remove = vec![];
+                                let mut delete_nodes = vec![];
+                                for el in states.borrow().iter() {
+                                    if *el.delete.borrow() && !*el.initial_delete.borrow() {
+                                        delete_nodes.push(el.node.clone());
+                                    } else {
+                                        let new_index = *el.index.borrow();
+                                        let old_index = *el.initial_index.borrow();
+                                        if new_index != old_index ||
+                                            (!*enable_numbers.borrow() && *initial_enable_numbers.borrow()) {
+                                            remove.push(Triple {
+                                                subject: el.node.clone(),
+                                                predicate: PREDICATE_INDEX.to_string(),
+                                                object: Node::Value(
+                                                    serde_json::Value::Number(
+                                                        serde_json::Number::from_f64(old_index).unwrap(),
                                                     ),
-                                                });
-                                            }
-                                            if new_index != old_index ||
-                                                (*enable_numbers.borrow() && !*initial_enable_numbers.borrow()) {
-                                                add.push(Triple {
-                                                    subject: el.node.clone(),
-                                                    predicate: PREDICATE_INDEX.to_string(),
-                                                    object: Node::Value(
-                                                        serde_json::Value::Number(
-                                                            serde_json::Number::from_f64(new_index).unwrap(),
-                                                        ),
+                                                ),
+                                            });
+                                        }
+                                        if new_index != old_index ||
+                                            (*enable_numbers.borrow() && !*initial_enable_numbers.borrow()) {
+                                            add.push(Triple {
+                                                subject: el.node.clone(),
+                                                predicate: PREDICATE_INDEX.to_string(),
+                                                object: Node::Value(
+                                                    serde_json::Value::Number(
+                                                        serde_json::Number::from_f64(new_index).unwrap(),
                                                     ),
-                                                });
-                                            }
+                                                ),
+                                            });
                                         }
                                     }
-                                    remove.extend(
-                                        req_post_json(ReqGetTriplesAround { nodes: delete_nodes }).await?,
-                                    );
-                                    req_post_json(ReqCommit {
-                                        comment: format!("Editing list {}", title),
-                                        add: add,
-                                        remove: remove,
-                                        files: vec![],
-                                    }).await?;
-                                    eg.event(|pc| {
-                                        initial_enable_numbers.set(pc, *enable_numbers.borrow());
-                                        for state in states.borrow().iter() {
-                                            state.initial_index.set(pc, *state.index.borrow());
-                                            state.initial_delete.set(pc, *state.delete.borrow());
-                                        }
-                                        let selected = selected_indices();
-                                        for index in selected {
-                                            states.borrow_mut()[index]
-                                                .checkbox
-                                                .raw()
-                                                .dyn_into::<HtmlInputElement>()
-                                                .unwrap()
-                                                .set_checked(false);
-                                        }
-                                    }).unwrap();
-                                    return Ok(());
-                                }.await;
-                                eg.event(|pc| {
-                                    thinking.set(pc, false);
-                                }).unwrap();
-                                match res {
-                                    Ok(_) => { },
-                                    Err(e) => {
-                                        state().log.log(&format!("Committing list changes failed: {}", e));
-                                    },
                                 }
+                                remove.extend(req_post_json(ReqGetTriplesAround { nodes: delete_nodes }).await?);
+                                req_post_json(ReqCommit::Free(ReqCommitFree {
+                                    comment: format!("Editing list {}", title),
+                                    add: add,
+                                    remove: remove,
+                                    files: vec![],
+                                })).await?;
+                                eg.event(|pc| {
+                                    initial_enable_numbers.set(pc, *enable_numbers.borrow());
+                                    for state in states.borrow().iter() {
+                                        state.initial_index.set(pc, *state.index.borrow());
+                                        state.initial_delete.set(pc, *state.delete.borrow());
+                                    }
+                                    let selected = selected_indices();
+                                    for index in selected {
+                                        states.borrow_mut()[index]
+                                            .checkbox
+                                            .raw()
+                                            .dyn_into::<HtmlInputElement>()
+                                            .unwrap()
+                                            .set_checked(false);
+                                    }
+                                }).unwrap();
+                                return Ok(());
+                            }.await {
+                                Ok(_) => { },
+                                Err(e) => {
+                                    state().log.log(&format!("Committing list changes failed: {}", e));
+                                },
                             }
-                        });
-                    }).unwrap()
+                        }
+                    }
                 });
 
                 // Out

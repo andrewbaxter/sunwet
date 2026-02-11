@@ -1,6 +1,16 @@
 use {
     crate::libnonlink::{
+        ministate::MinistateOfflineView,
         node_button::STORAGE_CURRENT_LIST,
+        offline::{
+            list_offline_views,
+            stop_offlining,
+            trigger_offlining,
+        },
+        online::{
+            stop_onlining,
+            trigger_onlining,
+        },
         seekbar::setup_seekbar,
         state::CurrentList,
     },
@@ -31,16 +41,16 @@ use {
             want_logged_in,
         },
         ministate::{
-            ministate_octothorpe,
-            read_ministate,
-            record_replace_ministate,
+            LOCALSTORAGE_PWA_MINISTATE,
             Ministate,
             MinistateForm,
             MinistateHistory,
             MinistateQuery,
             MinistateView,
-            LOCALSTORAGE_PWA_MINISTATE,
             SESSIONSTORAGE_POST_REDIRECT_MINISTATE,
+            ministate_octothorpe,
+            read_ministate,
+            record_replace_ministate,
         },
         page_view::LOCALSTORAGE_SHARE_SESSION_ID,
         playlist::{
@@ -48,61 +58,73 @@ use {
             playlist_set_link,
         },
         state::{
+            STATE,
+            State_,
             build_ministate,
             state,
-            State_,
-            STATE,
         },
     },
     lunk::{
-        link,
         EventGraph,
+        List,
         Prim,
+        ProcessingContext,
+        link,
     },
     rooting::{
-        set_root,
         El,
+        set_root,
     },
     serde::Deserialize,
-    shared::interface::{
-        config::{
-            ClientConfig,
-            ClientMenuItem,
-            ClientMenuItemDetail,
-            ClientPage,
+    shared::{
+        interface::{
+            config::{
+                ClientConfig,
+                ClientMenuItem,
+                ClientMenuItemDetail,
+                ClientPage,
+            },
+            wire::{
+                ReqGetClientConfig,
+                ReqWhoAmI,
+                RespWhoAmI,
+            },
         },
-        wire::{
-            ReqGetClientConfig,
-            ReqWhoAmI,
-            RespWhoAmI,
-        },
+        stringpattern::node_to_text,
     },
     std::{
         cell::RefCell,
+        collections::BTreeMap,
         panic,
         rc::Rc,
     },
     wasm::{
-        async_::bg_val,
+        async_::{
+            WaitVal,
+        },
         js::{
+            Log,
+            LogJsErr,
+            VecLog,
             el_async_,
             scan_env,
             style_export::{
                 self,
             },
-            Log,
-            LogJsErr,
-            VecLog,
         },
     },
     wasm_bindgen::JsCast,
+    wasm_bindgen_futures::spawn_local,
     web_sys::{
         HtmlElement,
+        HtmlInputElement,
         MessageEvent,
     },
 };
 
 pub mod libnonlink;
+
+pub const LOCALSTORAGE_CLIENTCONFIG: &str = "clientconfig";
 
 pub fn main() {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
@@ -111,7 +133,8 @@ pub fn main() {
     let log = log1.clone() as Rc<dyn Log>;
     eg.event(|pc| {
         let env = scan_env(&log);
-        let main_title = style_export::leaf_title(style_export::LeafTitleArgs { text: "Sunwet".to_string() }).root;
+        let main_title_ = style_export::leaf_title(style_export::LeafTitleArgs { text: "Sunwet".to_string() });
+        let main_title = main_title_.root;
         let main_body = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
         let modal_stack = style_export::cont_root_stack(style_export::ContRootStackArgs { children: vec![] }).root;
 
@@ -163,12 +186,19 @@ pub fn main() {
                 break 'found read_ministate(&log);
             }),
             menu_open: Prim::new(false),
-            env: env.clone(),
+            env: env,
             playlist: playlist_state,
+            onlining: Prim::new(false),
+            onlining_bg: Default::default(),
+            offlining: Prim::new(false),
+            offlining_bg: Default::default(),
+            offline_list: List::new(vec![]),
             modal_stack: modal_stack.clone(),
             main_title: main_title.clone(),
+            menu_page_buttons: style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root,
             main_body: main_body.clone(),
-            client_config: Default::default(),
+            client_config: WaitVal::new(),
+            whoami: Prim::new(None),
             log1: log1,
             log: log.clone(),
             current_list: Prim::new(shed!{
@@ -181,12 +211,75 @@ pub fn main() {
                 break None;
             }),
         })));
-        let client_config = bg_val({
+        spawn_local({
+            let eg = pc.eg();
             async move {
-                return Ok(Rc::new(req_post_json(ReqGetClientConfig).await?));
+                let offline = match list_offline_views().await {
+                    Ok(l) => l,
+                    Err(e) => {
+                        state().log.log(&format!("Error listing existing offline views: {}", e));
+                        return;
+                    },
+                };
+                eg.event(|pc| {
+                    state().offline_list.extend(pc, offline);
+                }).unwrap();
             }
         });
-        *state().client_config.borrow_mut() = Some(client_config.clone());
+        spawn_local({
+            let eg = eg.clone();
+            async move {
+                match async {
+                    ta_return!((), String);
+                    if let Ok(c) = LocalStorage::get(LOCALSTORAGE_CLIENTCONFIG) {
+                        let prim = Prim::new(Rc::new(c));
+                        state().client_config.set(Some(prim.clone()));
+                        let c = Rc::new(req_post_json(ReqGetClientConfig).await?);
+                        LocalStorage::set(
+                            LOCALSTORAGE_CLIENTCONFIG,
+                            &c,
+                        ).log(&state().log, "Error storing client config in localstorage");
+                        eg.event(|pc| {
+                            prim.set(pc, c);
+                        }).unwrap();
+                    } else {
+                        let c = Rc::new(req_post_json(ReqGetClientConfig).await?);
+                        LocalStorage::set(
+                            LOCALSTORAGE_CLIENTCONFIG,
+                            &c,
+                        ).log(&state().log, "Error storing client config in localstorage");
+                        state().client_config.set(Some(Prim::new(c)));
+                    }
+                    return Ok(());
+                }.await {
+                    Ok(_) => { },
+                    Err(e) => {
+                        state().log.log(&format!("Error requesting menu: {}", e));
+                    },
+                }
+            }
+        });
+        spawn_local({
+            let eg = eg.clone();
+            async move {
+                match async {
+                    ta_return!((), String);
+                    let whoami = req_post_json(ReqWhoAmI).await?;
+                    if want_logged_in() && whoami == RespWhoAmI::Public {
+                        redirect_login(&state().env.base_url);
+                    }
+                    eg.event(|pc| {
+                        state().whoami.set(pc, Some(whoami));
+                    }).unwrap();
+                    return Ok(());
+                }.await {
+                    Ok(_) => { },
+                    Err(e) => {
+                        state().log.log(&format!("Error requesting user info: {}", e));
+                    },
+                }
+            }
+        });
 
         // Restore share state
         {
@@ -211,140 +304,290 @@ pub fn main() {
                 build_ministate(pc, &ministate);
             }).unwrap()
         }).forget();
+        const LOCALSTORAGE_ENABLE_ONLINING: &str = "enable_onlining";
+        let enable_onlining = Prim::new(LocalStorage::get::<bool>(LOCALSTORAGE_ENABLE_ONLINING).unwrap_or(true));
+        const LOCALSTORAGE_ENABLE_OFFLINING: &str = "enable_offlining";
+        let enable_offlining = Prim::new(LocalStorage::get::<bool>(LOCALSTORAGE_ENABLE_OFFLINING).unwrap_or(true));
 
         // Root and display
         set_root(vec![style_export::cont_root_stack(style_export::ContRootStackArgs { children: vec![{
             let app_res = style_export::app_main(style_export::AppMainArgs {
                 main_title: main_title,
                 main_body: main_body,
-                menu_body: el_async_(true, {
-                    let eg = pc.eg();
-                    let env = env.clone();
-                    async move {
-                        ta_return!(Vec < El >, String);
-                        let whoami = req_post_json(ReqWhoAmI).await?;
-                        if want_logged_in() && whoami == RespWhoAmI::Public {
-                            redirect_login(&env.base_url);
-                        }
-                        let client_config = client_config.get().await?;
+                menu_body: {
+                    let mut root = vec![];
+                    root.push(el_async_(false, {
+                        let eg = eg.clone();
+                        async move {
+                            ta_return!(Vec < El >, String);
+                            let client_config = state().client_config.get().await;
+                            return Ok(eg.event(|pc| {
+                                let menu_dynamic =
+                                    style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
+                                menu_dynamic.ref_own(
+                                    |g| link!((pc = pc), (client_config = client_config), (), (g = g.weak()) {
+                                        fn build_menu_item(
+                                            pc: &mut ProcessingContext,
+                                            config: &ClientConfig,
+                                            carry_titles: &Vec<String>,
+                                            item: &ClientMenuItem,
+                                        ) -> El {
+                                            match &item.detail {
+                                                ClientMenuItemDetail::Section(section) => {
+                                                    let mut sub_carry_titles = carry_titles.clone();
+                                                    sub_carry_titles.push(item.name.clone());
+                                                    let mut children = vec![];
+                                                    for child in &section.children {
+                                                        children.push(
+                                                            build_menu_item(pc, config, &sub_carry_titles, &child)
+                                                        );
+                                                    }
+                                                    return style_export::cont_menu_group(
+                                                        style_export::ContMenuGroupArgs {
+                                                            title: item.name.clone(),
+                                                            children: children,
+                                                        }
+                                                    ).root;
+                                                },
+                                                ClientMenuItemDetail::Page(page) => {
+                                                    match page {
+                                                        ClientPage::View(page) => {
+                                                            return style_export::leaf_menu_link(
+                                                                style_export::LeafMenuLinkArgs {
+                                                                    title: item.name.clone(),
+                                                                    href: ministate_octothorpe(
+                                                                        &Ministate::View(MinistateView {
+                                                                            id: page.view_id.clone(),
+                                                                            title: format!(
+                                                                                "{}, {}",
+                                                                                carry_titles.join(", "),
+                                                                                item.name
+                                                                            ),
+                                                                            pos: None,
+                                                                            params: page
+                                                                                .parameters
+                                                                                .iter()
+                                                                                .map(|(k, v)| (k.clone(), v.clone()))
+                                                                                .collect(),
+                                                                        })
+                                                                    ),
+                                                                }
+                                                            ).root;
+                                                        },
+                                                        ClientPage::Form(page) => {
+                                                            return style_export::leaf_menu_link(
+                                                                style_export::LeafMenuLinkArgs {
+                                                                    title: item.name.clone(),
+                                                                    href: ministate_octothorpe(
+                                                                        &Ministate::Form(MinistateForm {
+                                                                            id: page.form_id.clone(),
+                                                                            title: format!(
+                                                                                "{}, {}",
+                                                                                carry_titles.join(", "),
+                                                                                item.name
+                                                                            ),
+                                                                            params: page
+                                                                                .parameters
+                                                                                .iter()
+                                                                                .map(|(k, v)| (k.clone(), v.clone()))
+                                                                                .collect(),
+                                                                        })
+                                                                    ),
+                                                                }
+                                                            ).root;
+                                                        },
+                                                        ClientPage::History => {
+                                                            return style_export::leaf_menu_link(
+                                                                style_export::LeafMenuLinkArgs {
+                                                                    title: "History".to_string(),
+                                                                    href: ministate_octothorpe(
+                                                                        &Ministate::History(
+                                                                            MinistateHistory::default()
+                                                                        ),
+                                                                    ),
+                                                                }
+                                                            ).root;
+                                                        },
+                                                        ClientPage::Query => {
+                                                            return style_export::leaf_menu_link(
+                                                                style_export::LeafMenuLinkArgs {
+                                                                    title: "Query".to_string(),
+                                                                    href: ministate_octothorpe(
+                                                                        &Ministate::Query(
+                                                                            MinistateQuery { query: None }
+                                                                        ),
+                                                                    ),
+                                                                }
+                                                            ).root;
+                                                        },
+                                                    }
+                                                },
+                                            }
+                                        }
 
-                        fn build_menu_item(
-                            config: &ClientConfig,
-                            carry_titles: &Vec<String>,
-                            item: &ClientMenuItem,
-                        ) -> El {
-                            match &item.detail {
-                                ClientMenuItemDetail::Section(section) => {
-                                    let mut sub_carry_titles = carry_titles.clone();
-                                    sub_carry_titles.push(item.name.clone());
-                                    let mut children = vec![];
-                                    for child in &section.children {
-                                        children.push(build_menu_item(config, &sub_carry_titles, &child));
+                                        let g = g.upgrade()?;
+                                        let client_config = client_config.borrow().clone();
+                                        g.ref_clear();
+                                        for item in &client_config.menu {
+                                            g.ref_push(build_menu_item(pc, &client_config, &vec![], item));
+                                        }
+                                    })
+                                );
+                                return vec![menu_dynamic];
+                            }).unwrap());
+                        }
+                    }));
+                    root.push({
+                        let group = style_export::cont_menu_group(style_export::ContMenuGroupArgs {
+                            title: format!("Offline"),
+                            children: vec![]
+                        });
+                        group
+                            .body
+                            .ref_own(
+                                |b| link!((_pc = pc), (offline = state().offline_list.clone()), (), (b = b.weak(),) {
+                                    let b = b.upgrade()?;
+
+                                    fn build(key: &String, view: &MinistateView) -> El {
+                                        let sorted_params = view.params.iter().collect::<BTreeMap<_, _>>();
+                                        return style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
+                                            title: format!(
+                                                "{}: {}",
+                                                view.title,
+                                                sorted_params
+                                                    .iter()
+                                                    .map(|(k, v)| format!("{}={}", k, node_to_text(&v)))
+                                                    .collect::<Vec<_>>()
+                                                    .join(", ")
+                                            ),
+                                            href: ministate_octothorpe(&Ministate::OfflineView(MinistateOfflineView {
+                                                id: view.id.clone(),
+                                                pos: view.pos.clone(),
+                                                key: key.clone(),
+                                                title: view.title.clone(),
+                                                params: view.params.clone(),
+                                            }))
+                                        }).root;
                                     }
-                                    return style_export::cont_menu_group(style_export::ContMenuGroupArgs {
-                                        title: item.name.clone(),
-                                        children: children,
-                                    }).root;
-                                },
-                                ClientMenuItemDetail::Page(page) => {
-                                    match page {
-                                        ClientPage::View(page) => {
-                                            return style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
-                                                title: item.name.clone(),
-                                                href: ministate_octothorpe(&Ministate::View(MinistateView {
-                                                    id: page.view_id.clone(),
-                                                    title: format!("{}, {}", carry_titles.join(", "), item.name),
-                                                    pos: None,
-                                                    params: page
-                                                        .parameters
-                                                        .iter()
-                                                        .map(|(k, v)| (k.clone(), v.clone()))
-                                                        .collect(),
-                                                })),
-                                            }).root;
-                                        },
-                                        ClientPage::Form(page) => {
-                                            return style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
-                                                title: item.name.clone(),
-                                                href: ministate_octothorpe(&Ministate::Form(MinistateForm {
-                                                    id: page.form_id.clone(),
-                                                    title: format!("{}, {}", carry_titles.join(", "), item.name),
-                                                    params: page
-                                                        .parameters
-                                                        .iter()
-                                                        .map(|(k, v)| (k.clone(), v.clone()))
-                                                        .collect(),
-                                                })),
-                                            }).root;
-                                        },
-                                        ClientPage::History => {
-                                            return style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
-                                                title: "History".to_string(),
-                                                href: ministate_octothorpe(
-                                                    &Ministate::History(MinistateHistory::default()),
-                                                ),
-                                            }).root;
-                                        },
-                                        ClientPage::Query => {
-                                            return style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
-                                                title: "Query".to_string(),
-                                                href: ministate_octothorpe(
-                                                    &Ministate::Query(MinistateQuery { query: None }),
-                                                ),
-                                            }).root;
-                                        },
-                                        ClientPage::Logs => {
-                                            return style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
-                                                title: "Logs".to_string(),
-                                                href: ministate_octothorpe(&Ministate::Logs),
-                                            }).root;
-                                        },
+
+                                    if b.raw().children().length() == 0 {
+                                        let mut add = vec![];
+                                        for (key, view) in offline.borrow_values().iter() {
+                                            add.push(build(key, view));
+                                        }
+                                        b.ref_extend(add);
+                                    } else {
+                                        for change in offline.borrow_changes().iter() {
+                                            b.ref_splice(
+                                                change.offset,
+                                                change.remove,
+                                                change.add.iter().map(|(k, v)| build(k, v)).collect()
+                                            );
+                                        }
                                     }
-                                },
+                                })
+                            );
+                        group.root
+                    });
+                    root.push({
+                        style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
+                            title: "Logs".to_string(),
+                            href: ministate_octothorpe(&Ministate::Logs),
+                        }).root
+                    });
+                    let mut bar_children = vec![];
+                    bar_children.push(
+                        style_export::cont_group(style_export::ContGroupArgs { children: vec![] })
+                            .root
+                            .own(|g| link!((pc = pc), (whoami = state().whoami.clone()), (), (g = g.weak()) {
+                                let g = g.upgrade()?;
+                                let whoami = whoami.borrow().clone();
+                                let whoami = whoami.as_ref()?;
+                                match whoami {
+                                    RespWhoAmI::Public => {
+                                        let button = style_export::leaf_menu_bar_button_login().root;
+                                        button.ref_on("click", {
+                                            let eg = pc.eg();
+                                            move |_| eg.event(|_pc| {
+                                                set_want_logged_in();
+                                                redirect_login(&state().env.base_url);
+                                            }).unwrap()
+                                        });
+                                        g.ref_push(button);
+                                    },
+                                    RespWhoAmI::User(_) => {
+                                        let button = style_export::leaf_menu_bar_button_logout().root;
+                                        button.ref_on("click", {
+                                            let eg = pc.eg();
+                                            move |_| eg.event(|_pc| {
+                                                unset_want_logged_in();
+                                                redirect_logout(&state().env.base_url);
+                                            }).unwrap()
+                                        });
+                                        g.ref_push(button);
+                                    },
+                                    RespWhoAmI::Token => { },
+                                }
+                            }))
+                    );
+                    let menu_body = style_export::cont_menu_body(style_export::ContMenuBodyArgs {
+                        children: root,
+                        bar_children: bar_children,
+                        page_button_children: vec![state().menu_page_buttons.clone()],
+                    });
+                    menu_body.user.ref_own(|u| link!((_pc = pc), (whoami = state().whoami.clone()), (), (u = u.weak()) {
+                        let u = u.upgrade()?;
+                        let whoami = whoami.borrow().clone();
+                        let whoami = whoami.as_ref()?;
+                        u.ref_text(&match whoami {
+                            RespWhoAmI::Public => "Guest".to_string(),
+                            RespWhoAmI::User(u) => u.clone(),
+                            RespWhoAmI::Token => "Token".to_string(),
+                        });
+                    }));
+                    for (
+                        root,
+                        checkbox,
+                        enable,
+                        thinking,
+                    ) in [
+                        (
+                            menu_body.onlining,
+                            menu_body.onlining_checkbox,
+                            enable_onlining.clone(),
+                            state().onlining.clone(),
+                        ),
+                        (
+                            menu_body.offlining,
+                            menu_body.offlining_checkbox,
+                            enable_offlining.clone(),
+                            state().offlining.clone(),
+                        ),
+                    ] {
+                        checkbox.raw().dyn_ref::<HtmlInputElement>().unwrap().set_checked(*enable.borrow());
+                        checkbox.ref_on("change", {
+                            let b = checkbox.weak();
+                            let enable = enable.clone();
+                            let eg = pc.eg();
+                            move |_| {
+                                let Some(b) = b.upgrade() else {
+                                    return;
+                                };
+                                let b = b.raw().dyn_into::<HtmlInputElement>().unwrap();
+                                eg.event(|pc| {
+                                    enable.set(pc, b.checked());
+                                }).unwrap();
                             }
-                        }
-
-                        let mut root = vec![];
-                        for item in &client_config.menu {
-                            root.push(build_menu_item(&client_config, &vec![], item));
-                        }
-                        let mut bar_children = vec![];
-                        match &whoami {
-                            RespWhoAmI::Public => {
-                                let button = style_export::leaf_menu_bar_button_login().root;
-                                button.ref_on("click", {
-                                    let eg = eg.clone();
-                                    move |_| eg.event(|_pc| {
-                                        set_want_logged_in();
-                                        redirect_login(&env.base_url);
-                                    }).unwrap()
-                                });
-                                bar_children.push(button)
-                            },
-                            RespWhoAmI::User(_) => {
-                                let button = style_export::leaf_menu_bar_button_logout().root;
-                                button.ref_on("click", {
-                                    let eg = eg.clone();
-                                    move |_| eg.event(|_pc| {
-                                        unset_want_logged_in();
-                                        redirect_logout(&env.base_url);
-                                    }).unwrap()
-                                });
-                                bar_children.push(button)
-                            },
-                            RespWhoAmI::Token => { },
-                        }
-                        return Ok(vec![style_export::cont_menu_body(style_export::ContMenuBodyArgs {
-                            children: root,
-                            user: match whoami {
-                                RespWhoAmI::Public => "Guest".to_string(),
-                                RespWhoAmI::User(u) => u,
-                                RespWhoAmI::Token => "Token".to_string(),
-                            },
-                            bar_children: bar_children,
-                        }).root]);
+                        });
+                        root.own(|e_| link!((_pc = pc), (thinking = thinking), (), (e_ = e_.weak()) {
+                            let e_ = e_.upgrade()?;
+                            e_.ref_modify_classes(
+                                &[(&style_export::class_state_thinking().value, *thinking.borrow())]
+                            )
+                        }));
                     }
-                }),
+                    menu_body.root
+                }
             });
             app_res.admenu_button.on("click", {
                 let eg = pc.eg();
@@ -476,6 +719,27 @@ pub fn main() {
                 }
                 for ele in y {
                     ele.class_list().toggle_with_force(&state_open, new_open).unwrap();
+                }
+            }),
+            link!((pc = pc), (enable_onlining = enable_onlining), (), () {
+                let v = *enable_onlining.borrow();
+                LocalStorage::set(LOCALSTORAGE_ENABLE_ONLINING, v).log(&state().log, "Error storing onlining setting");
+                if v {
+                    trigger_onlining(pc.eg());
+                } else {
+                    stop_onlining();
+                }
+            }),
+            link!((pc = pc), (enable_offlining = enable_offlining), (), () {
+                let v = *enable_offlining.borrow();
+                LocalStorage::set(
+                    LOCALSTORAGE_ENABLE_OFFLINING,
+                    v
+                ).log(&state().log, "Error storing offlining setting");
+                if v {
+                    trigger_offlining(pc.eg());
+                } else {
+                    stop_offlining();
                 }
             }),
         ))]);

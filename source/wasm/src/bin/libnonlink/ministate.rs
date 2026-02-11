@@ -34,7 +34,7 @@ use {
 pub const LOCALSTORAGE_PWA_MINISTATE: &str = "pwa_ministate";
 pub const SESSIONSTORAGE_POST_REDIRECT_MINISTATE: &str = "post_redirect";
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct PlaylistRestorePos {
     pub index: PlaylistIndex,
@@ -43,9 +43,21 @@ pub struct PlaylistRestorePos {
     pub play: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct MinistateView {
+    pub id: ViewId,
+    pub title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pos: Option<PlaylistRestorePos>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub params: HashMap<String, Node>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct MinistateOfflineView {
+    pub key: String,
     pub id: ViewId,
     pub title: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -115,6 +127,7 @@ pub struct MinistateQuery {
 pub enum Ministate {
     Home,
     View(MinistateView),
+    OfflineView(MinistateOfflineView),
     Form(MinistateForm),
     NodeEdit(MinistateNodeEdit),
     NodeView(MinistateNodeView),
@@ -132,6 +145,7 @@ pub fn ministate_title(s: &Ministate) -> String {
     match s {
         Ministate::Home => return format!("Home"),
         Ministate::View(s) => return s.title.clone(),
+        Ministate::OfflineView(s) => return s.title.clone(),
         Ministate::Form(s) => return s.title.clone(),
         Ministate::NodeEdit(s) => return s.title.clone(),
         Ministate::NodeView(s) => return s.title.clone(),

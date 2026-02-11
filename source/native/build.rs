@@ -1,5 +1,7 @@
 use {
     good_ormning::sqlite::{
+        QueryResCount,
+        Version,
         new_delete,
         new_insert,
         new_select,
@@ -15,13 +17,12 @@ use {
                 expr_field_eq,
                 expr_field_lt,
                 expr_or,
+                field_param,
                 fn_max,
                 set_field,
             },
             insert::InsertConflict,
-            select_body::{
-                Order,
-            },
+            select_body::Order,
             utils::{
                 CteBuilder,
                 With,
@@ -33,18 +34,14 @@ use {
                 PrimaryKeyDef,
             },
             field::{
+                FieldType,
                 field_bool,
                 field_i64,
                 field_str,
                 field_utctime_ms,
-                FieldType,
             },
         },
-        types::{
-            type_str,
-        },
-        QueryResCount,
-        Version,
+        types::type_str,
     },
     std::{
         env,
@@ -278,6 +275,40 @@ fn main() {
                 }),
             }]))
             .build_query("triple_list_around", QueryResCount::Many));
+        queries.push(
+            new_select(&view_current_table)
+                .with(With {
+                    recursive: false,
+                    ctes: view_current_ctes.clone(),
+                })
+                .where_(Expr::BinOp {
+                    left: Box::new(Expr::field(&view_current_subject)),
+                    op: BinOp::In,
+                    right: Box::new(Expr::Param {
+                        name: "nodes".to_string(),
+                        type_: node_array_type.clone(),
+                    }),
+                })
+                .return_field(&view_current_subject)
+                .build_query("node_include_current_existing_subj", QueryResCount::Many),
+        );
+        queries.push(
+            new_select(&view_current_table)
+                .with(With {
+                    recursive: false,
+                    ctes: view_current_ctes.clone(),
+                })
+                .where_(Expr::BinOp {
+                    left: Box::new(Expr::field(&view_current_object)),
+                    op: BinOp::In,
+                    right: Box::new(Expr::Param {
+                        name: "nodes".to_string(),
+                        type_: node_array_type.clone(),
+                    }),
+                })
+                .return_field(&view_current_object)
+                .build_query("node_include_current_existing_obj", QueryResCount::Many),
+        );
         queries.push({
             new_delete(&t).with(With {
                 recursive: false,
@@ -470,8 +501,8 @@ fn main() {
                 &t,
                 vec![set_field("node", &node), set_field("gentype", &gentype), set_field("mimetype", &mimetype)],
             )
-                .on_conflict(InsertConflict::DoNothing)
-                .build_query("gen_insert", QueryResCount::None),
+                .on_conflict(InsertConflict::DoUpdate(vec![(mimetype.clone(), field_param("mimetype", &mimetype))]))
+                .build_query("gen_ensure", QueryResCount::None),
         );
         queries.push(
             new_select(&t)

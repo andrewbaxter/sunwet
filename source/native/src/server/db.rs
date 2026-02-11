@@ -878,6 +878,94 @@ pub fn triple_list_around(
     Ok(out)
 }
 
+pub fn node_include_current_existing_subj(
+    db: &rusqlite::Connection,
+    nodes: Vec<&crate::interface::triple::DbNode>,
+) -> Result<Vec<crate::interface::triple::DbNode>, GoodError> {
+    let mut out = vec![];
+    let query =
+        "with current0 ( subject , predicate , object , commit_ , exist ) as ( select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , max ( \"triple\" . \"commit_\" ) as \"commit_\" , \"triple\" . \"exists\" from \"triple\" group by \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" ) , current ( subject , predicate , object , commit_ ) as ( select \"current0\" . \"subject\" , \"current0\" . \"predicate\" , \"current0\" . \"object\" , \"current0\" . \"commit_\" from \"current0\" where ( \"current0\" . \"exist\" = true ) ) select \"current\" . \"subject\" from \"current\" where ( \"current\" . \"subject\" in rarray($1) ) ";
+    let mut stmt = db.prepare(query).to_good_error_query(query)?;
+    let mut rows =
+        stmt
+            .query(
+                rusqlite::params![
+                    std::rc::Rc::new(
+                        nodes
+                            .into_iter()
+                            .map(
+                                |nodes| rusqlite::types::Value::from(
+                                    <crate::interface::triple::DbNode as good_ormning_runtime
+                                    ::sqlite
+                                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
+                                        &nodes,
+                                    ),
+                                ),
+                            )
+                            .collect::<Vec<_>>(),
+                    )
+                ],
+            )
+            .to_good_error_query(query)?;
+    while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
+        out.push({
+            let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
+            let x =
+                <crate::interface::triple::DbNode as good_ormning_runtime
+                ::sqlite
+                ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::from_sql(
+                    x,
+                ).to_good_error(|| format!("Parsing result {}", 0usize))?;
+            x
+        });
+    }
+    Ok(out)
+}
+
+pub fn node_include_current_existing_obj(
+    db: &rusqlite::Connection,
+    nodes: Vec<&crate::interface::triple::DbNode>,
+) -> Result<Vec<crate::interface::triple::DbNode>, GoodError> {
+    let mut out = vec![];
+    let query =
+        "with current0 ( subject , predicate , object , commit_ , exist ) as ( select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , max ( \"triple\" . \"commit_\" ) as \"commit_\" , \"triple\" . \"exists\" from \"triple\" group by \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" ) , current ( subject , predicate , object , commit_ ) as ( select \"current0\" . \"subject\" , \"current0\" . \"predicate\" , \"current0\" . \"object\" , \"current0\" . \"commit_\" from \"current0\" where ( \"current0\" . \"exist\" = true ) ) select \"current\" . \"object\" from \"current\" where ( \"current\" . \"object\" in rarray($1) ) ";
+    let mut stmt = db.prepare(query).to_good_error_query(query)?;
+    let mut rows =
+        stmt
+            .query(
+                rusqlite::params![
+                    std::rc::Rc::new(
+                        nodes
+                            .into_iter()
+                            .map(
+                                |nodes| rusqlite::types::Value::from(
+                                    <crate::interface::triple::DbNode as good_ormning_runtime
+                                    ::sqlite
+                                    ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::to_sql(
+                                        &nodes,
+                                    ),
+                                ),
+                            )
+                            .collect::<Vec<_>>(),
+                    )
+                ],
+            )
+            .to_good_error_query(query)?;
+    while let Some(r) = rows.next().to_good_error(|| format!("Getting row in query [{}]", query))? {
+        out.push({
+            let x: String = r.get(0usize).to_good_error(|| format!("Getting result {}", 0usize))?;
+            let x =
+                <crate::interface::triple::DbNode as good_ormning_runtime
+                ::sqlite
+                ::GoodOrmningCustomString<crate::interface::triple::DbNode>>::from_sql(
+                    x,
+                ).to_good_error(|| format!("Parsing result {}", 0usize))?;
+            x
+        });
+    }
+    Ok(out)
+}
+
 pub fn triple_gc_deleted(db: &rusqlite::Connection, epoch: chrono::DateTime<chrono::Utc>) -> Result<(), GoodError> {
     let query =
         "with current0 ( subject , predicate , object , commit_ , exist ) as ( select \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" , max ( \"triple\" . \"commit_\" ) as \"commit_\" , \"triple\" . \"exists\" from \"triple\" group by \"triple\" . \"subject\" , \"triple\" . \"predicate\" , \"triple\" . \"object\" ) , current ( subject , predicate , object , commit_ ) as ( select \"current0\" . \"subject\" , \"current0\" . \"predicate\" , \"current0\" . \"object\" , \"current0\" . \"commit_\" from \"current0\" where ( \"current0\" . \"exist\" = true ) ) delete from \"triple\" where ( ( \"triple\" . \"commit_\" < $1 ) and ( ( \"triple\" . \"exists\" = false ) or not exists ( select 1 as \"x\" from \"current\" where ( ( \"triple\" . \"subject\" = \"current\" . \"subject\" ) and ( \"triple\" . \"predicate\" = \"current\" . \"predicate\" ) and ( \"triple\" . \"object\" = \"current\" . \"object\" ) and ( \"triple\" . \"commit_\" = \"current\" . \"commit_\" ) )  ) ) )";
@@ -1090,14 +1178,14 @@ pub fn meta_gc(db: &rusqlite::Connection) -> Result<(), GoodError> {
     Ok(())
 }
 
-pub fn gen_insert(
+pub fn gen_ensure(
     db: &rusqlite::Connection,
     node: &crate::interface::triple::DbNode,
     gentype: &str,
     mimetype: &str,
 ) -> Result<(), GoodError> {
     let query =
-        "insert into \"generated\" ( \"node\" , \"gentype\" , \"mimetype\" ) values ( $1 , $2 , $3 ) on conflict do nothing";
+        "insert into \"generated\" ( \"node\" , \"gentype\" , \"mimetype\" ) values ( $1 , $2 , $3 ) on conflict do update set \"mimetype\" = $3";
     db
         .execute(
             query,
