@@ -78,8 +78,8 @@ pub fn trigger_onlining(eg: EventGraph) {
                             state().onlining.set(pc, false);
                         }).unwrap()
                     });
-                    let commit_root = opfs_root().await.ensure_dir(vec![OPFS_ONLINE_COMMIT_ROOT.to_string()]).await?;
-                    for (key, task_dir) in commit_root.list().await? {
+                    let commits_root = opfs_root().await.ensure_dir(vec![OPFS_ONLINE_COMMIT_ROOT.to_string()]).await?;
+                    for (key, task_dir) in commits_root.list().await? {
                         let task_dir = match task_dir.dir() {
                             Ok(d) => d,
                             Err(e) => {
@@ -118,7 +118,7 @@ pub fn trigger_onlining(eg: EventGraph) {
                                     TimeoutFuture::new(1000).await;
                                 }
                             }
-                            commit_root.delete(&key).await;
+                            commits_root.delete(&key).await;
                             return Ok(());
                         }.await;
                         match res {
