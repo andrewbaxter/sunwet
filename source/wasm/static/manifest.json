@@ -13,5 +13,5 @@
     }
   ],
   "start_url": "./",
-  "display": "minimal-ui"
+  "display": "standalone"
 }

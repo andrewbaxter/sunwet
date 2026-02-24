@@ -249,6 +249,7 @@ pub fn goto_replace_ministate(pc: &mut ProcessingContext, log: &Rc<dyn Log>, s: 
         .unwrap()
         .push_state_with_url(&JsValue::null(), "", Some(&ministate_octothorpe(s)))
         .log(log, &"Error pushing history");
+    log.log(&format!("DEBUG set ministate to (goto): {}", serde_json::to_string(&s).unwrap()));
     LocalStorage::set(LOCALSTORAGE_PWA_MINISTATE, s).log(log, &"Error storing PWA ministate");
     build_ministate(pc, s);
 }

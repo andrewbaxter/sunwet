@@ -171,13 +171,17 @@ pub fn read_ministate(log: &Rc<dyn Log>) -> Ministate {
         return Ministate::Home;
     };
     match serde_json::from_str::<Ministate>(s.as_ref()) {
-        Ok(s) => return s,
+        Ok(s) => {
+            return s;
+        },
         Err(e) => {
             log.log(&format!("Unable to parse url anchor state (1/2, no urldecode) [{}]: {}", s, e));
         },
     };
     match serde_json::from_str::<Ministate>(&decode_uri(s.as_str()).unwrap().as_string().unwrap()) {
-        Ok(s) => return s,
+        Ok(s) => {
+            return s;
+        },
         Err(e) => {
             log.log(&format!("Unable to parse url anchor state (2/2, urldecode) [{}]: {}", s, e));
         },

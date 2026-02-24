@@ -172,6 +172,7 @@ impl OpfsDir {
     }
 
     pub async fn delete(&self, seg: &str) {
+        state().log.log(&format!("(disabled) Deleting opfs entry at {} {}", self.0, seg));
         // Temporarily disabled to see if ios safari randomly deleting opfs files is my
         // fault
         //.        if let Err(e) = JsFuture::from(self.1.remove_entry_with_options(seg, &{

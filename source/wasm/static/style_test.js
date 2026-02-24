@@ -4,10 +4,12 @@
   const presentation = window.sunwetPresentation;
   addEventListener("DOMContentLoaded", async (_) => {
     const stagingMenu_ = presentation.contMenuBody({
-      pageButtonChildren: [
-        presentation.leafMenuPageButtonOffline({}).root,
-        presentation.leafMenuPageButtonUnoffline({}).root,
-      ],
+      pageButtons: presentation.contGroup({
+        children: [
+          presentation.leafMenuPageButtonOffline({}).root,
+          presentation.leafMenuPageButtonUnoffline({}).root,
+        ],
+      }).root,
       children: [
         presentation.leafMenuLink({
           title: "Thing 1",

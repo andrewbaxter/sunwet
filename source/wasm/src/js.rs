@@ -129,16 +129,21 @@ pub fn scan_env(log: &Rc<dyn Log>) -> Env {
             }
             break out;
         },
-        pwa: match window().match_media("(display-mode: standalone)") {
-            Ok(v) => if let Some(v) = v {
-                v.matches()
-            } else {
-                false
-            },
-            Err(e) => {
-                log.log_js("Error running media query to determine if PWA", &e);
-                false
-            },
+        pwa: {
+            // Needs to match manifest
+            let pwa = match window().match_media("(display-mode: standalone)") {
+                Ok(v) => if let Some(v) = v {
+                    v.matches()
+                } else {
+                    false
+                },
+                Err(e) => {
+                    log.log_js("Error running media query to determine if PWA", &e);
+                    false
+                },
+            };
+            log.log(&format!("Detected pwa, activating (safari?) pwa workarounds: {}", pwa));
+            pwa
         },
     }
 }

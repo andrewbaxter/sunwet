@@ -1302,6 +1302,7 @@ fn build_widget_root_data_rows(
                     }
                 },
             }
+            body.ref_push(style_export::leaf_space().root);
             return Ok(vec![body]);
         }
     });

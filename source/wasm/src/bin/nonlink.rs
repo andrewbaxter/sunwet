@@ -182,6 +182,7 @@ pub fn main() {
                         },
                     };
                     record_replace_ministate(&log, &m);
+                    break 'found m;
                 }
                 break 'found read_ministate(&log);
             }),
