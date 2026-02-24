@@ -156,6 +156,10 @@ pub fn ministate_title(s: &Ministate) -> String {
     }
 }
 
+pub fn save_pwa_ministate(log: &Rc<dyn Log>, s: &Ministate) {
+    LocalStorage::set(LOCALSTORAGE_PWA_MINISTATE, s).log(log, &"Error storing PWA ministate");
+}
+
 /// Replaces current state in history, no page change
 pub fn record_replace_ministate(log: &Rc<dyn Log>, s: &Ministate) {
     window()
@@ -163,7 +167,7 @@ pub fn record_replace_ministate(log: &Rc<dyn Log>, s: &Ministate) {
         .unwrap()
         .replace_state_with_url(&JsValue::null(), "", Some(&serde_json::to_string(s).unwrap()))
         .unwrap();
-    LocalStorage::set(LOCALSTORAGE_PWA_MINISTATE, s).log(log, "Error storing PWA ministate");
+    save_pwa_ministate(log, s);
 }
 
 pub fn read_ministate(log: &Rc<dyn Log>) -> Ministate {

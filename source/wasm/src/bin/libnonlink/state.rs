@@ -17,19 +17,14 @@ use {
     },
     crate::libnonlink::{
         ministate::{
-            LOCALSTORAGE_PWA_MINISTATE,
             MinistateOfflineView,
             MinistateView,
-            ministate_octothorpe,
+            save_pwa_ministate,
         },
         page_list_edit::build_page_list_edit,
         page_query::build_page_query,
     },
     gloo::{
-        storage::{
-            LocalStorage,
-            Storage,
-        },
         utils::{
             document,
             window,
@@ -250,7 +245,7 @@ pub fn goto_replace_ministate(pc: &mut ProcessingContext, log: &Rc<dyn Log>, s: 
         .push_state_with_url(&JsValue::null(), "", Some(&serde_json::to_string(s).unwrap()))
         .log(log, &"Error pushing history");
     log.log(&format!("DEBUG set ministate to (goto): {}", serde_json::to_string(&s).unwrap()));
-    LocalStorage::set(LOCALSTORAGE_PWA_MINISTATE, s).log(log, &"Error storing PWA ministate");
+    save_pwa_ministate(log, s);
     build_ministate(pc, s);
 }
 
