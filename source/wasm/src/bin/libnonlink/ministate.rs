@@ -161,7 +161,7 @@ pub fn record_replace_ministate(log: &Rc<dyn Log>, s: &Ministate) {
     window()
         .history()
         .unwrap()
-        .replace_state_with_url(&JsValue::null(), "", Some(&ministate_octothorpe(s)))
+        .replace_state_with_url(&JsValue::null(), "", Some(&serde_json::to_string(s).unwrap()))
         .unwrap();
     LocalStorage::set(LOCALSTORAGE_PWA_MINISTATE, s).log(log, "Error storing PWA ministate");
 }
