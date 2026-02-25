@@ -23,6 +23,7 @@ Baseline un-styling.
     font-family: inherit;
     font-size: inherit;
     flex-shrink: 0;
+    line-height: 1em;
   }
 
   html {
@@ -33,7 +34,7 @@ Baseline un-styling.
     display: grid;
     grid-template-columns: 1fr;
 
-    &>* {
+    & > * {
       grid-column: 1;
       grid-row: 1;
     }
@@ -59,15 +60,15 @@ Baseline un-styling.
 }
 
 .vbox {
-    display: flex;
-    flex-direction: column;
-    justify-content: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: stretch;
 }
 
 .hbox {
-    display : flex;
-    flex-direction: row;
-    justify-content: stretch;
+  display: flex;
+  flex-direction: row;
+  justify-content: stretch;
 }
 
 .hbox > input {
@@ -77,7 +78,7 @@ Baseline un-styling.
 .stack {
   display: grid;
   grid-template-columns: 1fr;
-  &>* {
+  & > * {
     grid-column: 1;
     grid-row: 1;
   }

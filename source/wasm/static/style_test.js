@@ -170,7 +170,7 @@
               parentOrientation: parentOrientation,
               parentOrientationType: parentOrientationType,
               transAlign: "middle",
-              src: "testcover.jpg",
+              src: "testimage_square.svg",
               width: "5.5cm",
               height: "6cm",
             }).root,
@@ -302,7 +302,8 @@
                   presentation.leafNodeEditPredicate({
                     value: "sunwet/1/is",
                   }).root,
-                  presentation.leafMediaImg({ src: "testcover.jpg" }).root,
+                  presentation.leafMediaImg({ src: "testimage_square.svg" })
+                    .root,
                   makeToolbar(),
                 ],
                 new: true,
@@ -410,6 +411,67 @@
       //}
     };
 
+    const makeComic =
+      /** { @type (pages: ("wide"|"tall")[]) => void } */
+      (pages) => {
+        const pages1 = [];
+        const children = [];
+        var minAspect = 1;
+        for (let i = 0; i < pages.length; i += 1) {
+          const page = pages[i];
+          let src;
+          let width;
+          let height;
+          switch (page) {
+            case "wide": {
+              src = "testimage_wide.svg";
+              width = 2;
+              height = 1;
+              break;
+            }
+            case "tall": {
+              src = "testimage_tall.svg";
+              width = 1;
+              height = 2;
+              break;
+            }
+          }
+          const img = presentation.leafMediaComicPage({
+            src: src,
+            aspectX: width.toString(),
+            aspectY: height.toString(),
+          }).root;
+          const vertAspect = width / height;
+          if (vertAspect < minAspect) {
+            minAspect = vertAspect;
+          }
+
+          if (i == 0) {
+            children.push(presentation.leafMediaComicEndPad({}).root);
+          } else if (i % 2 == 1) {
+            children.push(presentation.leafMediaComicMidPad({}).root);
+          }
+          children.push(img);
+          if (i == pages.length - 1) {
+            children.push(presentation.leafMediaComicEndPad({}).root);
+          }
+        }
+        buildRoot([
+          presentation.contMediaFullscreen({
+            media: presentation.contMediaComicOuter({
+              children: [
+                presentation.contMediaComicInner({
+                  minAspectX: minAspect.toString(),
+                  minAspectY: "1",
+                  children: children,
+                  rtl: true,
+                }).root,
+              ],
+            }).root,
+          }).root,
+        ]);
+      };
+
     const hash = location.hash;
     switch (hash) {
       case "#main_async":
@@ -510,7 +572,7 @@
                     presentation.leafViewImage({
                       parentOrientation: parentOrientation2,
                       parentOrientationType: parentOrientationType2,
-                      src: "testcover.jpg",
+                      src: "testimage_square.svg",
                       height: "5cm",
                       transAlign: "middle",
                     }).root,
@@ -801,8 +863,9 @@
                           presentation.leafNodeViewPredicate({
                             value: "sunwet/1/has",
                           }).root,
-                          presentation.leafMediaImg({ src: "testcover.jpg" })
-                            .root,
+                          presentation.leafMediaImg({
+                            src: "testimage_square.svg",
+                          }).root,
                           buildToolbar(true, false),
                         ],
                         new: false,
@@ -1079,8 +1142,9 @@
             presentation.contQueryPrettyRow({
               children: [
                 presentation.leafQueryPrettyMediaV({
-                  value: presentation.leafMediaImg({ src: "testcover.jpg" })
-                    .root,
+                  value: presentation.leafMediaImg({
+                    src: "testimage_square.svg",
+                  }).root,
                   link: "abcd",
                 }).root,
                 presentation.leafQueryPrettyInlineKV({
@@ -1090,8 +1154,9 @@
                 }).root,
                 presentation.leafQueryPrettyMediaKV({
                   key: "noxos",
-                  value: presentation.leafMediaImg({ src: "testcover.jpg" })
-                    .root,
+                  value: presentation.leafMediaImg({
+                    src: "testimage_square.svg",
+                  }).root,
                   link: "abcd",
                 }).root,
                 presentation.leafQueryPrettyInlineKV({
@@ -1186,60 +1251,24 @@
         {
           const a = presentation.appLink({});
           const cover = document.createElement("img");
-          cover.src = "testcover.jpg";
+          cover.src = "testimage_square.svg";
           a.displayOver.innerHTML = "";
           a.display.appendChild(cover);
           document.body.appendChild(a.root);
         }
         break;
-      case "#media_comic":
-        {
-          const baseUrl =
-            "/mnt/home-dev/r/server3/servers/main/stage/testmedia/xmen/";
-          /** @type { {rtl: boolean, pages: {width: number, height: number, path: string }[]} } */
-          const manifest = await (await fetch(`${baseUrl}sunwet.json`)).json();
-
-          const children = [];
-          var minAspect = 1;
-          for (let i = 0; i < manifest.pages.length; i += 1) {
-            const page = manifest.pages[i];
-
-            const img = presentation.leafMediaComicPage({
-              src: `${baseUrl}${page.path}`,
-              aspectX: page.width.toString(),
-              aspectY: page.height.toString(),
-            }).root;
-            const vertAspect = page.width / page.height;
-            if (vertAspect < minAspect) {
-              minAspect = vertAspect;
-            }
-
-            if (i == 0) {
-              children.push(presentation.leafMediaComicEndPad({}).root);
-            } else if (i % 2 == 1) {
-              children.push(presentation.leafMediaComicMidPad({}).root);
-            }
-            children.push(img);
-            if (i == manifest.pages.length - 1) {
-              children.push(presentation.leafMediaComicEndPad({}).root);
-            }
-          }
-          buildRoot([
-            presentation.contMediaFullscreen({
-              media: presentation.contMediaComicOuter({
-                children: [
-                  presentation.contMediaComicInner({
-                    minAspectX: minAspect.toString(),
-                    minAspectY: "1",
-                    children: children,
-                    rtl: true,
-                  }).root,
-                ],
-              }).root,
-            }).root,
-          ]);
-        }
+      case "#media_comic_mixed": {
+        makeComic(["wide", "wide", "tall", "tall", "wide"]);
         break;
+      }
+      case "#media_comic_tall": {
+        makeComic(["tall", "tall", "tall", "tall", "tall", "tall"]);
+        break;
+      }
+      case "#media_comic_wide": {
+        makeComic(["wide", "wide", "wide", "wide", "wide", "wide"]);
+        break;
+      }
       default:
         throw new Error();
     }

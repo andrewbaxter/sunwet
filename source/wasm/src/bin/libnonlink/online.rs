@@ -132,9 +132,6 @@ pub fn trigger_onlining(eg: EventGraph) {
                     }
 
                     // Nothing left to do atm, exit
-                    eg.event(|pc| {
-                        state().onlining.set(pc, false);
-                    }).unwrap();
                     return Ok(JsValue::null());
                 });
             });

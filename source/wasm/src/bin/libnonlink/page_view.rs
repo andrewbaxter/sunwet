@@ -1302,7 +1302,6 @@ fn build_widget_root_data_rows(
                     }
                 },
             }
-            body.ref_push(style_export::leaf_space().root);
             return Ok(vec![body]);
         }
     });
@@ -1520,7 +1519,7 @@ pub fn build_page_view(
         let body = style_export::cont_view_root(style_export::ContViewRootArgs {
             elements: vec![],
             element_width: view.root.element_width.clone(),
-        }).root;
+        });
         let common = Rc::new(BuildViewBodyCommon {
             id: id.clone(),
             view_ministate_state: vs.clone(),
@@ -1528,7 +1527,7 @@ pub fn build_page_view(
             config_at: view.root,
             shuffle: view.shuffle,
             config_query_params: view.query_parameter_keys,
-            body: body.weak(),
+            body: body.body.weak(),
             have_media: Rc::new(Cell::new(false)),
         });
         let param_data = Rc::new(RefCell::new(params));
@@ -1707,7 +1706,7 @@ pub fn build_page_view(
         return Ok(style_export::cont_page_view(style_export::ContPageViewArgs {
             transport: Some(transport_slot),
             params: param_els,
-            elements: body,
+            elements: body.root,
         }).root);
     }).unwrap();
 }

@@ -535,6 +535,7 @@ impl PlaylistMedia for PlaylistMediaComic {
                 }
 
                 fn calc_want_center(&self, index: usize) -> f64 {
+                    let index = index.min(self.page_lookup.len());
                     let entry = self.page_lookup.get(&index).unwrap();
                     let group = &self.groups[entry.group_in_media];
                     let group_width = self.calc_group_width(group);
@@ -551,10 +552,6 @@ impl PlaylistMedia for PlaylistMediaComic {
                 }
 
                 fn seek(&self, pc: &mut ProcessingContext, new_index: usize) {
-                    if new_index >= self.page_lookup.len() {
-                        return;
-                    }
-                    self.set_scroll_center(self.calc_want_center(new_index));
                     self.at.set(pc, new_index);
                 }
 
@@ -633,24 +630,24 @@ impl PlaylistMedia for PlaylistMediaComic {
                                 io.observe(&page.raw());
                             }
                         }
-                        let internal_at = Prim::new(*at.borrow());
+                        let scroll_at = Prim::new(*at.borrow());
                         state.inner.ref_on_resize({
                             let state = Rc::downgrade(&state);
-                            let internal_at = internal_at.clone();
+                            let scroll_at = scroll_at.clone();
                             move |_, _, _| {
                                 let Some(state1) = state.upgrade() else {
                                     return;
                                 };
                                 *state1.fix_scroll.borrow_mut() = Some(spawn_rooted({
                                     let state = state.clone();
-                                    let internal_at = internal_at.clone();
+                                    let scroll_at = scroll_at.clone();
                                     async move {
                                         loop {
                                             {
                                                 let Some(state) = state.upgrade() else {
                                                     return;
                                                 };
-                                                let want_center = state.calc_want_center(*internal_at.borrow());
+                                                let want_center = state.calc_want_center(*scroll_at.borrow());
                                                 state.set_scroll_center(want_center);
                                                 if (state.get_scroll_center() - want_center).abs() < 3. {
                                                     break;
@@ -671,12 +668,12 @@ impl PlaylistMedia for PlaylistMediaComic {
                             let state = Rc::downgrade(&state);
                             let bg = Cell::new(None);
                             let eg = pc.eg();
-                            let internal_at = internal_at.clone();
+                            let scroll_at = scroll_at.clone();
                             move |_| bg.set(Some(Timeout::new(300, {
                                 let state = state.clone();
                                 let eg = eg.clone();
                                 let visible = visible.clone();
-                                let internal_at = internal_at.clone();
+                                let scroll_at = scroll_at.clone();
                                 move || {
                                     let Some(state) = state.upgrade() else {
                                         return;
@@ -694,7 +691,7 @@ impl PlaylistMedia for PlaylistMediaComic {
                                         if view_center >= e_left &&
                                             view_center <= e_left + e.get_bounding_client_rect().width() {
                                             eg.event(|pc| {
-                                                internal_at.set(pc, index);
+                                                scroll_at.set(pc, index);
                                             }).unwrap();
                                             break;
                                         }
@@ -708,23 +705,17 @@ impl PlaylistMedia for PlaylistMediaComic {
                             link!(
                                 (pc = pc),
                                 (external_at = state.at.clone()),
-                                (internal_at = internal_at.clone()),
+                                (scroll_at = scroll_at.clone()),
                                 (state = state.clone()),
                                 {
                                     let seek = *external_at.borrow();
-                                    internal_at.set(pc, seek);
-                                    state.seek(pc, seek);
+                                    scroll_at.set(pc, seek);
+                                    state.set_scroll_center(state.calc_want_center(seek));
                                 }
                             ),
-                            link!(
-                                (pc = pc),
-                                (internal_at = internal_at.clone()),
-                                (external_at = state.at.clone()),
-                                (),
-                                {
-                                    external_at.set(pc, *internal_at.borrow());
-                                }
-                            ),
+                            link!((pc = pc), (scroll_at = scroll_at.clone()), (external_at = state.at.clone()), (), {
+                                external_at.set(pc, *scroll_at.borrow());
+                            }),
                         ));
                         outer.ref_own(|_| EventListener::new_with_options(&window(), "keydown", EventListenerOptions {
                             passive: false,
@@ -863,6 +854,186 @@ impl PlaylistMediaBook {
     }
 }
 
+fn setup_book_idoc(
+    log: &Rc<dyn Log>,
+    eg: EventGraph,
+    iframe: El,
+    idoc: Document,
+    external_at: Prim<usize>,
+    scroll_at: Prim<usize>,
+    length: Rc<Cell<Option<usize>>>,
+    seekable: watch::Sender<bool>,
+) {
+    if let Some(body) = idoc.body() {
+        body
+            .style()
+            .set_property("font-size", &style_export::book_base_font_size().value)
+            .log(log, "Error setting base font size in iframe");
+    }
+
+    // Wait for stuff to appear, not sure why this isn't handled by
+    // DOMContentLoaded... but I guess in some cases there might be js doing stuff too
+    let html_children0 = idoc.query_selector_all("h1,h2,h3,h4,h5,h6,p,img").unwrap();
+    if html_children0.length() == 0 {
+        log.log("Book iframe body has no typical document elements (h*,p,img), can't integrate");
+        return;
+    }
+    let mut html_children = vec![];
+
+    fn to_html_element(n: impl IntoWasmAbi<Abi = u32>) -> HtmlElement {
+        // https://github.com/rustwasm/wasm-bindgen/issues/4521
+        // https://stackoverflow.com/questions/59156177/type-safe-way-to-check-instanceof-while-working-with-iframes
+        // Hack
+        return unsafe {
+            HtmlElement::from_abi(n.into_abi())
+        };
+    }
+
+    for i in 0 .. html_children0.length() {
+        let child = to_html_element(html_children0.item(i).unwrap());
+        child.set_attribute(ATTR_INDEX, &format!("{}", i)).log(log, "Error setting book element index");
+        html_children.push(child);
+    }
+    length.set(Some(html_children.len()));
+    iframe.ref_own(|iframe| spawn_rooted({
+        let iframe = iframe.weak();
+        async move {
+            // Prep
+            let get_child_coord = {
+                let ibody = idoc.body().unwrap();
+                move |c: &Element| -> f64 {
+                    return c.get_bounding_client_rect().top() - ibody.get_bounding_client_rect().top();
+                }
+            };
+            let scroll_root = idoc.body().unwrap().parent_element().unwrap();
+            let get_scroll_coord = {
+                let m = scroll_root.clone();
+                move || {
+                    return m.scroll_top() as f64;
+                }
+            };
+            let set_scroll_coord = {
+                let m = scroll_root.clone();
+                move |v: f64| {
+                    m.set_scroll_top(v as i32);
+                }
+            };
+
+            // Do initial scroll restore - don't set up observers yet to avoid
+            // feedback/unnecessary noise
+            let restore_e = &html_children[*external_at.borrow()];
+            loop {
+                // 5 to avoid rounding errors
+                let want_scroll = get_child_coord(&restore_e) + 5.;
+                set_scroll_coord(want_scroll);
+                if (get_scroll_coord() - want_scroll).abs() < 3. {
+                    break;
+                }
+                TimeoutFuture::new(100).await;
+            }
+
+            // Start observing. The current element is the element straddling the top of the
+            // view. It will be shifted to exactly the top of the view when seeking/restoring.
+            //
+            // Listen for elements coming from off screen (newly visible)
+            let io_far = MyIntersectionObserver::new(0., {
+                let scroll_at = scroll_at.clone();
+                let eg = eg.clone();
+                let get_child_coord = get_child_coord.clone();
+                let get_scroll_coord = get_scroll_coord.clone();
+                move |entries| eg.event(|pc| {
+                    // Find the lowest non->intersecting entry off the top.
+                    let Some((_, e)) = entries.into_iter().filter_map(|entry| {
+                        if !entry.is_intersecting() {
+                            return None;
+                        }
+                        let e = to_html_element(entry.target());
+                        let coord = get_child_coord(&e);
+                        if coord > get_scroll_coord() {
+                            // Not on top-side
+                            return None;
+                        }
+                        return Some((coord, e));
+                    }).min_by(|a, b| f64::total_cmp(&a.0, &b.0)) else {
+                        return;
+                    };
+                    scroll_at.set(pc, usize::from_str(&e.get_attribute(ATTR_INDEX).unwrap()).unwrap());
+                }).unwrap()
+            });
+
+            // Listen for elements going off screen (but still visible)
+            let io_near = MyIntersectionObserver::new(1., {
+                let scroll_at = scroll_at.clone();
+                let eg = eg.clone();
+                let get_child_coord = get_child_coord.clone();
+                let get_scroll_coord = get_scroll_coord.clone();
+                move |entries| eg.event(|pc| {
+                    // Find the lowest intersecting->non entry (when seeking, the whole page will move
+                    // off in one event).
+                    let Some((_, e)) = entries.into_iter().filter_map(|entry| {
+                        if entry.is_intersecting() {
+                            return None;
+                        }
+                        if entry.intersection_ratio() == 0. {
+                            return None;
+                        }
+                        let e = to_html_element(entry.target());
+                        let top_coord = get_child_coord(&e);
+                        if top_coord > get_scroll_coord() {
+                            // Not on top-side
+                            return None;
+                        }
+                        return Some((top_coord, e));
+                    }).max_by(|a, b| f64::total_cmp(&a.0, &b.0)) else {
+                        return;
+                    };
+                    scroll_at.set(pc, usize::from_str(&e.get_attribute(ATTR_INDEX).unwrap()).unwrap());
+                }).unwrap()
+            });
+
+            // Hook up
+            for child in &html_children {
+                io_near.observe(&child);
+                io_far.observe(&child);
+            }
+            let Some(iframe) = iframe.upgrade() else {
+                return;
+            };
+            iframe.ref_own(|_| (io_near, io_far, EventListener::new(&idoc, "click", {
+                let set_scroll_coord = set_scroll_coord.clone();
+                let iframe = iframe.raw().dyn_into::<HtmlElement>().unwrap();
+                move |_| {
+                    set_scroll_coord(get_scroll_coord() + iframe.get_bounding_client_rect().height() * 4. / 5.);
+                }
+            })));
+            eg.event(|pc| {
+                iframe.ref_own(|_| (
+                    //. .
+                    link!(
+                        (pc = pc),
+                        (external_at = external_at.clone()),
+                        (scroll_at = scroll_at.clone()),
+                        (
+                            set_scroll_coord = set_scroll_coord.clone(),
+                            get_child_coord = get_child_coord.clone(),
+                            html_children = html_children,
+                        ),
+                        {
+                            let seek = external_at.borrow().min(html_children.len());
+                            scroll_at.set(pc, seek);
+                            set_scroll_coord(get_child_coord(&html_children[seek]));
+                        }
+                    ),
+                    link!((pc = pc), (scroll_at = scroll_at.clone()), (external_at = external_at.clone()), (), {
+                        external_at.set(pc, *scroll_at.borrow());
+                    }),
+                ));
+            }).unwrap();
+            _ = seekable.send(true);
+        }
+    }));
+}
+
 impl PlaylistMedia for PlaylistMediaBook {
     fn pm_display(&self) -> bool {
         return true;
@@ -891,191 +1062,7 @@ impl PlaylistMedia for PlaylistMediaBook {
                     log.log("Iframe missing contentDocument, can't show book media");
                     return;
                 };
-
-                fn setup(
-                    log: &Rc<dyn Log>,
-                    eg: EventGraph,
-                    iframe: El,
-                    idoc: Document,
-                    external_at: Prim<usize>,
-                    internal_at: Prim<usize>,
-                    length: Rc<Cell<Option<usize>>>,
-                    seekable: watch::Sender<bool>,
-                ) {
-                    if let Some(body) = idoc.body() {
-                        body
-                            .style()
-                            .set_property("font-size", &style_export::book_base_font_size().value)
-                            .log(log, "Error setting base font size in iframe");
-                    }
-
-                    // Wait for stuff to appear, not sure why this isn't handled by
-                    // DOMContentLoaded... but I guess in some cases there might be js doing stuff too
-                    let html_children0 = idoc.query_selector_all("h1,h2,h3,h4,h5,h6,p,img").unwrap();
-                    if html_children0.length() == 0 {
-                        log.log("Book iframe body has no typical document elements (h*,p,img), can't integrate");
-                        return;
-                    }
-                    let mut html_children = vec![];
-
-                    fn to_html_element(n: impl IntoWasmAbi<Abi = u32>) -> HtmlElement {
-                        // https://github.com/rustwasm/wasm-bindgen/issues/4521
-                        // https://stackoverflow.com/questions/59156177/type-safe-way-to-check-instanceof-while-working-with-iframes
-                        // Hack
-                        return unsafe {
-                            HtmlElement::from_abi(n.into_abi())
-                        };
-                    }
-
-                    for i in 0 .. html_children0.length() {
-                        let child = to_html_element(html_children0.item(i).unwrap());
-                        child
-                            .set_attribute(ATTR_INDEX, &format!("{}", i))
-                            .log(log, "Error setting book element index");
-                        html_children.push(child);
-                    }
-                    length.set(Some(html_children.len()));
-                    iframe.ref_own(|iframe| spawn_rooted({
-                        let iframe = iframe.weak();
-                        async move {
-                            // Prep
-                            let get_child_coord = {
-                                let ibody = idoc.body().unwrap();
-                                move |c: &Element| -> f64 {
-                                    return c.get_bounding_client_rect().top() -
-                                        ibody.get_bounding_client_rect().top();
-                                }
-                            };
-                            let scroll_root = idoc.body().unwrap().parent_element().unwrap();
-                            let get_scroll_coord = {
-                                let m = scroll_root.clone();
-                                move || {
-                                    return m.scroll_top() as f64;
-                                }
-                            };
-                            let set_scroll_coord = {
-                                let m = scroll_root.clone();
-                                move |v: f64| {
-                                    m.set_scroll_top(v as i32);
-                                }
-                            };
-
-                            // Do initial scroll restore - don't set up observers yet to avoid
-                            // feedback/unnecessary noise
-                            let restore_e = &html_children[*external_at.borrow()];
-                            loop {
-                                // 5 to avoid rounding errors
-                                let want_scroll = get_child_coord(&restore_e) + 5.;
-                                set_scroll_coord(want_scroll);
-                                if (get_scroll_coord() - want_scroll).abs() < 3. {
-                                    break;
-                                }
-                                TimeoutFuture::new(100).await;
-                            }
-
-                            // Start observing
-                            //
-                            // Listen for elements coming from off screen (newly visible)
-                            let io_far = MyIntersectionObserver::new(0., {
-                                let internal_at = internal_at.clone();
-                                let eg = eg.clone();
-                                let get_child_coord = get_child_coord.clone();
-                                let get_scroll_coord = get_scroll_coord.clone();
-                                move |entries| eg.event(|pc| {
-                                    for entry in entries {
-                                        if !entry.is_intersecting() {
-                                            continue;
-                                        }
-                                        let e = to_html_element(entry.target());
-                                        if get_child_coord(&e) > get_scroll_coord() {
-                                            // Not at top
-                                            continue;
-                                        }
-                                        internal_at.set(
-                                            pc,
-                                            usize::from_str(&e.get_attribute(ATTR_INDEX).unwrap()).unwrap(),
-                                        );
-                                    }
-                                }).unwrap()
-                            });
-
-                            // Listen for elements going off screen (but still visible)
-                            let io_near = MyIntersectionObserver::new(1., {
-                                let internal_at = internal_at.clone();
-                                let eg = eg.clone();
-                                let get_child_coord = get_child_coord.clone();
-                                let get_scroll_coord = get_scroll_coord.clone();
-                                move |entries| eg.event(|pc| {
-                                    for entry in entries {
-                                        if entry.is_intersecting() {
-                                            continue;
-                                        }
-                                        let e = to_html_element(entry.target());
-                                        if get_child_coord(&e) > get_scroll_coord() {
-                                            // Not at top
-                                            continue;
-                                        }
-                                        internal_at.set(
-                                            pc,
-                                            usize::from_str(&e.get_attribute(ATTR_INDEX).unwrap()).unwrap(),
-                                        );
-                                    }
-                                }).unwrap()
-                            });
-
-                            // Hook up
-                            for child in &html_children {
-                                io_near.observe(&child);
-                                io_far.observe(&child);
-                            }
-                            let Some(iframe) = iframe.upgrade() else {
-                                return;
-                            };
-                            iframe.ref_own(|_| (io_near, io_far));
-                            iframe.ref_on("click", {
-                                let set_scroll_coord = set_scroll_coord.clone();
-                                let iframe = iframe.raw().dyn_into::<HtmlElement>().unwrap();
-                                move |_| {
-                                    set_scroll_coord(
-                                        get_scroll_coord() + iframe.get_bounding_client_rect().height() * 4. / 5.,
-                                    );
-                                }
-                            });
-                            eg.event(|pc| {
-                                iframe.ref_own(|_| (
-                                    //. .
-                                    link!(
-                                        (pc = pc),
-                                        (external_at = external_at.clone()),
-                                        (internal_at = internal_at.clone()),
-                                        (
-                                            set_scroll_coord = set_scroll_coord.clone(),
-                                            get_child_coord = get_child_coord.clone(),
-                                            html_children = html_children,
-                                        ),
-                                        {
-                                            let seek = *external_at.borrow();
-                                            internal_at.set(pc, seek);
-                                            set_scroll_coord(get_child_coord(&html_children[seek]));
-                                        }
-                                    ),
-                                    link!(
-                                        (pc = pc),
-                                        (internal_at = internal_at.clone()),
-                                        (external_at = external_at.clone()),
-                                        (),
-                                        {
-                                            external_at.set(pc, *internal_at.borrow());
-                                        }
-                                    ),
-                                ));
-                            }).unwrap();
-                            _ = seekable.send(true);
-                        }
-                    }));
-                }
-
-                let internal_at = Prim::new(*external_at.borrow());
+                let scroll_at = Prim::new(*external_at.borrow());
                 if document().ready_state() == "loading" {
                     iframe.ref_own(|_| EventListener::once(&idoc, "DOMContentLoaded", {
                         let iframe = iframe.weak();
@@ -1085,11 +1072,11 @@ impl PlaylistMedia for PlaylistMediaBook {
                             let Some(iframe) = iframe.upgrade() else {
                                 return;
                             };
-                            setup(&log, eg, iframe, idoc, external_at, internal_at, length, seekable);
+                            setup_book_idoc(&log, eg, iframe, idoc, external_at, scroll_at, length, seekable);
                         }
                     }));
                 } else {
-                    setup(&log, eg, iframe, idoc, external_at, internal_at, length, seekable);
+                    setup_book_idoc(&log, eg, iframe, idoc, external_at, scroll_at, length, seekable);
                 }
             }
         }));

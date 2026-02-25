@@ -461,7 +461,7 @@ fn main() {
         Func {
             name: "contViewRoot",
             args: vec![("elements", &arrel_), ("elementWidth", &optstring_)],
-            returns: vec![("root", &el_)],
+            returns: vec![("root", &el_), ("body", &el_)],
         },
         Func {
             name: "contViewElement",

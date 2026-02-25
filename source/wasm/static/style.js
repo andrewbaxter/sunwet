@@ -2156,7 +2156,7 @@
       },
     );
     if (args.elementWidth != null) {
-      grid.style.gridTemplateColumns = `repeat(auto-fit, minmax(${args.elementWidth}, 1fr))`;
+      grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${args.elementWidth}, 1fr))`;
     } else {
       grid.style.gridTemplateColumns = "1fr";
       grid.classList.add(
@@ -2169,7 +2169,12 @@
       );
     }
     return {
-      root: grid,
+      body: grid,
+      root: e(
+        "div",
+        {},
+        { styles_: [contVboxStyle], children_: [grid, leafSpace({}).root] },
+      ),
     };
   };
 
@@ -3871,6 +3876,7 @@
 
                 s.display = "grid";
                 s.gridTemplateColumns = "1fr";
+                // Use padding rows to center...
                 s.gridTemplateRows = "1fr auto 1fr";
                 s.alignItems = "center";
 
@@ -3888,11 +3894,11 @@
     });
   presentation.contMediaComicInner =
     /** @type {Presentation["contMediaComicInner"]} */ (args) => {
-      // This scales to the height required to show a representative (media (TODO), please don't include obi) page's width.
-      // This is done by making a container with 2 children:
-      // - The strut uses aspect ratio to get the height required to show full width. This will be short for wide pages
-      //   (but very tall for narrow pages). The container sets its height to max (the strut, the available height)
-      // - The 2nd child is the container for the pages, which is scaled to the parent height.
+      // Pages have mixed aspect ratios. The goal is to fit a single page on the screen (contain). See rust, the single page we use as an example for scaling is the narrowest page (please don't use obi).
+      //
+      // The way this is done is by overlapping (via grid, "outer") a "strut" with the page scroller ("inner"). This is all centered vertically ("outer2").
+      //
+      // The strut is set to the page aspect ratio with a max width of 100%. The grid tries to scale it to 100%. If the page is wider than the sceen, it'll only scale to < 100%. If it's taller than the screen, it'll max out at 100%.
 
       const strut = e(
         "div",

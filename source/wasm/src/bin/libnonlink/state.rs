@@ -19,16 +19,15 @@ use {
         ministate::{
             MinistateOfflineView,
             MinistateView,
+            ministate_octothorpe,
             save_pwa_ministate,
         },
         page_list_edit::build_page_list_edit,
         page_query::build_page_query,
     },
-    gloo::{
-        utils::{
-            document,
-            window,
-        },
+    gloo::utils::{
+        document,
+        window,
     },
     lunk::{
         EventGraph,
@@ -242,9 +241,8 @@ pub fn goto_replace_ministate(pc: &mut ProcessingContext, log: &Rc<dyn Log>, s: 
     window()
         .history()
         .unwrap()
-        .push_state_with_url(&JsValue::null(), "", Some(&serde_json::to_string(s).unwrap()))
+        .push_state_with_url(&JsValue::null(), "", Some(&ministate_octothorpe(s)))
         .log(log, &"Error pushing history");
-    log.log(&format!("DEBUG set ministate to (goto): {}", serde_json::to_string(&s).unwrap()));
     save_pwa_ministate(log, s);
     build_ministate(pc, s);
 }

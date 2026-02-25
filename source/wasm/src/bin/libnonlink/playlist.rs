@@ -530,7 +530,28 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
                             }
                         })));
                     } else {
-                        e.media.pm_seek(pc, new_time);
+                        // Improve? This indirectly modifies prim `external_time` in various playlist
+                        // media impls which don't get considered since the graph processing is already in
+                        // progress.
+                        //
+                        // I think ideally
+                        //
+                        // 1. This would cause a panic or something to make it more obvious (? could break a lot)
+                        //
+                        // 2. `playlist_time` should be connected to `external_time` via a link that's created
+                        //    conditionally by media when sharing is toggled... that ends up leaking the sharing
+                        //    state though which wouldn't work with "link".
+                        //
+                        // Workaround (ok?) is to just do it in a separate event afterward.
+                        bg.set(Some(spawn_rooted({
+                            let eg = pc.eg();
+                            let e = e.clone();
+                            async move {
+                                eg.event(|pc| {
+                                    e.media.pm_seek(pc, new_time);
+                                }).unwrap();
+                            }
+                        })));
                     }
                 }
             }
