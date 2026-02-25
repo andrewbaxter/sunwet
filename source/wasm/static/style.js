@@ -3860,124 +3860,74 @@
 
   // /////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: fullscreen, media comic
-  presentation.contMediaComicOuter =
-    /** @type {Presentation["contMediaComicOuter"]} */ (args) => ({
+  const isSafari =
+    navigator.vendor &&
+    navigator.vendor.indexOf("Apple") > -1 &&
+    navigator.userAgent &&
+    navigator.userAgent.indexOf("CriOS") == -1 &&
+    navigator.userAgent.indexOf("FxiOS") == -1;
+  presentation.contMediaComic = /** @type {Presentation["contMediaComic"]} */ (
+    args,
+  ) => {
+    if (args.rtl) {
+      args.children.reverse();
+    }
+    const pages = e(
+      "div",
+      {},
+      {
+        styles_: [
+          ss(uniq("cont_media_comic_pages"), {
+            "": (s) => {
+              s.minHeight = "0";
+              s.maxHeight = "100%";
+              s.overflowX = "auto";
+              s.display = "flex";
+              s.width = "100%";
+
+              // For user scrollbar interaction
+              s.pointerEvents = "initial";
+            },
+          }),
+        ],
+        children_: args.children,
+      },
+    );
+    pages.style.aspectRatio = `${args.minAspectX}/${args.minAspectY}`;
+    if (isSafari) {
+      // How can safari be this bad? Without this, safari ignores _both_ the intrinsic and explicit aspect ratios and stretches images to their natural width... somehow. I've rewritten this code twice to try to get safari to do something standard, I give up.
+      const observer = new ResizeObserver((e) => {
+        for (const p0 of pages.getElementsByClassName(comicPageStyle)) {
+          const p = /** @type {HTMLElement} */ (p0);
+          p.style.height = `${pages.clientHeight}px`;
+        }
+      });
+      observer.observe(pages);
+    }
+    return {
+      contScroll: pages,
       root: e(
         "div",
         {},
         {
           styles_: [
-            ss(uniq("cont_media_comic_outer2"), {
+            ss(uniq("cont_media_comic_center"), {
               "": (s) => {
-                s.width = "100%";
-                s.maxWidth = "100%";
                 s.minHeight = "0";
-                s.flexBasis = "0";
-
                 s.display = "grid";
                 s.gridTemplateColumns = "1fr";
-                // Use padding rows to center...
-                s.gridTemplateRows = "1fr auto 1fr";
+                s.gridTemplateRows = "1fr";
+                s.justifyItems = "center";
                 s.alignItems = "center";
-
-                s.backgroundColor = varCBackground;
-              },
-              ">*": (s) => {
-                s.gridRow = "2";
-                s.gridColumn = "1";
-              },
-            }),
-          ],
-          children_: args.children,
-        },
-      ),
-    });
-  presentation.contMediaComicInner =
-    /** @type {Presentation["contMediaComicInner"]} */ (args) => {
-      // Pages have mixed aspect ratios. The goal is to fit a single page on the screen (contain). See rust, the single page we use as an example for scaling is the narrowest page (please don't use obi).
-      //
-      // The way this is done is by overlapping (via grid, "outer") a "strut" with the page scroller ("inner"). This is all centered vertically ("outer2").
-      //
-      // The strut is set to the page aspect ratio with a max width of 100%. The grid tries to scale it to 100%. If the page is wider than the sceen, it'll only scale to < 100%. If it's taller than the screen, it'll max out at 100%.
-
-      const strut = e(
-        "div",
-        {},
-        {
-          styles_: [
-            ss(uniq("cont_media_comic_inner_strut"), {
-              "": (s) => {
-                s.maxWidth = "100%";
-                s.gridColumn = "1";
-                s.gridRow = "1";
-              },
-            }),
-          ],
-        },
-      );
-      strut.style.aspectRatio = `${args.minAspectX}/${args.minAspectY}`;
-
-      if (args.rtl) {
-        args.children.reverse();
-      }
-      const contScroll = e(
-        "div",
-        {},
-        {
-          styles_: [
-            ss(uniq("cont_media_comic_inner_inner"), {
-              "": (s) => {
-                s.position = "absolute";
-                s.left = "0";
-                s.right = "0";
-                s.top = "0";
-                s.bottom = "0";
-
-                s.overflowX = "auto";
-                s.display = "flex";
-
-                // For user scrollbar interaction
                 s.pointerEvents = "initial";
               },
             }),
           ],
-          children_: args.children,
+          children_: [pages],
         },
-      );
-
-      return {
-        contScroll: contScroll,
-        root: e(
-          "div",
-          {},
-          {
-            styles_: [
-              ss(uniq("cont_media_comic_outer"), {
-                "": (s) => {
-                  s.width = "100%";
-                  s.maxWidth = "100%";
-
-                  // Hack, we can't use min(max-content, 100%) so instead use maxHeight and height which
-                  // combine to form a min... thanks again CSS for straightforward and intuitive basic tools
-                  s.height = "max-content";
-                  s.maxHeight = "100%";
-
-                  s.display = "grid";
-                  s.gridTemplateColumns = "1fr";
-                  s.gridTemplateRows = "1fr";
-                  s.overflow = "hidden";
-                  s.position = "relative";
-
-                  // For click, scroll wheel events
-                  s.pointerEvents = "initial";
-                },
-              }),
-            ],
-            children_: [strut, contScroll],
-          },
-        ),
-      };
+      ),
     };
+  };
   presentation.leafMediaComicEndPad =
     /** @type {Presentation["leafMediaComicEndPad"]} */ (args) => ({
       root: e(
@@ -4010,19 +3960,17 @@
         },
       ),
     });
+  const comicPageStyle = ss(uniq("leaf_media_comic_page"), {
+    "": (s) => {
+      s.height = "100%";
+    },
+  });
   presentation.leafMediaComicPage =
     /** @type {Presentation["leafMediaComicPage"]} */ (args) => {
       const out = leafImg({
         src: args.src,
         lazy: true,
-        styles_: [
-          ss(uniq("leaf_media_comic_page"), {
-            "": (s) => {
-              s.height = "100%";
-              s.flexShrink = "0";
-            },
-          }),
-        ],
+        styles_: [comicPageStyle],
       });
       out.style.aspectRatio = `${args.aspectX}/${args.aspectY}`;
       return { root: out };

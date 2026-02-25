@@ -667,12 +667,7 @@ fn main() {
         // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: fullscreen, media comic
         Func {
-            name: "contMediaComicOuter",
-            args: vec![("children", &arrel_)],
-            returns: vec![("root", &el_)],
-        },
-        Func {
-            name: "contMediaComicInner",
+            name: "contMediaComic",
             args: vec![("minAspectX", &string_), ("minAspectY", &string_), ("children", &arrel_), ("rtl", &bool_)],
             returns: vec![("root", &el_), ("contScroll", &el_)],
         },

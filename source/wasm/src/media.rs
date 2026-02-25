@@ -424,8 +424,7 @@ impl PlaylistMedia for PlaylistMediaComic {
         let seekable = self.seekable.clone();
 
         // Super outer container, pads outer when height is reduced
-        let root = style_export::cont_media_comic_outer(style_export::ContMediaComicOuterArgs { children: vec![] }).root;
-        root.ref_push(el_async(async move {
+        return el_async(async move {
             ta_return!(Vec < El >, String);
             let manifest = req_manifest().await?;
             let rtl = manifest.rtl;
@@ -497,7 +496,7 @@ impl PlaylistMedia for PlaylistMediaComic {
                 }
             }
             build_state.build_flush();
-            let res = style_export::cont_media_comic_inner(style_export::ContMediaComicInnerArgs {
+            let res = style_export::cont_media_comic(style_export::ContMediaComicArgs {
                 min_aspect_x: min_aspect.to_string(),
                 min_aspect_y: "1".to_string(),
                 children: page_children,
@@ -536,7 +535,9 @@ impl PlaylistMedia for PlaylistMediaComic {
 
                 fn calc_want_center(&self, index: usize) -> f64 {
                     let index = index.min(self.page_lookup.len());
-                    let entry = self.page_lookup.get(&index).unwrap();
+                    let Some(entry) = self.page_lookup.get(&index) else {
+                        return 0.;
+                    };
                     let group = &self.groups[entry.group_in_media];
                     let group_width = self.calc_group_width(group);
                     if self.want_group_movement(group_width) {
@@ -551,10 +552,6 @@ impl PlaylistMedia for PlaylistMediaComic {
                     }
                 }
 
-                fn seek(&self, pc: &mut ProcessingContext, new_index: usize) {
-                    self.at.set(pc, new_index);
-                }
-
                 fn seek_next(&self, pc: &mut ProcessingContext) {
                     let entry = self.page_lookup.get(&*self.at.borrow()).unwrap();
                     let group = &self.groups[entry.group_in_media];
@@ -564,7 +561,7 @@ impl PlaylistMedia for PlaylistMediaComic {
                     } else {
                         new_index = *self.at.borrow() + 1;
                     }
-                    self.seek(pc, new_index);
+                    self.at.set(pc, new_index.min(self.page_lookup.len()));
                 }
 
                 fn seek_prev(&self, pc: &mut ProcessingContext) {
@@ -576,7 +573,7 @@ impl PlaylistMedia for PlaylistMediaComic {
                     } else {
                         new_index = *self.at.borrow() - 1;
                     }
-                    self.seek(pc, new_index);
+                    self.at.set(pc, new_index.min(self.page_lookup.len()));
                 }
             }
 
@@ -796,8 +793,7 @@ impl PlaylistMedia for PlaylistMediaComic {
                 })
             });
             return Ok(vec![res.root]);
-        }));
-        return root;
+        });
     }
 
     fn pm_play(&self, _log: &Rc<dyn Log>) { }

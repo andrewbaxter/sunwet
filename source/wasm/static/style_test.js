@@ -416,7 +416,7 @@
       (pages) => {
         const pages1 = [];
         const children = [];
-        var minAspect = 1;
+        var minAspect = 9999;
         for (let i = 0; i < pages.length; i += 1) {
           const page = pages[i];
           let src;
@@ -458,15 +458,11 @@
         }
         buildRoot([
           presentation.contMediaFullscreen({
-            media: presentation.contMediaComicOuter({
-              children: [
-                presentation.contMediaComicInner({
-                  minAspectX: minAspect.toString(),
-                  minAspectY: "1",
-                  children: children,
-                  rtl: true,
-                }).root,
-              ],
+            media: presentation.contMediaComic({
+              minAspectX: minAspect.toString(),
+              minAspectY: "1",
+              children: children,
+              rtl: true,
             }).root,
           }).root,
         ]);
