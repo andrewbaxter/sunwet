@@ -6099,9 +6099,15 @@
 
   const contMenuGroupVBoxStyle = ss(uniq("cont_menu_group0"), {
     "": (s) => {
-      s.marginLeft = "0.6cm";
+      s.marginLeft = varSMenuIndent;
       s.gap = "0.3cm";
       s.minWidth = "0";
+    },
+    ":empty:before": (s) => {
+      s.display = "span";
+      s.content = JSON.stringify("(empty)");
+      s.opacity = varONoninteractive;
+      s.marginLeft = varSMenuIndent;
     },
   });
 

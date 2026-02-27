@@ -20,6 +20,7 @@ use {
         },
     },
     chrono::Utc,
+    flowcontrol::ta_return,
     gloo::utils::window,
     js_sys::Promise,
     lunk::EventGraph,
@@ -126,31 +127,31 @@ fn opfs_offline_views_query_filename(query_id: &str, params: &HashMap<String, No
 
 pub async fn list_offline_views() -> Result<Vec<(String, MinistateView)>, String> {
     let mut out = vec![];
-    let root_dir = &opfs_root().await.get_dir(vec![OPFS_OFFLINE_VIEWS_ROOT.to_string()]).await?;
-    for (k, dir) in root_dir.list().await? {
-        let dir = match dir.dir() {
-            Ok(d) => d,
-            Err(e) => {
-                state().log.log(&e);
-                continue;
-            },
-        };
-        let view =
-            match dir
-                .get_file(vec![OPFS_OFFLINE_VIEWS_VIEW_FILENAME.to_string()])
-                .await?
-                .read_json::<MinistateView>()
-                .await {
-                Ok(v) => v,
+    let views_root = &opfs_root().await.get_dir(vec![OPFS_OFFLINE_VIEWS_ROOT.to_string()]).await?;
+    for (k, view_dir) in views_root.list().await? {
+        match async {
+            ta_return!((), String);
+            let view_dir = match view_dir.dir() {
+                Ok(d) => d,
                 Err(e) => {
-                    state()
-                        .log
-                        .log(&format!("Found invalid view main file in [{}], deleting and continuing: {}", k, &e));
-                    dir.delete(&OPFS_OFFLINE_VIEWS_VIEW_FILENAME).await;
-                    continue;
+                    state().log.log(&e);
+                    return Ok(());
                 },
             };
-        out.push((k, view));
+            let view =
+                view_dir
+                    .get_file(vec![OPFS_OFFLINE_VIEWS_VIEW_FILENAME.to_string()])
+                    .await?
+                    .read_json::<MinistateView>()
+                    .await?;
+            out.push((k, view));
+            return Ok(());
+        }.await {
+            Ok(_) => { },
+            Err(e) => {
+                state().log.log(&format!("Error listing view in view dir, skipping ({}): {}", view_dir.0, e));
+            },
+        }
     }
     out.sort_by(|a, b| a.0.cmp(&b.0).reverse());
     return Ok(out);
@@ -159,8 +160,8 @@ pub async fn list_offline_views() -> Result<Vec<(String, MinistateView)>, String
 pub async fn ensure_offline(eg: EventGraph, view: MinistateView) -> Result<(), String> {
     request_persistent().await;
     let key = Utc::now().to_rfc3339();
-    let views_root = &opfs_root().await.ensure_dir(vec![OPFS_OFFLINE_VIEWS_ROOT.to_string(), key.clone()]).await?;
-    views_root.ensure_file(vec![OPFS_OFFLINE_VIEWS_VIEW_FILENAME.to_string()]).await?.write_json(&view).await?;
+    let view_root = &opfs_root().await.ensure_dir(vec![OPFS_OFFLINE_VIEWS_ROOT.to_string(), key.clone()]).await?;
+    view_root.ensure_file(vec![OPFS_OFFLINE_VIEWS_VIEW_FILENAME.to_string()]).await?.write_json(&view).await?;
     eg.event(|pc| {
         state().offline_list.splice(pc, 0, 0, vec![(key.clone(), view.clone())]);
     }).unwrap();
@@ -501,11 +502,11 @@ pub fn trigger_offlining(eg: EventGraph) {
                         return Rc::new(child_params);
                     }
 
-                    // Do one task at a time (upload or download), always prioritizing uploads
-                    let offline_views_root = opfs_root().await.ensure_dir(vec![OPFS_OFFLINE_VIEWS_ROOT.to_string()]).await?;
-                    for (key, task_dir) in offline_views_root.list().await? {
+                    let offline_views_root =
+                        opfs_root().await.ensure_dir(vec![OPFS_OFFLINE_VIEWS_ROOT.to_string()]).await?;
+                    for (key, view_dir) in offline_views_root.list().await? {
                         match async {
-                            let task_dir = match task_dir.dir() {
+                            let view_dir = match view_dir.dir() {
                                 Ok(d) => d,
                                 Err(e) => {
                                     state().log.log(&e);
@@ -514,11 +515,11 @@ pub fn trigger_offlining(eg: EventGraph) {
                             };
 
                             // # Handle creates/downloads
-                            if task_dir.exists(OPFS_OFFLINE_VIEWS_DONE_FILENAME).await? {
+                            if view_dir.exists(OPFS_OFFLINE_VIEWS_DONE_FILENAME).await? {
                                 return Ok(());
                             }
                             let view: MinistateView =
-                                task_dir
+                                view_dir
                                     .get_file(vec![OPFS_OFFLINE_VIEWS_VIEW_FILENAME.to_string()])
                                     .await?
                                     .read_json()
@@ -551,7 +552,7 @@ pub fn trigger_offlining(eg: EventGraph) {
                                         parameters: params.clone(),
                                         pagination: None,
                                     }).await?;
-                                    task_dir
+                                    view_dir
                                         .ensure_file(vec![opfs_offline_views_query_filename(&query_id, &params)])
                                         .await?
                                         .write_json(&res)
@@ -625,7 +626,7 @@ pub fn trigger_offlining(eg: EventGraph) {
                                     },
                                 }
                             }
-                            task_dir
+                            view_dir
                                 .ensure_file(vec![OPFS_OFFLINE_VIEWS_DONE_FILENAME.to_string()])
                                 .await?
                                 .write_binary(&[])
@@ -636,7 +637,7 @@ pub fn trigger_offlining(eg: EventGraph) {
                             Err(e) => {
                                 state()
                                     .log
-                                    .log(&format!("Error preparing view for offline viewing [{}]: {}", key, e));
+                                    .log(&format!("Error processing offlined view [{}/{}]: {}", view_dir.0, key, e));
                             },
                         };
                     }

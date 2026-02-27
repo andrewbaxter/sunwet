@@ -172,7 +172,6 @@ impl OpfsDir {
     }
 
     pub async fn delete(&self, seg: &str) {
-        state().log.log(&format!("() Deleting opfs entry at {} {}", self.0, seg));
         if let Err(e) = JsFuture::from(self.1.remove_entry_with_options(seg, &{
             let o = FileSystemRemoveOptions::new();
             o.set_recursive(true);

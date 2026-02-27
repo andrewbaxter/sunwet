@@ -56,6 +56,10 @@
             }).root,
           ],
         }).root,
+        presentation.contMenuGroup({
+          title: "Empty group",
+          children: [],
+        }).root,
         presentation.leafMenuLink({
           title: "Thing is a little longer",
           href: "x",
