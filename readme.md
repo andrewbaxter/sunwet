@@ -1,20 +1,14 @@
 Sunwet is a combined file manager and graph database with media playback capabilities. In short, use it to organize anything! Notes, music, art, photos, video, software, comics, archived websites, scanned documents, financial transactions, appointments, people you know, emails, passwords (encrypted!), etc etc.
 
-This project fills these features:
+To keep things manageable, the goals of the project are to provide:
 
-- Managing a knowledge graph, including adding and querying data
+- The file manager/database itself and API
 
-- A very simple ontology to get started with, and a basic tool for importing media
+- A web UI for consuming media
 
-- A web UI
+- Basic tools for managing the data
 
-  - For making simple edits to the graph
-
-  - Visualizing query results
-
-  - Consuming media: audio, video, images, epub, `.cb*` comics
-
-I'm hoping that if this catches on there will be community projects to provide more use-case-specific functionality.
+I'm hoping that if this catches on better and more specific tooling will be maintained by the community.
 
 So is this a good idea? Read more to find out!
 
@@ -92,7 +86,7 @@ You can write queries that move through this graph arbitrarily to do the above a
 
 - Find all ids where the id "is" "music_album" and the id "year" is between 1970 and 1980
 - Find all ids where the id "is" "photo" and any "subject" "is" "cat"
-- Find all ids where the id "is" "photo" and any "subject" "is" "cat" and has "fur-color" "white"
+- Find all ids where the id "is" "photo" and any "subject" both "is" "cat" and has "fur-color" "white"
 
 Knowledge graphs can handle all the above, arbitrary normalization (i.e. maybe you don't have "subject" but just put "fur-color" directly on "id4" - and you need to write a fur-color query that handles photos with and without subjects), and even things like tag hierarchies.
 
@@ -104,9 +98,9 @@ So are there any practical limitations to knowledge graphs? I'm not sure. But as
 
 There are two parts: the server, and the front end (html, wasm, static files) which are embedded in the server binary. We currently use `nix` to do the build.
 
-If you're using `nix` a system or working in nix already, you can import the package `source/package.nix`.
+If you're using a `nix` system or working in nix already, you can import the package `source/package.nix`.
 
-If you're not using `nix` elsewhere, you can build the binary with:
+If you're not using `nix` elsewhere, install `nix` and then you can build just the binary with:
 
 ```
 nix --extra-experimental-features nix-command build \
@@ -119,7 +113,19 @@ nix --extra-experimental-features nix-command build \
 
 This will output `built/bin/sunwet`.
 
-## Configuration
+## Running
+
+### Quick
+
+Run `node source/local.ts > PATH/TO/ROOT/CONFIG.json` to build a basic config. Edit that file and replace paths and names as necessary.
+
+This will run the server with no authentication (anyone who accesses it is root).
+
+Add data via UI forms or `sunwet commit`. Open your browser and point it to `http://127.0.0.1:8080` to access the web UI.
+
+For more details, see below.
+
+### Not quick
 
 Sunwet can use a local monolith configuration file, or a small root configuration file that sets up [`FDAP`](https://github.com/andrewbaxter/openfdap) access to pull the rest of the config. Using FDAP allows you to update the config live and integrates with login portals like [`fdap-login`](https://github.com/andrewbaxter/fdap-login/).
 
@@ -128,8 +134,6 @@ Sunwet can also be configured to use OIDC for user logins or run with no authent
 Regardless, you need to create a root config. The root config follows the [JSON spec](./source/generated/jsonschema/config.schema.json) or equivalent [TS spec](./source/generated/ts/index.ts) (`Config`). If you use FDAP there are additional schemas in the above directories for the global config and per-user config.
 
 The global config sets up storage paths, views available in the UI, and the menu structure. The per-user config is mostly permissions for accessing various views. The config is large, needs JSON queries (which you may want to compile from the query DSL), and you'll likely want to repeat bits of config (like making multiple views with different queries but similar display structures) - for these reasons I currently recommend using a typescript script to build (and upload, if using FDAP) the config. This allows you to use variables, call processes to build queries, and upload the data all in one file, and provides type safety and autocomple. There's a complete example config at [./source/example_fdap_config.ts](./source/example_fdap_config.ts).
-
-## Running
 
 Start Sunwet with `sunwet run-server PATH/TO/ROOT/CONFIG.json`.
 
@@ -141,7 +145,7 @@ As described above, Sunwet stores "triples".
 
 In Sunwet the "subject" and "object" are called "nodes" and can be arbitrary JSON or a file. Files are represented in the graph as a hash of the contents, and there's a separate endpoint to fetch the file by its hash.
 
-## Adding and editing data
+## Adding, editing, and deleting data
 
 Data in Sunwet is changed by creating a "commit". A commit is a list of triples to remove and another list of triples to delete.
 
@@ -157,21 +161,17 @@ There are several ways to make commits:
 
 - Creating a CLI commit JSON then sending it via the CLI (`sunwet commit`)
 
-  The CLI commit JSON uses file paths instead of hashes. Then when you send it via the CLI, the CLI will hash the files, produce and send the API commit JSON, and upload all the files.
-
   The CLI commit JSON follows this [JSON schema](./source/generated/jsonschema/cli_commit.schema.json)
+
+  The CLI commit JSON uses file paths instead of hashes. Then when you send it via the CLI, the CLI will hash the files producing a new API commit JSON with file hashes, send commit JSON to the server, then upload all the files.
 
 - Using the CLI media import command (`sunwet prepare-media-import`)
 
-  This scans the given directory for media files and uses media tags (MKV, ID3, EPub, ComicInfo.xml) to generate triples. It will output a `sunwet.json` file you can then commit using `sunwet commit`.
+  This scans the given directory for media files and uses media tags (MKV, ID3, EPub, ComicInfo.xml) to generate triples. It will output a `sunwet.json` CLI commit file you can then commit using `sunwet commit`.
 
   The prepared commit will match the very basic ontology below.
 
 Having more convenient ways to import data, like a pintrest-like web "save" plugin, would be awesome but is out of scope for the core repo.
-
-## Deleting data
-
-As mentioned above, you can remove a triple in a commit.
 
 Deleted triples will be kept for a year then permanently erased. You can find the commit in history and restore it up until it gets permanently erased.
 
@@ -181,15 +181,15 @@ Files are kept until no triples (deleted or not) refer to them, then they will b
 
 When you upload certain types of files Sunwet will generate derived files:
 
-- Audio files compatible with common devices
+- Transcoded audio files in device/web-compatible formats
 
-- Video files in web-compatible formats
+- Transcoded video files in web-compatible formats
 
 - Extracted comic pages and metadata for the web reader
 
-- HTML forms of EPUB books
+- Transcoded HTML versions of EPUB books
 
-On-demand generation would be great but it's a TODO. Video conversion can take a very long time, so the other derived files are produced first.
+Generation happens in the background. Video conversion can take a very long time, so the other derived files are produced first.
 
 ## Ontology
 
@@ -197,7 +197,7 @@ An ontology is the set of rules for triples, predicates, formatting subjects, et
 
 With sunwet you can use any ontology you want, but the default queries and media import tool use this [vocabulary/ontology](./source/shared/src/interface/ont/mod.rs). Generally speaking, albums, tracks, and notes all are UUIDs. They're related and described by the predicates in the ontology. Also see the default config for more context on how the ontology is used.
 
-Ideally there'd be a much more powerful, flexible ontology. At the same time, there are projects to come up with powerful, flexible RDF ontologies that have been going on for decades. Coming up with such an ontology is out of scope for this core repo (but if a widely accepted ontology is created I'd like to update the defaults here to use it).
+Ideally there'd be a much more powerful, flexible, well documented ontology. At the same time, there are projects to come up with powerful, flexible RDF ontologies that have been going on for decades. Coming up with such an ontology is out of scope for this core repo (but if someone comes up with a good ontology I'd like to update the defaults here to use it).
 
 ## Querying data
 
@@ -243,8 +243,8 @@ The advantage of having an ID type is that tooling could identify IDs and provid
 
 ## Custom query language
 
-I originally started this with [cozodb](https://github.com/cozodb/cozo) which used datalog, but doing the sorts of recursive queries I wanted with arbitrary separation between values (i.e. get name at N levels of indirection via X edges) was _extremly_ cumbersome and couldn't be encapsulated/generalized - making larger queries required changes throughout the query and not localized to some clause.
+I originally started this with [cozodb](https://github.com/cozodb/cozo) which used datalog, but doing the sorts of recursive queries I wanted with arbitrary separation between values (i.e. get name at N levels of indirection via X edges) was _extremly_ cumbersome and couldn't be encapsulated/generalized - queries required lots of giant, query-specific boilerplate clauses and any changes were heavily non-local.
 
 Similarly, I looked at SparQL and it didn't seem much less cumbersome.
 
-I have no doubt that the new query method is limited, and this could turn out to be a terrible idea, but at least for the types of queries I can anticipate right now it's capable and succinct.
+I have no doubt that the new query method is limited, and this could turn out to be a terrible idea, but at least for the types of queries I can anticipate right now it's pretty good I think.

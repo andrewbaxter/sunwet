@@ -533,8 +533,18 @@ impl PlaylistMedia for PlaylistMediaComic {
                     return group_width <= self.view_width();
                 }
 
+                fn norm_index(&self, index: usize) -> Option<usize> {
+                    let len = self.page_lookup.len();
+                    if len == 0 {
+                        return None;
+                    }
+                    return Some(index.min(len - 1));
+                }
+
                 fn calc_want_center(&self, index: usize) -> f64 {
-                    let index = index.min(self.page_lookup.len());
+                    let Some(index) = self.norm_index(index) else {
+                        return 0.;
+                    };
                     let Some(entry) = self.page_lookup.get(&index) else {
                         return 0.;
                     };
@@ -553,27 +563,43 @@ impl PlaylistMedia for PlaylistMediaComic {
                 }
 
                 fn seek_next(&self, pc: &mut ProcessingContext) {
-                    let entry = self.page_lookup.get(&*self.at.borrow()).unwrap();
+                    let Some(at) = self.norm_index(*self.at.borrow()) else {
+                        return;
+                    };
+                    let Some(entry) = self.page_lookup.get(&at) else {
+                        return;
+                    };
                     let group = &self.groups[entry.group_in_media];
-                    let new_index;
+                    let new_at;
                     if self.want_group_movement(self.calc_group_width(group)) {
-                        new_index = *self.at.borrow() + (group.len() - entry.page_in_group);
+                        new_at = *self.at.borrow() + (group.len() - entry.page_in_group);
                     } else {
-                        new_index = *self.at.borrow() + 1;
+                        new_at = *self.at.borrow() + 1;
                     }
-                    self.at.set(pc, new_index.min(self.page_lookup.len()));
+                    let Some(new_at) = self.norm_index(new_at) else {
+                        return;
+                    };
+                    self.at.set(pc, new_at);
                 }
 
                 fn seek_prev(&self, pc: &mut ProcessingContext) {
-                    let entry = self.page_lookup.get(&*self.at.borrow()).unwrap();
-                    let group = &self.groups[entry.group_in_media];
-                    let new_index;
-                    if self.want_group_movement(self.calc_group_width(group)) {
-                        new_index = *self.at.borrow() - 1 - entry.page_in_group;
-                    } else {
-                        new_index = *self.at.borrow() - 1;
+                    let Some(at) = self.norm_index(*self.at.borrow()) else {
+                        return;
+                    };
+                    if at == 0 {
+                        return;
                     }
-                    self.at.set(pc, new_index.min(self.page_lookup.len()));
+                    let Some(entry) = self.page_lookup.get(&at) else {
+                        return;
+                    };
+                    let group = &self.groups[entry.group_in_media];
+                    let new_at;
+                    if self.want_group_movement(self.calc_group_width(group)) {
+                        new_at = *self.at.borrow() - 1 - entry.page_in_group;
+                    } else {
+                        new_at = *self.at.borrow() - 1;
+                    }
+                    self.at.set(pc, new_at);
                 }
             }
 

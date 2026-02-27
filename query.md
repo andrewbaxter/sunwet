@@ -1,16 +1,16 @@
 # Sunwet Query Language (probably need a better name for this)
 
-This is not intended to be an omnipotent interface to the graph. The idea is that this should be a convenience for simple queries, while more complex things should be done via a more powerful programmatic interface. It's a work in progress, there are some features I'd like to add, and I'd like to change the uhh, self similarity inflection point to make it more composable.
+This is supposed to be a simple way to get data from the graph - it is not intended to do everything. It's a work in progress, there are some features I'd like to add, and I'd like to change the uhh, self similarity inflection point to make it more composable.
 
 **Notes**
 
-The documentation refers to values and string values. Values refer to nodes in the database and are described in the values section at the bottom. When the documentation refers to string values, it means a value which can only take the simple quoted string form (or be a parameter that resolves to a string).
+The documentation refers to "values" and "string values". "Values" refer to nodes in the database and are described in the values section at the bottom. When the documentation refers to "string values", it means a value which can only take the simple quoted string form (or be a parameter that resolves to a string).
 
-The forms uses these conventions:
+The syntax documentation uses these conventions:
 
 - Lower case text indicates verbatim text
 
-- Capital text indicates something to be replaced
+- Capital text indicates something the querier must replace
 
 - `+` means the preceding item must occur one or more times
 
@@ -18,7 +18,7 @@ The forms uses these conventions:
 
 - `*` means the preceding item can occur zero or more times
 
-- `(` and `)` are verbatim, but themselves and anything between them are treated as a single item for the purpose of the above modifiers
+- `(` and `)` are verbatim, but they themselves as well as anything between them are treated as a single item for the purpose of the above modifiers
 
 ## The basics
 
@@ -36,15 +36,17 @@ Suppose you have a graph with triples like:
 ...
 ```
 
+An example query is:
+
 ```
 "sunwet/1/album" -< "sunwet/1/is" { => id }
 ```
 
 The query syntax follows this form: `ROOT? STEP+ STRUCT? SORT?`
 
-This simple example starts at the node with JSON string value "sunwet/1/album" (the `ROOT`: `"sunwet/1/album"`), moves from object to subject over predicates with the value "sunwet/1/is" (the `STEP+`: `-< "sunwet/1/is"`). One row is output for each value in the output set of the final step. The `STRUCT?` (`{ => id }`) turns each row from a single value into a struct, and binds the row value to the field `id` in the struct.
+The query describes movements from one set to the next, starting with the root or else "everything". In this query, it starts with the set with just the node with JSON string value "sunwet/1/album" (the `ROOT`: `"sunwet/1/album"`), then using that set as "object" values moves to the set of "subject" values over predicates with the value "sunwet/1/is" (the `STEP+`: `-< "sunwet/1/is"` -- `-<` is used because the "is" relation points from "subject" to "object" but we want to move from "object" to "subject"). Since this is the final step, one row is output for each value in set. The `STRUCT?` (`{ => id }`) turns each row from a single value into a struct, and binds the row value to the field `id` in the struct.
 
-Uh, but to summarize what the query actually does, it returns the ids of all albums (if you're confused, or if you're not confused yet: id isn't a property of a album in this ontology, album is a property of an id).
+Uh, but to summarize what the query actually does, it returns the ids of all albums. (If you're confused, or if you're not confused yet: id isn't a property of "album" in this ontology, "album" is a property of an id).
 
 Each part is described in more detail below.
 
@@ -52,7 +54,7 @@ Each part is described in more detail below.
 
 A root value is optional and determines the starting set for the query.
 
-The query can start with no root, in which case the starting set is considered to be every possible value (note you can't actually return every value, you must have at least one movement step if no root is specified).
+The query can start with no root, in which case the starting set is considered to be every possible value (note: this is a special case and you can't actually return every value, you must have at least one movement step if no root is specified).
 
 A query can start with a value root (like the value `"sunwet/1/album"` above) in which case the starting set has just one element, that value.
 
@@ -158,7 +160,7 @@ Values (nodes) can be specified as any of the following:
 
 - The sunwet UI has a `query` view which allows you to write queries and see their results live
 
-- `sunwet` has command `compile-query` which turns a query into JSON. All API
+- `sunwet` has command `compile-query` which turns a query into JSON.
 
 - `sunwet` has command `query` which takes a compiled query and executes it against the server
 

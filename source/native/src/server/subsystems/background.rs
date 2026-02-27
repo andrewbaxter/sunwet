@@ -210,9 +210,7 @@ async fn generate_subs(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
         if !is_text_sub(&codec_name) {
             continue;
         }
-        let Some(lang) = stream.tags.get("language") else {
-            continue;
-        };
+        let lang = stream.tags.get("language").cloned().unwrap_or_else(|| format!("eng"));
         let gentype = GENTYPE_VTT;
         if generated_exists(state, file, gentype).await? {
             continue;

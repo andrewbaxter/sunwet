@@ -80,6 +80,7 @@ use {
             Env,
             Log,
             env_preferred_audio_url,
+            env_preferred_video_url,
             env_video_subtitle_url,
             gen_video_subtitle_subpath,
             style_export,
@@ -659,23 +660,23 @@ pub async fn playlist_extend(
                             &gen_video_subtitle_subpath(lang),
                         ).await {
                             Ok(u) => {
-                                sub_src.insert(lang.clone(), u);
+                                sub_src.insert(u, lang.clone());
                             },
                             Err(e) => {
                                 state().log.log(&format!("Error determining offline video subtitle url: {}", e));
-                                sub_src.insert(lang.clone(), format!(""));
                             },
                         }
                     }
                 } else {
-                    src = env_preferred_audio_url(&state().env, &entry.source_file);
+                    src = env_preferred_video_url(&state().env, &entry.source_file);
                     for lang in &state().env.languages {
                         sub_src.insert(
-                            lang.clone(),
                             env_video_subtitle_url(&state().env, lang, &entry.source_file),
+                            lang.clone(),
                         );
                     }
                 }
+                sub_src = sub_src.into_iter().map(|(url, weblang)| (weblang, url)).collect();
                 box_media =
                     Box::new(
                         PlaylistMediaAudioVideo::new_video(
