@@ -9,9 +9,9 @@ Organize anything! Notes, music, art, photos, video, software, comics, archived 
 <br />
 
 <p float="left">
-  <a href="https://github.com/andrewbaxter/sunwet-md-media/blob/main/desktop_comic_dark11.jpg?raw=true"><img src="https://github.com/andrewbaxter/sunwet-md-media/blob/main/desktop_comic_dark11_thumb.png?raw=true" width="30%" /></a>
-  <a href="https://github.com/andrewbaxter/sunwet-md-media/blob/main/desktop_videos_dark1.jpg?raw=true"><img src="https://github.com/andrewbaxter/sunwet-md-media/blob/main/desktop_videos_dark1_thumb.png?raw=true" width="30%" /></a>
   <a href="https://github.com/andrewbaxter/sunwet-md-media/blob/main/desktop_album_dark2.jpg?raw=true"><img src="https://github.com/andrewbaxter/sunwet-md-media/blob/main/desktop_album_dark2_thumb.png?raw=true" width="30%" /></a>
+  <a href="https://github.com/andrewbaxter/sunwet-md-media/blob/main/desktop_videos_dark1.jpg?raw=true"><img src="https://github.com/andrewbaxter/sunwet-md-media/blob/main/desktop_videos_dark1_thumb.png?raw=true" width="30%" /></a>
+  <a href="https://github.com/andrewbaxter/sunwet-md-media/blob/main/desktop_comic_dark11.jpg?raw=true"><img src="https://github.com/andrewbaxter/sunwet-md-media/blob/main/desktop_comic_dark11_thumb.png?raw=true" width="30%" /></a>
   <a href="https://github.com/andrewbaxter/sunwet-md-media/blob/main/mobile_album_dark1.jpg?raw=true"><img src="https://github.com/andrewbaxter/sunwet-md-media/blob/main/mobile_album_dark1_thumb.png?raw=true" width="7.65%" /></a>
 </p>
 
