@@ -29,7 +29,7 @@ I'm hoping that if this catches on better and more specific tooling will be main
 
 <br />
 
-Full list of cool features
+Full list of cool features:
 
 - Play/view audio, video, epub, cbz/cb7, images
 
@@ -37,11 +37,11 @@ Full list of cool features
 
 - PWA support (required for increased offline storage on iOS)
 
-- "Linked" playing, for listening to music with a friend
+- "Linked" playing, for listening to music with a friend or an enemy
 
-- Download views for offline consumption
+- Download views for internet-less consumption (e.g. in a natural cave)
 
-- Forms, for easy field data entry, with offline queuing for later upload
+- Forms, for easy field data entry, with offline queuing for later upload (e.g. if you're in a natural cave)
 
 - A query editor with bulk edit functionality
 
@@ -49,7 +49,7 @@ Full list of cool features
 
 - Full undo, deleted data kept for a year
 
-- A media import tool
+- A media import tool, with relations from tags
 
 - A very very basic ontology and default config for easy setup
 
