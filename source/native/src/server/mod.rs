@@ -905,8 +905,8 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
                 GlobalState::Local(build_global_config(global_config).context("Error assembling local config")?)
             },
         };
-        let users_state = match &config.user {
-            MaybeFdap::Fdap(subpath) => {
+        let users_state = match &config.users {
+            Some(MaybeFdap::Fdap(subpath)) => {
                 let Some(fdap) = &fdap_state else {
                     return Err(loga::err("User config set to use FDAP but no FDAP configured at config root"));
                 };
@@ -916,11 +916,12 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
                     cache: Cache::builder().time_to_live(Duration::from_secs(10)).build(),
                 })
             },
-            MaybeFdap::Local(users_config) => UsersState::Local(
+            Some(MaybeFdap::Local(users_config)) => UsersState::Local(
                 LocalUsersState {
                     users: users_config.users.iter().map(|(k, v)| (k.clone(), Arc::new(v.clone()))).collect(),
                 },
             ),
+            None => UsersState::Local(LocalUsersState { users: Default::default() }),
         };
         let (background_tx, background_rx) = mpsc::unbounded_channel();
         let state = Arc::new(State {

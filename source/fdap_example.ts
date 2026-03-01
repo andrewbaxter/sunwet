@@ -1,8 +1,10 @@
 import * as process from "process";
+import * as default_config from "./default_config.ts";
 import * as fdap from "./fdap.ts";
 
 (async () => {
-  await fdap.sendFdap({
+  const globalConfig = await default_config.buildGlobal();
+  await fdap.sendFdap(globalConfig, {
     you: {
       "fdap-login": { password: process.env.YOUR_PASSWORD },
       sunwet: { iam_grants: "admin" },

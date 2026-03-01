@@ -7,7 +7,12 @@
   ],
   "properties": {
     "iam_grants": {
-      "$ref": "#/definitions/ConfigIamGrants"
+      "description": "What the user is allowed to access.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/ConfigIamGrants"
+        }
+      ]
     }
   },
   "additionalProperties": false,
@@ -15,12 +20,14 @@
     "ConfigIamGrants": {
       "oneOf": [
         {
+          "description": "Access everything, including running free queries.",
           "type": "string",
           "enum": [
             "admin"
           ]
         },
         {
+          "description": "Access only specified views and forms.",
           "type": "object",
           "required": [
             "limited"

@@ -5,4 +5,50 @@ import type { MaybeFdap } from "./MaybeFdap";
 import type { OidcConfig } from "./OidcConfig";
 import type { UsersConfig } from "./UsersConfig";
 
-export type Config = { debug?: boolean, temp_dir: string, graph_dir: string, files_dir: string, cache_dir: string, bind_addr: string, oidc: OidcConfig | null, fdap: FdapConfig | null, global: MaybeFdap<GlobalConfig>, user: MaybeFdap<UsersConfig>, };
+export type Config = { 
+/**
+ * Verbose logging.
+ */
+debug?: boolean, 
+/**
+ * This directory stores partial files during upload. Completed files are moved
+ * into the "files" directory atomically, so it must be on the same mount as the
+ * files_dir.
+ */
+temp_dir: string, 
+/**
+ * This directory contains the graph (triples). Back this directory up (stop
+ * Sunwet first).
+ */
+graph_dir: string, 
+/**
+ * This directory contains the files directly upload, that are referenced by the
+ * graph. Back this directory up (stop Sunwet first).
+ */
+files_dir: string, 
+/**
+ * This directory contains generated files. Everything can be re-created if this
+ * directory is lost.
+ */
+cache_dir: string, 
+/**
+ * Access the server via this address (both web and CLI).
+ */
+bind_addr: string, 
+/**
+ * Allow users to identify via OIDC
+ */
+oidc?: OidcConfig | null, 
+/**
+ * Define access for users (as identified by OIDC).
+ */
+users?: MaybeFdap<UsersConfig> | null, 
+/**
+ * If you have configs you want to fetch from an FDAP server (global or users) you
+ * must configure how to access the FDAP server here.
+ */
+fdap?: FdapConfig | null, 
+/**
+ * Everything else.
+ */
+global: MaybeFdap<GlobalConfig>, };

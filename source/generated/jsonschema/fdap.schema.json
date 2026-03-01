@@ -10,6 +10,7 @@
   ],
   "properties": {
     "api_tokens": {
+      "description": "A map of api tokens (the token is the key) to access to grant the bearer of that token.",
       "type": "object",
       "additionalProperties": {
         "$ref": "#/definitions/ConfigIamGrants"
@@ -29,14 +30,17 @@
       }
     },
     "public_iam_grants": {
+      "description": "Define access for non-authenticated users.",
       "default": {
-        "forms": [],
-        "menu_items": [],
-        "views": []
+        "limited": {
+          "forms": [],
+          "menu_items": [],
+          "views": []
+        }
       },
       "allOf": [
         {
-          "$ref": "#/definitions/ConfigIamGrantsLimited"
+          "$ref": "#/definitions/ConfigIamGrants"
         }
       ]
     },
@@ -151,12 +155,14 @@
     "ConfigIamGrants": {
       "oneOf": [
         {
+          "description": "Access everything, including running free queries.",
           "type": "string",
           "enum": [
             "admin"
           ]
         },
         {
+          "description": "Access only specified views and forms.",
           "type": "object",
           "required": [
             "limited"
@@ -560,12 +566,14 @@
       ],
       "properties": {
         "fields": {
+          "description": "What the user must input.",
           "type": "array",
           "items": {
             "$ref": "#/definitions/FormField"
           }
         },
         "outputs": {
+          "description": "How to construct the commit from the input fields.",
           "type": "array",
           "items": {
             "$ref": "#/definitions/FormOutput"
@@ -810,7 +818,12 @@
       ],
       "properties": {
         "form_id": {
-          "$ref": "#/definitions/FormId"
+          "description": "This is the key of a form in the root global config.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/FormId"
+            }
+          ]
         },
         "parameters": {
           "description": "Provide initial parameters for fields, by field id.",
@@ -1020,13 +1033,7 @@
     "MenuItemPage": {
       "oneOf": [
         {
-          "type": "string",
-          "enum": [
-            "history",
-            "query"
-          ]
-        },
-        {
+          "description": "Take the user to the specified view page.",
           "type": "object",
           "required": [
             "view"
@@ -1039,6 +1046,7 @@
           "additionalProperties": false
         },
         {
+          "description": "Take the user to the specified form page.",
           "type": "object",
           "required": [
             "form"
@@ -1049,6 +1057,20 @@
             }
           },
           "additionalProperties": false
+        },
+        {
+          "description": "Take the user to the commit history page.",
+          "type": "string",
+          "enum": [
+            "history"
+          ]
+        },
+        {
+          "description": "Take the user to the free query page.",
+          "type": "string",
+          "enum": [
+            "query"
+          ]
         }
       ]
     },
@@ -1059,6 +1081,7 @@
       ],
       "properties": {
         "children": {
+          "description": "Items to show in the group.",
           "type": "array",
           "items": {
             "$ref": "#/definitions/ServerConfigMenuItem"
@@ -1191,7 +1214,12 @@
       ],
       "properties": {
         "detail": {
-          "$ref": "#/definitions/ServerConfigMenuItemDetail"
+          "description": "The type of menu item.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/ServerConfigMenuItemDetail"
+            }
+          ]
         },
         "id": {
           "description": "The id of a menu item is used for permissions.",
@@ -1202,6 +1230,7 @@
           ]
         },
         "name": {
+          "description": "Text to show in the menu.",
           "type": "string"
         }
       },
@@ -1210,6 +1239,7 @@
     "ServerConfigMenuItemDetail": {
       "oneOf": [
         {
+          "description": "This shows an expandable group of menu items.",
           "type": "object",
           "required": [
             "section"
@@ -1222,6 +1252,7 @@
           "additionalProperties": false
         },
         {
+          "description": "This is a leaf menu item, a link to a page.",
           "type": "object",
           "required": [
             "page"
@@ -1478,9 +1509,15 @@
       ],
       "properties": {
         "display": {
-          "$ref": "#/definitions/WidgetRootDataRows"
+          "description": "How to build the view.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/WidgetRootDataRows"
+            }
+          ]
         },
         "parameters": {
+          "description": "The user will be presented inputs to provide values to the query. The values entered will be available as variables with the mapped name during query evaluation.",
           "default": {},
           "type": "object",
           "additionalProperties": {
@@ -1488,6 +1525,7 @@
           }
         },
         "queries": {
+          "description": "The queries the view can execute, named. These are referred to by the display.",
           "type": "object",
           "additionalProperties": {
             "$ref": "#/definitions/Query"
@@ -1514,7 +1552,12 @@
           }
         },
         "view_id": {
-          "$ref": "#/definitions/ViewId"
+          "description": "This is the key of a view in the root global config.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/ViewId"
+            }
+          ]
         }
       },
       "additionalProperties": false

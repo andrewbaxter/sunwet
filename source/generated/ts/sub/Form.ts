@@ -2,4 +2,12 @@
 import type { FormField } from "./FormField";
 import type { FormOutput } from "./FormOutput";
 
-export type Form = { fields: Array<FormField>, outputs: Array<FormOutput>, };
+export type Form = { 
+/**
+ * What the user must input.
+ */
+fields: Array<FormField>, 
+/**
+ * How to construct the commit from the input fields.
+ */
+outputs: Array<FormOutput>, };

@@ -8,21 +8,25 @@
     "files_dir",
     "global",
     "graph_dir",
-    "temp_dir",
-    "user"
+    "temp_dir"
   ],
   "properties": {
     "bind_addr": {
+      "description": "Access the server via this address (both web and CLI).",
       "type": "string"
     },
     "cache_dir": {
+      "description": "This directory contains generated files. Everything can be re-created if this directory is lost.",
       "type": "string"
     },
     "debug": {
+      "description": "Verbose logging.",
       "default": false,
       "type": "boolean"
     },
     "fdap": {
+      "description": "If you have configs you want to fetch from an FDAP server (global or users) you must configure how to access the FDAP server here.",
+      "default": null,
       "anyOf": [
         {
           "$ref": "#/definitions/FdapConfig"
@@ -33,15 +37,24 @@
       ]
     },
     "files_dir": {
+      "description": "This directory contains the files directly upload, that are referenced by the graph. Back this directory up (stop Sunwet first).",
       "type": "string"
     },
     "global": {
-      "$ref": "#/definitions/MaybeFdap_for_GlobalConfig"
+      "description": "Everything else.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/MaybeFdap_for_GlobalConfig"
+        }
+      ]
     },
     "graph_dir": {
+      "description": "This directory contains the graph (triples). Back this directory up (stop Sunwet first).",
       "type": "string"
     },
     "oidc": {
+      "description": "Allow users to identify via OIDC",
+      "default": null,
       "anyOf": [
         {
           "$ref": "#/definitions/OidcConfig"
@@ -52,10 +65,20 @@
       ]
     },
     "temp_dir": {
+      "description": "This directory stores partial files during upload. Completed files are moved into the \"files\" directory atomically, so it must be on the same mount as the files_dir.",
       "type": "string"
     },
-    "user": {
-      "$ref": "#/definitions/MaybeFdap_for_UsersConfig"
+    "users": {
+      "description": "Define access for users (as identified by OIDC).",
+      "default": null,
+      "anyOf": [
+        {
+          "$ref": "#/definitions/MaybeFdap_for_UsersConfig"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "additionalProperties": false,
@@ -161,12 +184,14 @@
     "ConfigIamGrants": {
       "oneOf": [
         {
+          "description": "Access everything, including running free queries.",
           "type": "string",
           "enum": [
             "admin"
           ]
         },
         {
+          "description": "Access only specified views and forms.",
           "type": "object",
           "required": [
             "limited"
@@ -360,6 +385,7 @@
       ]
     },
     "FdapConfig": {
+      "description": "This describes a config value that can either be provided directly in the config, or fetched from FDAP at the provided path (in the globally configured FDAP server).",
       "type": "object",
       "required": [
         "token",
@@ -367,9 +393,11 @@
       ],
       "properties": {
         "token": {
+          "description": "Standard FDAP parameter, see FDAP provider documentation.",
           "type": "string"
         },
         "url": {
+          "description": "Standard FDAP parameter, see FDAP provider documentation.",
           "type": "string"
         }
       },
@@ -586,12 +614,14 @@
       ],
       "properties": {
         "fields": {
+          "description": "What the user must input.",
           "type": "array",
           "items": {
             "$ref": "#/definitions/FormField"
           }
         },
         "outputs": {
+          "description": "How to construct the commit from the input fields.",
           "type": "array",
           "items": {
             "$ref": "#/definitions/FormOutput"
@@ -836,7 +866,12 @@
       ],
       "properties": {
         "form_id": {
-          "$ref": "#/definitions/FormId"
+          "description": "This is the key of a form in the root global config.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/FormId"
+            }
+          ]
         },
         "parameters": {
           "description": "Provide initial parameters for fields, by field id.",
@@ -879,6 +914,7 @@
       ],
       "properties": {
         "api_tokens": {
+          "description": "A map of api tokens (the token is the key) to access to grant the bearer of that token.",
           "type": "object",
           "additionalProperties": {
             "$ref": "#/definitions/ConfigIamGrants"
@@ -898,14 +934,17 @@
           }
         },
         "public_iam_grants": {
+          "description": "Define access for non-authenticated users.",
           "default": {
-            "forms": [],
-            "menu_items": [],
-            "views": []
+            "limited": {
+              "forms": [],
+              "menu_items": [],
+              "views": []
+            }
           },
           "allOf": [
             {
-              "$ref": "#/definitions/ConfigIamGrantsLimited"
+              "$ref": "#/definitions/ConfigIamGrants"
             }
           ]
         },
@@ -1162,13 +1201,7 @@
     "MenuItemPage": {
       "oneOf": [
         {
-          "type": "string",
-          "enum": [
-            "history",
-            "query"
-          ]
-        },
-        {
+          "description": "Take the user to the specified view page.",
           "type": "object",
           "required": [
             "view"
@@ -1181,6 +1214,7 @@
           "additionalProperties": false
         },
         {
+          "description": "Take the user to the specified form page.",
           "type": "object",
           "required": [
             "form"
@@ -1191,6 +1225,20 @@
             }
           },
           "additionalProperties": false
+        },
+        {
+          "description": "Take the user to the commit history page.",
+          "type": "string",
+          "enum": [
+            "history"
+          ]
+        },
+        {
+          "description": "Take the user to the free query page.",
+          "type": "string",
+          "enum": [
+            "query"
+          ]
         }
       ]
     },
@@ -1201,6 +1249,7 @@
       ],
       "properties": {
         "children": {
+          "description": "Items to show in the group.",
           "type": "array",
           "items": {
             "$ref": "#/definitions/ServerConfigMenuItem"
@@ -1355,7 +1404,12 @@
       ],
       "properties": {
         "detail": {
-          "$ref": "#/definitions/ServerConfigMenuItemDetail"
+          "description": "The type of menu item.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/ServerConfigMenuItemDetail"
+            }
+          ]
         },
         "id": {
           "description": "The id of a menu item is used for permissions.",
@@ -1366,6 +1420,7 @@
           ]
         },
         "name": {
+          "description": "Text to show in the menu.",
           "type": "string"
         }
       },
@@ -1374,6 +1429,7 @@
     "ServerConfigMenuItemDetail": {
       "oneOf": [
         {
+          "description": "This shows an expandable group of menu items.",
           "type": "object",
           "required": [
             "section"
@@ -1386,6 +1442,7 @@
           "additionalProperties": false
         },
         {
+          "description": "This is a leaf menu item, a link to a page.",
           "type": "object",
           "required": [
             "page"
@@ -1613,7 +1670,12 @@
       ],
       "properties": {
         "iam_grants": {
-          "$ref": "#/definitions/ConfigIamGrants"
+          "description": "What the user is allowed to access.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/ConfigIamGrants"
+            }
+          ]
         }
       },
       "additionalProperties": false
@@ -1625,6 +1687,7 @@
       ],
       "properties": {
         "users": {
+          "description": "Configure access based on the identity provided by the identity server (`subject` field in the identity token).",
           "type": "object",
           "additionalProperties": {
             "$ref": "#/definitions/UserConfig"
@@ -1669,9 +1732,15 @@
       ],
       "properties": {
         "display": {
-          "$ref": "#/definitions/WidgetRootDataRows"
+          "description": "How to build the view.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/WidgetRootDataRows"
+            }
+          ]
         },
         "parameters": {
+          "description": "The user will be presented inputs to provide values to the query. The values entered will be available as variables with the mapped name during query evaluation.",
           "default": {},
           "type": "object",
           "additionalProperties": {
@@ -1679,6 +1748,7 @@
           }
         },
         "queries": {
+          "description": "The queries the view can execute, named. These are referred to by the display.",
           "type": "object",
           "additionalProperties": {
             "$ref": "#/definitions/Query"
@@ -1705,7 +1775,12 @@
           }
         },
         "view_id": {
-          "$ref": "#/definitions/ViewId"
+          "description": "This is the key of a view in the root global config.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/ViewId"
+            }
+          ]
         }
       },
       "additionalProperties": false

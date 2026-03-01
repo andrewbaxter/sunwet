@@ -2,4 +2,9 @@
 import type { UserConfig } from "./UserConfig";
 import type { UserIdentityId } from "./UserIdentityId";
 
-export type UsersConfig = { users: { [key in UserIdentityId]?: UserConfig }, };
+export type UsersConfig = { 
+/**
+ * Configure access based on the identity provided by the identity server
+ * (`subject` field in the identity token).
+ */
+users: { [key in UserIdentityId]?: UserConfig }, };

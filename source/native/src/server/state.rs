@@ -98,7 +98,7 @@ pub struct GlobalConfig {
     pub menu_transitive_access: HashMap<MenuItemId, HashSet<AccessSourceId>>,
     pub forms: HashMap<FormId, ServerForm>,
     pub views: HashMap<ViewId, ServerView>,
-    pub public_iam_grants: ConfigIamGrantsLimited,
+    pub public_iam_grants: ConfigIamGrants,
     pub api_tokens_iam_grants: HashMap<String, ConfigIamGrants>,
 }
 
@@ -469,11 +469,14 @@ pub async fn get_iam_grants(state: &State, identity: &Identity) -> Result<IamGra
         },
         Identity::Public | Identity::Link(_) => {
             let global_config = get_global_config(state).await?;
-            return Ok(
-                IamGrants::Limited(
-                    build_iam_grants_limited(&global_config, identity, &global_config.public_iam_grants)?,
-                ),
-            );
+            match &global_config.public_iam_grants {
+                ConfigIamGrants::Admin => {
+                    return Ok(IamGrants::Admin);
+                },
+                ConfigIamGrants::Limited(grants) => {
+                    return Ok(IamGrants::Limited(build_iam_grants_limited(&global_config, identity, grants)?));
+                },
+            }
         },
     }
 }

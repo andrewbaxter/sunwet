@@ -1,15 +1,10 @@
-import * as sunwet from "./source/generated/ts/index.ts";
-import * as sortquery from "./source/generated/ts/sub/SortQuery.ts";
+import * as sunwet from "./generated/ts/index.ts";
+import * as sortquery from "./generated/ts/sub/SortQuery.ts";
 import * as child_process from "child_process";
 import * as process from "process";
+const dirname = import.meta.dirname;
 
-export const sendFdap = async (userConfig: {
-  [_: string]: {
-    // "fdap-login": fdap_login.UserConfig;
-    "fdap-login": any;
-    sunwet: sunwet.UserConfig;
-  };
-}) => {
+export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
   const run_output = async (cmd: string, args: string[]): Promise<string> => {
     return new Promise((yes, no) => {
       var p = child_process.spawn(cmd, args);
@@ -1139,21 +1134,21 @@ export const sendFdap = async (userConfig: {
     },
   };
   const query_audio_albums_tracks = await compile_query(
-    "./sunwet/source/queries/query_audio_albums_tracks.txt",
+    `${dirname}/queries/query_audio_albums_tracks.txt`,
   );
   const query_video_albums_tracks = await compile_query(
-    "./sunwet/source/queries/query_video_albums_tracks.txt",
+    `${dirname}/queries/query_video_albums_tracks.txt`,
   );
   const query_comic_albums_tracks = await compile_query(
-    "./sunwet/source/queries/query_comic_albums_tracks.txt",
+    `${dirname}/queries/query_comic_albums_tracks.txt`,
   );
   const query_book_albums_tracks = await compile_query(
-    "./sunwet/source/queries/query_book_albums_tracks.txt",
+    `${dirname}/queries/query_book_albums_tracks.txt`,
   );
   const query_playlists_tracks = await compile_query(
-    "./sunwet/source/queries/query_playlists_tracks.txt",
+    `${dirname}/queries/query_playlists_tracks.txt`,
   );
-  const sunwet_config: sunwet.GlobalConfig = {
+  return {
     api_tokens: { [process.env.ADMIN_TOKEN]: "admin" },
     menu: [
       {
@@ -1451,8 +1446,8 @@ export const sendFdap = async (userConfig: {
       audio_albums_by_add_date: {
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_audio_albums.txt",
-            "./sunwet/source/queries/query_audio_albums_select.txt",
+            `${dirname}/queries/query_audio_albums.txt`,
+            `${dirname}/queries/query_audio_albums_select.txt`,
             {
               fields: [
                 ["desc", "album_add_timestamp"],
@@ -1467,8 +1462,8 @@ export const sendFdap = async (userConfig: {
       audio_albums_eq_album: {
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_audio_albums_eq_album.txt",
-            "./sunwet/source/queries/query_audio_albums_select.txt",
+            `${dirname}/queries/query_audio_albums_eq_album.txt`,
+            `${dirname}/queries/query_audio_albums_select.txt`,
           ),
           tracks: query_audio_albums_tracks,
         },
@@ -1478,8 +1473,8 @@ export const sendFdap = async (userConfig: {
       audio_albums_eq_artist_by_name: {
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_audio_albums_eq_artist.txt",
-            "./sunwet/source/queries/query_audio_albums_select.txt",
+            `${dirname}/queries/query_audio_albums_eq_artist.txt`,
+            `${dirname}/queries/query_audio_albums_select.txt`,
             {
               fields: [["asc", "album_name"]],
             },
@@ -1492,8 +1487,8 @@ export const sendFdap = async (userConfig: {
       audio_albums_by_random: {
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_audio_albums.txt",
-            "./sunwet/source/queries/query_audio_albums_select.txt",
+            `${dirname}/queries/query_audio_albums.txt`,
+            `${dirname}/queries/query_audio_albums_select.txt`,
             "shuffle",
           ),
           tracks: query_audio_albums_tracks,
@@ -1504,8 +1499,8 @@ export const sendFdap = async (userConfig: {
         parameters: { artist: "text" },
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_audio_albums_search_artist.txt",
-            "./sunwet/source/queries/query_audio_albums_select.txt",
+            `${dirname}/queries/query_audio_albums_search_artist.txt`,
+            `${dirname}/queries/query_audio_albums_select.txt`,
           ),
           tracks: query_audio_albums_tracks,
         },
@@ -1515,8 +1510,8 @@ export const sendFdap = async (userConfig: {
         parameters: { name: "text" },
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_audio_albums_search_name.txt",
-            "./sunwet/source/queries/query_audio_albums_select.txt",
+            `${dirname}/queries/query_audio_albums_search_name.txt`,
+            `${dirname}/queries/query_audio_albums_select.txt`,
           ),
           tracks: query_audio_albums_tracks,
         },
@@ -1525,8 +1520,8 @@ export const sendFdap = async (userConfig: {
       audio_tracks_random: {
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_audio_tracks.txt",
-            "./sunwet/source/queries/query_audio_tracks_select.txt",
+            `${dirname}/queries/query_audio_tracks.txt`,
+            `${dirname}/queries/query_audio_tracks_select.txt`,
             "shuffle",
           ),
         },
@@ -1536,8 +1531,8 @@ export const sendFdap = async (userConfig: {
         parameters: { artist: "text" },
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_audio_tracks_search_artist.txt",
-            "./sunwet/source/queries/query_audio_tracks_select.txt",
+            `${dirname}/queries/query_audio_tracks_search_artist.txt`,
+            `${dirname}/queries/query_audio_tracks_select.txt`,
           ),
         },
         display: display_audio_tracks,
@@ -1546,8 +1541,8 @@ export const sendFdap = async (userConfig: {
         parameters: { name: "text" },
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_audio_tracks_search_name.txt",
-            "./sunwet/source/queries/query_audio_tracks_select.txt",
+            `${dirname}/queries/query_audio_tracks_search_name.txt`,
+            `${dirname}/queries/query_audio_tracks_select.txt`,
           ),
         },
         display: display_audio_tracks,
@@ -1555,8 +1550,8 @@ export const sendFdap = async (userConfig: {
       video_albums_by_add_date: {
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_video_albums.txt",
-            "./sunwet/source/queries/query_video_albums_select.txt",
+            `${dirname}/queries/query_video_albums.txt`,
+            `${dirname}/queries/query_video_albums_select.txt`,
             {
               fields: [
                 ["desc", "album_add_timestamp"],
@@ -1571,8 +1566,8 @@ export const sendFdap = async (userConfig: {
       video_albums_eq_album: {
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_video_albums_eq_album.txt",
-            "./sunwet/source/queries/query_video_albums_select.txt",
+            `${dirname}/queries/query_video_albums_eq_album.txt`,
+            `${dirname}/queries/query_video_albums_select.txt`,
           ),
           tracks: query_video_albums_tracks,
         },
@@ -1581,8 +1576,8 @@ export const sendFdap = async (userConfig: {
       video_albums_by_name: {
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_video_albums.txt",
-            "./sunwet/source/queries/query_video_albums_select.txt",
+            `${dirname}/queries/query_video_albums.txt`,
+            `${dirname}/queries/query_video_albums_select.txt`,
             {
               fields: [["asc", "album_name"]],
             },
@@ -1595,8 +1590,8 @@ export const sendFdap = async (userConfig: {
         parameters: { name: "text" },
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_video_albums_search_name.txt",
-            "./sunwet/source/queries/query_video_albums_select.txt",
+            `${dirname}/queries/query_video_albums_search_name.txt`,
+            `${dirname}/queries/query_video_albums_select.txt`,
           ),
           tracks: query_video_albums_tracks,
         },
@@ -1606,8 +1601,8 @@ export const sendFdap = async (userConfig: {
         parameters: { lang: "text" },
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_comic_albums.txt",
-            "./sunwet/source/queries/query_comic_albums_select.txt",
+            `${dirname}/queries/query_comic_albums.txt`,
+            `${dirname}/queries/query_comic_albums_select.txt`,
             {
               fields: [["asc", "album_name"]],
             },
@@ -1620,8 +1615,8 @@ export const sendFdap = async (userConfig: {
         parameters: { album_id: "text" },
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_comic_albums_eq_album.txt",
-            "./sunwet/source/queries/query_comic_albums_select.txt",
+            `${dirname}/queries/query_comic_albums_eq_album.txt`,
+            `${dirname}/queries/query_comic_albums_select.txt`,
           ),
           tracks: query_comic_albums_tracks,
         },
@@ -1631,8 +1626,8 @@ export const sendFdap = async (userConfig: {
         parameters: { artist_id: "text" },
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_comic_albums_eq_artist.txt",
-            "./sunwet/source/queries/query_comic_albums_select.txt",
+            `${dirname}/queries/query_comic_albums_eq_artist.txt`,
+            `${dirname}/queries/query_comic_albums_select.txt`,
             {
               fields: [["asc", "album_name"]],
             },
@@ -1645,8 +1640,8 @@ export const sendFdap = async (userConfig: {
         parameters: { lang: "text", name: "text" },
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_comic_albums_search_name.txt",
-            "./sunwet/source/queries/query_comic_albums_select.txt",
+            `${dirname}/queries/query_comic_albums_search_name.txt`,
+            `${dirname}/queries/query_comic_albums_select.txt`,
           ),
           tracks: query_comic_albums_tracks,
         },
@@ -1656,8 +1651,8 @@ export const sendFdap = async (userConfig: {
         parameters: { lang: "text", artist: "text" },
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_comic_albums_search_artist.txt",
-            "./sunwet/source/queries/query_comic_albums_select.txt",
+            `${dirname}/queries/query_comic_albums_search_artist.txt`,
+            `${dirname}/queries/query_comic_albums_select.txt`,
           ),
           tracks: query_comic_albums_tracks,
         },
@@ -1666,8 +1661,8 @@ export const sendFdap = async (userConfig: {
       book_albums_by_name: {
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_book_albums.txt",
-            "./sunwet/source/queries/query_book_albums_select.txt",
+            `${dirname}/queries/query_book_albums.txt`,
+            `${dirname}/queries/query_book_albums_select.txt`,
             {
               fields: [["asc", "album_name"]],
             },
@@ -1680,8 +1675,8 @@ export const sendFdap = async (userConfig: {
         parameters: { album_id: "text" },
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_book_albums_eq_album.txt",
-            "./sunwet/source/queries/query_book_albums_select.txt",
+            `${dirname}/queries/query_book_albums_eq_album.txt`,
+            `${dirname}/queries/query_book_albums_select.txt`,
           ),
           tracks: query_book_albums_tracks,
         },
@@ -1691,8 +1686,8 @@ export const sendFdap = async (userConfig: {
         parameters: { artist_id: "text" },
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_book_albums_eq_artist.txt",
-            "./sunwet/source/queries/query_book_albums_select.txt",
+            `${dirname}/queries/query_book_albums_eq_artist.txt`,
+            `${dirname}/queries/query_book_albums_select.txt`,
             {
               fields: [["asc", "album_name"]],
             },
@@ -1705,8 +1700,8 @@ export const sendFdap = async (userConfig: {
         parameters: { name: "text" },
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_book_albums_search_name.txt",
-            "./sunwet/source/queries/query_book_albums_select.txt",
+            `${dirname}/queries/query_book_albums_search_name.txt`,
+            `${dirname}/queries/query_book_albums_select.txt`,
           ),
           tracks: query_book_albums_tracks,
         },
@@ -1716,8 +1711,8 @@ export const sendFdap = async (userConfig: {
         parameters: { artist: "text" },
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_book_albums_search_artist.txt",
-            "./sunwet/source/queries/query_book_albums_select.txt",
+            `${dirname}/queries/query_book_albums_search_artist.txt`,
+            `${dirname}/queries/query_book_albums_select.txt`,
           ),
           tracks: query_book_albums_tracks,
         },
@@ -1726,8 +1721,8 @@ export const sendFdap = async (userConfig: {
       notes_by_add_date: {
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_notes.txt",
-            "./sunwet/source/queries/query_notes_select.txt",
+            `${dirname}/queries/query_notes.txt`,
+            `${dirname}/queries/query_notes_select.txt`,
             {
               fields: [["desc", "add_timestamp"]],
             },
@@ -1738,8 +1733,8 @@ export const sendFdap = async (userConfig: {
       notes_by_random: {
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_notes.txt",
-            "./sunwet/source/queries/query_notes_select.txt",
+            `${dirname}/queries/query_notes.txt`,
+            `${dirname}/queries/query_notes_select.txt`,
             "shuffle",
           ),
         },
@@ -1749,8 +1744,8 @@ export const sendFdap = async (userConfig: {
         parameters: { text: "text" },
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_notes_search_text.txt",
-            "./sunwet/source/queries/query_notes_select.txt",
+            `${dirname}/queries/query_notes_search_text.txt`,
+            `${dirname}/queries/query_notes_select.txt`,
           ),
         },
         display: display_notes,
@@ -1759,8 +1754,8 @@ export const sendFdap = async (userConfig: {
         parameters: { text: "text" },
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_notes_search_topic.txt",
-            "./sunwet/source/queries/query_notes_select.txt",
+            `${dirname}/queries/query_notes_search_topic.txt`,
+            `${dirname}/queries/query_notes_select.txt`,
           ),
         },
         display: display_notes,
@@ -1768,8 +1763,8 @@ export const sendFdap = async (userConfig: {
       playlists_by_add_date: {
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_playlists.txt",
-            "./sunwet/source/queries/query_playlists_select.txt",
+            `${dirname}/queries/query_playlists.txt`,
+            `${dirname}/queries/query_playlists_select.txt`,
             {
               fields: [
                 ["desc", "playlist_add_timestamp"],
@@ -1784,8 +1779,8 @@ export const sendFdap = async (userConfig: {
       playlists_by_random: {
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_playlists.txt",
-            "./sunwet/source/queries/query_playlists_select.txt",
+            `${dirname}/queries/query_playlists.txt`,
+            `${dirname}/queries/query_playlists_select.txt`,
             "shuffle",
           ),
           tracks: query_playlists_tracks,
@@ -1796,8 +1791,8 @@ export const sendFdap = async (userConfig: {
         parameters: { name: "text" },
         queries: {
           root: await compile_query_head_tail(
-            "./sunwet/source/queries/query_playlists_search_name.txt",
-            "./sunwet/source/queries/query_playlists_select.txt",
+            `${dirname}/queries/query_playlists_search_name.txt`,
+            `${dirname}/queries/query_playlists_select.txt`,
           ),
           tracks: query_playlists_tracks,
         },
@@ -1896,19 +1891,4 @@ export const sendFdap = async (userConfig: {
       },
     },
   };
-  const config = {
-    user: userConfig,
-    sunwet: sunwet_config,
-  };
-
-  let res = await fetch(process.env.SUNWET_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.SUNWET_TOKEN}`,
-    },
-    body: JSON.stringify(config),
-  });
-  if (res.status >= 300) {
-    throw new Error(`Failed [${res.status}]:\n${await res.text()}`);
-  }
 };

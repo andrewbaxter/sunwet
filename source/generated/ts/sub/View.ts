@@ -3,4 +3,18 @@ import type { ClientViewParam } from "./ClientViewParam";
 import type { Query } from "./Query";
 import type { WidgetRootDataRows } from "./WidgetRootDataRows";
 
-export type View = { parameters?: { [key in string]?: ClientViewParam }, queries: { [key in string]?: Query }, display: WidgetRootDataRows, };
+export type View = { 
+/**
+ * The user will be presented inputs to provide values to the query. The values
+ * entered will be available as variables with the mapped name during query
+ * evaluation.
+ */
+parameters?: { [key in string]?: ClientViewParam }, 
+/**
+ * The queries the view can execute, named. These are referred to by the display.
+ */
+queries: { [key in string]?: Query }, 
+/**
+ * How to build the view.
+ */
+display: WidgetRootDataRows, };

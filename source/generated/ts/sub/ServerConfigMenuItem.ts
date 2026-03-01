@@ -6,4 +6,12 @@ export type ServerConfigMenuItem = {
 /**
  * The id of a menu item is used for permissions.
  */
-id: MenuItemId, name: string, detail: ServerConfigMenuItemDetail, };
+id: MenuItemId, 
+/**
+ * Text to show in the menu.
+ */
+name: string, 
+/**
+ * The type of menu item.
+ */
+detail: ServerConfigMenuItemDetail, };
