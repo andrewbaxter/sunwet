@@ -2,9 +2,7 @@
 
 <br />
 
-**Sunwet** is a combined file manager and graph database with media playback capabilities.
-
-Organize anything! Notes, music, art, photos, video, software, comics, archived websites, scanned documents, financial transactions, appointments, people you know, emails, passwords (encrypted!), etc etc.
+**Sunwet** is a combined file manager and graph database with media playback capabilities. Organize anything! Notes, music, art, photos, video, software, comics, archived websites, scanned documents, financial transactions, appointments, people you know, emails, passwords (encrypted!), etc etc.
 
 <br />
 
@@ -25,11 +23,9 @@ To keep the scope manageable, the goals of the project are to provide:
 
 - Basic tools for managing the data
 
-I'm hoping that if this catches on better and more specific tooling will be maintained by the community.
-
 <br />
 
-Full list of cool features:
+I'm hoping that if this catches on better and more specific tooling will be maintained by the community, but it does have some cool functionality:
 
 - Play/view audio, video, epub, cbz/cb7, images
 
