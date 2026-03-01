@@ -28,19 +28,19 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
       });
     });
   };
-  const compile_query_head_tail = async (
-    head_path: string,
-    tail_path: string,
+  const compileQueryHeadTail = async (
+    headPath: string,
+    tailPath: string,
     sort?: sortquery.SortQuery,
   ): Promise<sunwet.Query> => {
     const head: sunwet.Query = JSON.parse(
-      await run_output("sunwet", ["compile-query", "--file", head_path]),
+      await run_output("sunwet", ["compile-query", "--file", headPath]),
     );
     if (head.suffix != null) {
       throw new Error();
     }
     const tail: sunwet.Query = JSON.parse(
-      await run_output("sunwet", ["compile-query", "--file", tail_path]),
+      await run_output("sunwet", ["compile-query", "--file", tailPath]),
     );
     if (
       tail.suffix == null ||
@@ -57,23 +57,20 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
       },
     };
   };
-  const compile_query = async (
-    path: string,
-    sort?: sortquery.SortQuery,
-  ): Promise<sunwet.Query> => {
+  const compileQuery = async (path: string): Promise<sunwet.Query> => {
     return JSON.parse(
       await run_output("sunwet", ["compile-query", "--file", path]),
     );
   };
 
-  const widget_node_link = (
-    name_field: string,
-    node_field: string,
+  const widgetNodeLink = (
+    nameField: string,
+    nodeField: string,
   ): sunwet.Widget => {
     return {
       node: {
-        name: { field: name_field },
-        node: { field: node_field },
+        name: { field: nameField },
+        node: { field: nodeField },
         orientation: "right_down",
       },
     };
@@ -81,12 +78,12 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
 
   // import * as fdap_login from "./fdap-login/source/generated/ts/index";
   const audioAlbumTitleBlockSize = "6cm";
-  const album_title_block_height = "8cm";
-  const album_tracks_height = "min(max-content, 100dvh)";
-  const display_audio_albums: sunwet.WidgetRootDataRows = {
+  const albumTitleBlockHeight = "8.4cm";
+  const albumTracksHeight = "min(max-content, 100dvh)";
+  const displayAudioAlbums: sunwet.WidgetRootDataRows = {
     data: { query: "root" },
     element_width: audioAlbumTitleBlockSize,
-    element_height: album_title_block_height,
+    element_height: albumTitleBlockHeight,
     element_body: {
       layout: {
         trans_align: "end",
@@ -167,7 +164,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                   orientation: "down_right",
                   trans_scroll: true,
                   gap: "0.2cm",
-                  trans_size_max: album_tracks_height,
+                  trans_size_max: albumTracksHeight,
                   elements: [
                     {
                       play_button: {
@@ -236,7 +233,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
     },
   };
 
-  const display_audio_albums_few: sunwet.WidgetRootDataRows = {
+  const displayAudioAlbumsFew: sunwet.WidgetRootDataRows = {
     data: { query: "root" },
     element_body: {
       layout: {
@@ -285,7 +282,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                           },
                         },
                       },
-                      widget_node_link("album_name", "album_id"),
+                      widgetNodeLink("album_name", "album_id"),
                     ],
                   },
                 },
@@ -392,7 +389,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
   };
 
   const audioTracksBlockSize = "min(15dvw, 1.6cm)";
-  const display_audio_tracks: sunwet.WidgetRootDataRows = {
+  const displayAudioTracks: sunwet.WidgetRootDataRows = {
     data: { query: "root" },
     element_body: {
       layout: {
@@ -509,7 +506,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
       },
     },
   };
-  const display_video_albums: sunwet.WidgetRootDataRows = {
+  const displayVideoAlbums: sunwet.WidgetRootDataRows = {
     data: { query: "root" },
     element_body: {
       layout: {
@@ -558,7 +555,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                           },
                         },
                       },
-                      widget_node_link("album_name", "album_id"),
+                      widgetNodeLink("album_name", "album_id"),
                     ],
                   },
                 },
@@ -640,7 +637,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
       },
     },
   };
-  const display_comic_albums: sunwet.WidgetRootDataRows = {
+  const displayComicAlbums: sunwet.WidgetRootDataRows = {
     data: { query: "root" },
     element_body: {
       layout: {
@@ -676,7 +673,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                     },
                   },
                 },
-                widget_node_link("album_name", "album_id"),
+                widgetNodeLink("album_name", "album_id"),
               ],
             },
           },
@@ -785,7 +782,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
       },
     },
   };
-  const display_book_albums: sunwet.WidgetRootDataRows = {
+  const displayBookAlbums: sunwet.WidgetRootDataRows = {
     data: { query: "root" },
     element_body: {
       layout: {
@@ -821,7 +818,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                     },
                   },
                 },
-                widget_node_link("album_name", "album_id"),
+                widgetNodeLink("album_name", "album_id"),
               ],
             },
           },
@@ -939,7 +936,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
       },
     },
   };
-  const display_notes: sunwet.WidgetRootDataRows = {
+  const displayNotes: sunwet.WidgetRootDataRows = {
     data: { query: "root" },
     element_body: {
       layout: {
@@ -972,7 +969,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                     color: "rgba(0,0,0,0.3)",
                   },
                 },
-                widget_node_link("note_id", "note_id"),
+                widgetNodeLink("note_id", "note_id"),
               ],
             },
           },
@@ -992,10 +989,10 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
       },
     },
   };
-  const display_playlists: sunwet.WidgetRootDataRows = {
+  const displayPlaylists: sunwet.WidgetRootDataRows = {
     data: { query: "root" },
     element_width: audioAlbumTitleBlockSize,
-    element_height: album_title_block_height,
+    element_height: albumTitleBlockHeight,
     element_body: {
       layout: {
         trans_align: "end",
@@ -1069,7 +1066,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
             orientation: "down_right",
             trans_scroll: true,
             gap: "0.2cm",
-            trans_size_max: album_tracks_height,
+            trans_size_max: albumTracksHeight,
             elements: [
               {
                 play_button: {
@@ -1133,19 +1130,19 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
       },
     },
   };
-  const query_audio_albums_tracks = await compile_query(
+  const queryAudioAlbumsTracks = await compileQuery(
     `${dirname}/queries/query_audio_albums_tracks.txt`,
   );
-  const query_video_albums_tracks = await compile_query(
+  const queryVideoAlbumsTracks = await compileQuery(
     `${dirname}/queries/query_video_albums_tracks.txt`,
   );
-  const query_comic_albums_tracks = await compile_query(
+  const queryComicAlbumsTracks = await compileQuery(
     `${dirname}/queries/query_comic_albums_tracks.txt`,
   );
-  const query_book_albums_tracks = await compile_query(
+  const queryBookAlbumsTracks = await compileQuery(
     `${dirname}/queries/query_book_albums_tracks.txt`,
   );
-  const query_playlists_tracks = await compile_query(
+  const queryPlaylistsTracks = await compileQuery(
     `${dirname}/queries/query_playlists_tracks.txt`,
   );
   return {
@@ -1445,7 +1442,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
     views: {
       audio_albums_by_add_date: {
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_audio_albums.txt`,
             `${dirname}/queries/query_audio_albums_select.txt`,
             {
@@ -1455,101 +1452,101 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
               ],
             },
           ),
-          tracks: query_audio_albums_tracks,
+          tracks: queryAudioAlbumsTracks,
         },
-        display: display_audio_albums,
+        display: displayAudioAlbums,
       },
       audio_albums_eq_album: {
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_audio_albums_eq_album.txt`,
             `${dirname}/queries/query_audio_albums_select.txt`,
           ),
-          tracks: query_audio_albums_tracks,
+          tracks: queryAudioAlbumsTracks,
         },
         parameters: { album_id: "text" },
-        display: display_audio_albums_few,
+        display: displayAudioAlbumsFew,
       },
       audio_albums_eq_artist_by_name: {
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_audio_albums_eq_artist.txt`,
             `${dirname}/queries/query_audio_albums_select.txt`,
             {
               fields: [["asc", "album_name"]],
             },
           ),
-          tracks: query_audio_albums_tracks,
+          tracks: queryAudioAlbumsTracks,
         },
         parameters: { artist_id: "text" },
-        display: display_audio_albums,
+        display: displayAudioAlbums,
       },
       audio_albums_by_random: {
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_audio_albums.txt`,
             `${dirname}/queries/query_audio_albums_select.txt`,
             "shuffle",
           ),
-          tracks: query_audio_albums_tracks,
+          tracks: queryAudioAlbumsTracks,
         },
-        display: display_audio_albums,
+        display: displayAudioAlbums,
       },
       audio_albums_search_artists: {
         parameters: { artist: "text" },
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_audio_albums_search_artist.txt`,
             `${dirname}/queries/query_audio_albums_select.txt`,
           ),
-          tracks: query_audio_albums_tracks,
+          tracks: queryAudioAlbumsTracks,
         },
-        display: display_audio_albums,
+        display: displayAudioAlbums,
       },
       audio_albums_search_name: {
         parameters: { name: "text" },
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_audio_albums_search_name.txt`,
             `${dirname}/queries/query_audio_albums_select.txt`,
           ),
-          tracks: query_audio_albums_tracks,
+          tracks: queryAudioAlbumsTracks,
         },
-        display: display_audio_albums,
+        display: displayAudioAlbums,
       },
       audio_tracks_random: {
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_audio_tracks.txt`,
             `${dirname}/queries/query_audio_tracks_select.txt`,
             "shuffle",
           ),
         },
-        display: display_audio_tracks,
+        display: displayAudioTracks,
       },
       audio_tracks_search_artists: {
         parameters: { artist: "text" },
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_audio_tracks_search_artist.txt`,
             `${dirname}/queries/query_audio_tracks_select.txt`,
           ),
         },
-        display: display_audio_tracks,
+        display: displayAudioTracks,
       },
       audio_tracks_search_name: {
         parameters: { name: "text" },
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_audio_tracks_search_name.txt`,
             `${dirname}/queries/query_audio_tracks_select.txt`,
           ),
         },
-        display: display_audio_tracks,
+        display: displayAudioTracks,
       },
       video_albums_by_add_date: {
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_video_albums.txt`,
             `${dirname}/queries/query_video_albums_select.txt`,
             {
@@ -1559,168 +1556,168 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
               ],
             },
           ),
-          tracks: query_video_albums_tracks,
+          tracks: queryVideoAlbumsTracks,
         },
-        display: display_video_albums,
+        display: displayVideoAlbums,
       },
       video_albums_eq_album: {
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_video_albums_eq_album.txt`,
             `${dirname}/queries/query_video_albums_select.txt`,
           ),
-          tracks: query_video_albums_tracks,
+          tracks: queryVideoAlbumsTracks,
         },
-        display: display_video_albums,
+        display: displayVideoAlbums,
       },
       video_albums_by_name: {
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_video_albums.txt`,
             `${dirname}/queries/query_video_albums_select.txt`,
             {
               fields: [["asc", "album_name"]],
             },
           ),
-          tracks: query_video_albums_tracks,
+          tracks: queryVideoAlbumsTracks,
         },
-        display: display_video_albums,
+        display: displayVideoAlbums,
       },
       video_albums_search_name: {
         parameters: { name: "text" },
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_video_albums_search_name.txt`,
             `${dirname}/queries/query_video_albums_select.txt`,
           ),
-          tracks: query_video_albums_tracks,
+          tracks: queryVideoAlbumsTracks,
         },
-        display: display_video_albums,
+        display: displayVideoAlbums,
       },
       comic_albums_by_name: {
         parameters: { lang: "text" },
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_comic_albums.txt`,
             `${dirname}/queries/query_comic_albums_select.txt`,
             {
               fields: [["asc", "album_name"]],
             },
           ),
-          tracks: query_comic_albums_tracks,
+          tracks: queryComicAlbumsTracks,
         },
-        display: display_comic_albums,
+        display: displayComicAlbums,
       },
       comic_albums_eq_album: {
         parameters: { album_id: "text" },
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_comic_albums_eq_album.txt`,
             `${dirname}/queries/query_comic_albums_select.txt`,
           ),
-          tracks: query_comic_albums_tracks,
+          tracks: queryComicAlbumsTracks,
         },
-        display: display_comic_albums,
+        display: displayComicAlbums,
       },
       comic_albums_eq_artist_by_name: {
         parameters: { artist_id: "text" },
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_comic_albums_eq_artist.txt`,
             `${dirname}/queries/query_comic_albums_select.txt`,
             {
               fields: [["asc", "album_name"]],
             },
           ),
-          tracks: query_comic_albums_tracks,
+          tracks: queryComicAlbumsTracks,
         },
-        display: display_comic_albums,
+        display: displayComicAlbums,
       },
       comic_albums_search_name: {
         parameters: { lang: "text", name: "text" },
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_comic_albums_search_name.txt`,
             `${dirname}/queries/query_comic_albums_select.txt`,
           ),
-          tracks: query_comic_albums_tracks,
+          tracks: queryComicAlbumsTracks,
         },
-        display: display_comic_albums,
+        display: displayComicAlbums,
       },
       comic_albums_search_artists: {
         parameters: { lang: "text", artist: "text" },
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_comic_albums_search_artist.txt`,
             `${dirname}/queries/query_comic_albums_select.txt`,
           ),
-          tracks: query_comic_albums_tracks,
+          tracks: queryComicAlbumsTracks,
         },
-        display: display_comic_albums,
+        display: displayComicAlbums,
       },
       book_albums_by_name: {
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_book_albums.txt`,
             `${dirname}/queries/query_book_albums_select.txt`,
             {
               fields: [["asc", "album_name"]],
             },
           ),
-          tracks: query_book_albums_tracks,
+          tracks: queryBookAlbumsTracks,
         },
-        display: display_book_albums,
+        display: displayBookAlbums,
       },
       book_albums_eq_album: {
         parameters: { album_id: "text" },
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_book_albums_eq_album.txt`,
             `${dirname}/queries/query_book_albums_select.txt`,
           ),
-          tracks: query_book_albums_tracks,
+          tracks: queryBookAlbumsTracks,
         },
-        display: display_book_albums,
+        display: displayBookAlbums,
       },
       book_albums_eq_artist_by_name: {
         parameters: { artist_id: "text" },
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_book_albums_eq_artist.txt`,
             `${dirname}/queries/query_book_albums_select.txt`,
             {
               fields: [["asc", "album_name"]],
             },
           ),
-          tracks: query_book_albums_tracks,
+          tracks: queryBookAlbumsTracks,
         },
-        display: display_book_albums,
+        display: displayBookAlbums,
       },
       book_albums_search_name: {
         parameters: { name: "text" },
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_book_albums_search_name.txt`,
             `${dirname}/queries/query_book_albums_select.txt`,
           ),
-          tracks: query_book_albums_tracks,
+          tracks: queryBookAlbumsTracks,
         },
-        display: display_book_albums,
+        display: displayBookAlbums,
       },
       book_albums_search_artist: {
         parameters: { artist: "text" },
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_book_albums_search_artist.txt`,
             `${dirname}/queries/query_book_albums_select.txt`,
           ),
-          tracks: query_book_albums_tracks,
+          tracks: queryBookAlbumsTracks,
         },
-        display: display_book_albums,
+        display: displayBookAlbums,
       },
       notes_by_add_date: {
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_notes.txt`,
             `${dirname}/queries/query_notes_select.txt`,
             {
@@ -1728,41 +1725,41 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
             },
           ),
         },
-        display: display_notes,
+        display: displayNotes,
       },
       notes_by_random: {
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_notes.txt`,
             `${dirname}/queries/query_notes_select.txt`,
             "shuffle",
           ),
         },
-        display: display_notes,
+        display: displayNotes,
       },
       notes_search_text: {
         parameters: { text: "text" },
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_notes_search_text.txt`,
             `${dirname}/queries/query_notes_select.txt`,
           ),
         },
-        display: display_notes,
+        display: displayNotes,
       },
       notes_search_topic: {
         parameters: { text: "text" },
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_notes_search_topic.txt`,
             `${dirname}/queries/query_notes_select.txt`,
           ),
         },
-        display: display_notes,
+        display: displayNotes,
       },
       playlists_by_add_date: {
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_playlists.txt`,
             `${dirname}/queries/query_playlists_select.txt`,
             {
@@ -1772,31 +1769,31 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
               ],
             },
           ),
-          tracks: query_playlists_tracks,
+          tracks: queryPlaylistsTracks,
         },
-        display: display_playlists,
+        display: displayPlaylists,
       },
       playlists_by_random: {
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_playlists.txt`,
             `${dirname}/queries/query_playlists_select.txt`,
             "shuffle",
           ),
-          tracks: query_playlists_tracks,
+          tracks: queryPlaylistsTracks,
         },
-        display: display_playlists,
+        display: displayPlaylists,
       },
       playlists_search_name: {
         parameters: { name: "text" },
         queries: {
-          root: await compile_query_head_tail(
+          root: await compileQueryHeadTail(
             `${dirname}/queries/query_playlists_search_name.txt`,
             `${dirname}/queries/query_playlists_select.txt`,
           ),
-          tracks: query_playlists_tracks,
+          tracks: queryPlaylistsTracks,
         },
-        display: display_playlists,
+        display: displayPlaylists,
       },
     },
     forms: {

@@ -4,14 +4,18 @@
 
 **Sunwet** is a combined file manager and graph database with media playback capabilities.
 
-Use it to organize anything! Notes, music, art, photos, video, software, comics, archived websites, scanned documents, financial transactions, appointments, people you know, emails, passwords (encrypted!), etc etc.
+Organize anything! Notes, music, art, photos, video, software, comics, archived websites, scanned documents, financial transactions, appointments, people you know, emails, passwords (encrypted!), etc etc.
+
+<br />
 
 <p float="left">
-  <img src="https://github.com/andrewbaxter/sunwet-md-media/blob/main/desktop_albums_light3.jpg?raw=true" width="29.6%" />
-  <img src="https://github.com/andrewbaxter/sunwet-md-media/blob/main/desktop_books_dark1.jpg?raw=true" width="29.6%" />
-  <img src="https://github.com/andrewbaxter/sunwet-md-media/blob/main/desktop_comic_light2.jpg?raw=true" width="29.6%" />
-  <img src="https://github.com/andrewbaxter/sunwet-md-media/blob/main/mobile_album_dark1.jpg?raw=true" width="7.7%" />
+  <a href="https://github.com/andrewbaxter/sunwet-md-media/blob/main/desktop_comic_dark11.jpg?raw=true"><img src="https://github.com/andrewbaxter/sunwet-md-media/blob/main/desktop_comic_dark11_thumb.png?raw=true" width="30%" /></a>
+  <a href="https://github.com/andrewbaxter/sunwet-md-media/blob/main/desktop_videos_dark1.jpg?raw=true"><img src="https://github.com/andrewbaxter/sunwet-md-media/blob/main/desktop_videos_dark1_thumb.png?raw=true" width="30%" /></a>
+  <a href="https://github.com/andrewbaxter/sunwet-md-media/blob/main/desktop_album_dark2.jpg?raw=true"><img src="https://github.com/andrewbaxter/sunwet-md-media/blob/main/desktop_album_dark2_thumb.png?raw=true" width="30%" /></a>
+  <a href="https://github.com/andrewbaxter/sunwet-md-media/blob/main/mobile_album_dark1.jpg?raw=true"><img src="https://github.com/andrewbaxter/sunwet-md-media/blob/main/mobile_album_dark1_thumb.png?raw=true" width="7.65%" /></a>
 </p>
+
+<br />
 
 To keep the scope manageable, the goals of the project are to provide:
 
@@ -22,6 +26,8 @@ To keep the scope manageable, the goals of the project are to provide:
 - Basic tools for managing the data
 
 I'm hoping that if this catches on better and more specific tooling will be maintained by the community.
+
+<br />
 
 Full list of cool features
 
@@ -49,11 +55,13 @@ Full list of cool features
 
 <br />
 
+<br />
+
 So is this a good idea? Read more to find out!
 
 # On organizing things
 
-There are basically two common ways to organize data:
+There are two common ways to organize data:
 
 - A hierarchy
 
@@ -156,13 +164,9 @@ This will output `built/bin/sunwet`.
 
 Nix adds `ffmpeg`, `pandoc`, `7zz`, and `mkvtoolnix` to the `PATH` via a wrapper script, but if you build some other way you'll need to make sure those are available.
 
-## Running
-
-### Quick
+## Quick start
 
 1. Build it - see the instructions above
-
-   In `source/` run `cargo build --release`. This will produce a `sunwet` binary in `target/release`. Put this on your `PATH`.
 
 2. Configure it
 
@@ -176,16 +180,16 @@ This will run a server in single-user mode (no authentication). Open your browse
 
 For more details, see below.
 
-### Not quick
+## Not quick start
 
-#### Reference
+### Reference
 
 - Root config file [JSON spec](./source/generated/jsonschema/config.schema.json)
 - Root config file [TS spec](./source/generated/ts/index.ts) if you want to generate it via node.js or similar
 - [`FDAP`](https://github.com/andrewbaxter/openfdap) for dynamic/remote config
 - [`fdap-login`](https://github.com/andrewbaxter/fdap-login/) for multiuser setup, login
 
-#### Config
+### Config
 
 Sunwet can use a local monolith root configuration file or a small root configuration file that sets up [`FDAP`](https://github.com/andrewbaxter/openfdap) access to pull the rest of the config. Using FDAP allows you to update the config live and integrates with login portals like [`fdap-login`](https://github.com/andrewbaxter/fdap-login/).
 
@@ -203,7 +207,7 @@ Start Sunwet with `sunwet run-server PATH/TO/ROOT/CONFIG.json`.
 
 Once it's running you can access it at the bind address via CLI or Web UI.
 
-#### Web app
+### Web app
 
 Generally I think Sunwet works best in a normal browser. You can use normal bookmarks to pages, views, use back/forward history to navigate, open multiple tabs with different things you're watching, etc.
 
@@ -211,7 +215,7 @@ On iOS in order to have persistent offline data (if you want to download things 
 
 To set Sunwet up as a web app, open it in your mobile device browser, click the `...`, go to `Share` to bring up the menu that's at least 50% not about sharing things, click `Add to home screen`, then click `Ok` (leave the web app toggle enabled).
 
-#### Backing up
+### Backing up
 
 You should back up the file and graph directories regularly. If you want a fully consistent backup, you should stop Sunwet before taking the backup. If you're fairly sure you aren't making any commits currently though it should be OK to backup Sunwet while online.
 
@@ -277,7 +281,7 @@ Ideally there'd be a much more powerful, flexible, well documented ontology. At 
 
 ## Querying data
 
-See [query.md](./query.md)
+See [source/docs/query.md](./source/docs/query.md)
 
 # CLI
 
@@ -301,36 +305,4 @@ Errors are text bodies with >= 400 response codes.
 
 # Design notes
 
-## View-based access
-
-My original idea was to add permissions to nodes, like "person X can access file Y". I couldn't come up with a decent UX for this, and I was worried about losing data (i.e. you miss permissions on one node, and suddenly you're stuck debugging access issues when it's missing for some user) or accidentally exposing data. Additionally, assuming a fairly connected graph and the fact that nodes are "content addressable", sometimes the node data is critical but sometimes it's the relation that's critical, etc. the problem was pretty ambiguous in places too.
-
-Instead, I decided to allow access at the view (query)/form-level. As an admin, you define a view that only allows access to certain data, and then you can selectively provide access to that view.
-
-Full queries/graph viewing/editing are only allowed to the admin user.
-
-I think this is a good compromise that balances flexibility with ease of administration and safety. It means that you probably want a single server per person, rather than colocating multiple peoples' data in the same instance.
-
-## Not URIs
-
-RDF uses URIs for the nodes and predicates. Namespacing and versioning stuff is good, but I decided against it for several reasons:
-
-- Encoding data is hard. Like if you wanted to add a "name" edge with the object being a name - how do you encode that as a URL? It's not obvious, and even if you do know the "correct" way, what about encoding a paragraph of text? Newlines, etc? URL encoding? By contrast, Sunwet uses JSON so you'd just make the name node `"Somebody"`
-
-- RDF proponents suggest URLs with domains - and I didn't want to tie this to the domain name system at all
-
-- It's extremely verbose
-
-## IDs are strings, any value can be an ID
-
-Triples don't make a distinction between content-type data and ids. In early designs I had a distinct "id" type string. I ended up removing it because it complicated the code and I thought it was easier to understand with a simpler model.
-
-The advantage of having an ID type is that tooling could identify IDs and provide better context-aware interactions; for instance, when viewing a query, the UI could show a node link only for ID values, rather than all values on the off chance that one of them is a legitimate ID.
-
-## Custom query language
-
-I originally started this with [cozodb](https://github.com/cozodb/cozo) which used datalog, but doing the sorts of recursive queries I wanted with arbitrary separation between values (i.e. get name at N levels of indirection via X edges) was _extremly_ cumbersome and couldn't be encapsulated/generalized - queries required lots of giant, query-specific boilerplate clauses and any changes were heavily non-local.
-
-Similarly, I looked at SparQL and it didn't seem much less cumbersome.
-
-I have no doubt that the new query method is limited, and this could turn out to be a terrible idea, but at least for the types of queries I can anticipate right now it's pretty good I think.
+See [source/docs/design.md](./source/docs/design.md)

@@ -3,13 +3,15 @@
 {
   const presentation = window.sunwetPresentation;
   addEventListener("DOMContentLoaded", async (_) => {
+    const menuPageButtons = presentation.contMenuBodyPageButtons({}).root;
+    menuPageButtons.appendChild(
+      presentation.leafMenuPageButtonOffline({}).root,
+    );
+    menuPageButtons.appendChild(
+      presentation.leafMenuPageButtonUnoffline({}).root,
+    );
     const stagingMenu_ = presentation.contMenuBody({
-      pageButtons: presentation.contGroup({
-        children: [
-          presentation.leafMenuPageButtonOffline({}).root,
-          presentation.leafMenuPageButtonUnoffline({}).root,
-        ],
-      }).root,
+      pageButtons: menuPageButtons,
       children: [
         presentation.leafMenuLink({
           title: "Thing 1",
@@ -191,7 +193,7 @@
                   parentOrientationType: "flex",
                   transAlign: "start",
                   orientation: "right_down",
-                  text: "Harmônicos",
+                  text: "H g 漢字",
                   fontSize: "20pt",
                 }).root,
                 presentation.leafViewNodeButton({
@@ -579,7 +581,7 @@
                     presentation.leafViewText({
                       parentOrientation: parentOrientation2,
                       parentOrientationType: parentOrientationType2,
-                      text: "ex",
+                      text: "jg W 漢字",
                       transAlign: "middle",
                       orientation: "right_down",
                     }).root,
@@ -603,7 +605,7 @@
                     parentOrientationType: parentOrientationType1,
                     transAlign: "start",
                     orientation: "right_down",
-                    text: "Harmônicos",
+                    text: "H g 漢字",
                     fontSize: "20pt",
                   }).root,
                   presentation.leafViewDatetime({

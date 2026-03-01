@@ -3228,6 +3228,7 @@
                   s.justifyItems = "center";
                   s.alignItems = "center";
                   s.backgroundColor = varCBackgroundViewImgStack;
+                  s.overflow = "clip";
                 },
               }),
             ],
@@ -3246,7 +3247,6 @@
             s.maxWidth = "100%";
             s.maxHeight = "100%";
             s.filter = "drop-shadow(0.1cm 0.1cm 0.05cm rgba(0, 0, 0, 0.1))";
-            s.overflow = "hidden";
           },
         }),
       );
@@ -3484,9 +3484,9 @@
       s.flexShrink = "1";
     },
   });
-  const viewTextOrientationStyle = /** @type {(dir:Orientation)=>string} */ (
+  const viewTextOrientationStyles = /** @type {(dir:Orientation)=>string[]} */ (
     orient,
-  ) =>
+  ) => [
     ss(uniq("leaf_view_text_dir", orient), {
       "": /** @type { () => ((s: CSSStyleDeclaration) => void) } */ (
         () => {
@@ -3511,7 +3511,8 @@
           }
         }
       )(),
-    });
+    }),
+  ];
   presentation.leafViewText = /** @type { Presentation["leafViewText"] } */ (
     args,
   ) => {
@@ -3531,7 +3532,7 @@
           {
             styles_: [
               viewTextBaseStyle,
-              viewTextOrientationStyle(args.orientation),
+              ...viewTextOrientationStyles(args.orientation),
               alignStyle,
             ],
           },
@@ -3547,7 +3548,7 @@
           {
             styles_: [
               viewTextBaseStyle,
-              viewTextOrientationStyle(args.orientation),
+              ...viewTextOrientationStyles(args.orientation),
               alignStyle,
             ],
           },
@@ -3624,7 +3625,7 @@
           {
             styles_: [
               viewTextBaseStyle,
-              viewTextOrientationStyle(args.orientation),
+              ...viewTextOrientationStyles(args.orientation),
               alignStyle,
             ],
           },
@@ -3660,7 +3661,7 @@
         {
           styles_: [
             viewTextBaseStyle,
-            viewTextOrientationStyle(args.orientation),
+            ...viewTextOrientationStyles(args.orientation),
             alignStyle,
           ],
         },
@@ -3699,7 +3700,7 @@
         {
           styles_: [
             viewTextBaseStyle,
-            viewTextOrientationStyle(args.orientation),
+            ...viewTextOrientationStyles(args.orientation),
             alignStyle,
           ],
         },
@@ -3770,9 +3771,6 @@
         ">*": (s) => {
           s.display = "none";
         },
-        [`.${classStateElementSelected}`]: (s) => {
-          s.color = varCSelected;
-        },
       });
       const style = ss(uniq("leaf_view_play"), {
         "": (s) => {},
@@ -3781,6 +3779,9 @@
         },
         [`[data-state="${attrStatePlaying}"]>*>*:nth-child(2)`]: (s) => {
           s.display = "initial";
+        },
+        [`.${classStateElementSelected}>*`]: (s) => {
+          s.color = varCSelected;
         },
       });
       const out = buildLeafButton({
@@ -5151,7 +5152,7 @@
                     e(
                       "a",
                       {
-                        href: "https://github.com/andrewbaxter/sunwet/blob/master/query.md",
+                        href: "https://github.com/andrewbaxter/sunwet/blob/master/source/docs/query.md",
                         textContent: "reference",
                       },
                       {
@@ -6100,7 +6101,7 @@
   const contMenuGroupVBoxStyle = ss(uniq("cont_menu_group0"), {
     "": (s) => {
       s.marginLeft = varSMenuIndent;
-      s.gap = "0.3cm";
+      s.gap = "0.1cm";
       s.minWidth = "0";
     },
     ":empty:before": (s) => {
