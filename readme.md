@@ -35,9 +35,9 @@ I'm hoping that if this catches on better and more specific tooling will be main
 
 - "Linked" playing, for listening to music with a friend or an enemy
 
-- Download views for internet-less consumption (e.g. in a natural cave)
+- Download views for internet-less consumption
 
-- Forms, for easy field data entry, with offline queuing for later upload (e.g. if you're in a natural cave)
+- Forms, for easy field data entry, with offline queuing for later upload
 
 - A query editor with bulk edit functionality
 

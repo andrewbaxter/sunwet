@@ -1,0 +1,27 @@
+name: Check/build
+on:
+  push:
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - run: |
+          nix --extra-experimental-features nix-command build \
+            --show-trace \
+            -f source/docker.nix \
+            -o built \
+            config.system.build.sunwet \
+            ;
+          ls -R built
+          nix run skopeo -- copy \
+            --dest-creds andrewbaxter:"$GITHUB_TOKEN"
+            tarball:built/docker-image-sunwet.tar.gz \
+            docker:ghcr.io/andrewbaxter/sunwet:latest \
+            ;
