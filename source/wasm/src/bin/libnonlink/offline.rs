@@ -505,12 +505,21 @@ pub fn trigger_offlining(eg: EventGraph) {
                             };
 
                             // # Handle creates/downloads
-                            let view: MinistateView =
-                                view_dir
-                                    .get_file(vec![OPFS_OFFLINE_VIEWS_VIEW_FILENAME.to_string()])
-                                    .await?
-                                    .read_json()
-                                    .await?;
+                            let view: MinistateView = match async {
+                                Ok(
+                                    view_dir
+                                        .get_file(vec![OPFS_OFFLINE_VIEWS_VIEW_FILENAME.to_string()])
+                                        .await?
+                                        .read_json()
+                                        .await?,
+                                )
+                            }.await {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    offline_views_root.delete(&key).await;
+                                    return Err(e);
+                                },
+                            };
                             let client_config = state().client_config.get().await.borrow().clone();
                             let Some(view_def) = client_config.views.get(&view.id) else {
                                 return Err(format!("No view with id [{}] in config", view.id));
@@ -624,9 +633,7 @@ pub fn trigger_offlining(eg: EventGraph) {
                         }.await {
                             Ok(_) => { },
                             Err(e) => {
-                                state()
-                                    .log
-                                    .log(&format!("Error processing offlined view [{}/{}]: {}", view_dir.0, key, e));
+                                state().log.log(&format!("Error processing offlined view {}: {}", view_dir.0, e));
                             },
                         };
                     }
@@ -650,6 +657,7 @@ pub fn trigger_offlining(eg: EventGraph) {
                                     );
                             },
                         }
+                        state().log.log(&format!("Orphaned file, garbage collecting: {} {}", files_root.0, key));
                         files_root.delete(&key).await;
                     }
 
