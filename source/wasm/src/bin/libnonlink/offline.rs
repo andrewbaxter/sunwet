@@ -95,7 +95,6 @@ use {
 // # Offline, incoming
 const OPFS_OFFLINE_VIEWS_ROOT: &str = "offline_views";
 const OPFS_OFFLINE_VIEWS_VIEW_FILENAME: &str = "view.json";
-const OPFS_OFFLINE_VIEWS_DONE_FILENAME: &str = "done";
 const OPFS_OFFLINE_FILES_ROOT: &str = "offline_files";
 const OPFS_OFFLINE_FILES_META_FILENAME: &str = "meta.json";
 const OPFS_OFFLINE_FILES_FILE_FILENAME: &str = "file";
@@ -187,19 +186,6 @@ pub async fn remove_offline(eg: EventGraph, key: &str) -> Result<(), String> {
     return Ok(());
 }
 
-fn media_file_hash(config_at: &FieldOrLiteral, data_stack: &Vec<Rc<DataStackLevel>>) -> Option<FileHash> {
-    let Some(src) = maybe_get_field_or_literal(config_at, data_stack) else {
-        return None;
-    };
-    let TreeNode::Scalar(src) = src else {
-        return None;
-    };
-    let Ok(hash) = unwrap_value_media_hash(&src) else {
-        return None;
-    };
-    return Some(hash);
-}
-
 fn mime_filename(path: &str) -> String {
     return format!("{}.mime", path);
 }
@@ -269,7 +255,11 @@ pub async fn offline_gen_url(h: &FileHash, gentype: &str, subpath: &str) -> Resu
     }
 }
 
-async fn fetch_media_file(config_at: &FieldOrLiteral, data_stack: &Vec<Rc<DataStackLevel>>) -> Result<(), String> {
+async fn fetch_media_file(
+    config_at: &FieldOrLiteral,
+    data_stack: &Vec<Rc<DataStackLevel>>,
+    live_files: &mut HashSet<FileHash>,
+) -> Result<(), String> {
     async fn download_colocate_mime(parent: &OpfsDir, seg: &str, url: String) -> Result<(), String> {
         let head =
             reqwasm::http::Request::new(&url)
@@ -301,6 +291,7 @@ async fn fetch_media_file(config_at: &FieldOrLiteral, data_stack: &Vec<Rc<DataSt
         return Ok(());
     };
     let src = unwrap_value_media_hash(&src)?;
+    live_files.insert(src.clone());
     let file_dir = opfs_root().await.ensure_dir(vec![OPFS_OFFLINE_FILES_ROOT.to_string(), src.to_string()]).await?;
     file_dir.ensure_file(vec![OPFS_OFFLINE_FILES_META_FILENAME.to_string()]).await?.write_json(meta).await?;
     let mime = meta.mime.as_ref().map(|x| x.as_str()).unwrap_or("");
@@ -382,9 +373,7 @@ async fn fetch_media_file(config_at: &FieldOrLiteral, data_stack: &Vec<Rc<DataSt
                 download_colocate_mime(&pages_dir, &page.path, format!("{}/{}", dir_url, page.path)).await?;
             }
         },
-        _ => {
-            return Ok(());
-        },
+        _ => { },
     };
     return Ok(());
 }
@@ -504,6 +493,7 @@ pub fn trigger_offlining(eg: EventGraph) {
 
                     let offline_views_root =
                         opfs_root().await.ensure_dir(vec![OPFS_OFFLINE_VIEWS_ROOT.to_string()]).await?;
+                    let mut live_files = HashSet::new();
                     for (key, view_dir) in offline_views_root.list().await? {
                         match async {
                             let view_dir = match view_dir.dir() {
@@ -515,9 +505,6 @@ pub fn trigger_offlining(eg: EventGraph) {
                             };
 
                             // # Handle creates/downloads
-                            if view_dir.exists(OPFS_OFFLINE_VIEWS_DONE_FILENAME).await? {
-                                return Ok(());
-                            }
                             let view: MinistateView =
                                 view_dir
                                     .get_file(vec![OPFS_OFFLINE_VIEWS_VIEW_FILENAME.to_string()])
@@ -546,17 +533,23 @@ pub fn trigger_offlining(eg: EventGraph) {
                                         QueryOrField::Query(q) => q,
                                     };
                                     let params = data_to_query_params(view_def, query_id, data_at);
-                                    let res = req_post_json(ReqViewQuery {
-                                        view_id: view.id.clone(),
-                                        query: query_id.clone(),
-                                        parameters: params.clone(),
-                                        pagination: None,
-                                    }).await?;
-                                    view_dir
-                                        .ensure_file(vec![opfs_offline_views_query_filename(&query_id, &params)])
-                                        .await?
-                                        .write_json(&res)
-                                        .await?;
+                                    let query_filename = opfs_offline_views_query_filename(&query_id, &params);
+                                    let res = if !view_dir.exists(&query_filename).await? {
+                                        let res = req_post_json(ReqViewQuery {
+                                            view_id: view.id.clone(),
+                                            query: query_id.clone(),
+                                            parameters: params.clone(),
+                                            pagination: None,
+                                        }).await?;
+                                        view_dir.ensure_file(vec![query_filename]).await?.write_json(&res).await?;
+                                        res
+                                    } else {
+                                        view_dir
+                                            .get_file(vec![query_filename])
+                                            .await?
+                                            .read_json::<RespQuery>()
+                                            .await?
+                                    };
                                     return Ok(resp_query_to_rows(res));
                                 };
                             let mut stack =
@@ -612,13 +605,14 @@ pub fn trigger_offlining(eg: EventGraph) {
                                         Widget::Datetime(_) => { },
                                         Widget::Color(_) => { },
                                         Widget::Media(config_at) => {
-                                            fetch_media_file(&config_at.data, &data_at).await?;
+                                            fetch_media_file(&config_at.data, &data_at, &mut live_files).await?;
                                         },
                                         Widget::Icon(_) => { },
                                         Widget::PlayButton(config_at) => {
                                             fetch_media_file(
                                                 &FieldOrLiteral::Field(config_at.media_file_field.clone()),
                                                 &data_at,
+                                                &mut live_files,
                                             ).await?;
                                         },
                                         Widget::Space => { },
@@ -626,11 +620,6 @@ pub fn trigger_offlining(eg: EventGraph) {
                                     },
                                 }
                             }
-                            view_dir
-                                .ensure_file(vec![OPFS_OFFLINE_VIEWS_DONE_FILENAME.to_string()])
-                                .await?
-                                .write_binary(&[])
-                                .await?;
                             return Ok(());
                         }.await {
                             Ok(_) => { },
@@ -642,146 +631,7 @@ pub fn trigger_offlining(eg: EventGraph) {
                         };
                     }
 
-                    // # GC files from deleted downloads
-                    //
-                    // Prepare set of live files.
-                    let mut live_files = HashSet::new();
-                    for (
-                        key,
-                        task_dir,
-                    ) in opfs_root().await.ensure_dir(vec![OPFS_OFFLINE_VIEWS_ROOT.to_string()]).await?.list().await? {
-                        match async {
-                            let task_dir = match task_dir.dir() {
-                                Ok(d) => d,
-                                Err(e) => {
-                                    state().log.log(&e);
-                                    return Ok(());
-                                },
-                            };
-                            let view: MinistateView =
-                                task_dir
-                                    .get_file(vec![OPFS_OFFLINE_VIEWS_VIEW_FILENAME.to_string()])
-                                    .await?
-                                    .read_json()
-                                    .await?;
-                            let client_config = state().client_config.get().await.borrow().clone();
-                            let Some(view_def) = client_config.views.get(&view.id) else {
-                                return Err(format!("No view with id [{}] in config", view.id));
-                            };
-                            let retrieve_query_or_field =
-                                async |config_at: &QueryOrField, data_at: &Vec<Rc<DataStackLevel>>| ->
-                                    Result<Vec<DataStackLevel>, String> {
-                                    let query_id = match config_at {
-                                        QueryOrField::Field(config_at) => {
-                                            let Some(TreeNode::Array(res)) =
-                                                maybe_get_field(&config_at, &data_at) else {
-                                                    return Ok(vec![]);
-                                                };
-                                            let empty_node_meta: Rc<HashMap<Node, NodeMeta>> = Default::default();
-                                            return Ok(res.into_iter().map(|x| DataStackLevel {
-                                                data: x,
-                                                node_meta: empty_node_meta.clone(),
-                                            }).collect());
-                                        },
-                                        QueryOrField::Query(q) => q,
-                                    };
-                                    let params = data_to_query_params(view_def, query_id, data_at);
-                                    let res: RespQuery =
-                                        match task_dir
-                                            .get_file(vec![opfs_offline_views_query_filename(&query_id, &params)])
-                                            .await {
-                                            Ok(r) => r,
-                                            Err(_) => {
-                                                return Ok(vec![]);
-                                            },
-                                        }.read_json().await?;
-                                    return Ok(resp_query_to_rows(res));
-                                };
-
-                            // Walk tree to find/add all referenced files for this task
-                            let mut stack = vec![(RootOrWidget::Root(&view_def.root), Rc::new(vec![Rc::new(DataStackLevel {
-                                data: TreeNode::Record(
-                                    view
-                                        .params
-                                        .iter()
-                                        .map(|(k, v)| (k.clone(), TreeNode::Scalar(v.clone())))
-                                        .collect(),
-                                ),
-                                node_meta: Default::default(),
-                            })]))];
-                            while let Some((config_at, data_at)) = stack.pop() {
-                                match config_at {
-                                    RootOrWidget::Root(w) => {
-                                        for row in retrieve_query_or_field(&w.data, &data_at).await? {
-                                            let child_params = stack_data(&data_at, row);
-                                            stack.push(
-                                                (RootOrWidget::Widget(&w.element_body), child_params.clone()),
-                                            );
-                                            if let Some(ext) = &w.element_expansion {
-                                                stack.push((RootOrWidget::Widget(ext), child_params.clone()))
-                                            }
-                                        }
-                                    },
-                                    RootOrWidget::Widget(w) => match w {
-                                        Widget::Layout(w) => {
-                                            for w in &w.elements {
-                                                stack.push((RootOrWidget::Widget(w), data_at.clone()));
-                                            }
-                                        },
-                                        Widget::DataRows(w) => {
-                                            for row in retrieve_query_or_field(&w.data, &data_at).await? {
-                                                let row_params = stack_data(&data_at, row);
-                                                match &w.row_widget {
-                                                    DataRowsLayout::Unaligned(w) => {
-                                                        stack.push(
-                                                            (RootOrWidget::Widget(&w.widget), row_params.clone()),
-                                                        );
-                                                    },
-                                                    DataRowsLayout::Table(w) => {
-                                                        for e in &w.elements {
-                                                            stack.push(
-                                                                (RootOrWidget::Widget(e), row_params.clone()),
-                                                            );
-                                                        }
-                                                    },
-                                                }
-                                            }
-                                        },
-                                        Widget::Text(_) => { },
-                                        Widget::Date(_) => { },
-                                        Widget::Time(_) => { },
-                                        Widget::Datetime(_) => { },
-                                        Widget::Color(_) => { },
-                                        Widget::Media(config_at) => {
-                                            if let Some(h) = media_file_hash(&config_at.data, &data_at) {
-                                                live_files.insert(h);
-                                            }
-                                        },
-                                        Widget::Icon(_) => { },
-                                        Widget::PlayButton(config_at) => {
-                                            if let Some(h) =
-                                                media_file_hash(
-                                                    &FieldOrLiteral::Field(config_at.media_file_field.clone()),
-                                                    &data_at,
-                                                ) {
-                                                live_files.insert(h);
-                                            }
-                                        },
-                                        Widget::Space => { },
-                                        Widget::Node(_) => { },
-                                    },
-                                }
-                            }
-                            return Ok(());
-                        }.await {
-                            Ok(_) => { },
-                            Err(e) => {
-                                state().log.log(&format!("Error doing offline file GC scan [{}]: {}", key, e));
-                            },
-                        };
-                    }
-
-                    // Delete any downloaded files not referenced by any downloaded view
+                    // # GC files from deleted downloads - any file not referenced by any downloaded view
                     let files_root = opfs_root().await.ensure_dir(vec![OPFS_OFFLINE_FILES_ROOT.to_string()]).await?;
                     for (key, _) in files_root.list().await? {
                         match FileHash::from_str(&key) {
