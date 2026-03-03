@@ -1,9 +1,6 @@
 { pkgs, lib }:
 let
-  fenix =
-    import
-      (fetchTarball "https://github.com/nix-community/fenix/archive/77de5067629e201436c76f14f96614a19368c4ae.zip")
-      { };
+  fenix = import ./fenix;
   toolchain = fenix.combine [
     fenix.stable.rustc
     fenix.stable.cargo
@@ -12,7 +9,7 @@ let
   naersk =
     pkgs.callPackage
       #(fetchTarball "https://github.com/nix-community/naersk/archive/378614f37a6bee5a3f2ef4f825a73d948d3ae921.zip")
-      ../../../../../3rd/naersk
+      ./naersk
       {
         rustc = toolchain;
         cargo = toolchain;
