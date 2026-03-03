@@ -1,6 +1,6 @@
 { pkgs, lib }:
 let
-  fenix = import ./fenix;
+  fenix = import ./fenix { };
   toolchain = fenix.combine [
     fenix.stable.rustc
     fenix.stable.cargo
