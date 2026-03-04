@@ -50,7 +50,7 @@ Baseline un-styling.
     pointer-events: initial;
   }
 
-  video:host::cue {
+  video::cue {
     font-size: max(3dvh, 12pt);
   }
 }

@@ -238,13 +238,20 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
         if self.src != self.media_el.current_src() {
             if self.video {
                 self.media_el.set_inner_html("");
-                for (i, lang) in env.languages.iter().enumerate() {
+                let mut set_default = false;
+                for lang in &env.languages {
                     let Some(sub_src) = self.sub_src.get(lang) else {
                         continue;
                     };
-                    let track = el("track").attr("kind", "subtitles").attr("src", &sub_src).attr("srclang", &lang);
-                    if i == 0 {
+                    let track =
+                        el("track")
+                            .attr("kind", "subtitles")
+                            .attr("src", &sub_src)
+                            .attr("srclang", &lang)
+                            .attr("label", &lang);
+                    if !set_default {
                         track.ref_attr("default", "default");
+                        set_default = true;
                     }
                     self.media_el.append_child(&track.raw()).log(log, "Error adding track to video element");
                 }
