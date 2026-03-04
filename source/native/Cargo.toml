@@ -8,7 +8,7 @@ chrono = { version = "0.4", features = ["serde"] }
 shared = { path = "../shared" }
 aargvark = { version = "0.6", features = ["serde_json"] }
 flowcontrol = "0.2"
-good-ormning-runtime = { version = "0.3", features = ["sqlite"] }
+good-ormning-runtime = { version = "0.4", features = ["sqlite"] }
 http = "1"
 http-body-util = "0.1"
 htwrap = { version = "0.14" }
@@ -16,12 +16,12 @@ hyper = "1"
 hyper-tungstenite = { version = "0.17" }
 hyper-util = "0.1"
 loga = "0.5"
-rusqlite = { version = "0.32", features = ["array", "bundled"] }
-deadpool-sqlite = "0.9"
-sea-query = { version = "0.32.1", default-features = false, features = [
+rusqlite = { version = "=0.37", features = ["array", "bundled"] }
+deadpool-sqlite = "0.12"
+sea-query = { version = "1.0.0-rc.31", default-features = false, features = [
     "backend-sqlite",
 ] }
-sea-query-rusqlite = { version = "0.7", features = ["with-json"] }
+sea-query-rusqlite = { version = "0.8.0-rc.15", features = ["with-json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["process"] }
@@ -58,6 +58,7 @@ enclose = "=1.2.0"
 image = "0.25"
 regex = "1"
 rand_chacha = "0.3"
+serde_json_canonicalizer = "0.3"
 
 # Import stuff---
 taglib = "1"
@@ -70,7 +71,7 @@ xmltree = "0.11"
 ts-rs = { version = "11", features = ["serde-json-impl"] }
 
 [build-dependencies]
-good-ormning = { version = "0.3", features = ["sqlite", "chrono"] }
+good-ormning = { version = "0.4", features = ["sqlite", "chrono"] }
 
 [dev-dependencies]
 pretty_assertions = "1"

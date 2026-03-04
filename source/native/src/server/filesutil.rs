@@ -17,7 +17,6 @@ use {
     shared::interface::{
         triple::{
             FileHash,
-            FileHash_,
             Node,
         },
         wire::alphanumeric_only,
@@ -43,8 +42,8 @@ use {
 };
 
 pub fn file_path_(root_path: &Path, hash: &FileHash) -> Result<PathBuf, loga::Error> {
-    match &hash.0 {
-        FileHash_::Sha256(hash) => {
+    match &hash {
+        FileHash::Sha256(hash) => {
             if hash.len() < 4 {
                 return Err(loga::err_with("Hash is too short", ea!(length = hash.len())));
             }
@@ -72,8 +71,8 @@ pub fn genfile_path(
 }
 
 pub fn staged_file_path(state: &Arc<State>, hash: &FileHash) -> Result<PathBuf, loga::Error> {
-    match &hash.0 {
-        FileHash_::Sha256(hash) => {
+    match &hash {
+        FileHash::Sha256(hash) => {
             if hash.len() < 4 {
                 return Err(loga::err_with("Hash is too short", ea!(length = hash.len())));
             }

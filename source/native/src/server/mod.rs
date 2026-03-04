@@ -97,6 +97,7 @@ use {
         ea,
     },
     moka::future::Cache,
+    rusqlite::params_from_iter,
     shared::interface::{
         config::view::ViewId,
         query::Query,
@@ -852,6 +853,64 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
         db.get().await?.interact({
             let log = log.clone();
             move |db| {
+                if let Some(ver) = db::get_schema_version(db)? {
+                    if ver == 0 {
+                        // Canonicalize all json. Only triple data is affected, file hashes and access
+                        // should already be canonical (no floats).
+                        log.log(loga::INFO, "DB version 0 starting JSON canonicalization");
+                        let txn = db.transaction()?;
+                        {
+                            let mut rows =
+                                txn
+                                    .prepare("select subject, predicate, object, commit_, \"exists\" from triple")
+                                    .unwrap();
+                            let col_count = rows.column_count();
+                            let col_names =
+                                rows
+                                    .column_names()
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(i, v)| (*v, i))
+                                    .collect::<HashMap<_, _>>();
+                            let subj_col = *col_names.get("subject").unwrap();
+                            let obj_col = *col_names.get("object").unwrap();
+                            rows.column_count();
+                            let mut rows = rows.query([]).unwrap();
+                            let mut update = vec![];
+                            while let Some(row) = rows.next().unwrap() {
+                                let mut replace = vec![];
+                                for col in 0 .. col_count {
+                                    if col == subj_col || col == obj_col {
+                                        replace.push(
+                                            rusqlite::types::Value::Text(
+                                                serde_json_canonicalizer::to_string(
+                                                    &serde_json::from_str::<serde_json::Value>(
+                                                        &row.get::<_, String>(col).unwrap(),
+                                                    ).unwrap(),
+                                                ).unwrap(),
+                                            ),
+                                        );
+                                    } else {
+                                        replace.push(row.get::<_, rusqlite::types::Value>(col).unwrap());
+                                    }
+                                }
+                                update.push(replace);
+                            }
+                            txn.execute("delete from triple", []).unwrap();
+                            for row in update {
+                                let mut update =
+                                    txn
+                                        .prepare(
+                                            "insert into triple (subject, predicate, object, commit_, \"exists\") values (?, ?, ?, ?, ?)",
+                                        )
+                                        .unwrap();
+                                update.execute(params_from_iter(row)).unwrap();
+                            }
+                        }
+                        txn.commit()?;
+                        log.log(loga::INFO, "DB version 0 finished JSON canonicalization");
+                    }
+                }
                 db::migrate(db)?;
                 if db
                     .prepare("select 1 from sqlite_master where type='table' and name='meta_fts'")

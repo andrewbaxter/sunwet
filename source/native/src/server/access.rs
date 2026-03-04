@@ -64,7 +64,7 @@ pub struct DbAccessSourceId(pub AccessSourceId);
 
 impl GoodOrmningCustomString<DbAccessSourceId> for DbAccessSourceId {
     fn to_sql<'a>(value: &'a Self) -> String {
-        return serde_json::to_string(&value.0).unwrap();
+        return serde_json_canonicalizer::to_string(&value.0).unwrap();
     }
 
     fn from_sql(value: String) -> Result<Self, String> {

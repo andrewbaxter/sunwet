@@ -10,26 +10,26 @@ use {
         VisErr,
     },
     loga::{
-        ea,
         ResultContext,
+        ea,
     },
     rand::{
-        seq::SliceRandom,
-        thread_rng,
         Rng,
         SeedableRng,
+        seq::SliceRandom,
+        thread_rng,
     },
     sea_query::{
-        extension::sqlite::SqliteExpr,
         Alias,
         ColumnRef,
+        DynIden,
         Expr,
         ExprTrait,
         Nullable,
         SeaRc,
         SimpleExpr,
-        TableRef,
         WindowStatement,
+        extension::sqlite::SqliteExpr,
     },
     sea_query_rusqlite::RusqliteBinder,
     shared::interface::{
@@ -158,11 +158,19 @@ impl PartialOrd for BuildStepRes {
 
 impl std::hash::Hash for BuildStepRes {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.ident_table.to_string().hash(state);
+        self.ident_table.hash(state);
         self.col_start.to_string().hash(state);
         self.col_end.to_string().hash(state);
         self.plural.hash(state);
     }
+}
+
+fn colref(table: DynIden, col: DynIden) -> sea_query::ColumnRef {
+    return sea_query::ColumnRef::Column(sea_query::ColumnName(Some(sea_query::TableName(None, table)), col));
+}
+
+fn tableref(table: DynIden) -> sea_query::TableRef {
+    return sea_query::TableRef::Table(sea_query::TableName(None, table), None);
 }
 
 fn build_filter(
@@ -175,15 +183,14 @@ fn build_filter(
         FilterExpr::Exists(expr) => {
             let mut sql_sel = sea_query::Query::select();
             let subchain = build_chain_head(query_state, Some(previous), &expr.subchain)?;
-            sql_sel.from(sea_query::TableRef::Table(subchain.ident_table.clone()));
+            sql_sel.from(tableref(subchain.ident_table.clone()));
             sql_sel.expr(sea_query::Expr::val(1));
             sql_sel.and_where(
                 sea_query::Expr::col(
-                    sea_query::ColumnRef::TableColumn(subchain.ident_table.clone(), subchain.col_start),
+                    colref(subchain.ident_table.clone(), subchain.col_start),
                 ).eq(parent_end_col.clone()),
             );
-            let primary_end_col =
-                sea_query::Expr::col(sea_query::ColumnRef::TableColumn(subchain.ident_table, subchain.col_end));
+            let primary_end_col = sea_query::Expr::col(colref(subchain.ident_table, subchain.col_end));
             let primary_type = query_state.func_json_extract.clone().arg(primary_end_col.clone()).arg("$.t");
             let primary_value = query_state.func_json_extract.clone().arg(primary_end_col.clone()).arg("$.v");
             if let Some(filter_suffix) = &expr.suffix {
@@ -273,23 +280,13 @@ fn build_step(
                     },
                 }
                 let local_col_primary_start =
-                    sea_query::ColumnRef::TableColumn(
-                        local_ident_table_primary.clone(),
-                        from_ident_primary_start.clone(),
-                    );
-                let local_col_primary_end =
-                    sea_query::ColumnRef::TableColumn(
-                        local_ident_table_primary.clone(),
-                        from_ident_primary_end.clone(),
-                    );
+                    colref(local_ident_table_primary.clone(), from_ident_primary_start.clone());
+                let local_col_primary_end = colref(local_ident_table_primary.clone(), from_ident_primary_end.clone());
 
                 // Movement
                 sql_sel.and_where(
                     sea_query::Expr::col(
-                        sea_query::ColumnRef::TableColumn(
-                            local_ident_table_primary.clone(),
-                            query_state.ident_col_predicate.clone(),
-                        ),
+                        colref(local_ident_table_primary.clone(), query_state.ident_col_predicate.clone()),
                     ).eq(build_value_str(query_state, &step.predicate)?),
                 );
 
@@ -302,17 +299,10 @@ fn build_step(
                         previous.ident_table.clone(),
                         local_ident_table_prev.clone(),
                         sea_query::Expr::col(
-                            sea_query::ColumnRef::TableColumn(
-                                local_ident_table_prev.clone(),
-                                previous.col_end.clone(),
-                            ),
+                            colref(local_ident_table_prev.clone(), previous.col_end.clone()),
                         ).eq(local_col_primary_start.clone()),
                     );
-                    out_col_start =
-                        sea_query::ColumnRef::TableColumn(
-                            local_ident_table_prev.clone(),
-                            previous.col_start.clone(),
-                        );
+                    out_col_start = colref(local_ident_table_prev.clone(), previous.col_start.clone());
                 } else {
                     out_col_start = local_col_primary_start.clone();
                 }
@@ -347,9 +337,8 @@ fn build_step(
                 // Select, from previous
                 let mut sql_sel = sea_query::Query::select();
                 let primary_table = query_state.ident_table_primary.clone();
-                let primary_col_start =
-                    sea_query::ColumnRef::TableColumn(primary_table.clone(), out.col_start.clone());
-                let primary_col_end = sea_query::ColumnRef::TableColumn(primary_table.clone(), out.col_end.clone());
+                let primary_col_start = colref(primary_table.clone(), out.col_start.clone());
+                let primary_col_end = colref(primary_table.clone(), out.col_end.clone());
                 sql_sel.from_as(out.ident_table.clone(), primary_table.clone());
 
                 // Apply filter
@@ -362,9 +351,7 @@ fn build_step(
 
                 // Output rowid
                 sql_cte.column(query_state.ident_rowid.clone());
-                sql_sel.expr(
-                    sea_query::ColumnRef::TableColumn(primary_table.clone(), query_state.ident_rowid.clone()),
-                );
+                sql_sel.expr(colref(primary_table.clone(), query_state.ident_rowid.clone()));
 
                 // Output start
                 sql_cte.column(query_state.ident_col_start.clone());
@@ -395,47 +382,33 @@ fn build_step(
                     ).err_external();
                 };
                 let global_ident_table_cte = SeaRc::new(Alias::new(&seg_name));
-                let table_cte = sea_query::TableRef::Table(global_ident_table_cte.clone());
+                let table_cte = tableref(global_ident_table_cte.clone());
 
                 // Base case
                 let mut sql_sel = sea_query::Query::select();
                 {
                     let local_ident_table_prev = query_state.ident_table_prev.clone();
                     sql_sel.from_as(previous.ident_table.clone(), local_ident_table_prev.clone());
-                    sql_sel.column(
-                        sea_query::ColumnRef::TableColumn(local_ident_table_prev.clone(), previous.col_start.clone()),
-                    );
-                    sql_sel.column(
-                        sea_query::ColumnRef::TableColumn(local_ident_table_prev.clone(), previous.col_end.clone()),
-                    );
+                    sql_sel.column(colref(local_ident_table_prev.clone(), previous.col_start.clone()));
+                    sql_sel.column(colref(local_ident_table_prev.clone(), previous.col_end.clone()));
                 }
 
                 // Recursive case
                 sql_sel.union(sea_query::UnionType::Distinct, {
                     let mut sql_sel = sea_query::Query::select();
                     sql_sel.from(table_cte);
-                    sql_sel.column(
-                        sea_query::ColumnRef::TableColumn(
-                            global_ident_table_cte.clone(),
-                            query_state.ident_col_start.clone(),
-                        ),
-                    );
+                    sql_sel.column(colref(global_ident_table_cte.clone(), query_state.ident_col_start.clone()));
                     let subchain = build_chain_head(query_state, None, &step.subchain)?;
                     let local_ident_table_primary = query_state.ident_table_primary.clone();
                     sql_sel.join_as(
                         sea_query::JoinType::InnerJoin,
-                        sea_query::TableRef::Table(subchain.ident_table.clone()),
+                        tableref(subchain.ident_table.clone()),
                         local_ident_table_primary.clone(),
                         sea_query::Expr::col(
-                            sea_query::ColumnRef::TableColumn(local_ident_table_primary.clone(), subchain.col_start),
-                        ).eq(
-                            sea_query::ColumnRef::TableColumn(
-                                global_ident_table_cte.clone(),
-                                query_state.ident_col_end.clone(),
-                            ),
-                        ),
+                            colref(local_ident_table_primary.clone(), subchain.col_start),
+                        ).eq(colref(global_ident_table_cte.clone(), query_state.ident_col_end.clone())),
                     );
-                    sql_sel.column(sea_query::ColumnRef::TableColumn(local_ident_table_primary, subchain.col_end));
+                    sql_sel.column(colref(local_ident_table_primary, subchain.col_end));
                     sql_sel
                 });
 
@@ -472,11 +445,9 @@ fn build_step(
                 |subchain: &ChainHead| -> Result<sea_query::SelectStatement, VisErr<loga::Error>> {
                     let mut sql_sel = sea_query::Query::select();
                     let subchain = build_chain_head(query_state, previous.clone(), subchain)?;
-                    sql_sel.from(sea_query::TableRef::Table(subchain.ident_table.clone()));
-                    sql_sel.column(
-                        sea_query::ColumnRef::TableColumn(subchain.ident_table.clone(), subchain.col_start),
-                    );
-                    sql_sel.column(sea_query::ColumnRef::TableColumn(subchain.ident_table, subchain.col_end));
+                    sql_sel.from(tableref(subchain.ident_table.clone()));
+                    sql_sel.column(colref(subchain.ident_table.clone(), subchain.col_start));
+                    sql_sel.column(colref(subchain.ident_table, subchain.col_end));
                     return Ok(sql_sel);
                 };
             let mut sql_sel = build_subchain(&step.subchains[0])?;
@@ -512,13 +483,13 @@ fn build_step(
         // Select, from previous
         let mut sql_sel = sea_query::Query::select();
         let primary_table = query_state.ident_table_primary.clone();
-        let primary_col_start = sea_query::ColumnRef::TableColumn(primary_table.clone(), out.col_start.clone());
-        let primary_col_end = sea_query::ColumnRef::TableColumn(primary_table.clone(), out.col_end.clone());
+        let primary_col_start = colref(primary_table.clone(), out.col_start.clone());
+        let primary_col_end = colref(primary_table.clone(), out.col_end.clone());
         sql_sel.from_as(out.ident_table.clone(), primary_table.clone());
 
         // Output rowid
         sql_cte.column(query_state.ident_rowid.clone());
-        sql_sel.expr(sea_query::ColumnRef::TableColumn(primary_table.clone(), query_state.ident_rowid.clone()));
+        sql_sel.expr(colref(primary_table.clone(), query_state.ident_rowid.clone()));
 
         // Output start
         sql_cte.column(query_state.ident_col_start.clone());
@@ -549,9 +520,7 @@ fn build_step(
                 }, ident_agg_col.clone());
             } else {
                 sql_sel.expr_as(
-                    sea_query::Expr::expr(
-                        sea_query::ColumnRef::TableColumn(primary_table.clone(), query_state.ident_rowid.clone()),
-                    ).min(),
+                    sea_query::Expr::expr(colref(primary_table.clone(), query_state.ident_rowid.clone())).min(),
                     ident_agg_col.clone(),
                 );
             }
@@ -701,74 +670,66 @@ fn build_chain_head(
                     let ident_fulltext = SeaRc::new(Alias::new("fulltext"));
                     let ident_node = SeaRc::new(Alias::new("node"));
                     let mut sql_sel = sea_query::Query::select();
-                    sql_sel.from(TableRef::Table(ident_meta.clone()));
-                    let node_expr =
-                        Expr::col(sea_query::ColumnRef::TableColumn(ident_meta.clone(), ident_node.clone()));
+                    sql_sel.from(tableref(ident_meta.clone()));
+                    let node_expr = Expr::col(colref(ident_meta.clone(), ident_node.clone()));
                     sql_sel.expr(node_expr.clone());
                     sql_sel.expr(node_expr.clone());
-                    sql_sel.and_where(
-                        Expr::col(ColumnRef::TableColumn(ident_meta.clone(), ident_rowid.clone())).in_subquery({
-                            let mut sql_sel = sea_query::Query::select();
-                            sql_sel.from(TableRef::Table(ident_meta_fts.clone()));
-                            sql_sel.column(ident_rowid.clone());
-                            let raw = build_value_str(query_state, &root)?;
-                            let match_str;
-                            if let Some(raw) = raw.strip_prefix("raw:") {
-                                match_str = raw.to_string();
-                            } else {
-                                let mut match_terms = vec![];
-                                let mut quoted = false;
-                                let mut escaped = false;
-                                let mut buf = vec![];
-                                for c in raw.chars() {
-                                    let mut flush = false;
-                                    if escaped {
-                                        escaped = false;
-                                        buf.push(c);
-                                    } else {
-                                        match c {
-                                            '\\' => {
-                                                escaped = true;
-                                            },
-                                            '"' => {
-                                                flush = true;
-                                                quoted = !quoted;
-                                            },
-                                            ' ' | '\t' | '\n' | '\r' if !quoted => {
-                                                flush = true;
-                                            },
-                                            c => {
-                                                buf.push(c);
-                                            },
-                                        }
-                                    }
-                                    if flush && !buf.is_empty() {
-                                        match_terms.push(buf.split_off(0));
+                    sql_sel.and_where(Expr::col(colref(ident_meta.clone(), ident_rowid.clone())).in_subquery({
+                        let mut sql_sel = sea_query::Query::select();
+                        sql_sel.from(tableref(ident_meta_fts.clone()));
+                        sql_sel.column(ident_rowid.clone());
+                        let raw = build_value_str(query_state, &root)?;
+                        let match_str;
+                        if let Some(raw) = raw.strip_prefix("raw:") {
+                            match_str = raw.to_string();
+                        } else {
+                            let mut match_terms = vec![];
+                            let mut quoted = false;
+                            let mut escaped = false;
+                            let mut buf = vec![];
+                            for c in raw.chars() {
+                                let mut flush = false;
+                                if escaped {
+                                    escaped = false;
+                                    buf.push(c);
+                                } else {
+                                    match c {
+                                        '\\' => {
+                                            escaped = true;
+                                        },
+                                        '"' => {
+                                            flush = true;
+                                            quoted = !quoted;
+                                        },
+                                        ' ' | '\t' | '\n' | '\r' if !quoted => {
+                                            flush = true;
+                                        },
+                                        c => {
+                                            buf.push(c);
+                                        },
                                     }
                                 }
-                                if !buf.is_empty() || match_terms.is_empty() {
-                                    match_terms.push(buf);
+                                if flush && !buf.is_empty() {
+                                    match_terms.push(buf.split_off(0));
                                 }
-                                match_str =
-                                    match_terms
-                                        .into_iter()
-                                        .map(
-                                            |x| format!(
-                                                "\"{}\"",
-                                                x.into_iter().collect::<String>().replace("\"", "\"\"")
-                                            ),
-                                        )
-                                        .collect::<Vec<_>>()
-                                        .join(" AND ");
                             }
-                            sql_sel.and_where(
-                                Expr::col(
-                                    ColumnRef::TableColumn(ident_meta_fts.clone(), ident_fulltext.clone()),
-                                ).matches(match_str),
-                            );
-                            sql_sel
-                        }),
-                    );
+                            if !buf.is_empty() || match_terms.is_empty() {
+                                match_terms.push(buf);
+                            }
+                            match_str =
+                                match_terms
+                                    .into_iter()
+                                    .map(
+                                        |x| format!("\"{}\"", x.into_iter().collect::<String>().replace("\"", "\"\"")),
+                                    )
+                                    .collect::<Vec<_>>()
+                                    .join(" AND ");
+                        }
+                        sql_sel.and_where(
+                            Expr::col(colref(ident_meta_fts.clone(), ident_fulltext.clone())).matches(match_str),
+                        );
+                        sql_sel
+                    }));
                     sql_sel
                 });
                 sql_cte.column(query_state.ident_col_start.clone());
@@ -848,11 +809,9 @@ fn build_chain(
     query_state.global_unique += 1;
     let mut sql_sel = sea_query::Query::select();
     let primary_subchain = build_chain_head(query_state, prev_subchain_seg, &chain_head)?;
-    sql_sel.from(sea_query::TableRef::Table(primary_subchain.ident_table.clone()));
-    let global_col_primary_start =
-        sea_query::ColumnRef::TableColumn(primary_subchain.ident_table.clone(), primary_subchain.col_start.clone());
-    let global_col_primary_end =
-        sea_query::ColumnRef::TableColumn(primary_subchain.ident_table.clone(), primary_subchain.col_end.clone());
+    sql_sel.from(tableref(primary_subchain.ident_table.clone()));
+    let global_col_primary_start = colref(primary_subchain.ident_table.clone(), primary_subchain.col_start.clone());
+    let global_col_primary_end = colref(primary_subchain.ident_table.clone(), primary_subchain.col_end.clone());
     sql_sel.expr_as(global_col_primary_start.clone(), query_state.ident_col_start.clone());
     sql_sel.group_by_col(global_col_primary_start.clone());
     sql_sel.expr_as(global_col_primary_end.clone(), query_state.ident_col_end.clone());
@@ -895,19 +854,11 @@ fn build_chain(
                 child_chain.cte,
                 sea_query::Expr::col(
                     global_col_primary_end.clone(),
-                ).eq(
-                    sea_query::ColumnRef::TableColumn(
-                        child_chain.cte_name.clone(),
-                        query_state.ident_col_start.clone(),
-                    ),
-                ),
+                ).eq(colref(child_chain.cte_name.clone(), query_state.ident_col_start.clone())),
             );
             for (name, plural) in child_chain.selects {
                 let ident_name = SeaRc::new(Alias::new(format!("_{}", name)));
-                sql_sel.expr_as(
-                    sea_query::ColumnRef::TableColumn(child_chain.cte_name.clone(), ident_name.clone()),
-                    ident_name,
-                );
+                sql_sel.expr_as(colref(child_chain.cte_name.clone(), ident_name.clone()), ident_name);
                 selects.push((name, child_chain.plural || plural));
             }
         }
@@ -921,7 +872,7 @@ fn build_chain(
     query_state.ctes.push(sql_cte);
     return Ok(BuildChainRes {
         cte_name: ident_table_cte.clone(),
-        cte: sea_query::TableRef::Table(ident_table_cte),
+        cte: tableref(ident_table_cte),
         selects: selects,
         plural: primary_subchain.plural,
     });
@@ -961,25 +912,10 @@ pub fn build_root_chain(
             sql_cte.table_name(ident_cte_triple_exist0.clone());
             let mut sql_sel = sea_query::Query::select();
             let local_ident_table_primary = query_state.ident_table_primary.clone();
-            sql_sel.from_as(
-                sea_query::TableRef::Table(SeaRc::new(Alias::new("triple"))),
-                local_ident_table_primary.clone(),
-            );
-            let col_sub =
-                sea_query::ColumnRef::TableColumn(
-                    local_ident_table_primary.clone(),
-                    query_state.ident_col_subject.clone(),
-                );
-            let col_pred =
-                sea_query::ColumnRef::TableColumn(
-                    local_ident_table_primary.clone(),
-                    query_state.ident_col_predicate.clone(),
-                );
-            let col_obj =
-                sea_query::ColumnRef::TableColumn(
-                    local_ident_table_primary.clone(),
-                    query_state.ident_col_object.clone(),
-                );
+            sql_sel.from_as(tableref(SeaRc::new(Alias::new("triple"))), local_ident_table_primary.clone());
+            let col_sub = colref(local_ident_table_primary.clone(), query_state.ident_col_subject.clone());
+            let col_pred = colref(local_ident_table_primary.clone(), query_state.ident_col_predicate.clone());
+            let col_obj = colref(local_ident_table_primary.clone(), query_state.ident_col_object.clone());
 
             // Subj
             sql_cte.column(query_state.ident_col_subject.clone());
@@ -995,17 +931,13 @@ pub fn build_root_chain(
 
             // Exists
             sql_cte.column(ident_col_exists.clone());
-            sql_sel.column(
-                sea_query::ColumnRef::TableColumn(local_ident_table_primary.clone(), ident_col_exists.clone()),
-            );
+            sql_sel.column(colref(local_ident_table_primary.clone(), ident_col_exists.clone()));
 
             // Take last commit
             sql_cte.column(SeaRc::new(Alias::new("_unused_timestamp")));
             sql_sel.expr(
                 sea_query::Expr::max(
-                    sea_query::Expr::col(
-                        sea_query::ColumnRef::TableColumn(local_ident_table_primary.clone(), ident_col_commit.clone()),
-                    ),
+                    sea_query::Expr::col(colref(local_ident_table_primary.clone(), ident_col_commit.clone())),
                 ),
             );
             sql_sel.group_by_col(col_sub);
@@ -1022,41 +954,22 @@ pub fn build_root_chain(
             sql_cte.table_name(ident_cte_triple_exist.clone());
             let mut sql_sel = sea_query::Query::select();
             let local_ident_table_primary = query_state.ident_table_primary.clone();
-            sql_sel.from_as(sea_query::TableRef::Table(ident_cte_triple_exist0), local_ident_table_primary.clone());
+            sql_sel.from_as(tableref(ident_cte_triple_exist0), local_ident_table_primary.clone());
 
             // Subj
             sql_cte.column(query_state.ident_col_subject.clone());
-            sql_sel.column(
-                sea_query::ColumnRef::TableColumn(
-                    local_ident_table_primary.clone(),
-                    query_state.ident_col_subject.clone(),
-                ),
-            );
+            sql_sel.column(colref(local_ident_table_primary.clone(), query_state.ident_col_subject.clone()));
 
             // Pred
             sql_cte.column(query_state.ident_col_predicate.clone());
-            sql_sel.column(
-                sea_query::ColumnRef::TableColumn(
-                    local_ident_table_primary.clone(),
-                    query_state.ident_col_predicate.clone(),
-                ),
-            );
+            sql_sel.column(colref(local_ident_table_primary.clone(), query_state.ident_col_predicate.clone()));
 
             // Obj
             sql_cte.column(query_state.ident_col_object.clone());
-            sql_sel.column(
-                sea_query::ColumnRef::TableColumn(
-                    local_ident_table_primary.clone(),
-                    query_state.ident_col_object.clone(),
-                ),
-            );
+            sql_sel.column(colref(local_ident_table_primary.clone(), query_state.ident_col_object.clone()));
 
             // Filter
-            sql_sel.and_where(
-                sea_query::Expr::col(
-                    sea_query::ColumnRef::TableColumn(local_ident_table_primary.clone(), ident_col_exists.clone()),
-                ).into(),
-            );
+            sql_sel.and_where(sea_query::Expr::col(colref(local_ident_table_primary.clone(), ident_col_exists.clone())).into());
 
             // Assemble
             sql_cte.query(sql_sel);
@@ -1078,13 +991,13 @@ pub fn build_root_chain(
     let mut sel_root = sea_query::Query::select();
     sel_root.from(cte.cte);
     sel_root.expr_as(
-        sea_query::ColumnRef::TableColumn(cte.cte_name.clone(), query_state.ident_col_end.clone()),
+        colref(cte.cte_name.clone(), query_state.ident_col_end.clone()),
         SeaRc::new(Alias::new(COL_PAGE_KEY.to_string())),
     );
     sel_root.group_by_col(
         // Prevent 0-rec results from turning into 1-rec results owing to sql's vast
         // orthogonality and aggregate function myseries
-        sea_query::ColumnRef::TableColumn(cte.cte_name.clone(), query_state.ident_col_end.clone()),
+        colref(cte.cte_name.clone(), query_state.ident_col_end.clone()),
     );
     for (name, plural) in cte.selects {
         let user_name = SeaRc::new(Alias::new(format!("_{}", name)));
@@ -1093,7 +1006,7 @@ pub fn build_root_chain(
             Expr::value("scalar"),
             query_state.func_json_extract.clone().arg(sql_fn("ifnull", vec![
                 //. .
-                SimpleExpr::from(sea_query::ColumnRef::TableColumn(cte.cte_name.clone(), user_name.clone())),
+                SimpleExpr::from(colref(cte.cte_name.clone(), user_name.clone())),
                 sql_fn(
                     "json_object",
                     vec![

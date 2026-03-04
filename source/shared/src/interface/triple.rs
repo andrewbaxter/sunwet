@@ -1,5 +1,4 @@
 use {
-    crate::derive_canonical_serde,
     schemars::JsonSchema,
     serde::{
         de,
@@ -24,16 +23,13 @@ const HASH_PREFIX_SHA256: &'static str = "sha256";
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub enum FileHash_ {
+pub enum FileHash {
     Sha256(String),
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, JsonSchema, TS)]
-pub struct FileHash(pub FileHash_);
-
 impl FileHash {
     pub fn from_sha256(hash: GenericArray<u8, <Sha256 as OutputSizeUser>::OutputSize>) -> Self {
-        return Self(FileHash_::Sha256(hex::encode(&hash)));
+        return Self::Sha256(hex::encode(&hash));
     }
 }
 
@@ -41,8 +37,8 @@ impl ToString for FileHash {
     fn to_string(&self) -> String {
         let prefix;
         let hash;
-        match &self.0 {
-            FileHash_::Sha256(v) => {
+        match &self {
+            Self::Sha256(v) => {
                 prefix = HASH_PREFIX_SHA256;
                 hash = v;
             },
@@ -64,7 +60,7 @@ impl std::str::FromStr for FileHash {
                 if suffix.len() != WANT_LEN {
                     return Err(format!("Invalid file hash; expected length {} but got {}", WANT_LEN, suffix.len()));
                 }
-                return Ok(FileHash(FileHash_::Sha256(suffix.to_string())));
+                return Ok(FileHash::Sha256(suffix.to_string()));
             },
             _ => {
                 return Err(format!("Invalid file hash; unknown hash prefix [{}]", prefix));
@@ -72,8 +68,6 @@ impl std::str::FromStr for FileHash {
         }
     }
 }
-
-derive_canonical_serde!(FileHash);
 
 /// Node de/serialization is deterministic - to_str/from_str are canonical.
 /// Therefore nodes can be used as keys to lookups.
@@ -313,37 +307,31 @@ impl Ord for Node {
 
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "lowercase")]
-enum SerdeNodeType {
+pub enum SerdeNodeType {
     F,
     V,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "lowercase")]
-struct SerdeNode_ {
+pub struct SerdeNode {
     t: SerdeNodeType,
     v: serde_json::Value,
 }
-
-#[derive(JsonSchema, TS)]
-#[doc(hidden)]
-pub struct SerdeNode(SerdeNode_);
-
-derive_canonical_serde!(SerdeNode);
 
 impl Serialize for Node {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer {
         return Ok(match self {
-            Node::File(n) => SerdeNode(SerdeNode_ {
+            Node::File(n) => SerdeNode {
                 t: SerdeNodeType::F,
                 v: serde_json::to_value(n).unwrap(),
-            }),
-            Node::Value(n) => SerdeNode(SerdeNode_ {
+            },
+            Node::Value(n) => SerdeNode {
                 t: SerdeNodeType::V,
                 v: n.clone(),
-            }),
+            },
         }.serialize(serializer)?);
     }
 }
@@ -353,13 +341,13 @@ impl<'de> Deserialize<'de> for Node {
     where
         D: serde::Deserializer<'de> {
         let n = SerdeNode::deserialize(deserializer)?;
-        match n.0.t {
+        match n.t {
             SerdeNodeType::F => {
-                let v = serde_json::from_value::<FileHash>(n.0.v).map_err(|e| de::Error::custom(e.to_string()))?;
+                let v = serde_json::from_value::<FileHash>(n.v).map_err(|e| de::Error::custom(e.to_string()))?;
                 return Ok(Node::File(v));
             },
             SerdeNodeType::V => {
-                return Ok(Node::Value(n.0.v));
+                return Ok(Node::Value(n.v));
             },
         }
     }
