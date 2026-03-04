@@ -1,5 +1,12 @@
 use {
-    crate::client::req::req_simple,
+    crate::{
+        client::req::{
+            req_simple,
+            server_headers,
+            server_url,
+        },
+        server::fsutil::create_dirs,
+    },
     aargvark::{
         Aargvark,
         help::{
@@ -18,13 +25,29 @@ use {
         NaiveDateTime,
         Utc,
     },
+    flowcontrol::ta_return,
+    http::Uri,
+    htwrap::{
+        htreq::{
+            self,
+            Conn,
+        },
+        url::UriJoin,
+    },
     loga::{
+        DebugDisplay,
         Log,
         ResultContext,
+        ea,
     },
     serde::Serialize,
     shared::{
         interface::{
+            cli::{
+                CliCommit,
+                CliNode,
+                CliTriple,
+            },
             query::Query,
             triple::{
                 Node,
@@ -38,6 +61,7 @@ use {
                 ReqHistoryFilter,
                 ReqHistoryFilterPredicate,
                 ReqQuery,
+                RespQueryRows,
                 Triple,
             },
         },
@@ -48,7 +72,18 @@ use {
             HashMap,
             HashSet,
         },
+        path::PathBuf,
         str::FromStr,
+        time::Duration,
+        usize,
+    },
+    tokio::{
+        fs::{
+            File,
+            read,
+            write,
+        },
+        time::sleep,
     },
     uuid::Uuid,
 };
@@ -79,9 +114,20 @@ impl AargvarkFromStr for AargvarkStrNode {
 }
 
 #[derive(Aargvark)]
+pub enum QueryCommandSource {
+    /// Read query json from a file. You can compile a query to json with the
+    /// `compile-query` subcommand.
+    #[vark(name = "-f")]
+    File(AargvarkJson<Query>),
+    /// Inline (pass query as a command line argument)
+    #[vark(name = "-i")]
+    Inline(String),
+}
+
+#[derive(Aargvark)]
 pub struct QueryCommand {
     debug: Option<()>,
-    query: AargvarkJson<Query>,
+    source: QueryCommandSource,
     parameters: HashMap<String, AargvarkStrNode>,
 }
 
@@ -91,12 +137,204 @@ pub async fn handle_query(c: QueryCommand) -> Result<(), loga::Error> {
     } else {
         loga::INFO
     });
+    let query = match c.source {
+        QueryCommandSource::File(v) => v.value,
+        QueryCommandSource::Inline(v) => {
+            compile_query(&v).map_err(loga::err)?
+        },
+    };
     let out = req::req_simple(&log, ReqQuery {
-        query: c.query.value.clone(),
+        query: query,
         parameters: c.parameters.iter().map(|(k, v)| (k.clone(), v.0.clone())).collect(),
         pagination: None,
     }).await?.rows;
     println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    return Ok(());
+}
+
+#[derive(Aargvark)]
+pub enum ExportCommandSource {
+    /// Read query json from a file. You can compile a query to json with the
+    /// `compile-query` subcommand.
+    #[vark(name = "-qf")]
+    QueryFile(AargvarkJson<Query>),
+    /// Inline (pass query as a command line argument)
+    #[vark(name = "-q")]
+    Inline(String),
+    #[vark(name = "-rf")]
+    ResultFile(AargvarkJson<RespQueryRows>),
+}
+
+#[derive(Aargvark)]
+pub struct ExportCommand {
+    debug: Option<()>,
+    /// The query or file to get the list of nodes to export from. If using a query,
+    /// the query should be struct-less (no `{}`, i.e. it should just output a list of
+    /// nodes).
+    source: ExportCommandSource,
+    /// Parameters for the query, if using a query source.
+    #[vark(flag = "--parameters", flag = "--params", flag = "-p")]
+    parameters: HashMap<String, AargvarkStrNode>,
+    /// Write the exported `commit.json` and files to this directory.
+    dest: PathBuf,
+    /// Only include relations with the listed predicates. However if this is not
+    /// specified all relations are included.
+    include: Option<HashSet<String>>,
+    /// Exclude relations with the listed predicates. Takes precedence over `--include`
+    exclude: Option<HashSet<String>>,
+}
+
+pub async fn handle_export(c: ExportCommand) -> Result<(), loga::Error> {
+    let log = Log::new_root(if c.debug.is_some() {
+        loga::DEBUG
+    } else {
+        loga::INFO
+    });
+    create_dirs(&c.dest).await?;
+    let triples_path = c.dest.join("triples.json");
+    let triples = if triples_path.exists() {
+        serde_json::from_slice::<Vec<Triple>>(
+            &read(&triples_path)
+                .await
+                .context_with("Error reading existing triples", ea!(path = triples_path.dbg_str()))?,
+        ).context_with("Error reading existing triples", ea!(path = triples_path.dbg_str()))?
+    } else {
+        fn check_query(q: &Query) -> Result<(), loga::Error> {
+            if q.suffix.is_some() {
+                return Err(loga::err("The export query has a struct, it must be struct-less (no `{}`)"));
+            }
+            return Ok(());
+        }
+
+        let RespQueryRows::Scalar(nodes) = (match c.source {
+            ExportCommandSource::QueryFile(s) => {
+                check_query(&s.value)?;
+                req::req_simple(&log, ReqQuery {
+                    query: s.value,
+                    parameters: c.parameters.iter().map(|(k, v)| (k.clone(), v.0.clone())).collect(),
+                    pagination: None,
+                }).await?.rows
+            },
+            ExportCommandSource::Inline(s) => {
+                let query = compile_query(&s).map_err(loga::err)?;
+                check_query(&query)?;
+                req::req_simple(&log, ReqQuery {
+                    query: query,
+                    parameters: c.parameters.iter().map(|(k, v)| (k.clone(), v.0.clone())).collect(),
+                    pagination: None,
+                }).await?.rows
+            },
+            ExportCommandSource::ResultFile(s) => {
+                s.value
+            },
+        }) else {
+            return Err(loga::err("The list of nodes has structured elements, the input list must be plain nodes."));
+        };
+        let triples = req::req_simple(&log, ReqGetTriplesAround { nodes: nodes }).await?;
+        write(&triples_path, serde_json::to_string_pretty(&triples).unwrap())
+            .await
+            .context_with("Error writing received triples", ea!(path = triples_path.dbg_str()))?;
+        triples
+    };
+    let mut commit_add = vec![];
+    let server_url = server_url()?;
+    let mut conn = None;
+    for triple in &triples {
+        if let Some(include) = c.include.as_ref() {
+            if !include.contains(&triple.predicate) {
+                continue;
+            }
+        }
+        if let Some(exclude) = c.exclude.as_ref() {
+            if exclude.contains(&triple.predicate) {
+                continue;
+            }
+        }
+
+        async fn download(
+            log: &Log,
+            server_url: &Uri,
+            conn: &mut Option<Conn>,
+            dest: &PathBuf,
+            n: &Node,
+        ) -> Result<CliNode, loga::Error> {
+            let limits = htreq::Limits {
+                read_body_size: usize::MAX,
+                read_body_time: Duration::MAX,
+                ..Default::default()
+            };
+            match n {
+                Node::File(n) => {
+                    let out = n.to_string().replace(":", "_");
+                    let out_path = dest.join(&out);
+                    if !out_path.exists() {
+                        const RETRIES: usize = 5;
+                        for i in 0 .. RETRIES {
+                            match async {
+                                ta_return!((), loga::Error);
+                                let mut conn1 = match conn.take() {
+                                    Some(c) => c,
+                                    None => {
+                                        htreq::connect(limits, &server_url).await?
+                                    },
+                                };
+                                let mut req = http::Request::builder().method(http::Method::GET);
+                                for (k, v) in server_headers()? {
+                                    req = req.header(k, v);
+                                }
+                                let (code, _, body) =
+                                    htreq::send(
+                                        &log,
+                                        limits,
+                                        &mut conn1,
+                                        req
+                                            .uri(&server_url.join(format!("file/{}", n.to_string())))
+                                            .body(
+                                                http_body_util::Full::<hyper::body::Bytes>::new(
+                                                    hyper::body::Bytes::new(),
+                                                ),
+                                            )
+                                            .unwrap(),
+                                    ).await?;
+                                if code.as_u16() != 200 {
+                                    return Err(loga::err(format!("Got non-200 status response for file {}", code)));
+                                }
+                                let mut out_file = File::create(&out_path).await?;
+                                htreq::receive_stream(body, &mut out_file).await?;
+                                *conn = Some(conn1);
+                                return Ok(());
+                            }.await {
+                                Ok(_) => {
+                                    break;
+                                },
+                                Err(e) => {
+                                    log.log_err(
+                                        loga::WARN,
+                                        e.context(&format!("Download failed (attempt {}/{})", i, RETRIES)),
+                                    );
+                                },
+                            }
+                            sleep(Duration::from_secs(2)).await;
+                        }
+                    }
+                    return Ok(CliNode::Upload(out_path));
+                },
+                Node::Value(n) => {
+                    return Ok(CliNode::Value(n.clone()));
+                },
+            }
+        }
+
+        commit_add.push(CliTriple {
+            subject: download(&log, &server_url, &mut conn, &c.dest, &triple.subject).await?,
+            predicate: triple.predicate.clone(),
+            object: download(&log, &server_url, &mut conn, &c.dest, &triple.object).await?,
+        });
+    }
+    write(c.dest.join("commit.json"), serde_json::to_string_pretty(&CliCommit {
+        remove: vec![],
+        add: commit_add,
+    }).unwrap()).await?;
     return Ok(());
 }
 

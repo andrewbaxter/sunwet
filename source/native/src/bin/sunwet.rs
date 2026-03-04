@@ -17,6 +17,10 @@ use {
 enum Command {
     /// Send a query (JSON) to the API and write the results (JSON) to stdout.
     Query(client::QueryCommand),
+    /// For a list of nodes, retrieve all the relations for each nodes. Produces a
+    /// commit JSON appropriate for use in `commit` (additionally downloading all
+    /// files, replacing the file nodes with local references).
+    Export(client::ExportCommand),
     /// Compile a query into JSON to use in config or the API.
     ///
     /// Specify a query either inline on the command line, or as a file.
@@ -51,6 +55,9 @@ async fn main1() -> Result<(), loga::Error> {
     match args.command {
         Command::Query(c) => {
             client::handle_query(c).await?;
+        },
+        Command::Export(c) => {
+            client::handle_export(c).await?;
         },
         Command::CompileQuery(c) => {
             client::handle_compile_query(c)?;
