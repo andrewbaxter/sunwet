@@ -11,7 +11,11 @@ use {
     futures::channel::oneshot::channel,
     gloo::{
         events::EventListener,
-        storage::errors::StorageError,
+        storage::{
+            LocalStorage,
+            Storage,
+            errors::StorageError,
+        },
         timers::future::TimeoutFuture,
         utils::{
             document,
@@ -200,11 +204,22 @@ pub struct VecLog {
     pub log: RefCell<Vec<(DateTime<Utc>, String)>>,
 }
 
+impl VecLog {
+    pub fn new() -> VecLog {
+        return VecLog { log: RefCell::new(match LocalStorage::get(PERSIST_LOGS) {
+            Ok(l) => l,
+            Err(_) => Default::default(),
+        }) };
+    }
+}
+
 fn trim_vec_log(log: &mut Vec<(DateTime<Utc>, String)>) {
     if log.len() > 250 {
         *log = log.split_off(log.len() - 200);
     }
 }
+
+const PERSIST_LOGS: &str = "logs";
 
 impl Log for VecLog {
     fn log(&self, x: &str) {
@@ -212,6 +227,7 @@ impl Log for VecLog {
         log.push((Utc::now(), x.to_string()));
         trim_vec_log(&mut log);
         web_sys::console::log_1(&JsValue::from(x));
+        _ = LocalStorage::set(PERSIST_LOGS, &*log);
     }
 
     fn log_js(&self, x: &str, v: &JsValue) {
@@ -219,6 +235,7 @@ impl Log for VecLog {
         log.push((Utc::now(), format!("{}: {}", x, JSON::stringify(v).unwrap())));
         trim_vec_log(&mut log);
         web_sys::console::log_2(&JsValue::from(x), v);
+        _ = LocalStorage::set(PERSIST_LOGS, &*log);
     }
 
     fn log_js2(&self, x: &str, v: &JsValue, v2: &JsValue) {
@@ -226,6 +243,7 @@ impl Log for VecLog {
         log.push((Utc::now(), format!("{}: {}, {}", x, JSON::stringify(v).unwrap(), JSON::stringify(v2).unwrap())));
         trim_vec_log(&mut log);
         web_sys::console::log_3(&JsValue::from(x), v, v2);
+        _ = LocalStorage::set(PERSIST_LOGS, &*log);
     }
 }
 

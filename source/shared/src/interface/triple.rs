@@ -244,34 +244,26 @@ impl Ord for Node {
                                 }
                             }
 
-                            let self_v = to_enum(self_v);
-                            let other_v = to_enum(other_v);
-                            {
-                                fn prio(v: NumEnum) -> u8 {
-                                    return match v {
-                                        NumEnum::U64(_) => 0,
-                                        NumEnum::I64(_) => 1,
-                                        NumEnum::F64(_) => 2,
-                                    };
+                            fn cmp_u_i(l: u64, r: i64) -> std::cmp::Ordering {
+                                if l > i64::MAX as u64 {
+                                    return std::cmp::Ordering::Greater;
                                 }
-
-                                let self_prio = prio(self_v);
-                                let other_prio = prio(other_v);
-                                if self_prio != other_prio {
-                                    return self_prio.cmp(&other_prio);
+                                if r.is_negative() {
+                                    return std::cmp::Ordering::Less;
                                 }
+                                return l.cmp(&(r as u64));
                             }
-                            match (self_v, other_v) {
-                                (NumEnum::U64(self_v), NumEnum::U64(other_v)) => {
-                                    return self_v.cmp(&other_v);
-                                },
-                                (NumEnum::I64(self_v), NumEnum::I64(other_v)) => {
-                                    return self_v.cmp(&other_v);
-                                },
-                                (NumEnum::F64(self_v), NumEnum::F64(other_v)) => {
-                                    return self_v.total_cmp(&other_v);
-                                },
-                                _ => unreachable!(),
+
+                            match (to_enum(self_v), to_enum(other_v)) {
+                                (NumEnum::U64(l), NumEnum::U64(r)) => l.cmp(&r),
+                                (NumEnum::U64(l), NumEnum::I64(r)) => cmp_u_i(l, r),
+                                (NumEnum::U64(l), NumEnum::F64(r)) => (l as f64).total_cmp(&r),
+                                (NumEnum::I64(l), NumEnum::U64(r)) => cmp_u_i(r, l).reverse(),
+                                (NumEnum::I64(l), NumEnum::I64(r)) => l.cmp(&r),
+                                (NumEnum::I64(l), NumEnum::F64(r)) => (l as f64).total_cmp(&r),
+                                (NumEnum::F64(l), NumEnum::U64(r)) => l.total_cmp(&(r as f64)),
+                                (NumEnum::F64(l), NumEnum::I64(r)) => l.total_cmp(&(r as f64)),
+                                (NumEnum::F64(l), NumEnum::F64(r)) => l.total_cmp(&r),
                             }
                         },
                         (serde_json::Value::String(self_v), serde_json::Value::String(other_v)) => {

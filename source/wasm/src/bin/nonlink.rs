@@ -130,7 +130,7 @@ pub const LOCALSTORAGE_CLIENTCONFIG: &str = "clientconfig";
 pub fn main() {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
     let eg = EventGraph::new();
-    let log1 = Rc::new(VecLog { log: Default::default() });
+    let log1 = Rc::new(VecLog::new());
     let log = log1.clone() as Rc<dyn Log>;
     eg.event(|pc| {
         let env = scan_env(&log);

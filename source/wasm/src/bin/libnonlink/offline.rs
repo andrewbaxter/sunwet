@@ -494,18 +494,14 @@ pub fn trigger_offlining(eg: EventGraph) {
                     let offline_views_root =
                         opfs_root().await.ensure_dir(vec![OPFS_OFFLINE_VIEWS_ROOT.to_string()]).await?;
                     let mut live_files = HashSet::new();
-                    for (key, view_dir) in offline_views_root.list().await? {
+                    let mut gc_dangerous = false;
+                    for (_, view_dir) in offline_views_root.list().await? {
                         match async {
-                            let view_dir = match view_dir.dir() {
-                                Ok(d) => d,
-                                Err(e) => {
-                                    state().log.log(&e);
-                                    return Ok(());
-                                },
-                            };
+                            let view_dir = view_dir.dir()?;
 
                             // # Handle creates/downloads
-                            let view: MinistateView = match async {
+                            let view = async {
+                                ta_return!(MinistateView, String);
                                 Ok(
                                     view_dir
                                         .get_file(vec![OPFS_OFFLINE_VIEWS_VIEW_FILENAME.to_string()])
@@ -513,15 +509,10 @@ pub fn trigger_offlining(eg: EventGraph) {
                                         .read_json()
                                         .await?,
                                 )
-                            }.await {
-                                Ok(v) => v,
-                                Err(e) => {
-                                    offline_views_root.delete(&key).await;
-                                    return Err(e);
-                                },
-                            };
+                            }.await?;
                             let client_config = state().client_config.get().await.borrow().clone();
                             let Some(view_def) = client_config.views.get(&view.id) else {
+                                gc_dangerous = true;
                                 return Err(format!("No view with id [{}] in config", view.id));
                             };
                             let fetch_query_or_field =
@@ -639,26 +630,32 @@ pub fn trigger_offlining(eg: EventGraph) {
                     }
 
                     // # GC files from deleted downloads - any file not referenced by any downloaded view
-                    let files_root = opfs_root().await.ensure_dir(vec![OPFS_OFFLINE_FILES_ROOT.to_string()]).await?;
-                    for (key, _) in files_root.list().await? {
-                        match FileHash::from_str(&key) {
-                            Ok(hash) => {
-                                if live_files.contains(&hash) {
+                    if gc_dangerous {
+                        state().log.log(&format!("Had errors processing offlined views, not doing file GC"));
+                    } else {
+                        let files_root =
+                            opfs_root().await.ensure_dir(vec![OPFS_OFFLINE_FILES_ROOT.to_string()]).await?;
+                        for (key, _) in files_root.list().await? {
+                            match FileHash::from_str(&key) {
+                                Ok(hash) => {
+                                    if live_files.contains(&hash) {
+                                        continue;
+                                    }
+                                },
+                                Err(_) => {
+                                    state()
+                                        .log
+                                        .log(
+                                            &format!(
+                                                "File in offline files directory has an invalid (non-file-hash) name."
+                                            ),
+                                        );
                                     continue;
-                                }
-                            },
-                            Err(_) => {
-                                state()
-                                    .log
-                                    .log(
-                                        &format!(
-                                            "File in offline files directory has an invalid (non-file-hash) name. Deleting."
-                                        ),
-                                    );
-                            },
+                                },
+                            }
+                            state().log.log(&format!("Orphaned file, garbage collecting: {} {}", files_root.0, key));
+                            files_root.delete(&key).await;
                         }
-                        state().log.log(&format!("Orphaned file, garbage collecting: {} {}", files_root.0, key));
-                        files_root.delete(&key).await;
                     }
 
                     // Nothing left to do atm, exit
