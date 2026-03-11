@@ -142,6 +142,7 @@ use {
             Hash,
             Hasher,
         },
+        os::unix::ffi::OsStrExt,
         str::FromStr,
         sync::{
             Arc,
@@ -817,10 +818,13 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
     if args.validate.is_some() {
         return Ok(());
     }
-    let log = Log::new_root(match config.debug {
-        true => loga::DEBUG,
-        false => loga::INFO,
-    });
+    let log =
+        Log::new_root(
+            match config.debug || std::env::var_os("SUNWET_DEBUG").filter(|x| x.as_bytes() != b"n").is_some() {
+                true => loga::DEBUG,
+                false => loga::INFO,
+            },
+        );
     let tm = taskmanager::TaskManager::new();
     {
         let genfiles_dir = config.cache_dir.join("genfiles");

@@ -172,17 +172,17 @@ Nix adds `ffmpeg`, `pandoc`, `7zz`, and `mkvtoolnix` to the `PATH` via a wrapper
 
 ## Quickest start
 
-Replacing `MYADMINTOKEN`, do:
+Do
 
 ```
-SUNWET_TOKEN=MYADMINTOKEN docker run --expose 127.0.0.1:8080:80 ghcr.io/andrewbaxter/sunwet:latest
+docker run -e SUNWET_DEBUG=1 --expose 127.0.0.1:8080:8080 ghcr.io/andrewbaxter/sunwet:latest
 ```
 
 This will run a server in single-user mode (no authentication).
 
 Open your browser and point it to `http://127.0.0.1:8080` to access the web UI. You can add data manually via UI forms (e.g. Notes -> Create new note).
 
-To use the CLI, do `export SUNWET=http://127.0.0.1:8080` and `export SUNWET_TOKEN=MYADMINTOKEN`. You can add data via UI forms or `sunwet commit`.
+To use the CLI, do `export SUNWET=http://127.0.0.1:8080` and `export SUNWET_TOKEN=sunwet` (the token is hardcoded in the included config). You can add data via UI forms or `sunwet commit`.
 
 ## Quick start
 

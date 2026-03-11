@@ -27,6 +27,7 @@ buildSystem (
                 export PATH="$PATH":${sunwet}/bin
                 export SUNWET_PERSISTENT_DIR="${volPersistent}"
                 export SUNWET_CACHE_DIR="${volCache}"
+                export SUNWET_TOKEN=sunwet
                 ${pkgs.nodejs}/bin/node ${./.}/local_example.ts
                 ${pkgs.coreutils}/bin/mv ./config.json $out
               '')
@@ -42,7 +43,7 @@ buildSystem (
               "${config}"
             ];
             ExposedPorts = {
-              "80/tcp" = { };
+              "8080/tcp" = { };
             };
             Volumes = {
               ${volPersistent} = { };
