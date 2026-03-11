@@ -13,11 +13,15 @@ buildSystem (
           sunwet = import ./package.nix {
             pkgs = pkgs;
             lib = lib;
-            cli-import = false;
+            #cli-import = false;
           };
           volPersistent = "/vol/persistent";
           volCache = "/vol/cache";
-          config = derivation {
+          configPath = "/etc/sunwet/config.json";
+        in
+        pkgs.dockerTools.buildImage {
+          name = "sunwet";
+          copyToRoot = derivation {
             name = "sunwet-singleuser-config";
             system = builtins.currentSystem;
             builder = "${pkgs.bash}/bin/bash";
@@ -30,21 +34,19 @@ buildSystem (
                 export SUNWET_TOKEN=sunwet
                 export SUNWET_BIND_ADDR=0.0.0.0:8080
                 ${pkgs.nodejs}/bin/node ${./.}/local_example.ts
-                ${pkgs.coreutils}/bin/mv ./config.json $out
+                ${pkgs.coreutils}/bin/mkdir -p "$(${pkgs.coreutils}/bin/dirname $out${configPath})"
+                ${pkgs.coreutils}/bin/mv ./config.json $out${configPath}
               '')
             ];
             checkPhase = ''
-              ${sunwet}/bin/sunwet run-server --validate $out
+              ${sunwet}/bin/sunwet run-server --validate $out${configPath}
             '';
           };
-        in
-        pkgs.dockerTools.buildImage {
-          name = "sunwet";
           config = {
             Entrypoint = [ "${sunwet}/bin/sunwet" ];
             Cmd = [
               "run-server"
-              "${config}"
+              configPath
             ];
             ExposedPorts = {
               "8080/tcp" = { };
