@@ -27,6 +27,6 @@ jobs:
         run: |
           nix run nixpkgs#skopeo -- copy \
             --dest-creds="$GITHUB_ACTOR":"$GITHUB_TOKEN" \
-            tarball:image.tar.gz \
+            docker-archive:image.tar.gz \
             docker://ghcr.io/andrewbaxter/sunwet:latest \
             ;

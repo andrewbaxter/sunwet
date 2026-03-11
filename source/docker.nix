@@ -13,6 +13,7 @@ buildSystem (
           sunwet = import ./package.nix {
             pkgs = pkgs;
             lib = lib;
+            cli-import = false;
           };
           volPersistent = "/vol/persistent";
           volCache = "/vol/cache";

@@ -1,4 +1,10 @@
-{ pkgs, lib }:
+{
+  pkgs,
+  lib,
+  # Include mkvtoolnix for the cli media scan import functionality (adds large qt dependency, optional to reduce docker image size)
+  cli-import ? true,
+  debug ? true,
+}:
 let
   fenix = import ./fenix { };
   toolchain = fenix.combine [
@@ -95,7 +101,7 @@ let
     pname = "sunwet-native";
     name = "sunwet-native"; # For nix build error messages only
     root = workspaceNative;
-    release = false;
+    release = !debug;
     STATIC_DIR = "${static}";
     GIT_HASH = "fakehash";
     nativeBuildInputs = [
@@ -105,11 +111,11 @@ let
     postInstall = wrapBinary {
       bin = "sunwet";
       packages = [
-        pkgs.ffmpeg
+        pkgs.ffmpeg-headless
         pkgs.pandoc
         pkgs._7zz
-        pkgs.mkvtoolnix
-      ];
+      ]
+      ++ (if cli-import then [ pkgs.mkvtoolnix-cli ] else [ ]);
     };
   };
 in
