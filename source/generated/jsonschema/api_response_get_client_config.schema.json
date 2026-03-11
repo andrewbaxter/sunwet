@@ -1109,7 +1109,17 @@
       ]
     },
     "Node": {
-      "$ref": "#/definitions/SerdeNode_"
+      "type": "object",
+      "required": [
+        "t",
+        "v"
+      ],
+      "properties": {
+        "t": {
+          "$ref": "#/definitions/SerdeNodeType"
+        },
+        "v": true
+      }
     },
     "Orientation": {
       "type": "string",
@@ -1202,19 +1212,6 @@
         "f",
         "v"
       ]
-    },
-    "SerdeNode_": {
-      "type": "object",
-      "required": [
-        "t",
-        "v"
-      ],
-      "properties": {
-        "t": {
-          "$ref": "#/definitions/SerdeNodeType"
-        },
-        "v": true
-      }
     },
     "SortDir": {
       "type": "string",

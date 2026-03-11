@@ -11,21 +11,11 @@ export type Config = {
  */
 debug?: boolean, 
 /**
- * This directory stores partial files during upload. Completed files are moved
- * into the "files" directory atomically, so it must be on the same mount as the
- * files_dir.
+ * This directory contains the graph (triples), uploaded files, and partial
+ * uploads (must be on same mount to do atomic placement). Back up the
+ * subdirectory `live` (stop Sunwet first).
  */
-temp_dir: string, 
-/**
- * This directory contains the graph (triples). Back this directory up (stop
- * Sunwet first).
- */
-graph_dir: string, 
-/**
- * This directory contains the files directly upload, that are referenced by the
- * graph. Back this directory up (stop Sunwet first).
- */
-files_dir: string, 
+persistent_dir: string, 
 /**
  * This directory contains generated files. Everything can be re-created if this
  * directory is lost.

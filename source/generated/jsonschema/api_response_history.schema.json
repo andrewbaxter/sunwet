@@ -23,7 +23,17 @@
   "additionalProperties": false,
   "definitions": {
     "Node": {
-      "$ref": "#/definitions/SerdeNode_"
+      "type": "object",
+      "required": [
+        "t",
+        "v"
+      ],
+      "properties": {
+        "t": {
+          "$ref": "#/definitions/SerdeNodeType"
+        },
+        "v": true
+      }
     },
     "RespHistoryEvent": {
       "type": "object",
@@ -52,19 +62,6 @@
         "f",
         "v"
       ]
-    },
-    "SerdeNode_": {
-      "type": "object",
-      "required": [
-        "t",
-        "v"
-      ],
-      "properties": {
-        "t": {
-          "$ref": "#/definitions/SerdeNodeType"
-        },
-        "v": true
-      }
     },
     "Triple": {
       "type": "object",

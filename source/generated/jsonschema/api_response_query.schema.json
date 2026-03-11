@@ -40,7 +40,17 @@
   "additionalProperties": false,
   "definitions": {
     "Node": {
-      "$ref": "#/definitions/SerdeNode_"
+      "type": "object",
+      "required": [
+        "t",
+        "v"
+      ],
+      "properties": {
+        "t": {
+          "$ref": "#/definitions/SerdeNodeType"
+        },
+        "v": true
+      }
     },
     "NodeMeta": {
       "type": "object",
@@ -99,19 +109,6 @@
         "f",
         "v"
       ]
-    },
-    "SerdeNode_": {
-      "type": "object",
-      "required": [
-        "t",
-        "v"
-      ],
-      "properties": {
-        "t": {
-          "$ref": "#/definitions/SerdeNodeType"
-        },
-        "v": true
-      }
     },
     "TreeNode": {
       "description": "A tree node is like a json node but it can also encode files.  So the root of the returned query is generic data w/ a file type, then once you reach the nodes it's just generic data. This allows users to select on files directly, rather than try to re-parse json.",

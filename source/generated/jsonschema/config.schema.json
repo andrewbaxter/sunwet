@@ -5,10 +5,8 @@
   "required": [
     "bind_addr",
     "cache_dir",
-    "files_dir",
     "global",
-    "graph_dir",
-    "temp_dir"
+    "persistent_dir"
   ],
   "properties": {
     "bind_addr": {
@@ -36,10 +34,6 @@
         }
       ]
     },
-    "files_dir": {
-      "description": "This directory contains the files directly upload, that are referenced by the graph. Back this directory up (stop Sunwet first).",
-      "type": "string"
-    },
     "global": {
       "description": "Everything else.",
       "allOf": [
@@ -47,10 +41,6 @@
           "$ref": "#/definitions/MaybeFdap_for_GlobalConfig"
         }
       ]
-    },
-    "graph_dir": {
-      "description": "This directory contains the graph (triples). Back this directory up (stop Sunwet first).",
-      "type": "string"
     },
     "oidc": {
       "description": "Allow users to identify via OIDC",
@@ -64,8 +54,8 @@
         }
       ]
     },
-    "temp_dir": {
-      "description": "This directory stores partial files during upload. Completed files are moved into the \"files\" directory atomically, so it must be on the same mount as the files_dir.",
+    "persistent_dir": {
+      "description": "This directory contains the graph (triples), uploaded files, and partial uploads (must be on same mount to do atomic placement). Back up the subdirectory `live` (stop Sunwet first).",
       "type": "string"
     },
     "users": {
@@ -1266,7 +1256,17 @@
       ]
     },
     "Node": {
-      "$ref": "#/definitions/SerdeNode_"
+      "type": "object",
+      "required": [
+        "t",
+        "v"
+      ],
+      "properties": {
+        "t": {
+          "$ref": "#/definitions/SerdeNodeType"
+        },
+        "v": true
+      }
     },
     "OidcConfig": {
       "type": "object",
@@ -1381,19 +1381,6 @@
         "f",
         "v"
       ]
-    },
-    "SerdeNode_": {
-      "type": "object",
-      "required": [
-        "t",
-        "v"
-      ],
-      "properties": {
-        "t": {
-          "$ref": "#/definitions/SerdeNodeType"
-        },
-        "v": true
-      }
     },
     "ServerConfigMenuItem": {
       "type": "object",

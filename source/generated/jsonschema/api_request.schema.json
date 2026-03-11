@@ -230,9 +230,6 @@
       "additionalProperties": false
     },
     "FileHash": {
-      "$ref": "#/definitions/FileHash_"
-    },
-    "FileHash_": {
       "oneOf": [
         {
           "type": "object",
@@ -413,7 +410,17 @@
       ]
     },
     "Node": {
-      "$ref": "#/definitions/SerdeNode_"
+      "type": "object",
+      "required": [
+        "t",
+        "v"
+      ],
+      "properties": {
+        "t": {
+          "$ref": "#/definitions/SerdeNodeType"
+        },
+        "v": true
+      }
     },
     "Pagination": {
       "type": "object",
@@ -758,19 +765,6 @@
         "f",
         "v"
       ]
-    },
-    "SerdeNode_": {
-      "type": "object",
-      "required": [
-        "t",
-        "v"
-      ],
-      "properties": {
-        "t": {
-          "$ref": "#/definitions/SerdeNodeType"
-        },
-        "v": true
-      }
     },
     "SortDir": {
       "type": "string",

@@ -326,7 +326,3 @@ Errors are text bodies with >= 400 response codes.
 # Design notes
 
 See [source/docs/design.md](./source/docs/design.md)
-
-```
-
-```
