@@ -28,10 +28,14 @@ buildSystem (
                 export SUNWET_PERSISTENT_DIR="${volPersistent}"
                 export SUNWET_CACHE_DIR="${volCache}"
                 export SUNWET_TOKEN=sunwet
+                export SUNWET_BIND_ADDR=0.0.0.0:8080
                 ${pkgs.nodejs}/bin/node ${./.}/local_example.ts
                 ${pkgs.coreutils}/bin/mv ./config.json $out
               '')
             ];
+            checkPhase = ''
+              ${sunwet}/bin/sunwet run-server --validate $out
+            '';
           };
         in
         pkgs.dockerTools.buildImage {

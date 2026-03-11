@@ -5,7 +5,7 @@ import * as default_config from "./default_config.ts";
 (async () => {
   const globalConfig = await default_config.buildGlobal();
   const value: sunwet.Config = {
-    bind_addr: "127.0.0.1:8080",
+    bind_addr: process.env.SUNWET_BIND_ADDR || "127.0.0.1:8080",
     cache_dir: `${process.env.SUNWET_CACHE_DIR}`,
     persistent_dir: `${process.env.SUNWET_PERSISTENT_DIR}`,
     global: {
