@@ -156,7 +156,15 @@ pub async fn check_is_admin(state: &State, identity: &Identity, context: &str) -
             out = AccessRes::NoAccess;
         },
         Identity::Public => {
-            out = AccessRes::NoIdent;
+            let global_config = get_global_config(&state).await?;
+            match global_config.public_iam_grants {
+                ConfigIamGrants::Admin => {
+                    out = AccessRes::Yes;
+                },
+                ConfigIamGrants::Limited(_) => {
+                    out = AccessRes::NoAccess;
+                },
+            }
         },
     };
     state
