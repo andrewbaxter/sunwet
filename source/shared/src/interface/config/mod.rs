@@ -86,6 +86,7 @@ pub struct ClientMenuItem {
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ClientConfig {
+    pub can_login: bool,
     pub menu: Vec<ClientMenuItem>,
     /// View ids to view definitions
     pub views: HashMap<ViewId, ClientView>,

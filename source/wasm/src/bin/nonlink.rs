@@ -107,6 +107,7 @@ use {
             Log,
             LogJsErr,
             VecLog,
+            el_async,
             el_async_,
             scan_env,
             style_export::{
@@ -504,15 +505,25 @@ pub fn main() {
                                 let whoami = whoami.as_ref()?;
                                 match whoami {
                                     RespWhoAmI::Public => {
-                                        let button = style_export::leaf_menu_bar_button_login().root;
-                                        button.ref_on("click", {
+                                        g.ref_push(el_async({
                                             let eg = pc.eg();
-                                            move |_| eg.event(|_pc| {
-                                                set_want_logged_in();
-                                                redirect_login(&state().env.base_url);
-                                            }).unwrap()
-                                        });
-                                        g.ref_push(button);
+                                            async move {
+                                                ta_return!(Vec < El >, String);
+                                                let client_config = state().client_config.get().await;
+                                                if !client_config.borrow().can_login {
+                                                    return Ok(vec![]);
+                                                } else {
+                                                    let button = style_export::leaf_menu_bar_button_login().root;
+                                                    button.ref_on("click", {
+                                                        move |_| eg.event(|_pc| {
+                                                            set_want_logged_in();
+                                                            redirect_login(&state().env.base_url);
+                                                        }).unwrap()
+                                                    });
+                                                    return Ok(vec![button]);
+                                                }
+                                            }
+                                        }));
                                     },
                                     RespWhoAmI::User(_) => {
                                         let button = style_export::leaf_menu_bar_button_logout().root;

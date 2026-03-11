@@ -130,6 +130,7 @@ pub async fn handle_get_filtered_client_config(
         });
     }
     return Ok(ClientConfig {
+        can_login: state.oidc_state.is_some(),
         menu: menu,
         forms: forms,
         views: views,
