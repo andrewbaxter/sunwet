@@ -182,7 +182,7 @@ This will run a server in single-user mode (no authentication).
 
 Open your browser and point it to `http://127.0.0.1:8080` to access the web UI. You can add data manually via UI forms (e.g. Notes -> Create new note).
 
-To use the CLI, do `export SUNWET=http://127.0.0.1:8080` and `export SUNWET_TOKEN=sunwet` (the token is hardcoded in the included config). You can add data via UI forms or `sunwet commit`.
+To use the CLI, do `export SUNWET=http://127.0.0.1:8080`. You can add data via UI forms or `sunwet commit`.
 
 ## Quick start
 

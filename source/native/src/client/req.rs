@@ -35,7 +35,9 @@ pub fn server_url() -> Result<Uri, loga::Error> {
 }
 
 pub fn server_headers() -> Result<HashMap<String, String>, loga::Error> {
-    let token = env::var(ENV_SUNWET_TOKEN).context_with("Missing env var", ea!(var = ENV_SUNWET_TOKEN))?;
+    let Ok(token) = env::var(ENV_SUNWET_TOKEN) else {
+        return Ok(Default::default());
+    };
     return Ok([(AUTHORIZATION.to_string(), format!("{}{}", HEADER_BEARER_PREFIX, token))].into_iter().collect());
 }
 
