@@ -215,7 +215,7 @@ async fn generate_subs(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
         if generated_exists(state, file, gentype).await? {
             continue;
         }
-        let tmp = tempdir_in(&state.temp_dir)?;
+        let tmp = tempdir_in(&state.genfiles_stage_dir)?;
         let tempdest_path = tmp.path().join("out");
         let mut cmd = Command::new("ffmpeg");
         cmd.kill_on_drop(true);
@@ -285,7 +285,7 @@ async fn generate_webm(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
     // Ffmpeg pass abstraction is leaky, need to ensure video stream index matches for
     // both passes
     include_streams.insert(0, first_video_stream);
-    let tmp = tempdir_in(&state.temp_dir)?;
+    let tmp = tempdir_in(&state.genfiles_stage_dir)?;
     let passlog_path = tmp.path().join("passlog");
     let tempdest_path = tmp.path().join("out");
     {
@@ -366,7 +366,7 @@ async fn generate_aac(state: &Arc<State>, file: &FileHash, source: &Path) -> Res
     if generated_exists(state, file, &gentype).await? {
         return Ok(());
     }
-    let tmp = tempdir_in(&state.temp_dir)?;
+    let tmp = tempdir_in(&state.genfiles_stage_dir)?;
     let tempdest_path = tmp.path().join("out");
     let mut cmd = Command::new("ffmpeg");
     cmd.kill_on_drop(true);
@@ -404,7 +404,7 @@ async fn generate_book_html_dir(
     if generated_exists(state, file, gentype).await? {
         return Ok(());
     }
-    let tmp_dest = tempdir_in(&state.temp_dir)?;
+    let tmp_dest = tempdir_in(&state.genfiles_stage_dir)?;
     let out = tmp_dest.path().join("index.html");
     let mut cmd = Command::new("pandoc");
     cmd.kill_on_drop(true);
@@ -447,7 +447,7 @@ async fn generate_comic_dir(state: &Arc<State>, file: &FileHash, source: &Path) 
     if generated_exists(state, file, gentype).await? {
         return Ok(());
     }
-    let tmp_dest = tempdir_in(&state.temp_dir)?;
+    let tmp_dest = tempdir_in(&state.genfiles_stage_dir)?;
     let mut cmd = Command::new("7zz");
     cmd.kill_on_drop(true);
     cmd.arg("x");
@@ -891,7 +891,7 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
 
                             // Clean up stale partially-uploaded files
                             log.log(loga::DEBUG, "Cleaning up stale partial uploads");
-                            soft_read_dir(&log, &state.stage_dir, |entry| async move {
+                            soft_read_dir(&log, &state.files_stage_dir, |entry| async move {
                                 let day = std::time::Duration::from_secs(60 * 60 * 24);
                                 let path = entry.path();
                                 let log = log.fork(ea!(path = path.to_string_lossy()));

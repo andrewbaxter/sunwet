@@ -17,7 +17,7 @@
 
 To keep the scope manageable, the goals of the project are to provide:
 
-- A file manager/database itself and API
+- The file manager/database itself and API
 
 - A web UI/app for consuming media
 
@@ -48,8 +48,6 @@ I'm hoping that if this catches on better and more specific tooling will be main
 - A media import tool, with relations from tags
 
 - A very very basic ontology and default config for easy setup
-
-<br />
 
 <br />
 
@@ -139,7 +137,19 @@ Are there any practical limitations to knowledge graphs? I'm not sure. But as fa
 
 # Running Sunwet
 
-## Building
+## Getting it
+
+### Via docker
+
+There's a docker image built by CI available here: https://github.com/andrewbaxter?tab=packages&repo_name=sunwet
+
+It contains the `sunwet` binary, a default single-user config, and required dependencies. It exposes port `80`.
+
+By default the `CMD` is set to run in server mode with the included config.
+
+If you want to use `sunwet` as a cli, just provide other arguments when doing `docker run` (like `docker run ... -h` to show CLI help).
+
+### Building it directly
 
 There are two parts: the server, and the front end (html, wasm, static files) which are embedded in the server binary. We currently use `nix` to do the build.
 
@@ -160,7 +170,23 @@ This will output `built/bin/sunwet`.
 
 Nix adds `ffmpeg`, `pandoc`, `7zz`, and `mkvtoolnix` to the `PATH` via a wrapper script, but if you build some other way you'll need to make sure those are available.
 
+## Quickest start
+
+Replacing `MYADMINTOKEN`, do:
+
+```
+SUNWET_TOKEN=MYADMINTOKEN docker run --expose 127.0.0.1:8080:80 ghcr.io/andrewbaxter/sunwet:latest
+```
+
+This will run a server in single-user mode (no authentication).
+
+Open your browser and point it to `http://127.0.0.1:8080` to access the web UI. You can add data manually via UI forms (e.g. Notes -> Create new note).
+
+To use the CLI, do `export SUNWET=http://127.0.0.1:8080` and `export SUNWET_TOKEN=MYADMINTOKEN`. You can add data via UI forms or `sunwet commit`.
+
 ## Quick start
+
+If you don't want to use docker, or want slightly more control:
 
 1. Build it - see the instructions above
 
@@ -172,9 +198,7 @@ Nix adds `ffmpeg`, `pandoc`, `7zz`, and `mkvtoolnix` to the `PATH` via a wrapper
 
    Run `sunwet run-server PATH/TO/ROOT/CONFIG.json`
 
-This will run a server in single-user mode (no authentication). Open your browser and point it to `http://127.0.0.1:8080` to access the web UI.Add data via UI forms or `sunwet commit`.
-
-For more details, see below.
+   If you're using Docker, you'll need to mount the config as well.
 
 ## Not quick start
 
@@ -302,3 +326,7 @@ Errors are text bodies with >= 400 response codes.
 # Design notes
 
 See [source/docs/design.md](./source/docs/design.md)
+
+```
+
+```

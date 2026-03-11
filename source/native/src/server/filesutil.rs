@@ -76,7 +76,7 @@ pub fn staged_file_path(state: &Arc<State>, hash: &FileHash) -> Result<PathBuf, 
             if hash.len() < 4 {
                 return Err(loga::err_with("Hash is too short", ea!(length = hash.len())));
             }
-            return Ok(state.stage_dir.join(&format!("sha256_{}", hash)));
+            return Ok(state.files_stage_dir.join(&format!("sha256_{}", hash)));
         },
     }
 }

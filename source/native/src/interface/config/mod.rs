@@ -226,16 +226,10 @@ pub struct Config {
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
     pub debug: bool,
-    /// This directory stores partial files during upload. Completed files are moved
-    /// into the "files" directory atomically, so it must be on the same mount as the
-    /// files_dir.
-    pub temp_dir: PathBuf,
-    /// This directory contains the graph (triples). Back this directory up (stop
-    /// Sunwet first).
-    pub graph_dir: PathBuf,
-    /// This directory contains the files directly upload, that are referenced by the
-    /// graph. Back this directory up (stop Sunwet first).
-    pub files_dir: PathBuf,
+    /// This directory contains the graph (triples), uploaded files, and partial
+    /// uploads (must be on same mount to do atomic placement). Back up the
+    /// subdirectory `live` (stop Sunwet first).
+    pub persistent_dir: PathBuf,
     /// This directory contains generated files. Everything can be re-created if this
     /// directory is lost.
     pub cache_dir: PathBuf,

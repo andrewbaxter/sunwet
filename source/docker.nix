@@ -14,11 +14,39 @@ buildSystem (
             pkgs = pkgs;
             lib = lib;
           };
+          volPersistent = "/vol/persistent";
+          volCache = "/vol/cache";
+          config = derivation {
+            name = "sunwet-singleuser-config";
+            system = builtins.currentSystem;
+            builder = "${pkgs.bash}/bin/bash";
+            args = [
+              (pkgs.writeShellScript "sunwet-config-script" ''
+                set -xeu -o pipefail
+                export PATH="$PATH":${sunwet}/bin
+                export SUNWET_PERSISTENT_DIR="${volPersistent}"
+                export SUNWET_CACHE_DIR="${volCache}"
+                ${pkgs.nodejs}/bin/node ${./.}/local_example.ts
+                ${pkgs.coreutils}/bin/mv ./config.json $out
+              '')
+            ];
+          };
         in
         pkgs.dockerTools.buildImage {
           name = "sunwet";
           config = {
-            Cmd = [ "${sunwet}/bin/sunwet" ];
+            Entrypoint = [ "${sunwet}/bin/sunwet" ];
+            Cmd = [
+              "run-server"
+              "${config}"
+            ];
+            ExposedPorts = {
+              "80/tcp" = { };
+            };
+            Volumes = {
+              ${volPersistent} = { };
+              ${volCache} = { };
+            };
           };
         };
     };

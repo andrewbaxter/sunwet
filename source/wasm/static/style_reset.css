@@ -33,6 +33,8 @@ Baseline un-styling.
     overflow: hidden;
     display: grid;
     grid-template-columns: 1fr;
+    /* Prevent some weird safari behavior that drifts font size when flipping orientation */
+    -webkit-text-size-adjust: 100%;
 
     & > * {
       grid-column: 1;

@@ -825,13 +825,13 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
     {
         let genfiles_dir = config.cache_dir.join("genfiles");
         create_dirs(&genfiles_dir).await?;
-        create_dirs(&config.graph_dir).await?;
-        let stage_dir = config.files_dir.join("stage");
+        let genfiles_stage_dir = config.cache_dir.join("genfiles_temp");
+        create_dirs(&genfiles_stage_dir).await?;
+        let stage_dir = config.persistent_dir.join("stage_files");
         create_dirs(&stage_dir).await?;
-        let files_dir = config.files_dir.join("ready");
+        let files_dir = config.persistent_dir.join("live/files");
         create_dirs(&files_dir).await?;
-        create_dirs(&config.temp_dir).await?;
-        let db_path = config.graph_dir.join("db.sqlite3");
+        let db_path = config.persistent_dir.join("live/db.sqlite3");
         let db =
             deadpool_sqlite::Config::new(&db_path)
                 .builder(deadpool_sqlite::Runtime::Tokio1)
@@ -984,7 +984,6 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
         };
         let (background_tx, background_rx) = mpsc::unbounded_channel();
         let state = Arc::new(State {
-            temp_dir: config.temp_dir,
             oidc_state: oidc_state,
             fdap_state: fdap_state,
             global_state: global_state,
@@ -993,8 +992,9 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
             db: db.clone(),
             log: log.clone(),
             files_dir: files_dir.clone(),
-            stage_dir: stage_dir,
+            files_stage_dir: stage_dir,
             genfiles_dir: genfiles_dir.clone(),
+            genfiles_stage_dir: genfiles_stage_dir.clone(),
             finishing_uploads: Mutex::new(HashSet::new()),
             background: background_tx,
             http_resp_headers: HeaderMap::from_iter([

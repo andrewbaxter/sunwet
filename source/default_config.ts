@@ -316,6 +316,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                     row_widget: {
                       table: {
                         orientation: "down_right",
+                        trans_scroll: true,
                         gap: "0.2cm",
                         elements: [
                           {
@@ -1146,7 +1147,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
     `${dirname}/queries/query_playlists_tracks.txt`,
   );
   return {
-    api_tokens: { [process.env.ADMIN_TOKEN]: "admin" },
+    api_tokens: { [process.env.SUNWET_TOKEN]: "admin" },
     menu: [
       {
         id: "audio_group",
