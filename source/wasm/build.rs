@@ -1,7 +1,7 @@
 use {
     convert_case::{
-        Case,
         Casing,
+        Case,
     },
     genemichaels_lib::FormatConfig,
     proc_macro2::TokenStream,
@@ -493,26 +493,28 @@ fn main() {
         Func {
             name: "contViewList",
             args: vec![
+                ("parentConRestricted", &bool_),
                 ("parentOrientation", &orientation),
                 ("parentOrientationType", &orientation_type),
                 ("orientation", &orientation),
                 ("transAlign", &transalign),
-                ("convScroll", &bool_),
-                ("convSizeMax", &optstring_),
+                ("conScroll", &bool_),
+                ("conWrap", &bool_),
+                ("conSizeMax", &optstring_),
                 ("transSizeMax", &optstring_),
                 ("children", &arrel_),
                 ("gap", &optstring_),
-                ("wrap", &bool_)
             ],
             returns: vec![("root", &el_)],
         },
         Func {
             name: "contViewTable",
             args: vec![
+                ("parentConRestricted", &bool_),
                 ("orientation", &orientation),
-                ("transScroll", &bool_),
-                ("convSizeMax", &optstring_),
-                ("transSizeMax", &optstring_),
+                ("conScroll", &bool_),
+                ("trans2SizeMax", &optstring_),
+                ("conSizeMax", &optstring_),
                 ("children", &arrarrel_),
                 ("gap", &optstring_)
             ],
@@ -586,8 +588,8 @@ fn main() {
                 ("orientation", &orientation),
                 ("text", &string_),
                 ("fontSize", &optstring_),
-                ("convSizeMax", &optstring_),
-                ("convSizeMode", &opttextsizemode),
+                ("conSizeMax", &optstring_),
+                ("conSizeMode", &opttextsizemode),
                 ("link", &optstring_),
                 ("color", &optstring_),
             ],

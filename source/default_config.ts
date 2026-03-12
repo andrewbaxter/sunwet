@@ -102,8 +102,8 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
             text: {
               trans_align: "start",
               font_size: "18pt",
-              conv_size_mode: "ellipsize",
-              conv_size_max: "100%",
+              con_size_mode: "ellipsize",
+              con_size_max: "100%",
               orientation: "right_down",
               data: { field: "album_name" },
               link: {
@@ -127,8 +127,8 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
             text: {
               trans_align: "start",
               font_size: "12pt",
-              conv_size_mode: "ellipsize",
-              conv_size_max: "100%",
+              con_size_mode: "ellipsize",
+              con_size_max: "100%",
               orientation: "right_down",
               data: { field: "album_artist_name" },
               link: {
@@ -161,8 +161,9 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
               data: { query: "tracks" },
               row_widget: {
                 table: {
-                  orientation: "down_right",
-                  trans_scroll: true,
+                  orientation: "right_down",
+                  row_trans_direction_downright: false,
+                  con_scroll: true,
                   gap: "0.2cm",
                   trans_size_max: albumTracksHeight,
                   elements: [
@@ -185,7 +186,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                         },
                         suffix: ". ",
                         font_size: "12pt",
-                        conv_size_mode: "wrap",
+                        con_size_mode: "wrap",
                         orientation: "down_left",
                       },
                     },
@@ -197,7 +198,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                         },
                         suffix: ". ",
                         font_size: "12pt",
-                        conv_size_mode: "wrap",
+                        con_size_mode: "wrap",
                         orientation: "down_left",
                       },
                     },
@@ -218,7 +219,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                           },
                         },
                         font_size: "12pt",
-                        conv_size_mode: "wrap",
+                        con_size_mode: "wrap",
                         orientation: "down_left",
                       },
                     },
@@ -262,7 +263,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                         text: {
                           trans_align: "start",
                           font_size: "18pt",
-                          conv_size_mode: "ellipsize",
+                          con_size_mode: "ellipsize",
                           orientation: "right_down",
                           data: { field: "album_name" },
                           link: {
@@ -290,7 +291,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                   text: {
                     trans_align: "start",
                     font_size: "12pt",
-                    conv_size_mode: "ellipsize",
+                    con_size_mode: "ellipsize",
                     orientation: "right_down",
                     data: { field: "album_artist_name" },
                     link: {
@@ -315,8 +316,9 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                     data: { query: "tracks" },
                     row_widget: {
                       table: {
-                        orientation: "down_right",
-                        trans_scroll: true,
+                        orientation: "right_down",
+                        row_trans_direction_downright: false,
+                        con_scroll: true,
                         gap: "0.2cm",
                         elements: [
                           {
@@ -338,7 +340,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                               },
                               suffix: ". ",
                               font_size: "12pt",
-                              conv_size_mode: "wrap",
+                              con_size_mode: "wrap",
                               orientation: "down_right",
                             },
                           },
@@ -350,7 +352,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                               },
                               suffix: ". ",
                               font_size: "12pt",
-                              conv_size_mode: "wrap",
+                              con_size_mode: "wrap",
                               orientation: "down_right",
                             },
                           },
@@ -371,8 +373,8 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                                 },
                               },
                               font_size: "12pt",
-                              conv_size_mode: "wrap",
-                              conv_size_max: "8cm",
+                              con_size_mode: "wrap",
+                              con_size_max: "8cm",
                               orientation: "down_right",
                             },
                           },
@@ -442,7 +444,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                         layout: {
                           orientation: "right_down",
                           gap: "0",
-                          wrap: true,
+                          con_wrap: true,
                           elements: [
                             {
                               text: {
@@ -536,7 +538,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                         text: {
                           trans_align: "start",
                           font_size: "18pt",
-                          conv_size_mode: "ellipsize",
+                          con_size_mode: "ellipsize",
                           orientation: "right_down",
                           data: { field: "album_name" },
                           link: {
@@ -565,8 +567,9 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                     data: { query: "tracks" },
                     row_widget: {
                       table: {
-                        orientation: "down_right",
-                        trans_scroll: true,
+                        orientation: "right_down",
+                        row_trans_direction_downright: false,
+                        con_scroll: true,
                         gap: "0.2cm",
                         elements: [
                           {
@@ -588,7 +591,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                               },
                               suffix: ". ",
                               font_size: "12pt",
-                              conv_size_mode: "wrap",
+                              con_size_mode: "wrap",
                               orientation: "down_left",
                             },
                           },
@@ -600,7 +603,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                               },
                               suffix: ". ",
                               font_size: "12pt",
-                              conv_size_mode: "wrap",
+                              con_size_mode: "wrap",
                               orientation: "down_left",
                             },
                           },
@@ -621,8 +624,8 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                                 },
                               },
                               font_size: "12pt",
-                              conv_size_mode: "wrap",
-                              conv_size_max: "8cm",
+                              con_size_mode: "wrap",
+                              con_size_max: "8cm",
                               orientation: "down_left",
                             },
                           },
@@ -654,7 +657,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                   text: {
                     trans_align: "start",
                     font_size: "18pt",
-                    conv_size_mode: "ellipsize",
+                    con_size_mode: "ellipsize",
                     orientation: "right_down",
                     data: { field: "album_name" },
                     link: {
@@ -682,7 +685,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
             text: {
               trans_align: "start",
               font_size: "12pt",
-              conv_size_mode: "ellipsize",
+              con_size_mode: "ellipsize",
               orientation: "right_down",
               data: { field: "album_artist_name" },
               link: {
@@ -708,7 +711,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
               data: { query: "tracks" },
               row_widget: {
                 unaligned: {
-                  conv_scroll: true,
+                  con_scroll: true,
                   orientation: "right_down",
                   widget: {
                     layout: {
@@ -799,7 +802,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                   text: {
                     trans_align: "start",
                     font_size: "18pt",
-                    conv_size_mode: "ellipsize",
+                    con_size_mode: "ellipsize",
                     orientation: "right_down",
                     data: { field: "album_name" },
                     link: {
@@ -827,7 +830,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
             text: {
               trans_align: "start",
               font_size: "12pt",
-              conv_size_mode: "ellipsize",
+              con_size_mode: "ellipsize",
               orientation: "right_down",
               data: { field: "album_artist_name" },
               link: {
@@ -852,7 +855,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
               data: { query: "tracks" },
               row_widget: {
                 unaligned: {
-                  conv_scroll: true,
+                  con_scroll: true,
                   orientation: "right_down",
                   widget: {
                     layout: {
@@ -953,7 +956,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                     trans_align: "start",
                     font_size: "12pt",
                     color: "rgba(78, 94, 119, 0.8)",
-                    conv_size_mode: "wrap",
+                    con_size_mode: "wrap",
                     prefix: "Topic: ",
                     data: { field: "topic" },
                     orientation: "right_down",
@@ -978,7 +981,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
             text: {
               trans_align: "start",
               font_size: "12pt",
-              conv_size_mode: "wrap",
+              con_size_mode: "wrap",
               data: { field: "text" },
               orientation: "right_down",
             },
@@ -1012,7 +1015,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
             text: {
               trans_align: "start",
               font_size: "18pt",
-              conv_size_mode: "ellipsize",
+              con_size_mode: "ellipsize",
               orientation: "right_down",
               data: { field: "playlist_name" },
               link: {
@@ -1036,7 +1039,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
             text: {
               trans_align: "start",
               font_size: "12pt",
-              conv_size_mode: "ellipsize",
+              con_size_mode: "ellipsize",
               orientation: "right_down",
               data: { field: "playlist_artist_name" },
               link: {
@@ -1064,8 +1067,9 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
         data: { query: "tracks" },
         row_widget: {
           table: {
-            orientation: "down_right",
-            trans_scroll: true,
+            orientation: "right_down",
+            row_trans_direction_downright: false,
+            con_scroll: true,
             gap: "0.2cm",
             trans_size_max: albumTracksHeight,
             elements: [
@@ -1088,7 +1092,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                   },
                   suffix: ". ",
                   font_size: "12pt",
-                  conv_size_mode: "wrap",
+                  con_size_mode: "wrap",
                   orientation: "down_left",
                 },
               },
@@ -1100,7 +1104,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                   },
                   suffix: ". ",
                   font_size: "12pt",
-                  conv_size_mode: "wrap",
+                  con_size_mode: "wrap",
                   orientation: "down_left",
                 },
               },
@@ -1121,7 +1125,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                     },
                   },
                   font_size: "12pt",
-                  conv_size_mode: "wrap",
+                  con_size_mode: "wrap",
                   orientation: "down_left",
                 },
               },

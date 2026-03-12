@@ -9,4 +9,4 @@ export type DataRowsLayoutUnaligned = { gap?: string | null,
  * is only used for `trans_align` in children. If unspecified, keep the parent
  * widget's orientation.
  */
-orientation: Orientation | null, conv_align?: TransAlign, widget: Widget, conv_scroll?: boolean, conv_size_max?: string | null, trans_size_max?: string | null, wrap?: boolean, };
+orientation: Orientation | null, con_align?: TransAlign, widget: Widget, con_scroll?: boolean, con_size_max?: string | null, trans_size_max?: string | null, con_wrap?: boolean, };

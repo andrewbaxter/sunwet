@@ -13,9 +13,9 @@ orientation: Orientation, trans_align?: TransAlign, elements: Array<Widget>, gap
  * Add a scrollbar to the layout that appears when it exceeds bounds (typically
  * horizontal direction only).
  */
-conv_scroll?: boolean, conv_size_max?: string | null, trans_size_max?: string | null, 
+con_scroll?: boolean, con_size_max?: string | null, trans_size_max?: string | null, 
 /**
  * Wrap layout instead of shrinking elements individually first when out of space.
  * Can't be set at the same time as x_scroll or undefined things will happen.
  */
-wrap?: boolean, };
+con_wrap?: boolean, };

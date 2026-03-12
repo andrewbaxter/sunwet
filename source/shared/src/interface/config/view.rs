@@ -34,6 +34,11 @@ pub enum Direction {
     Right,
 }
 
+pub enum Axis {
+    X,
+    Y,
+}
+
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, JsonSchema, TS, Hash, Default)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Orientation {
@@ -49,12 +54,34 @@ pub enum Orientation {
 }
 
 impl Orientation {
-    pub fn conv(self) -> Direction {
+    pub fn from_components(con: Direction, trans_downright: bool) -> Orientation {
+        match (con, trans_downright) {
+            (Direction::Up, true) => Orientation::UpRight,
+            (Direction::Up, false) => Orientation::UpLeft,
+            (Direction::Down, true) => Orientation::DownRight,
+            (Direction::Down, false) => Orientation::DownLeft,
+            (Direction::Left, true) => Orientation::LeftDown,
+            (Direction::Left, false) => Orientation::LeftUp,
+            (Direction::Right, true) => Orientation::RightDown,
+            (Direction::Right, false) => Orientation::RightUp,
+        }
+    }
+
+    pub fn con(self) -> Direction {
         match self {
             Orientation::UpLeft | Orientation::UpRight => return Direction::Up,
             Orientation::DownLeft | Orientation::DownRight => return Direction::Down,
             Orientation::LeftUp | Orientation::LeftDown => return Direction::Left,
             Orientation::RightUp | Orientation::RightDown => return Direction::Right,
+        }
+    }
+
+    pub fn con_axis(self) -> Axis {
+        match self {
+            Orientation::UpLeft | Orientation::UpRight | Orientation::DownLeft | Orientation::DownRight => return Axis
+            ::Y,
+            Orientation::LeftUp | Orientation::LeftDown | Orientation::RightUp | Orientation::RightDown => return Axis
+            ::X,
         }
     }
 
@@ -64,6 +91,15 @@ impl Orientation {
             Orientation::UpRight | Orientation::DownRight => return Direction::Right,
             Orientation::LeftUp | Orientation::RightUp => return Direction::Up,
             Orientation::LeftDown | Orientation::RightDown => return Direction::Down,
+        }
+    }
+
+    pub fn trans_axis(self) -> Axis {
+        match self {
+            Orientation::UpLeft | Orientation::DownLeft | Orientation::UpRight | Orientation::DownRight => return Axis
+            ::X,
+            Orientation::LeftUp | Orientation::RightUp | Orientation::LeftDown | Orientation::RightDown => return Axis
+            ::Y,
         }
     }
 }
@@ -158,10 +194,10 @@ pub struct WidgetText {
     pub color: Option<String>,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
-    pub conv_size_mode: TextSizeMode,
+    pub con_size_mode: TextSizeMode,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
-    pub conv_size_max: Option<String>,
+    pub con_size_max: Option<String>,
     pub orientation: Orientation,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
@@ -358,14 +394,14 @@ pub struct DataRowsLayoutUnaligned {
     pub orientation: Option<Orientation>,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
-    pub conv_align: TransAlign,
+    pub con_align: TransAlign,
     pub widget: Box<Widget>,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
-    pub conv_scroll: bool,
+    pub con_scroll: bool,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
-    pub conv_size_max: Option<String>,
+    pub con_size_max: Option<String>,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
     pub trans_size_max: Option<String>,
@@ -373,7 +409,7 @@ pub struct DataRowsLayoutUnaligned {
     // Can't be set at the same time as x_scroll or undefined things will happen.
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
-    pub wrap: bool,
+    pub con_wrap: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
@@ -384,16 +420,21 @@ pub struct DataRowsLayoutTable {
     pub gap: Option<String>,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
-    pub trans_scroll: bool,
-    #[serde(default)]
-    #[ts(optional, as = "Option<_>")]
-    pub conv_size_max: Option<String>,
+    pub con_scroll: bool,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
     pub trans_size_max: Option<String>,
-    /// The converse direction is the direction of cells in a row. The transitive
-    /// direction is the direction of rows.
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub con_size_max: Option<String>,
+    /// The converse direction is the direction of rows. The transitive direction is
+    /// the direction of cells in the row.
     pub orientation: Orientation,
+    /// To calculate the orientation of a row, the trans axis of the table orientation
+    /// becomes the con direction, combined with the row trans direction (e.g. if the
+    /// implied trans direction is vertical, and the row_trans_direction_downright is
+    /// true, then the trans direction will be down).
+    pub row_trans_direction_downright: bool,
     pub elements: Vec<Widget>,
 }
 
@@ -459,10 +500,10 @@ pub struct WidgetLayout {
     /// horizontal direction only).
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
-    pub conv_scroll: bool,
+    pub con_scroll: bool,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
-    pub conv_size_max: Option<String>,
+    pub con_size_max: Option<String>,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
     pub trans_size_max: Option<String>,
@@ -470,7 +511,7 @@ pub struct WidgetLayout {
     /// Can't be set at the same time as x_scroll or undefined things will happen.
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
-    pub wrap: bool,
+    pub con_wrap: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]

@@ -137,7 +137,7 @@
               orientation: "down_left",
               text: "Fabiano do Nascimento and Shin Sasakubo",
               link: "abcd-xyzg",
-              convSizeMax: "6cm",
+              conSizeMax: "6cm",
             }).root,
             presentation.leafViewText({
               parentOrientation: parentOrientation,
@@ -152,7 +152,7 @@
               transAlign: "start",
               orientation: "down_left",
               text: "Primeiro Encontro",
-              convSizeMax: "6cm",
+              conSizeMax: "6cm",
             }).root,
           ]);
         }
@@ -165,12 +165,13 @@
       return presentation.contViewElement({
         height: "11cm",
         body: presentation.contViewList({
+          parentConRestricted: true,
           parentOrientation: "right_down",
           parentOrientationType: "grid",
           orientation: parentOrientation,
-          wrap: false,
+          conWrap: false,
           transAlign: "start",
-          convScroll: false,
+          conScroll: false,
           children: [
             presentation.leafViewImage({
               parentOrientation: parentOrientation,
@@ -181,12 +182,13 @@
               height: "6cm",
             }).root,
             presentation.contViewList({
+              parentConRestricted: true,
               parentOrientation: parentOrientation,
               parentOrientationType: parentOrientationType,
               orientation: "right_down",
-              wrap: false,
+              conWrap: false,
               transAlign: "start",
-              convScroll: false,
+              conScroll: false,
               children: [
                 presentation.leafViewText({
                   parentOrientation: "right_down",
@@ -215,8 +217,9 @@
           ],
         }).root,
         expand: presentation.contViewTable({
-          orientation: "down_right",
-          transScroll: true,
+          parentConRestricted: false,
+          orientation: "right_down",
+          conScroll: true,
           gap: "0.2cm",
           children: tracks,
         }).root,
@@ -527,7 +530,7 @@
                   }).root,
                   presentation.leafLogsLine({
                     stamp: new Date().toISOString(),
-                    text: "very log line with lots of log in it this may wrap or it might not we'll have to see in practice but it's already sssssssswwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww wrapping in my editor",
+                    text: "very log line with lots of log in it this may conWrap or it might not we'll have to see in practice but it's already sssssssswwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww wrapping in my editor",
                   }).root,
                   presentation.leafLogsLine({
                     stamp: new Date().toISOString(),
@@ -556,20 +559,21 @@
           });
           /** @type { (n: number)=> HTMLElement } */
           const createElement = (n) => {
-            const parentOrientation = "right_down";
-            const parentOrientationType = "flex";
+            const tracksParentOrientation = "right_down";
+            const tracksParentOrientationType = "flex";
             const lotsOfTracks2 = [];
             for (let i = 0; i < n; i++) {
               const parentOrientation2 = "down_right";
               const parentOrientationType2 = "flex";
               lotsOfTracks2.push(
                 presentation.contViewList({
-                  parentOrientation: parentOrientation,
-                  parentOrientationType: parentOrientationType,
+                  parentConRestricted: false,
+                  parentOrientation: tracksParentOrientation,
+                  parentOrientationType: tracksParentOrientationType,
                   orientation: parentOrientation2,
                   transAlign: "middle",
-                  convScroll: false,
-                  wrap: false,
+                  conScroll: false,
+                  conWrap: false,
                   children: [
                     presentation.leafViewImage({
                       parentOrientation: parentOrientation2,
@@ -593,12 +597,13 @@
             const parentOrientationType1 = "flex";
             return presentation.contViewElement({
               body: presentation.contViewList({
+                parentConRestricted: false,
                 parentOrientation: "down_right",
                 parentOrientationType: "flex",
                 orientation: parentOrientation1,
-                wrap: false,
+                conWrap: false,
                 transAlign: "start",
-                convScroll: false,
+                conScroll: false,
                 children: [
                   presentation.leafViewText({
                     parentOrientation: parentOrientation1,
@@ -617,13 +622,14 @@
                     fontSize: "14pt",
                   }).root,
                   presentation.contViewList({
+                    parentConRestricted: true,
                     parentOrientation: parentOrientation1,
                     parentOrientationType: parentOrientationType1,
-                    orientation: parentOrientation,
-                    convScroll: true,
+                    orientation: tracksParentOrientation,
+                    conScroll: true,
                     transAlign: "middle",
                     children: lotsOfTracks2,
-                    wrap: false,
+                    conWrap: false,
                   }).root,
                 ],
               }).root,

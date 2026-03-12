@@ -2,9 +2,16 @@
 import type { Orientation } from "./Orientation";
 import type { Widget } from "./Widget";
 
-export type DataRowsLayoutTable = { gap?: string | null, trans_scroll?: boolean, conv_size_max?: string | null, trans_size_max?: string | null, 
+export type DataRowsLayoutTable = { gap?: string | null, con_scroll?: boolean, trans_size_max?: string | null, con_size_max?: string | null, 
 /**
- * The converse direction is the direction of cells in a row. The transitive
- * direction is the direction of rows.
+ * The converse direction is the direction of rows. The transitive direction is
+ * the direction of cells in the row.
  */
-orientation: Orientation, elements: Array<Widget>, };
+orientation: Orientation, 
+/**
+ * To calculate the orientation of a row, the trans axis of the table orientation
+ * becomes the con direction, combined with the row trans direction (e.g. if the
+ * implied trans direction is vertical, and the row_trans_direction_downright is
+ * true, then the trans direction will be down).
+ */
+row_trans_direction_downright: boolean, elements: Array<Widget>, };

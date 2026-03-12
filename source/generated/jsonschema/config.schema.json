@@ -260,10 +260,15 @@
       "type": "object",
       "required": [
         "elements",
-        "orientation"
+        "orientation",
+        "row_trans_direction_downright"
       ],
       "properties": {
-        "conv_size_max": {
+        "con_scroll": {
+          "default": false,
+          "type": "boolean"
+        },
+        "con_size_max": {
           "default": null,
           "type": [
             "string",
@@ -284,15 +289,15 @@
           ]
         },
         "orientation": {
-          "description": "The converse direction is the direction of cells in a row. The transitive direction is the direction of rows.",
+          "description": "The converse direction is the direction of rows. The transitive direction is the direction of cells in the row.",
           "allOf": [
             {
               "$ref": "#/definitions/Orientation"
             }
           ]
         },
-        "trans_scroll": {
-          "default": false,
+        "row_trans_direction_downright": {
+          "description": "To calculate the orientation of a row, the trans axis of the table orientation becomes the con direction, combined with the row trans direction (e.g. if the implied trans direction is vertical, and the row_trans_direction_downright is true, then the trans direction will be down).",
           "type": "boolean"
         },
         "trans_size_max": {
@@ -311,7 +316,7 @@
         "widget"
       ],
       "properties": {
-        "conv_align": {
+        "con_align": {
           "default": "start",
           "allOf": [
             {
@@ -319,16 +324,20 @@
             }
           ]
         },
-        "conv_scroll": {
+        "con_scroll": {
           "default": false,
           "type": "boolean"
         },
-        "conv_size_max": {
+        "con_size_max": {
           "default": null,
           "type": [
             "string",
             "null"
           ]
+        },
+        "con_wrap": {
+          "default": false,
+          "type": "boolean"
         },
         "gap": {
           "default": null,
@@ -357,10 +366,6 @@
         },
         "widget": {
           "$ref": "#/definitions/Widget"
-        },
-        "wrap": {
-          "default": false,
-          "type": "boolean"
         }
       },
       "additionalProperties": false
@@ -2143,17 +2148,22 @@
         "orientation"
       ],
       "properties": {
-        "conv_scroll": {
+        "con_scroll": {
           "description": "Add a scrollbar to the layout that appears when it exceeds bounds (typically horizontal direction only).",
           "default": false,
           "type": "boolean"
         },
-        "conv_size_max": {
+        "con_size_max": {
           "default": null,
           "type": [
             "string",
             "null"
           ]
+        },
+        "con_wrap": {
+          "description": "Wrap layout instead of shrinking elements individually first when out of space. Can't be set at the same time as x_scroll or undefined things will happen.",
+          "default": false,
+          "type": "boolean"
         },
         "elements": {
           "type": "array",
@@ -2190,11 +2200,6 @@
             "string",
             "null"
           ]
-        },
-        "wrap": {
-          "description": "Wrap layout instead of shrinking elements individually first when out of space. Can't be set at the same time as x_scroll or undefined things will happen.",
-          "default": false,
-          "type": "boolean"
         }
       },
       "additionalProperties": false
@@ -2459,14 +2464,14 @@
             "null"
           ]
         },
-        "conv_size_max": {
+        "con_size_max": {
           "default": null,
           "type": [
             "string",
             "null"
           ]
         },
-        "conv_size_mode": {
+        "con_size_mode": {
           "default": "wrap",
           "allOf": [
             {

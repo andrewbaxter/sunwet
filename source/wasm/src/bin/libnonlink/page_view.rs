@@ -85,6 +85,7 @@ use {
     },
     shared::interface::{
         config::view::{
+            Axis,
             ClientView,
             ClientViewParam,
             Direction,
@@ -216,6 +217,58 @@ fn unwrap_value_move_url(data_stack: &Vec<Rc<DataStackLevel>>, link: &Link) -> R
     }
 }
 
+#[derive(Clone, Copy)]
+struct BuildContext {
+    parent_orientation: Orientation,
+    parent_orientation_type: OrientationType,
+    /// Context: CSS nonsensically prioritizes squishing over scrolling when given
+    /// permission to do both, so we need to work around that by tracking scroll
+    /// permission and toggling squish (flex-shrink) explicitly.
+    ///
+    /// X has limited space (i.e. page boundaries, or remainder of parent which is x
+    /// restricted). Unlimited when child of scroll.
+    restrict_x: bool,
+    // Y has limited space. Initially true since page can scroll, but may be
+    // restricted by height limits, unrestricted again by scroll.
+    restrict_y: bool,
+}
+
+impl BuildContext {
+    fn with_restrict_x(&self, b: bool) -> Self {
+        return Self {
+            parent_orientation: self.parent_orientation,
+            parent_orientation_type: self.parent_orientation_type,
+            restrict_x: b,
+            restrict_y: self.restrict_y,
+        };
+    }
+
+    fn with_restrict_y(&self, b: bool) -> Self {
+        return Self {
+            parent_orientation: self.parent_orientation,
+            parent_orientation_type: self.parent_orientation_type,
+            restrict_x: self.restrict_x,
+            restrict_y: b,
+        };
+    }
+
+    fn with_parent_orientation(&self, o: Orientation, ot: OrientationType) -> Self {
+        return Self {
+            parent_orientation: o,
+            parent_orientation_type: ot,
+            restrict_x: self.restrict_x,
+            restrict_y: self.restrict_y,
+        }
+    }
+
+    fn is_con_restricted(&self) -> bool {
+        match self.parent_orientation.con_axis() {
+            Axis::X => return self.restrict_x,
+            Axis::Y => return self.restrict_y,
+        };
+    }
+}
+
 struct Build {
     view_id: ViewId,
     param_data: HashMap<String, Node>,
@@ -229,25 +282,69 @@ struct Build {
     offline: Option<String>,
 }
 
+fn calc_child_bctx(
+    bctx: BuildContext,
+    orientation: Orientation,
+    con_scroll: bool,
+    con_wrap: bool,
+    con_size: bool,
+    trans_size: bool,
+) -> BuildContext {
+    let con_restrict = shed!{
+        if con_scroll {
+            break Some(false);
+        }
+        if con_wrap {
+            break Some(false);
+        }
+        if con_size {
+            break Some(true);
+        }
+        break None;
+    };
+    let trans_restrict = shed!{
+        if trans_size {
+            break Some(true);
+        }
+        break None;
+    };
+    let child_bctx = match orientation.con_axis() {
+        Axis::X => bctx.with_restrict_x(con_restrict.unwrap_or(bctx.restrict_x)),
+        Axis::Y => bctx.with_restrict_y(con_restrict.unwrap_or(bctx.restrict_y)),
+    };
+    let child_bctx = match orientation.trans_axis() {
+        Axis::X => child_bctx.with_restrict_x(trans_restrict.unwrap_or(child_bctx.restrict_x)),
+        Axis::Y => child_bctx.with_restrict_y(trans_restrict.unwrap_or(child_bctx.restrict_y)),
+    };
+    return child_bctx;
+}
+
 impl Build {
     async fn build_widget_layout(
         &mut self,
         eg: &EventGraph,
-        parent_orientation: Orientation,
-        parent_orientation_type: OrientationType,
+        bctx: BuildContext,
         config_at: &WidgetLayout,
         config_query_params: &BTreeMap<String, Vec<String>>,
         data_id: &Vec<usize>,
         data_at: &Vec<Rc<DataStackLevel>>,
     ) -> El {
+        let child_bctx =
+            calc_child_bctx(
+                bctx,
+                config_at.orientation,
+                config_at.con_scroll,
+                config_at.con_wrap,
+                config_at.con_size_max.is_some(),
+                config_at.trans_size_max.is_some(),
+            );
         let mut children = vec![];
         for child_config_at in &config_at.elements {
             children.push(
                 self
                     .build_widget(
                         eg,
-                        config_at.orientation,
-                        OrientationType::Flex,
+                        child_bctx.with_parent_orientation(config_at.orientation, OrientationType::Flex),
                         child_config_at,
                         config_query_params,
                         data_id,
@@ -257,24 +354,24 @@ impl Build {
             );
         }
         return style_export::cont_view_list(style_export::ContViewListArgs {
-            parent_orientation: parent_orientation,
-            parent_orientation_type: parent_orientation_type,
+            parent_con_restricted: bctx.is_con_restricted(),
+            parent_orientation: bctx.parent_orientation,
+            parent_orientation_type: bctx.parent_orientation_type,
             orientation: config_at.orientation,
             trans_align: config_at.trans_align,
-            conv_scroll: config_at.conv_scroll,
-            conv_size_max: config_at.conv_size_max.clone(),
+            con_scroll: config_at.con_scroll,
+            con_size_max: config_at.con_size_max.clone(),
             trans_size_max: config_at.trans_size_max.clone(),
             children: children,
             gap: config_at.gap.clone(),
-            wrap: config_at.wrap,
+            con_wrap: config_at.con_wrap,
         }).root;
     }
 
     async fn build_widget_data_rows(
         &mut self,
         eg: &EventGraph,
-        parent_orientation: Orientation,
-        parent_orientation_type: OrientationType,
+        bctx: BuildContext,
         config_at: &WidgetDataRows,
         config_query_params: &BTreeMap<String, Vec<String>>,
         data_id: &Vec<usize>,
@@ -366,8 +463,17 @@ impl Build {
                 };
                 let out;
                 match &config_at.row_widget {
-                    shared::interface::config::view::DataRowsLayout::Unaligned(row_widget) => {
-                        let orientation = row_widget.orientation.unwrap_or(parent_orientation);
+                    shared::interface::config::view::DataRowsLayout::Unaligned(config_rows) => {
+                        let orientation = config_rows.orientation.unwrap_or(bctx.parent_orientation);
+                        let child_bctx =
+                            calc_child_bctx(
+                                bctx,
+                                orientation,
+                                config_rows.con_scroll,
+                                config_rows.con_wrap,
+                                config_rows.con_size_max.is_some(),
+                                config_rows.trans_size_max.is_some(),
+                            ).with_parent_orientation(orientation, OrientationType::Flex);
                         let mut children = vec![];
                         for (i, new_data_at_top) in new_data_at_tops.into_iter().enumerate() {
                             let mut data_at = data_at.clone();
@@ -381,9 +487,8 @@ impl Build {
                                 build
                                     .build_widget(
                                         &eg,
-                                        orientation,
-                                        OrientationType::Flex,
-                                        &row_widget.widget,
+                                        child_bctx,
+                                        &config_rows.widget,
                                         &config_query_params,
                                         &data_id,
                                         &data_at,
@@ -392,19 +497,35 @@ impl Build {
                             );
                         }
                         out = style_export::cont_view_list(style_export::ContViewListArgs {
-                            parent_orientation: parent_orientation,
-                            parent_orientation_type: parent_orientation_type,
+                            parent_con_restricted: bctx.is_con_restricted(),
+                            parent_orientation: bctx.parent_orientation,
+                            parent_orientation_type: bctx.parent_orientation_type,
                             orientation: orientation,
                             trans_align: config_at.trans_align,
-                            conv_scroll: row_widget.conv_scroll,
-                            conv_size_max: row_widget.conv_size_max.clone(),
-                            trans_size_max: row_widget.trans_size_max.clone(),
-                            wrap: row_widget.wrap,
+                            con_scroll: config_rows.con_scroll,
+                            con_size_max: config_rows.con_size_max.clone(),
+                            trans_size_max: config_rows.trans_size_max.clone(),
+                            con_wrap: config_rows.con_wrap,
                             children: children,
-                            gap: row_widget.gap.clone(),
+                            gap: config_rows.gap.clone(),
                         }).root;
                     },
-                    shared::interface::config::view::DataRowsLayout::Table(row_widget) => {
+                    shared::interface::config::view::DataRowsLayout::Table(config_table) => {
+                        let child_bctx =
+                            calc_child_bctx(
+                                bctx,
+                                config_table.orientation,
+                                config_table.con_scroll,
+                                false,
+                                config_table.con_size_max.is_some(),
+                                config_table.trans_size_max.is_some(),
+                            ).with_parent_orientation(
+                                Orientation::from_components(
+                                    config_table.orientation.trans(),
+                                    config_table.row_trans_direction_downright,
+                                ),
+                                OrientationType::Grid,
+                            );
                         let mut rows = vec![];
                         for (i, new_data_at_top) in new_data_at_tops.into_iter().enumerate() {
                             let mut data_at = data_at.clone();
@@ -416,13 +537,12 @@ impl Build {
                             data_id.push(i);
                             let mut columns = vec![];
                             let mut columns_raw = vec![];
-                            for config_at in &row_widget.elements {
+                            for config_at in &config_table.elements {
                                 let column =
                                     build
                                         .build_widget(
                                             &eg,
-                                            row_widget.orientation,
-                                            OrientationType::Grid,
+                                            child_bctx,
                                             config_at,
                                             &config_query_params,
                                             &data_id,
@@ -435,12 +555,13 @@ impl Build {
                             rows.push(columns);
                         }
                         out = style_export::cont_view_table(style_export::ContViewTableArgs {
-                            orientation: row_widget.orientation,
-                            trans_scroll: row_widget.trans_scroll,
-                            conv_size_max: row_widget.conv_size_max.clone(),
-                            trans_size_max: row_widget.trans_size_max.clone(),
+                            parent_con_restricted: bctx.is_con_restricted(),
+                            orientation: config_table.orientation,
+                            con_scroll: config_table.con_scroll,
+                            con_size_max: config_table.con_size_max.clone(),
+                            trans_2_size_max: config_table.trans_size_max.clone(),
                             children: rows,
-                            gap: row_widget.gap.clone(),
+                            gap: config_table.gap.clone(),
                         }).root;
                     },
                 }
@@ -465,16 +586,15 @@ impl Build {
 
     async fn build_widget_text(
         &mut self,
-        parent_orientation: Orientation,
-        parent_orientation_type: OrientationType,
+        bctx: BuildContext,
         config_at: &WidgetText,
         data_stack: &Vec<Rc<DataStackLevel>>,
     ) -> El {
         match (|| {
             ta_return!(El, String);
             return Ok(style_export::leaf_view_text(style_export::LeafViewTextArgs {
-                parent_orientation: parent_orientation,
-                parent_orientation_type: parent_orientation_type,
+                parent_orientation: bctx.parent_orientation,
+                parent_orientation_type: bctx.parent_orientation_type,
                 trans_align: config_at.trans_align,
                 orientation: config_at.orientation,
                 text: format!(
@@ -488,8 +608,8 @@ impl Build {
                 ),
                 font_size: config_at.font_size.clone(),
                 color: config_at.color.clone(),
-                conv_size_max: config_at.conv_size_max.clone(),
-                conv_size_mode: Some(config_at.conv_size_mode.clone()),
+                con_size_max: config_at.con_size_max.clone(),
+                con_size_mode: Some(config_at.con_size_mode.clone()),
                 link: shed!{
                     let Some(link) = config_at.link.as_ref() else {
                         break None;
@@ -508,8 +628,7 @@ impl Build {
 
     async fn build_widget_media(
         &mut self,
-        parent_orientation: Orientation,
-        parent_orientation_type: OrientationType,
+        bctx: BuildContext,
         config_at: &WidgetMedia,
         data_stack: &Vec<Rc<DataStackLevel>>,
     ) -> El {
@@ -517,8 +636,8 @@ impl Build {
             ta_return!(El, String);
             let standin = || -> Result<El, String> {
                 return Ok(style_export::leaf_view_image(style_export::LeafViewImageArgs {
-                    parent_orientation: parent_orientation,
-                    parent_orientation_type: parent_orientation_type,
+                    parent_orientation: bctx.parent_orientation,
+                    parent_orientation_type: bctx.parent_orientation_type,
                     trans_align: config_at.trans_align,
                     src: "".to_string(),
                     link: None,
@@ -541,8 +660,8 @@ impl Build {
                 "image" => {
                     let src = unwrap_value_media_hash(&src)?;
                     return Ok(style_export::leaf_view_image(style_export::LeafViewImageArgs {
-                        parent_orientation: parent_orientation,
-                        parent_orientation_type: parent_orientation_type,
+                        parent_orientation: bctx.parent_orientation,
+                        parent_orientation_type: bctx.parent_orientation_type,
                         trans_align: config_at.trans_align,
                         src: if self.offline.is_some() {
                             match offline_file_url(&src).await {
@@ -578,8 +697,8 @@ impl Build {
                 "video" => {
                     let src = unwrap_value_media_hash(&src)?;
                     return Ok(style_export::leaf_view_video(style_export::LeafViewVideoArgs {
-                        parent_orientation: parent_orientation,
-                        parent_orientation_type: parent_orientation_type,
+                        parent_orientation: bctx.parent_orientation,
+                        parent_orientation_type: bctx.parent_orientation_type,
                         trans_align: config_at.trans_align,
                         src: if self.offline.is_some() {
                             offline_video_url(&src).await
@@ -609,8 +728,8 @@ impl Build {
                 "audio" => {
                     let src = unwrap_value_media_hash(&src)?;
                     return Ok(style_export::leaf_view_audio(style_export::LeafViewAudioArgs {
-                        parent_orientation: parent_orientation,
-                        parent_orientation_type: parent_orientation_type,
+                        parent_orientation: bctx.parent_orientation,
+                        parent_orientation_type: bctx.parent_orientation_type,
                         direction: config_at.audio_direction.unwrap_or(Direction::Right),
                         trans_align: config_at.trans_align,
                         src: if self.offline.is_some() {
@@ -651,16 +770,15 @@ impl Build {
 
     async fn build_widget_icon(
         &mut self,
-        parent_orientation: Orientation,
-        parent_orientation_type: OrientationType,
+        bctx: BuildContext,
         config_at: &WidgetIcon,
         data_stack: &Vec<Rc<DataStackLevel>>,
     ) -> El {
         match (|| {
             ta_return!(El, String);
             return Ok(style_export::leaf_view_icon(style_export::LeafViewIconArgs {
-                parent_orientation: parent_orientation,
-                parent_orientation_type: parent_orientation_type,
+                parent_orientation: bctx.parent_orientation,
+                parent_orientation_type: bctx.parent_orientation_type,
                 icon: config_at.data.clone(),
                 link: shed!{
                     let Some(link) = config_at.link.as_ref() else {
@@ -685,8 +803,7 @@ impl Build {
 
     async fn build_widget_color(
         &mut self,
-        parent_orientation: Orientation,
-        parent_orientation_type: OrientationType,
+        bctx: BuildContext,
         config_at: &WidgetColor,
         data_stack: &Vec<Rc<DataStackLevel>>,
     ) -> El {
@@ -697,8 +814,8 @@ impl Build {
                     return Ok(el("div"));
                 };
             return Ok(style_export::leaf_view_color(style_export::LeafViewColorArgs {
-                parent_orientation: parent_orientation,
-                parent_orientation_type: parent_orientation_type,
+                parent_orientation: bctx.parent_orientation,
+                parent_orientation_type: bctx.parent_orientation_type,
                 trans_align: config_at.trans_align,
                 color: src,
                 width: config_at.width.clone(),
@@ -715,8 +832,7 @@ impl Build {
 
     async fn build_widget_datetime(
         &mut self,
-        parent_orientation: Orientation,
-        parent_orientation_type: OrientationType,
+        bctx: BuildContext,
         config_at: &WidgetDatetime,
         data_stack: &Vec<Rc<DataStackLevel>>,
     ) -> El {
@@ -727,8 +843,8 @@ impl Build {
                     return Ok(el("div"));
                 };
             return Ok(style_export::leaf_view_datetime(style_export::LeafViewDatetimeArgs {
-                parent_orientation: parent_orientation,
-                parent_orientation_type: parent_orientation_type,
+                parent_orientation: bctx.parent_orientation,
+                parent_orientation_type: bctx.parent_orientation_type,
                 trans_align: config_at.trans_align,
                 orientation: config_at.orientation,
                 value: src,
@@ -746,8 +862,7 @@ impl Build {
 
     async fn build_widget_date(
         &mut self,
-        parent_orientation: Orientation,
-        parent_orientation_type: OrientationType,
+        bctx: BuildContext,
         config_at: &WidgetDate,
         data_stack: &Vec<Rc<DataStackLevel>>,
     ) -> El {
@@ -758,8 +873,8 @@ impl Build {
                     return Ok(el("div"));
                 };
             return Ok(style_export::leaf_view_date(style_export::LeafViewDateArgs {
-                parent_orientation: parent_orientation,
-                parent_orientation_type: parent_orientation_type,
+                parent_orientation: bctx.parent_orientation,
+                parent_orientation_type: bctx.parent_orientation_type,
                 trans_align: config_at.trans_align,
                 orientation: config_at.orientation,
                 value: src,
@@ -777,8 +892,7 @@ impl Build {
 
     async fn build_widget_time(
         &mut self,
-        parent_orientation: Orientation,
-        parent_orientation_type: OrientationType,
+        bctx: BuildContext,
         config_at: &WidgetTime,
         data_stack: &Vec<Rc<DataStackLevel>>,
     ) -> El {
@@ -789,8 +903,8 @@ impl Build {
                     return Ok(el("div"));
                 };
             return Ok(style_export::leaf_view_time(style_export::LeafViewTimeArgs {
-                parent_orientation: parent_orientation,
-                parent_orientation_type: parent_orientation_type,
+                parent_orientation: bctx.parent_orientation,
+                parent_orientation_type: bctx.parent_orientation_type,
                 trans_align: config_at.trans_align,
                 orientation: config_at.orientation,
                 value: src,
@@ -809,8 +923,7 @@ impl Build {
     async fn build_widget_node(
         &mut self,
         eg: &EventGraph,
-        parent_orientation: Orientation,
-        parent_orientation_type: OrientationType,
+        bctx: BuildContext,
         config_at: &WidgetNode,
         data_stack: &Vec<Rc<DataStackLevel>>,
     ) -> El {
@@ -824,8 +937,8 @@ impl Build {
                 return Ok(el("div"));
             };
             let out = style_export::leaf_view_node_button(style_export::LeafViewNodeButtonArgs {
-                parent_orientation: parent_orientation,
-                parent_orientation_type: parent_orientation_type,
+                parent_orientation: bctx.parent_orientation,
+                parent_orientation_type: bctx.parent_orientation_type,
                 trans_align: config_at.trans_align,
                 orientation: config_at.orientation,
             }).root;
@@ -843,8 +956,7 @@ impl Build {
     async fn build_widget_play_button(
         &mut self,
         eg: &EventGraph,
-        parent_orientation: Orientation,
-        parent_orientation_type: OrientationType,
+        bctx: BuildContext,
         config_at: &WidgetPlayButton,
         data_id: &Vec<usize>,
         data_stack: &Vec<Rc<DataStackLevel>>,
@@ -884,8 +996,8 @@ impl Build {
                 break Some(unwrap_value_media_hash(&d).map_err(|e| format!("Building cover url: {}", e))?);
             };
             let out = style_export::leaf_view_play_button(style_export::LeafViewPlayButtonArgs {
-                parent_orientation: parent_orientation,
-                parent_orientation_type: parent_orientation_type,
+                parent_orientation: bctx.parent_orientation,
+                parent_orientation_type: bctx.parent_orientation_type,
                 trans_align: config_at.trans_align,
                 orientation: config_at.orientation.unwrap_or_default(),
             }).root;
@@ -972,8 +1084,7 @@ impl Build {
     async fn build_widget(
         &mut self,
         eg: &EventGraph,
-        parent_orientation: Orientation,
-        parent_orientation_type: OrientationType,
+        bctx: BuildContext,
         config_at: &Widget,
         config_query_params: &BTreeMap<String, Vec<String>>,
         data_id: &Vec<usize>,
@@ -981,71 +1092,48 @@ impl Build {
     ) -> El {
         match config_at {
             Widget::Layout(config_at) => return self
-                .build_widget_layout(
-                    eg,
-                    parent_orientation,
-                    parent_orientation_type,
-                    config_at,
-                    config_query_params,
-                    data_id,
-                    data_stack,
-                )
+                .build_widget_layout(eg, bctx, config_at, config_query_params, data_id, data_stack)
                 .boxed_local()
                 .await,
             Widget::DataRows(config_at) => return self
-                .build_widget_data_rows(
-                    eg,
-                    parent_orientation,
-                    parent_orientation_type,
-                    config_at,
-                    config_query_params,
-                    data_id,
-                    data_stack,
-                )
+                .build_widget_data_rows(eg, bctx, config_at, config_query_params, data_id, data_stack)
                 .boxed_local()
                 .await,
             Widget::Text(config_at) => return self
-                .build_widget_text(parent_orientation, parent_orientation_type, config_at, data_stack)
+                .build_widget_text(bctx, config_at, data_stack)
                 .boxed_local()
                 .await,
             Widget::Media(config_at) => return self
-                .build_widget_media(parent_orientation, parent_orientation_type, config_at, data_stack)
+                .build_widget_media(bctx, config_at, data_stack)
                 .boxed_local()
                 .await,
             Widget::Icon(config_at) => return self
-                .build_widget_icon(parent_orientation, parent_orientation_type, config_at, data_stack)
+                .build_widget_icon(bctx, config_at, data_stack)
                 .boxed_local()
                 .await,
             Widget::PlayButton(config_at) => return self
-                .build_widget_play_button(
-                    eg,
-                    parent_orientation,
-                    parent_orientation_type,
-                    config_at,
-                    data_id,
-                    data_stack,
-                )
+                .build_widget_play_button(eg, bctx, config_at, data_id, data_stack)
                 .boxed_local()
                 .await,
             Widget::Color(config_at) => return self
-                .build_widget_color(parent_orientation, parent_orientation_type, config_at, data_stack)
+                .build_widget_color(bctx, config_at, data_stack)
                 .boxed_local()
                 .await,
             Widget::Date(config_at) => return self
-                .build_widget_date(parent_orientation, parent_orientation_type, config_at, data_stack)
+                .build_widget_date(bctx, config_at, data_stack)
                 .boxed_local()
                 .await,
             Widget::Datetime(config_at) => return self
-                .build_widget_datetime(parent_orientation, parent_orientation_type, config_at, data_stack)
+                .build_widget_datetime(bctx, config_at, data_stack)
                 .boxed_local()
                 .await,
             Widget::Time(config_at) => return self
-                .build_widget_time(parent_orientation, parent_orientation_type, config_at, data_stack)
+                .build_widget_time(bctx, config_at, data_stack)
                 .boxed_local()
                 .await,
             Widget::Space => return style_export::leaf_space().root,
             Widget::Node(config_at) => return self
-                .build_widget_node(eg, parent_orientation, parent_orientation_type, config_at, data_stack)
+                .build_widget_node(eg, bctx, config_at, data_stack)
                 .boxed_local()
                 .await,
         }
@@ -1100,33 +1188,21 @@ fn build_widget_root_data_rows(
                         node_meta: node_meta.clone(),
                     }));
                     children.push(style_export::cont_view_element(style_export::ContViewElementArgs {
-                        body: build
-                            .build_widget(
-                                &eg,
-                                Orientation::RightDown,
-                                OrientationType::Flex,
-                                &config_at.element_body,
-                                &config_query_params,
-                                &vec![i],
-                                &data_at,
-                            )
-                            .await,
+                        body: build.build_widget(&eg, BuildContext {
+                            restrict_x: true,
+                            restrict_y: config_at.element_height.is_some(),
+                            parent_orientation: Orientation::RightDown,
+                            parent_orientation_type: OrientationType::Flex,
+                        }, &config_at.element_body, &config_query_params, &vec![i], &data_at).await,
                         height: config_at.element_height.clone(),
                         expand: match &config_at.element_expansion {
                             None => None,
-                            Some(exp) => Some(
-                                build
-                                    .build_widget(
-                                        &eg,
-                                        Orientation::DownRight,
-                                        OrientationType::Grid,
-                                        &exp,
-                                        &config_query_params,
-                                        &vec![i],
-                                        &data_at,
-                                    )
-                                    .await,
-                            ),
+                            Some(exp) => Some(build.build_widget(&eg, BuildContext {
+                                restrict_x: true,
+                                restrict_y: false,
+                                parent_orientation: Orientation::RightDown,
+                                parent_orientation_type: OrientationType::Grid,
+                            }, &exp, &config_query_params, &vec![i], &data_at).await),
                         },
                     }).root);
                 }
