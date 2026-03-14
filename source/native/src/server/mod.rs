@@ -30,8 +30,13 @@ use {
                 Identity,
                 can_access_file,
             },
+            filesutil::{
+                file_path,
+                hash_file_sha256,
+            },
             state::{
                 BackgroundJob,
+                BgCheckResult,
                 IamGrants,
             },
         },
@@ -44,6 +49,7 @@ use {
         check_is_admin,
         identify_requester,
     },
+    chrono::Utc,
     dbutil::tx,
     deadpool_sqlite::{
         Hook,
@@ -111,6 +117,7 @@ use {
             Pagination,
             ReqCommit,
             ReqHistoryFilterPredicate,
+            RespCheck,
             RespHistory,
             RespHistoryEvent,
             RespQuery,
@@ -171,7 +178,12 @@ use {
     },
     tokio::{
         net::TcpListener,
-        sync::mpsc,
+        select,
+        spawn,
+        sync::{
+            mpsc,
+            oneshot,
+        },
     },
     tokio_stream::wrappers::TcpListenerStream,
 };
@@ -382,6 +394,10 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                             impl ReqResp for shared::interface::wire::ReqUploadFinish { }
 
                             impl ReqResp for shared::interface::wire::ReqWhoAmI { }
+
+                            impl ReqResp for shared::interface::wire::ReqCheckStart { }
+
+                            impl ReqResp for shared::interface::wire::ReqCheckGet { }
                         }
 
                         use resp::ReqResp;
@@ -730,6 +746,173 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     access::Identity::Public => RespWhoAmI::Public,
                                 });
                             },
+                            C2SReq::CheckStart(req) => shed!{
+                                'done _;
+                                {
+                                    // Check access
+                                    match check_is_admin(&state, &identity, "Start check").await.err_internal()? {
+                                        AccessRes::Yes => { },
+                                        AccessRes::NoAccess => {
+                                            return Ok(response_403());
+                                        },
+                                        AccessRes::NoIdent => {
+                                            return Ok(response_401());
+                                        },
+                                    }
+                                }
+                                let mut bg = state.bg_check.lock().unwrap();
+                                match &*bg {
+                                    Some(bg) => match bg {
+                                        BgCheckResult::Fut(x) => {
+                                            if !x.is_terminated() && !req.restart {
+                                                resp = req.respond()(());
+                                                break 'done;
+                                            }
+                                        },
+                                        BgCheckResult::Value(_) => { },
+                                    },
+                                    None => (),
+                                }
+                                let (mut res_tx, res_rx) = oneshot::channel();
+                                *bg = Some(BgCheckResult::Fut(res_rx));
+                                drop(bg);
+                                spawn(async move {
+                                    let work = async {
+                                        ta_return!(RespCheck, loga::Error);
+                                        let started = Utc::now();
+                                        let mut seen = HashSet::new();
+                                        let mut node_issues = HashMap::new();
+
+                                        #[derive(Clone, Copy)]
+                                        enum TripleEnd {
+                                            Subject,
+                                            Object,
+                                        }
+
+                                        for triple_end in [TripleEnd::Subject, TripleEnd::Object] {
+                                            let mut pivot = None;
+                                            loop {
+                                                let batch = tx(&state.db, {
+                                                    move |txn| {
+                                                        match (pivot, triple_end) {
+                                                            (None, TripleEnd::Subject) => {
+                                                                return Ok(db::triples_get_subject_files_start(txn)?);
+                                                            },
+                                                            (None, TripleEnd::Object) => {
+                                                                return Ok(db::triples_get_object_files_start(txn)?);
+                                                            },
+                                                            (Some(pivot), TripleEnd::Subject) => {
+                                                                return Ok(
+                                                                    db::triples_get_subject_files_after(txn, &pivot)?,
+                                                                );
+                                                            },
+                                                            (Some(pivot), TripleEnd::Object) => {
+                                                                return Ok(
+                                                                    db::triples_get_object_files_after(txn, &pivot)?
+                                                                );
+                                                            },
+                                                        }
+                                                    }
+                                                }).await?;
+                                                let Some(pivot1) = batch.last().cloned() else {
+                                                    break;
+                                                };
+                                                pivot = Some(pivot1);
+                                                for node in batch {
+                                                    let node = node.0;
+                                                    let Node::File(hash) = &node else {
+                                                        unreachable!();
+                                                    };
+                                                    if !seen.insert(hash.clone()) {
+                                                        continue;
+                                                    }
+                                                    match async {
+                                                        ta_return!((), loga::Error);
+                                                        let path = file_path(&state, &hash)?;
+                                                        if !path.exists() {
+                                                            return Err(loga::err("File doesn't exist for file node"));
+                                                        }
+                                                        let real_hash = hash_file_sha256(&state.log, &path).await?;
+                                                        if real_hash != *hash {
+                                                            return Err(
+                                                                loga::err_with(
+                                                                    "Disk hash doesn't match expected (node) hash",
+                                                                    ea!(disk = real_hash, node = hash),
+                                                                ),
+                                                            );
+                                                        }
+                                                        return Ok(());
+                                                    }.await {
+                                                        Ok(_) => { },
+                                                        Err(e) => {
+                                                            node_issues.insert(node, e.to_string());
+                                                        },
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        return Ok(RespCheck {
+                                            started: started,
+                                            completed: Utc::now(),
+                                            files_count: seen.len(),
+                                            nodes_issues: node_issues
+                                                .into_iter()
+                                                .map(|(k, v)| (serde_json::to_string(&k).unwrap(), v))
+                                                .collect(),
+                                        });
+                                    };
+                                    select!{
+                                        work = work => {
+                                            _ = res_tx.send(work);
+                                        },
+                                        _ = res_tx.closed() => {
+                                        }
+                                    }
+                                });
+                                resp = req.respond()(());
+                            },
+                            C2SReq::CheckGet(req) => shed!{
+                                'done _;
+                                {
+                                    // Check access
+                                    match check_is_admin(&state, &identity, "Start check").await.err_internal()? {
+                                        AccessRes::Yes => { },
+                                        AccessRes::NoAccess => {
+                                            return Ok(response_403());
+                                        },
+                                        AccessRes::NoIdent => {
+                                            return Ok(response_401());
+                                        },
+                                    }
+                                }
+                                let mut bg = state.bg_check.lock().unwrap();
+                                let res = match bg.take() {
+                                    Some(bg1) => match bg1 {
+                                        BgCheckResult::Fut(mut f) => {
+                                            match f.try_recv() {
+                                                Ok(v) => {
+                                                    *bg = Some(BgCheckResult::Value(v.clone()));
+                                                    v
+                                                },
+                                                Err(_) => {
+                                                    *bg = Some(BgCheckResult::Fut(f));
+                                                    resp = req.respond()(None);
+                                                    break 'done;
+                                                },
+                                            }
+                                        },
+                                        BgCheckResult::Value(v) => {
+                                            *bg = Some(BgCheckResult::Value(v.clone()));
+                                            v
+                                        },
+                                    },
+                                    None => {
+                                        resp = req.respond()(None);
+                                        break 'done;
+                                    },
+                                };
+                                resp = req.respond()(Some(res.err_external()?));
+                            },
                         }
                         return Ok(resp.1);
                     },
@@ -1001,6 +1184,7 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
             genfiles_stage_dir: genfiles_stage_dir.clone(),
             finishing_uploads: Mutex::new(HashSet::new()),
             background: background_tx,
+            bg_check: Default::default(),
             http_resp_headers: HeaderMap::from_iter([
                 //. .
                 ("cross-origin-embedder-policy", "require-corp"),

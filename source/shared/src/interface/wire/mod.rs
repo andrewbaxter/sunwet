@@ -19,9 +19,9 @@ use {
     },
     schemars::JsonSchema,
     serde::{
-        de::DeserializeOwned,
         Deserialize,
         Serialize,
+        de::DeserializeOwned,
     },
     std::collections::{
         BTreeMap,
@@ -320,6 +320,46 @@ impl C2SReqTrait for ReqWhoAmI {
     type Resp = RespWhoAmI;
 }
 
+// # Check
+#[derive(Serialize, Deserialize, JsonSchema, Clone)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct ReqCheckStart {
+    /// Stop current check if one is running first
+    pub restart: bool,
+}
+
+impl Into<C2SReq> for ReqCheckStart {
+    fn into(self) -> C2SReq {
+        return C2SReq::CheckStart(self);
+    }
+}
+
+impl C2SReqTrait for ReqCheckStart {
+    type Resp = ();
+}
+#[derive(Serialize, Deserialize, JsonSchema, Clone)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct ReqCheckGet;
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, JsonSchema, Clone)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct RespCheck {
+    pub started: DateTime<Utc>,
+    pub completed: DateTime<Utc>,
+    pub files_count: usize,
+    pub nodes_issues: BTreeMap<String, String>,
+}
+
+impl Into<C2SReq> for ReqCheckGet {
+    fn into(self) -> C2SReq {
+        return C2SReq::CheckGet(self);
+    }
+}
+
+impl C2SReqTrait for ReqCheckGet {
+    type Resp = Option<RespCheck>;
+}
+
 // # Assemble
 #[derive(Serialize, Deserialize, JsonSchema, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
@@ -341,6 +381,10 @@ pub enum C2SReq {
     GetClientConfig(ReqGetClientConfig),
     /// Check authentication status
     WhoAmI(ReqWhoAmI),
+    /// Start running various checks.
+    CheckStart(ReqCheckStart),
+    /// Get the result of the last started check run.
+    CheckGet(ReqCheckGet),
 }
 
 pub fn alphanumeric_only(s: &str) -> String {

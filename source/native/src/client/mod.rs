@@ -54,6 +54,8 @@ use {
                 StrNode,
             },
             wire::{
+                ReqCheckGet,
+                ReqCheckStart,
                 ReqCommit,
                 ReqCommitFree,
                 ReqGetTriplesAround,
@@ -606,5 +608,29 @@ pub async fn handle_get_node(c: GetNodeCommand) -> Result<(), loga::Error> {
     });
     let res = req::req_simple(&log, ReqGetTriplesAround { nodes: vec![c.node.0] }).await?;
     println!("{}", serde_json::to_string_pretty(&res).unwrap());
+    return Ok(());
+}
+
+#[derive(Aargvark)]
+pub struct CheckCommand {
+    debug: Option<()>,
+    /// If a check is already running, stop it first
+    restart: Option<()>,
+}
+
+pub async fn handle_check(c: CheckCommand) -> Result<(), loga::Error> {
+    let log = Log::new_root(if c.debug.is_some() {
+        loga::DEBUG
+    } else {
+        loga::INFO
+    });
+    req::req_simple(&log, ReqCheckStart { restart: c.restart.is_some() }).await?;
+    let results = loop {
+        if let Some(results) = req::req_simple(&log, ReqCheckGet).await? {
+            break results;
+        }
+        sleep(Duration::from_secs(10)).await;
+    };
+    println!("{}", serde_json::to_string_pretty(&results).unwrap());
     return Ok(());
 }

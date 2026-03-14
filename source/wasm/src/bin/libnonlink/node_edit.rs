@@ -980,7 +980,7 @@ fn build_edit_node(
         input_type: inp_type_el,
         input_value: inp_value_group_el,
     }).root;
-    out.ref_own(|out| ({
+    out.ref_own(|out| {
         fn do_update_modified_invalid(
             out: &WeakEl,
             input_type: &HistPrim<NodeEditType>,
@@ -1077,8 +1077,7 @@ fn build_edit_node(
                 }
             ),
         }
-        // Update modified/invalid flags
-    },));
+    });
     return out;
 }
 
@@ -1581,7 +1580,11 @@ pub async fn build_node_edit_contents(
                     let pivot_changed;
                     match &*pivot_state.0 {
                         PivotState_::Single(p) => {
-                            let old_pivot0 = initial_type_value_to_node(&*p.type_.borrow(), &*p.value.borrow());
+                            let old_pivot0 =
+                                initial_type_value_to_node(
+                                    &*&p.initial.borrow().node_type_,
+                                    &*&p.initial.borrow().node_value,
+                                );
                             let new_pivot0 = type_value_to_node({
                                 file_unique += 1;
                                 file_unique

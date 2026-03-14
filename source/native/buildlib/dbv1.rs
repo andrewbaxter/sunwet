@@ -17,6 +17,7 @@ use {
             helpers::{
                 expr_and,
                 expr_field_eq,
+                expr_field_gt,
                 expr_field_lt,
                 expr_or,
                 field_param,
@@ -300,6 +301,31 @@ pub fn build(input: BuildDbInput) -> (Version, Vec<Query>) {
                 .return_field(&view_current_object)
                 .build_query("node_include_current_existing_obj", QueryResCount::Many),
         );
+        for (name, field) in [("subject", &subject), ("object", &object)] {
+            let expr_like = Expr::BinOp {
+                left: Box::new(Expr::field(field)),
+                op: BinOp::Like,
+                right: Box::new(Expr::LitString(r#"{"t":"f",%"#.to_string())),
+            };
+            queries.push(
+                new_select(&t)
+                    .where_(expr_like.clone())
+                    .order(Expr::field(field), Order::Asc)
+                    .limit(Expr::LitI32(500))
+                    .return_field(&field)
+                    .distinct()
+                    .build_query(&format!("triples_get_{}_files_start", name), QueryResCount::Many),
+            );
+            queries.push(
+                new_select(&t)
+                    .where_(expr_and(vec![expr_like, expr_field_gt(name, field)]))
+                    .order(Expr::field(field), Order::Asc)
+                    .limit(Expr::LitI32(500))
+                    .return_field(&field)
+                    .distinct()
+                    .build_query(&format!("triples_get_{}_files_after", name), QueryResCount::Many),
+            );
+        }
         queries.push({
             new_delete(&t).with(With {
                 recursive: false,

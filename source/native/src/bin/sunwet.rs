@@ -41,6 +41,8 @@ enum Command {
     History(client::HistoryCommand),
     /// Show all triples involving a given node.
     GetNode(client::GetNodeCommand),
+    /// Run various data checks and show a report. Could take a long time.
+    Check(client::CheckCommand),
     /// Run the Sunwet server.
     RunServer(server::Args),
 }
@@ -79,6 +81,9 @@ async fn main1() -> Result<(), loga::Error> {
         },
         Command::GetNode(c) => {
             client::handle_get_node(c).await?;
+        },
+        Command::Check(c) => {
+            client::handle_check(c).await?;
         },
         Command::RunServer(config) => {
             server::main(config).await?;

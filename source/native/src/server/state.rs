@@ -4,6 +4,7 @@ use {
         subsystems::oidc,
     },
     crate::{
+        ScopeValue,
         interface::{
             self,
             config::{
@@ -16,7 +17,6 @@ use {
             },
         },
         server::access::AccessSourceId,
-        ScopeValue,
     },
     by_address::ByAddress,
     cookie::time::ext::InstantExt,
@@ -24,26 +24,29 @@ use {
     flowcontrol::shed,
     http::HeaderMap,
     loga::{
-        ea,
         DebugDisplay,
         Log,
         ResultContext,
+        ea,
     },
     moka::future::Cache,
     shared::{
         interface::{
             config::{
+                MenuItemId,
                 form::FormId,
                 view::{
                     self,
                     ViewId,
                 },
-                MenuItemId,
             },
             iam::UserIdentityId,
             query,
             triple::FileHash,
-            wire::link::WsS2L,
+            wire::{
+                RespCheck,
+                link::WsS2L,
+            },
         },
         query_analysis::analyze_query,
     },
@@ -299,6 +302,11 @@ pub enum BackgroundJob {
     All,
 }
 
+pub enum BgCheckResult {
+    Fut(oneshot::Receiver<Result<RespCheck, loga::Error>>),
+    Value(Result<RespCheck, loga::Error>),
+}
+
 pub struct State {
     pub oidc_state: Option<oidc::OidcState>,
     pub fdap_state: Option<FdapState>,
@@ -314,6 +322,7 @@ pub struct State {
     pub genfiles_stage_dir: PathBuf,
     pub background: UnboundedSender<BackgroundJob>,
     pub http_resp_headers: HeaderMap,
+    pub bg_check: Mutex<Option<BgCheckResult>>,
     // Websockets
     pub link_sessions: Cache<String, Arc<LinkSessionState>>,
     pub link_bg: Mutex<Option<ScopeValue>>,
