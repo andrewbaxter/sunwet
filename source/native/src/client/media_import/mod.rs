@@ -32,7 +32,6 @@ use {
                 OBJ_IS_ALBUM,
                 OBJ_IS_ARTIST,
                 OBJ_IS_DOC,
-                OBJ_IS_TRACK,
                 OBJ_MEDIA_AUDIO,
                 OBJ_MEDIA_BOOK,
                 OBJ_MEDIA_COMIC,
@@ -250,10 +249,6 @@ pub fn obj_media_book() -> CliNode {
 
 pub fn obj_media_image() -> CliNode {
     return CliNode::Value(serde_json::Value::String(OBJ_MEDIA_IMAGE.to_string()));
-}
-
-pub fn obj_is_track() -> CliNode {
-    return CliNode::Value(serde_json::Value::String(OBJ_IS_TRACK.to_string()));
 }
 
 pub fn obj_is_document() -> CliNode {
@@ -713,7 +708,6 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
                     query_album_track(album_id.clone(), track.superindex, track.index, &track.name),
                     Default::default(),
                 ).await?;
-            triples.push(triple(&node_node(&track_id), PREDICATE_IS, &obj_is_track()));
             if let Some(index) = track.index {
                 triples.push(triple(&node_node(&track_id), PREDICATE_INDEX, &node_value_f64(index)));
             }

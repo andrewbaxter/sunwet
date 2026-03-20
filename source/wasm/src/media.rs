@@ -1028,13 +1028,6 @@ fn setup_book_idoc(
             let Some(iframe) = iframe.upgrade() else {
                 return;
             };
-            iframe.ref_own(|_| (io_near, io_far, EventListener::new(&idoc, "click", {
-                let set_scroll_coord = set_scroll_coord.clone();
-                let iframe = iframe.raw().dyn_into::<HtmlElement>().unwrap();
-                move |_| {
-                    set_scroll_coord(get_scroll_coord() + iframe.get_bounding_client_rect().height() * 4. / 5.);
-                }
-            })));
             eg.event(|pc| {
                 iframe.ref_own(|_| (
                     //. .

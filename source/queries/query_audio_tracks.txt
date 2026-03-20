@@ -1,4 +1,4 @@
-"sunwet/1/track" -< "sunwet/1/is"
+"sunwet/1/album" -> "sunwet/1/track"
     &(
         ?( -< "sunwet/1/track" -> "sunwet/1/media" == "sunwet/1/audio" )
         !( -> "sunwet/1/delete")

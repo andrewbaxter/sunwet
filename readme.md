@@ -241,6 +241,38 @@ To set Sunwet up as a web app, open it in your mobile device browser, click the 
 
 You should back up the file and graph directories regularly. If you want a fully consistent backup, you should stop Sunwet before taking the backup. If you're fairly sure you aren't making any commits currently though it should be OK to backup Sunwet while online.
 
+# Importing media
+
+Quick start guide:
+
+1. Create a folder for everything you want to import
+2. Create a sub-folder per "album" of media you want to import: 1 folder per music album, 1 folder per book/comic series, 1 folder per movie, 1 folder per TV series, etc
+
+   Folders can contain extra files (PDFs, etc, which will be associated with the album as "documents")
+
+3. Run `sunwet prepare-media-import-commit PATH/TO/FOLDER`. This will:
+   - Scan the media
+   - Read file metadata (IDv3 tags for audio, ComicInfo.xml, EPUB metadata, MKV tags/labels, etc) to generate triples
+   - Extract media covers (to `sunwet/`) to upload as separate file images for the `sunwet/1/cover` predicate
+   - Query the sunwet server to check if various authors already exist, to match entity IDs
+   - Write all the triples to a "commit" JSON file (`PATH/TO/FOLDER/sunwet.json`)
+
+   If you're using `sunwet` via Docker you'll need to instead do `docker run` and mount the media directory as a volume.
+
+   You can rerun it as many times as you need.
+
+   If your media doesn't have critical metadata you will get an error. I have a bare-bones CLI tool for tagging things (specifically video and comics), https://github.com/andrewbaxter/tagger1, but if you have better tools available I recommend using those.
+
+   This uses the standard ontology (see the relevant section below) so it's compatible with the default views/queries.
+
+4. Run `sunwet commit PATH/TO/FOLDER/sunwet.json`
+
+   This will upload the triples, hash the files, then upload and verify the uploads. If it fails midway you can rerun it.
+
+Once that's done, you should be able to see your media in the web UI!
+
+If you want more control you can create a "commit" JSON using your own tools, then upload it the same way as above.
+
 # Data
 
 As described above, Sunwet stores "triples".
@@ -297,7 +329,7 @@ Generation happens in the background. Video conversion can take a very long time
 
 An ontology is the set of rules for triples, predicates, formatting subjects, etc you use to organize your data. It's like a schema.
 
-With sunwet you can use any ontology you want, but the default queries and media import tool use this [vocabulary/ontology](./source/shared/src/interface/ont/mod.rs). Generally speaking, albums, tracks, and notes all are UUIDs. They're related and described by the predicates in the ontology. Also see the default config for more context on how the ontology is used.
+With sunwet you can use any ontology you want, but the default queries/views/the media import tool use this [vocabulary/ontology](./source/shared/src/interface/ont/mod.rs). Generally speaking, albums, tracks, and notes all are UUIDs. They're related and described by the predicates in the ontology. Also see the default config for more context on how the ontology is used.
 
 Ideally there'd be a much more powerful, flexible, well documented ontology. At the same time, there are projects to come up with powerful, flexible RDF ontologies that have been going on for decades. Coming up with such an ontology is out of scope for this core repo (but if someone comes up with a good ontology I'd like to update the defaults here to use it).
 
