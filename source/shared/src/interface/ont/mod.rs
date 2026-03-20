@@ -19,9 +19,10 @@
 ///
 /// * Object: one of the enumerated "is" objects values below, or a custom value
 ///
-/// * Plurality: many Used to classify objects in a query. I.e. if you have music
-///   albums and video albums (tv series), use `is` in a audio album query to only
-///   select audio albums.
+/// * Plurality: many
+///
+/// Used to classify objects in a query. I.e. if you have music albums and video
+/// albums (tv series), use `is` in a audio album query to only select audio albums.
 pub const PREDICATE_IS: &str = "sunwet/1/is";
 
 /// * Subject: any entity
@@ -30,12 +31,13 @@ pub const PREDICATE_IS: &str = "sunwet/1/is";
 ///
 /// * Plurality: zero or one
 ///
-/// Used to create a "pointer" node. The "pointer" node can have additional or
+/// Used to create a "pointer" entity. The "pointer" entity can have additional or
 /// overriding properties.
 ///
-/// An example is a playlist containing a track. The track may already have an
-/// index within its album, so to order it within the playlist a pointer is created
-/// and added to the playlist instead, and the pointer gets its own index.
+/// An example usage would be a track in a playlist. The track may already have an
+/// index within its album, so to order it within the playlist a pointer entity is
+/// created with the new index and is added to the playlist instead of the track
+/// directly.
 pub const PREDICATE_VALUE: &str = "sunwet/1/value";
 
 /// * Subject: an album
@@ -44,9 +46,11 @@ pub const PREDICATE_VALUE: &str = "sunwet/1/value";
 ///
 /// * Plurality: many
 ///
-/// Indicates an ordered list of primary media in the album. E.g. for a music
-/// album, `sunwet/1/track` would be used on all of the songs in the album. It
-/// would not be used for the cover art, or an included booklet or music video.
+/// Indicates a list of primary media in the album. E.g. for a music album,
+/// `sunwet/1/track` would be used on all of the songs in the album. It would not
+/// be used for the cover art, or an included booklet or music video.
+///
+/// `sunwet/1/index` predicates can be used to order tracks (see below).
 pub const PREDICATE_TRACK: &str = "sunwet/1/track";
 
 /// * Subject: a track in an album
