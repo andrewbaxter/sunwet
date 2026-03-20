@@ -241,9 +241,15 @@ To set Sunwet up as a web app, open it in your mobile device browser, click the 
 
 You should back up the file and graph directories regularly. If you want a fully consistent backup, you should stop Sunwet before taking the backup. If you're fairly sure you aren't making any commits currently though it should be OK to backup Sunwet while online.
 
-# Importing media
+# Data
 
-Quick start guide:
+As described above, Sunwet stores "triples".
+
+In Sunwet the "subject" and "object" are called "nodes" and can be arbitrary JSON or a file. Files are represented in the graph as a hash of the contents, and there's a separate endpoint to fetch the file by its hash.
+
+## Importing data
+
+### Quick start: importing media with metadata
 
 1. Create a folder for everything you want to import
 2. Create a sub-folder per "album" of media you want to import: 1 folder per music album, 1 folder per book/comic series, 1 folder per movie, 1 folder per TV series, etc
@@ -273,13 +279,7 @@ Once that's done, you should be able to see your media in the web UI!
 
 If you want more control you can create a "commit" JSON using your own tools, then upload it the same way as above.
 
-# Data
-
-As described above, Sunwet stores "triples".
-
-In Sunwet the "subject" and "object" are called "nodes" and can be arbitrary JSON or a file. Files are represented in the graph as a hash of the contents, and there's a separate endpoint to fetch the file by its hash.
-
-## Adding, editing, and deleting data
+### In depth: All ways to add, edit, and delete data
 
 Data in Sunwet is changed by creating a "commit". A commit is a list of triples to remove and another list of triples to delete.
 
@@ -293,23 +293,43 @@ There are several ways to make commits:
 
 - Creating a commit JSON and calling the API directly, then uploading files for new hashes in the triples added in the commit
 
-- Creating a CLI commit JSON then sending it via the CLI (`sunwet commit`)
+- Creating a CLI commit JSON (like an API commit JSON but with file paths rather than hashes) then sending it via the CLI (`sunwet commit`)
 
   The CLI commit JSON follows this [JSON schema](./source/generated/jsonschema/cli_commit.schema.json)
 
   The CLI commit JSON uses file paths instead of hashes. Then when you send it via the CLI, the CLI will hash the files producing a new API commit JSON with file hashes, send commit JSON to the server, then upload all the files.
 
-- Using the CLI media import command (`sunwet prepare-media-import`)
+- Using the CLI media import command (`sunwet prepare-media-import`) to create a CLI commit JSON
 
   This scans the given directory for media files and uses media tags (MKV, ID3, EPub, ComicInfo.xml) to generate triples. It will output a `sunwet.json` CLI commit file you can then commit using `sunwet commit`.
 
   The prepared commit will match the very basic ontology below.
 
-Having more convenient ways to import data, like a pintrest-like web "save" plugin, would be awesome but is out of scope for the core repo.
+Having more convenient ways to import data, like a pintrest-like browser "save" extension, would be awesome but is out of scope for the core repo.
 
 Deleted triples will be kept for a year then permanently erased. You can find the commit in history and restore it up until it gets permanently erased.
 
 Files are kept until no triples (deleted or not) refer to them, then they will be automatically deleted.
+
+## Exporting data
+
+If you want to get data back out to share with others or to import elsewhere, use `sunwet export`.
+
+`sunwet export` takes a query that results in a list of nodes (no structured `{ => id }` output) and an output directory. It creates a CLI commit JSON file containing all triples referring to any of the resulting nodes. It then downloads any referenced files to the directory.
+
+The resultant directory can be sent to other people directly and imported using `sunwet commit`.
+
+## Ontology
+
+An ontology is the set of rules for triples, predicates, formatting subjects, etc you use to organize your data. It's like a schema.
+
+With sunwet you can use any ontology you want, but the default queries/views/the media import tool use this [vocabulary/ontology](./source/shared/src/interface/ont/mod.rs). Generally speaking, albums, tracks, and notes all are UUIDs. They're related and described by the predicates in the ontology. Also see the default config for more context on how the ontology is used.
+
+Ideally there'd be a much more powerful, flexible, well documented ontology. At the same time, there are projects to come up with powerful, flexible RDF ontologies that have been going on for decades. Coming up with such an ontology is out of scope for this core repo (but if someone comes up with a good ontology I'd like to update the defaults here to use it).
+
+## Querying data
+
+See [source/docs/query.md](./source/docs/query.md)
 
 ## Derived files
 
@@ -325,33 +345,21 @@ When you upload certain types of files Sunwet will generate derived files:
 
 Generation happens in the background. Video conversion can take a very long time, so the other derived files are produced first.
 
-## Ontology
-
-An ontology is the set of rules for triples, predicates, formatting subjects, etc you use to organize your data. It's like a schema.
-
-With sunwet you can use any ontology you want, but the default queries/views/the media import tool use this [vocabulary/ontology](./source/shared/src/interface/ont/mod.rs). Generally speaking, albums, tracks, and notes all are UUIDs. They're related and described by the predicates in the ontology. Also see the default config for more context on how the ontology is used.
-
-Ideally there'd be a much more powerful, flexible, well documented ontology. At the same time, there are projects to come up with powerful, flexible RDF ontologies that have been going on for decades. Coming up with such an ontology is out of scope for this core repo (but if someone comes up with a good ontology I'd like to update the defaults here to use it).
-
-## Querying data
-
-See [source/docs/query.md](./source/docs/query.md)
-
 # CLI
 
-The CLI needs an API token to use.
+The CLI needs an API token to use (defined in your Sunwet config file).
 
-Set the environment variables
+Set the environment variables:
 
 - `SUNWET` - the root URL to the server
 
 - `SUNWET_TOKEN` - the API token you put in the configuration
 
-See `sunwet -h` for details.
+See `sunwet -h` for details on how to use the command line.
 
 # API
 
-The API takes the API token you put in the configuration via the header `Authorization: Bearer TOKEN`.
+The API takes the API token (defined in your Sunwet config file) via the header `Authorization: Bearer TOKEN`.
 
 All requests are via `POST` requests with the payload described by [this JSON schema](./source/generated/jsonschema/api_request.schema.json) and the appropriate response schema.
 
