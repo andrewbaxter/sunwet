@@ -103,7 +103,8 @@ pub fn trigger_onlining(eg: EventGraph) {
                                 let chunks = file_size.div_ceil(CHUNK_SIZE);
                                 for i in 0 .. chunks {
                                     let chunk_start = i * CHUNK_SIZE;
-                                    let chunk_size = file_size.min(CHUNK_SIZE);
+                                    let chunk_end = (chunk_start + CHUNK_SIZE).min(file_size);
+                                    let chunk_size = chunk_end - chunk_start;
                                     file_post_json(
                                         &file,
                                         chunk_start,
