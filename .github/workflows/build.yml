@@ -1,9 +1,12 @@
-name: Check/build
+name: Build
 on:
   push:
 jobs:
-  check:
-    runs-on: ubuntu-22.04
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, ubuntu-22.04-arm]
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: read
       id-token: write
@@ -28,5 +31,5 @@ jobs:
           nix run nixpkgs#skopeo -- copy \
             --dest-creds="$GITHUB_ACTOR":"$GITHUB_TOKEN" \
             docker-archive:image.tar.gz \
-            docker://ghcr.io/andrewbaxter/sunwet:latest \
+            docker://ghcr.io/andrewbaxter/sunwet:latest${{case(endsWith(matrix.os, '-arm'), '-arm64', '')}} \
             ;
