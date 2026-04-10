@@ -95,6 +95,15 @@ use {
         },
         stringpattern::node_to_text,
     },
+    shared_wasm::{
+        log::{
+            Log,
+            LogJsErr,
+            VecLog,
+        },
+        online::OnliningState,
+        world::scan_env,
+    },
     std::{
         cell::RefCell,
         collections::BTreeMap,
@@ -104,12 +113,8 @@ use {
     wasm::{
         async_::WaitVal,
         js::{
-            Log,
-            LogJsErr,
-            VecLog,
             el_async,
             el_async_,
-            scan_env,
             style_export::{
                 self,
             },
@@ -191,8 +196,10 @@ pub fn main() {
             menu_open: Prim::new(false),
             env: env,
             playlist: playlist_state,
-            onlining: Prim::new(false),
-            onlining_bg: Default::default(),
+            onlining_state: Rc::new(OnliningState {
+                bg: Default::default(),
+                running: Prim::new(false),
+            }),
             offlining: Prim::new(false),
             offlining_bg: Default::default(),
             offline_list: List::new(vec![]),
@@ -565,7 +572,7 @@ pub fn main() {
                             menu_body.onlining,
                             menu_body.onlining_checkbox,
                             enable_onlining.clone(),
-                            state().onlining.clone(),
+                            state().onlining_state.running.clone(),
                         ),
                         (
                             menu_body.offlining,

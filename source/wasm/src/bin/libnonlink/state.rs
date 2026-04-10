@@ -51,6 +51,15 @@ use {
         triple::Node,
         wire::RespWhoAmI,
     },
+    shared_wasm::{
+        log::{
+            Log,
+            LogJsErr,
+            VecLog,
+        },
+        online::OnliningState,
+        world::Env,
+    },
     std::{
         cell::RefCell,
         collections::HashMap,
@@ -59,10 +68,6 @@ use {
     wasm::{
         async_::WaitVal,
         js::{
-            Env,
-            Log,
-            LogJsErr,
-            VecLog,
             el_async_,
             style_export,
         },
@@ -82,8 +87,7 @@ pub struct State_ {
     pub ministate: RefCell<Ministate>,
     pub env: Env,
     pub playlist: PlaylistState,
-    pub onlining: Prim<bool>,
-    pub onlining_bg: RefCell<Option<ScopeValue>>,
+    pub onlining_state: Rc<OnliningState>,
     pub offlining: Prim<bool>,
     pub offlining_bg: RefCell<Option<ScopeValue>>,
     pub offline_list: List<(String, MinistateView)>,

@@ -19,15 +19,15 @@ use {
         },
         triple::Node,
     },
+    shared_wasm::log::{
+        Log,
+        LogJsErr,
+    },
     std::{
         collections::HashMap,
         rc::Rc,
     },
-    wasm::js::{
-        get_dom_octothorpe,
-        Log,
-        LogJsErr,
-    },
+    wasm::js::get_dom_octothorpe,
     wasm_bindgen::JsValue,
 };
 

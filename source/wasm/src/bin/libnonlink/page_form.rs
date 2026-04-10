@@ -1,16 +1,11 @@
 use {
     super::{
         api::req_post_json,
-        commit::{
-            CommitNode,
-            prep_node,
-        },
-        state::{
-            set_page,
-        },
+        state::set_page,
     },
     crate::libnonlink::{
         online,
+        state::state,
     },
     chrono::{
         DateTime,
@@ -19,9 +14,7 @@ use {
         NaiveDateTime,
         Utc,
     },
-    flowcontrol::{
-        exenum,
-    },
+    flowcontrol::exenum,
     gloo::{
         storage::{
             LocalStorage,
@@ -51,6 +44,10 @@ use {
             },
         },
         stringpattern::node_to_text,
+    },
+    shared_wasm::commit::{
+        CommitNode,
+        prep_node,
     },
     std::{
         cell::RefCell,
@@ -628,6 +625,7 @@ pub fn build_page_form(
                     for (k, v) in data {
                         let Some(n) =
                             prep_node(
+                                &state().log,
                                 &mut files_to_return,
                                 &mut files_to_commit,
                                 &mut files_to_upload,

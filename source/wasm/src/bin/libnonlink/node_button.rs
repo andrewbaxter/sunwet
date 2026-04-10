@@ -60,8 +60,8 @@ use {
         },
         stringpattern::node_to_text,
     },
+    shared_wasm::log::LogJsErr,
     wasm::js::{
-        LogJsErr,
         on_thinking,
         style_export,
     },

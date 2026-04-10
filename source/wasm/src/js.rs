@@ -3,19 +3,9 @@ use {
         file_url,
         generated_file_url,
     },
-    chrono::{
-        DateTime,
-        Utc,
-    },
-    flowcontrol::shed,
     futures::channel::oneshot::channel,
     gloo::{
         events::EventListener,
-        storage::{
-            LocalStorage,
-            Storage,
-            errors::StorageError,
-        },
         timers::future::TimeoutFuture,
         utils::{
             document,
@@ -24,7 +14,6 @@ use {
     },
     js_sys::{
         Array,
-        JSON,
         Object,
     },
     rooting::{
@@ -41,6 +30,16 @@ use {
             gentype_vtt_subpath,
         },
     },
+    shared_wasm::{
+        log::{
+            Log,
+            LogJsErr,
+        },
+        world::{
+            Engine,
+            Env,
+        },
+    },
     std::{
         cell::RefCell,
         future::Future,
@@ -49,7 +48,6 @@ use {
     wasm_bindgen::{
         JsCast,
         JsValue,
-        UnwrapThrowExt,
         prelude::Closure,
     },
     wasm_bindgen_futures::{
@@ -70,87 +68,6 @@ use {
         Url,
     },
 };
-
-// Since bug detection isn't a thing, or rather I don't want to deal with that
-#[derive(Clone, PartialEq, Eq)]
-pub enum Engine {
-    IosSafari,
-    Chrome,
-}
-
-#[derive(Clone)]
-pub struct Lang {
-    // Lang as it comes from navigator
-    pub nav_lang: String,
-}
-
-#[derive(Clone)]
-pub struct Env {
-    // Ends with `/`
-    pub base_url: String,
-    pub engine: Option<Engine>,
-    // Languages as they come from the navigator
-    pub languages: Vec<String>,
-    pub pwa: bool,
-}
-
-pub fn scan_env(log: &Rc<dyn Log>) -> Env {
-    return Env {
-        base_url: shed!{
-            let loc = window().location();
-            break format!(
-                "{}{}/",
-                loc.origin().unwrap_throw(),
-                loc.pathname().unwrap_throw().rsplit_once("/").unwrap_throw().0
-            );
-        },
-        engine: shed!{
-            'found _;
-            shed!{
-                let user_agent = match window().navigator().user_agent() {
-                    Ok(a) => a,
-                    Err(e) => {
-                        log.log_js("Error getting user agent to enable ios workarounds", &e);
-                        break;
-                    },
-                };
-                if user_agent.contains("iPad") || user_agent.contains("iPhone") || user_agent.contains("iPod") {
-                    log.log("Detected mobile ios, activating webkit workarounds.");
-                    break 'found Some(Engine::IosSafari);
-                }
-            }
-            if js_sys::Reflect::has(&window(), &JsValue::from("chrome")).unwrap() {
-                log.log("Detected chrome(ish), activating chrome workarounds.");
-                break 'found Some(Engine::Chrome);
-            }
-            break None;
-        },
-        languages: shed!{
-            let mut out = vec![];
-            for nav_lang in window().navigator().languages() {
-                let nav_lang = nav_lang.as_string().unwrap();
-                out.push(nav_lang);
-            }
-            break out;
-        },
-        pwa: {
-            // Needs to match manifest
-            let pwa = match window().match_media("(display-mode: standalone)") {
-                Ok(v) => if let Some(v) = v {
-                    v.matches()
-                } else {
-                    false
-                },
-                Err(e) => {
-                    log.log_js("Error running media query to determine if PWA", &e);
-                    false
-                },
-            };
-            log.log(&format!("Detected pwa, activating (safari?) pwa workarounds: {}", pwa));
-            pwa
-        },
-    }
-}
 
 pub fn env_preferred_audio_gentype(env: &Env) -> Option<String> {
     if env.engine == Some(Engine::IosSafari) {
@@ -192,75 +109,6 @@ pub fn gen_video_subtitle_subpath(nav_lang: &str) -> String {
 
 pub fn env_video_subtitle_url(env: &Env, nav_lang: &str, hash: &FileHash) -> String {
     return generated_file_url(env, hash, GENTYPE_VTT, &gen_video_subtitle_subpath(nav_lang));
-}
-
-pub trait Log {
-    fn log(&self, x: &str);
-    fn log_js(&self, x: &str, v: &JsValue);
-    fn log_js2(&self, x: &str, v: &JsValue, v2: &JsValue);
-}
-
-pub struct VecLog {
-    pub log: RefCell<Vec<(DateTime<Utc>, String)>>,
-}
-
-impl VecLog {
-    pub fn new() -> VecLog {
-        return VecLog { log: RefCell::new(match LocalStorage::get(PERSIST_LOGS) {
-            Ok(l) => l,
-            Err(_) => Default::default(),
-        }) };
-    }
-}
-
-fn trim_vec_log(log: &mut Vec<(DateTime<Utc>, String)>) {
-    if log.len() > 250 {
-        *log = log.split_off(log.len() - 200);
-    }
-}
-
-const PERSIST_LOGS: &str = "logs";
-
-impl Log for VecLog {
-    fn log(&self, x: &str) {
-        let mut log = self.log.borrow_mut();
-        log.push((Utc::now(), x.to_string()));
-        trim_vec_log(&mut log);
-        web_sys::console::log_1(&JsValue::from(x));
-        _ = LocalStorage::set(PERSIST_LOGS, &*log);
-    }
-
-    fn log_js(&self, x: &str, v: &JsValue) {
-        let mut log = self.log.borrow_mut();
-        log.push((Utc::now(), format!("{}: {}", x, JSON::stringify(v).unwrap())));
-        trim_vec_log(&mut log);
-        web_sys::console::log_2(&JsValue::from(x), v);
-        _ = LocalStorage::set(PERSIST_LOGS, &*log);
-    }
-
-    fn log_js2(&self, x: &str, v: &JsValue, v2: &JsValue) {
-        let mut log = self.log.borrow_mut();
-        log.push((Utc::now(), format!("{}: {}, {}", x, JSON::stringify(v).unwrap(), JSON::stringify(v2).unwrap())));
-        trim_vec_log(&mut log);
-        web_sys::console::log_3(&JsValue::from(x), v, v2);
-        _ = LocalStorage::set(PERSIST_LOGS, &*log);
-    }
-}
-
-pub struct ConsoleLog {}
-
-impl Log for ConsoleLog {
-    fn log(&self, x: &str) {
-        web_sys::console::log_1(&JsValue::from(x));
-    }
-
-    fn log_js(&self, x: &str, v: &JsValue) {
-        web_sys::console::log_2(&JsValue::from(x), v);
-    }
-
-    fn log_js2(&self, x: &str, v: &JsValue, v2: &JsValue) {
-        web_sys::console::log_3(&JsValue::from(x), v, v2);
-    }
 }
 
 struct MyIntersectionObserver_ {
@@ -687,32 +535,6 @@ pub fn lazy_el_async<E: ToString, F: 'static + AsyncFnOnce() -> Result<Vec<El>, 
     return out;
 }
 
-pub trait LogJsErr {
-    fn log(self, log: &Rc<dyn Log>, msg: &str);
-}
-
-impl<T> LogJsErr for Result<T, JsValue> {
-    fn log(self, log: &Rc<dyn Log>, msg: &str) {
-        match self {
-            Ok(_) => { },
-            Err(e) => {
-                log.log_js(&format!("Warning: {}:", msg), &e);
-            },
-        }
-    }
-}
-
-impl<T> LogJsErr for Result<T, StorageError> {
-    fn log(self, log: &Rc<dyn Log>, msg: &str) {
-        match self {
-            Ok(_) => { },
-            Err(e) => {
-                log.log(&format!("Warning: {}: {}", msg, e));
-            },
-        }
-    }
-}
-
 pub trait ElExt {
     fn html(&self) -> HtmlElement;
 }
@@ -794,11 +616,4 @@ pub fn on_thinking(e: &El, f: impl 'static + Clone + AsyncFn() -> ()) {
             }));
         }
     });
-}
-
-pub fn jsstr(v: JsValue) -> String {
-    return match v.dyn_ref::<Object>() {
-        Some(v) => v.to_string().as_string(),
-        None => v.js_typeof().as_string(),
-    }.unwrap();
 }

@@ -1,13 +1,7 @@
 use {
-    super::{
-        state::state,
-    },
-    chrono::{
-        Utc,
-    },
-    gloo::{
-        file::Blob,
-    },
+    crate::log::Log,
+    chrono::Utc,
+    gloo::file::Blob,
     sha2::{
         Digest,
         Sha256,
@@ -17,11 +11,12 @@ use {
             FileHash,
             Node,
         },
-        wire::{
-            CommitFile,
-        },
+        wire::CommitFile,
     },
-    std::collections::HashMap,
+    std::{
+        collections::HashMap,
+        rc::Rc,
+    },
     web_sys::File,
 };
 
@@ -53,6 +48,7 @@ pub struct UploadFile {
 }
 
 pub async fn prep_node(
+    log: &Rc<dyn Log>,
     return_files: &mut HashMap<usize, FileHash>,
     commit_files: &mut Vec<CommitFile>,
     upload_files: &mut Vec<UploadFile>,
@@ -64,7 +60,7 @@ pub async fn prep_node(
             let b = match gloo::file::futures::read_as_bytes(&Blob::from(file.clone())).await {
                 Ok(b) => b,
                 Err(e) => {
-                    state().log.log(&format!("Error reading file for commit: {}", e));
+                    log.log(&format!("Error reading file for commit: {}", e));
                     return None;
                 },
             };

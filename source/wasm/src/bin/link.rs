@@ -1,11 +1,7 @@
 use {
     chrono::Utc,
-    flowcontrol::{
-        shed,
-    },
-    futures::{
-        future::join_all,
-    },
+    flowcontrol::shed,
+    futures::future::join_all,
     gloo::{
         timers::future::TimeoutFuture,
         utils::document,
@@ -23,17 +19,22 @@ use {
         set_root,
         spawn_rooted,
     },
-    shared::interface::{
-        wire::{
-            GENTYPE_CBZDIR,
-            GENTYPE_EPUBHTML,
-            link::{
-                COOKIE_LINK_SESSION,
-                PrepareMedia,
-                WsL2S,
-                WsS2L,
-            },
+    shared::interface::wire::{
+        GENTYPE_CBZDIR,
+        GENTYPE_EPUBHTML,
+        link::{
+            COOKIE_LINK_SESSION,
+            PrepareMedia,
+            WsL2S,
+            WsS2L,
         },
+    },
+    shared_wasm::{
+        log::{
+            ConsoleLog,
+            Log,
+        },
+        world::scan_env,
     },
     std::{
         cell::Cell,
@@ -43,13 +44,10 @@ use {
     wasm::{
         constants::LINK_HASH_PREFIX,
         js::{
-            ConsoleLog,
-            Log,
             env_preferred_audio_url,
             env_preferred_video_url,
             env_video_subtitle_url,
             get_dom_octothorpe,
-            scan_env,
             style_export,
         },
         media::{

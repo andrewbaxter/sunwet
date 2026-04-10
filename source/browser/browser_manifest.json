@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Sunwet",
+  "description": "Sunwet and the web",
+  "homepage_url": "https://github.com/andrewbaxter/sunwet",
+  "version": "_PLACEHOLDER_VERSION",
+  "author": "Andrew Baxter",
+  "icons": {
+    "48": "icon2.svg"
+  },
+  "content_security_policy": {
+    "extension_pages": "default-src 'self' 'wasm-unsafe-eval'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' 'wasm-unsafe-eval' https://publicsuffix.org/"
+  },
+  "permissions": ["activeTab", "tabs", "storage"],
+  "host_permissions": ["https://*/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://*/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "options_page": "options.html"
+}

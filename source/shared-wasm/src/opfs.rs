@@ -1,5 +1,8 @@
 use {
-    crate::libnonlink::state::state,
+    crate::log::{
+        Log,
+        jsstr,
+    },
     gloo::utils::window,
     js_sys::{
         Array,
@@ -12,7 +15,6 @@ use {
     },
     std::rc::Rc,
     tokio_stream::StreamExt,
-    wasm::js::jsstr,
     wasm_bindgen::{
         JsCast,
         JsValue,
@@ -33,22 +35,22 @@ use {
     },
 };
 
-pub async fn request_persistent() {
+pub async fn request_persistent(log: &Rc<dyn Log>) {
     let f = match window().navigator().storage().persist() {
         Ok(f) => f,
         Err(e) => {
-            state().log.log_js("Error starting request for persistent storage", &e);
+            log.log_js("Error starting request for persistent storage", &e);
             return;
         },
     };
     match JsFuture::from(f).await {
         Ok(v) => {
             if !v.as_bool().unwrap_or_default() {
-                state().log.log("Persistent storage request denied by browser");
+                log.log("Persistent storage request denied by browser");
             }
         },
         Err(e) => {
-            state().log.log_js("Error requesting persistent storage", &e);
+            log.log_js("Error requesting persistent storage", &e);
         },
     }
 }
@@ -152,14 +154,14 @@ impl OpfsDir {
         return Ok(OpfsWriteFile(debug_path, out));
     }
 
-    pub async fn list(&self) -> Result<Vec<(String, OpfsAmbig)>, String> {
+    pub async fn list(&self, log: &Rc<dyn Log>) -> Result<Vec<(String, OpfsAmbig)>, String> {
         let mut entries = vec![];
         let mut entries0 = JsStream::from(self.1.entries());
         while let Some(e) = entries0.next().await {
             let e = match e {
                 Ok(e) => e,
                 Err(e) => {
-                    state().log.log_js(&format!("Error reading directory entry [{}]", self.0), &e);
+                    log.log_js(&format!("Error reading directory entry [{}]", self.0), &e);
                     continue;
                 },
             };
@@ -171,23 +173,23 @@ impl OpfsDir {
         return Ok(entries);
     }
 
-    pub async fn delete(&self, seg: &str) {
+    pub async fn delete(&self, log: &Rc<dyn Log>, seg: &str) {
         if let Err(e) = JsFuture::from(self.1.remove_entry_with_options(seg, &{
             let o = FileSystemRemoveOptions::new();
             o.set_recursive(true);
             o
         })).await {
-            state().log.log_js(&format!("Error deleting opfs entry at [{}]", self.0), &e);
+            log.log_js(&format!("Error deleting opfs entry at [{}]", self.0), &e);
         }
     }
 
-    pub async fn exists(&self, seg: &str) -> Result<bool, String> {
+    pub async fn exists(&self, log: &Rc<dyn Log>, seg: &str) -> Result<bool, String> {
         // Bikeshedding https://github.com/whatwg/fs/issues/80
         //
         // This is mostly used by offline, offline is mostly for mobile devices with
         // limited storage and/or in small directories - so hopefully this hack doesn't
         // blow up for typical use cases.
-        for (k, _) in self.list().await? {
+        for (k, _) in self.list(log).await? {
             if k == seg {
                 return Ok(true);
             }

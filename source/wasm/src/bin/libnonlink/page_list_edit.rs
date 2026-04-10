@@ -32,12 +32,12 @@ use {
         },
         stringpattern::node_to_text,
     },
+    shared_wasm::log::LogJsErr,
     std::{
         cell::RefCell,
         rc::Rc,
     },
     wasm::js::{
-        LogJsErr,
         el_async_,
         on_thinking,
         style_export,

@@ -1,5 +1,5 @@
 [package]
-name = "wasm"
+name = "shared-wasm"
 version = "0.1.0"
 edition = "2021"
 
@@ -68,7 +68,6 @@ tokio-stream = { version = "0.1", features = ["sync"] }
 hex = "0.4"
 defer = "0.1"
 shared = { path = "../shared" }
-shared-wasm = { path = "../shared-wasm" }
 sha2 = "0.10"
 lunk = { version = "0.3" }
 rooting = { version = "0.1", features = ["futures"] }
