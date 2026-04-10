@@ -1,8 +1,6 @@
 use {
-    crate::js::Env,
-    shared::interface::{
-        triple::FileHash,
-    },
+    shared::interface::triple::FileHash,
+    shared_wasm::world::Env,
 };
 
 pub fn generated_file_url(env: &Env, hash: &FileHash, gentype: &str, subpath: &str) -> String {

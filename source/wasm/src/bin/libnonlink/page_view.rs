@@ -117,6 +117,7 @@ use {
             TreeNode,
         },
     },
+    shared_wasm::log::LogJsErr,
     std::{
         cell::{
             Cell,
@@ -133,7 +134,6 @@ use {
     wasm::{
         constants::LINK_HASH_PREFIX,
         js::{
-            LogJsErr,
             el_async,
             env_preferred_audio_url,
             env_preferred_video_url,

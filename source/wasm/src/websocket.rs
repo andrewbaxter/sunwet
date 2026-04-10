@@ -1,22 +1,20 @@
 use {
-    crate::{
-        async_::WaitVal,
-        js::Log,
-    },
+    crate::async_::WaitVal,
     flowcontrol::shed,
     gloo::{
         events::EventListener,
         timers::future::TimeoutFuture,
     },
     rooting::{
+        ScopeValue,
         scope_any,
         spawn_rooted,
-        ScopeValue,
     },
     serde::{
-        de::DeserializeOwned,
         Serialize,
+        de::DeserializeOwned,
     },
+    shared_wasm::log::Log,
     std::{
         cell::Cell,
         rc::{

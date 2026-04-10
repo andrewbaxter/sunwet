@@ -1,5 +1,5 @@
 use {
-    super::{
+    crate::libnonlink::{
         ministate::{
             Ministate,
             SESSIONSTORAGE_POST_REDIRECT_MINISTATE,
@@ -12,43 +12,21 @@ use {
             SessionStorage,
             Storage,
         },
-        timers::future::TimeoutFuture,
         utils::window,
-    },
-    js_sys::Uint8Array,
-    reqwasm::http::{
-        Request,
-        Response,
     },
     shared::interface::{
         triple::FileHash,
-        wire::{
-            C2SReq,
-            C2SReqTrait,
-            HEADER_OFFSET,
-        },
+        wire::C2SReqTrait,
     },
-    wasm::js::LogJsErr,
-    wasm_bindgen::UnwrapThrowExt,
+    shared_wasm::{
+        api::{
+            self,
+            ON_401,
+        },
+        log::LogJsErr,
+    },
     web_sys::Url,
 };
-
-async fn retry<T>(r: impl AsyncFn() -> Result<T, TempFinalErr>) -> Result<T, String> {
-    loop {
-        match r().await {
-            Ok(v) => return Ok(v),
-            Err(e) => match e {
-                TempFinalErr::Temp(e) => {
-                    state().log.log(&format!("Error making request: {}", e));
-                    TimeoutFuture::new(1000).await;
-                },
-                TempFinalErr::Final(e) => {
-                    return Err(e);
-                },
-            },
-        }
-    };
-}
 
 pub const LOCALSTORAGE_LOGGED_IN: &str = "want_logged_in";
 
@@ -80,6 +58,14 @@ pub fn redirect_login(base_url: &str) -> ! {
     unreachable!();
 }
 
+pub fn api2_init() {
+    *ON_401.lock().unwrap() = Some(|| {
+        if want_logged_in() {
+            redirect_login(&state().env.base_url);
+        }
+    });
+}
+
 pub fn redirect_logout(base_url: &str) -> ! {
     if !SessionStorage::get::<Ministate>(SESSIONSTORAGE_POST_REDIRECT_MINISTATE).is_ok() {
         SessionStorage::set(
@@ -96,89 +82,14 @@ pub fn redirect_logout(base_url: &str) -> ! {
     unreachable!();
 }
 
-enum TempFinalErr {
-    Temp(String),
-    Final(String),
-}
-
-async fn read_resp(resp: Response) -> Result<Vec<u8>, TempFinalErr> {
-    let status = resp.status();
-    if status == 401 && want_logged_in() {
-        redirect_login(&state().env.base_url);
-    }
-    let body = match resp.binary().await {
-        Err(e) => {
-            return Err(
-                TempFinalErr::Temp(
-                    format!("Got error response, got additional error trying to read body [{}]: {}", status, e),
-                ),
-            );
-        },
-        Ok(r) => r,
-    };
-    if status >= 400 {
-        if status >= 500 {
-            return Err(
-                TempFinalErr::Temp(format!("Got error response [{}]: [{}]", status, String::from_utf8_lossy(&body))),
-            );
-        } else {
-            return Err(
-                TempFinalErr::Final(format!("Got error response [{}]: [{}]", status, String::from_utf8_lossy(&body))),
-            );
-        }
-    }
-    return Ok(body);
-}
-
-async fn post(req: Request) -> Result<Vec<u8>, TempFinalErr> {
-    let resp = match req.send().await {
-        Ok(r) => r,
-        Err(e) => {
-            return Err(TempFinalErr::Temp(format!("Failed to send request: {}", e)));
-        },
-    };
-    return read_resp(resp).await;
-}
-
 pub async fn req_post_json<T: C2SReqTrait>(req: T) -> Result<T::Resp, String> {
-    let req = C2SReq::from(req.into());
-    return retry(async || {
-        let req =
-            Request::post(&format!("{}api", state().env.base_url))
-                .header("Content-type", "application/json")
-                .body(serde_json::to_string(&req).unwrap_throw());
-        let body = post(req).await?;
-        return Ok(
-            serde_json::from_slice::<T::Resp>(
-                &body,
-            ).map_err(
-                |e| TempFinalErr::Temp(
-                    format!("Error parsing JSON response from server: {}\nBody: {}", e, String::from_utf8_lossy(&body)),
-                ),
-            )?,
-        );
-    }).await;
+    return api::req_post_json(&state().log, &state().env.base_url, req).await;
 }
 
 pub async fn file_post_json(hash: &FileHash, chunk_start: u64, body: &[u8]) -> Result<(), String> {
-    return retry(async || {
-        let req =
-            Request::post(&format!("{}file/{}", state().env.base_url, hash.to_string()))
-                .header(HEADER_OFFSET, &chunk_start.to_string())
-                .body(Uint8Array::from(body));
-        post(req).await?;
-        return Ok(());
-    }).await;
+    return api::file_post_json(&state().log, &state().env.base_url, hash, chunk_start, body).await;
 }
 
 pub async fn req_file(url: &str) -> Result<Vec<u8>, String> {
-    return retry(async || {
-        let resp = match Request::get(url).send().await {
-            Ok(r) => r,
-            Err(e) => {
-                return Err(TempFinalErr::Temp(format!("Failed to send request: {}", e)));
-            },
-        };
-        return read_resp(resp).await;
-    }).await;
+    return api::req_file(&state().log, url).await;
 }

@@ -1,11 +1,6 @@
 use {
     super::api::req_post_json,
     crate::libnonlink::{
-        commit::{
-            self,
-            CommitNode,
-            CommitTriple,
-        },
         ministate::{
             MinistateNodeView,
             ministate_octothorpe,
@@ -57,6 +52,11 @@ use {
             ReqGetTriplesAround,
             Triple,
         },
+    },
+    shared_wasm::commit::{
+        self,
+        CommitNode,
+        CommitTriple,
     },
     std::{
         cell::{
@@ -1710,6 +1710,7 @@ pub async fn build_node_edit_contents(
                         for rel in add {
                             let Some(subject) =
                                 commit::prep_node(
+                                    &state().log,
                                     &mut files_to_return,
                                     &mut files_to_commit,
                                     &mut files_to_upload,
@@ -1719,6 +1720,7 @@ pub async fn build_node_edit_contents(
                                 };
                             let Some(object) =
                                 commit::prep_node(
+                                    &state().log,
                                     &mut files_to_return,
                                     &mut files_to_commit,
                                     &mut files_to_upload,

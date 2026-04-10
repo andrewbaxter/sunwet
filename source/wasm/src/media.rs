@@ -8,9 +8,6 @@
 use {
     crate::js::{
         ElExt,
-        Env,
-        Log,
-        LogJsErr,
         MyIntersectionObserver,
         async_event,
         el_async,
@@ -54,6 +51,13 @@ use {
     shared::interface::{
         derived::ComicManifest,
         wire::GEN_FILENAME_COMICMANIFEST,
+    },
+    shared_wasm::{
+        log::{
+            Log,
+            LogJsErr,
+        },
+        world::Env,
     },
     std::{
         cell::{

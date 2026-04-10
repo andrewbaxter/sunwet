@@ -5,11 +5,6 @@ use {
             req_post_json,
         },
         ministate::MinistateView,
-        opfs::{
-            OpfsDir,
-            opfs_root,
-            request_persistent,
-        },
         state::state,
         viewutil::{
             DataStackLevel,
@@ -60,6 +55,14 @@ use {
             gentype_transcode,
         },
     },
+    shared_wasm::{
+        log::LogJsErr,
+        opfs::{
+            OpfsDir,
+            opfs_root,
+            request_persistent,
+        },
+    },
     std::{
         collections::{
             BTreeMap,
@@ -71,7 +74,6 @@ use {
     },
     wasm::{
         js::{
-            LogJsErr,
             env_preferred_audio_gentype,
             env_preferred_video_gentype,
             gen_video_subtitle_subpath,
@@ -127,7 +129,7 @@ fn opfs_offline_views_query_filename(query_id: &str, params: &HashMap<String, No
 pub async fn list_offline_views() -> Result<Vec<(String, MinistateView)>, String> {
     let mut out = vec![];
     let views_root = &opfs_root().await.get_dir(vec![OPFS_OFFLINE_VIEWS_ROOT.to_string()]).await?;
-    for (k, view_dir) in views_root.list().await? {
+    for (k, view_dir) in views_root.list(&state().log).await? {
         match async {
             ta_return!((), String);
             let view_dir = match view_dir.dir() {
@@ -157,7 +159,7 @@ pub async fn list_offline_views() -> Result<Vec<(String, MinistateView)>, String
 }
 
 pub async fn ensure_offline(eg: EventGraph, view: MinistateView) -> Result<(), String> {
-    request_persistent().await;
+    request_persistent(&state().log).await;
     let key = Utc::now().to_rfc3339();
     let view_root = &opfs_root().await.ensure_dir(vec![OPFS_OFFLINE_VIEWS_ROOT.to_string(), key.clone()]).await?;
     view_root.ensure_file(vec![OPFS_OFFLINE_VIEWS_VIEW_FILENAME.to_string()]).await?.write_json(&view).await?;
@@ -170,7 +172,7 @@ pub async fn ensure_offline(eg: EventGraph, view: MinistateView) -> Result<(), S
 
 pub async fn remove_offline(eg: EventGraph, key: &str) -> Result<(), String> {
     let views_dir = opfs_root().await.get_dir(vec![OPFS_OFFLINE_VIEWS_ROOT.to_string()]).await?;
-    views_dir.delete(key).await;
+    views_dir.delete(&state().log, key).await;
     eg.event(|pc| {
         let o = state().offline_list.clone();
         let index = o.borrow_values().iter().enumerate().filter_map(|x| if x.1.0 == key {
@@ -495,7 +497,7 @@ pub fn trigger_offlining(eg: EventGraph) {
                         opfs_root().await.ensure_dir(vec![OPFS_OFFLINE_VIEWS_ROOT.to_string()]).await?;
                     let mut live_files = HashSet::new();
                     let mut gc_dangerous = false;
-                    for (_, view_dir) in offline_views_root.list().await? {
+                    for (_, view_dir) in offline_views_root.list(&state().log).await? {
                         match async {
                             let view_dir = view_dir.dir()?;
 
@@ -534,7 +536,7 @@ pub fn trigger_offlining(eg: EventGraph) {
                                     };
                                     let params = data_to_query_params(view_def, query_id, data_at);
                                     let query_filename = opfs_offline_views_query_filename(&query_id, &params);
-                                    let res = if !view_dir.exists(&query_filename).await? {
+                                    let res = if !view_dir.exists(&state().log, &query_filename).await? {
                                         let res = req_post_json(ReqViewQuery {
                                             view_id: view.id.clone(),
                                             query: query_id.clone(),
@@ -635,7 +637,7 @@ pub fn trigger_offlining(eg: EventGraph) {
                     } else {
                         let files_root =
                             opfs_root().await.ensure_dir(vec![OPFS_OFFLINE_FILES_ROOT.to_string()]).await?;
-                        for (key, _) in files_root.list().await? {
+                        for (key, _) in files_root.list(&state().log).await? {
                             match FileHash::from_str(&key) {
                                 Ok(hash) => {
                                     if live_files.contains(&hash) {
@@ -654,7 +656,7 @@ pub fn trigger_offlining(eg: EventGraph) {
                                 },
                             }
                             state().log.log(&format!("Orphaned file, garbage collecting: {} {}", files_root.0, key));
-                            files_root.delete(&key).await;
+                            files_root.delete(&state().log, &key).await;
                         }
                     }
 

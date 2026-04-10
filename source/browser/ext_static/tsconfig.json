@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "lib": [
+      "es2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "target": "es2023",
+    "noImplicitReturns": true,
+    "strict": true
+  }
+}

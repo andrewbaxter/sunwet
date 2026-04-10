@@ -59,6 +59,10 @@ use {
             },
         },
     },
+    shared_wasm::{
+        log::Log,
+        world::Env,
+    },
     std::{
         cell::{
             Cell,
@@ -77,8 +81,6 @@ use {
     },
     wasm::{
         js::{
-            Env,
-            Log,
             env_preferred_audio_url,
             env_preferred_video_url,
             env_video_subtitle_url,

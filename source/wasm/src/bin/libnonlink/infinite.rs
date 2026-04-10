@@ -2,31 +2,19 @@ use {
     flowcontrol::{
         shed,
         ta_return,
-    },
-    gloo::{
+    }, gloo::{
         events::EventListener,
         timers::future::TimeoutFuture,
         utils::window,
-    },
-    rooting::{
-        spawn_rooted,
-        El,
-        ScopeValue,
-    },
-    std::{
+    }, rooting::{
+        El, ScopeValue, spawn_rooted
+    }, shared_wasm::log::Log, std::{
         cell::RefCell,
         future::Future,
         rc::Rc,
-    },
-    tokio::sync::mpsc,
-    wasm::js::{
-        el_async,
-        style_export,
-        ElExt,
-        Log,
-    },
-    wasm_bindgen::JsCast,
-    web_sys::Element,
+    }, tokio::sync::mpsc, wasm::js::{
+        ElExt, el_async, style_export
+    }, wasm_bindgen::JsCast, web_sys::Element
 };
 
 pub struct InfPageRes<K> {
