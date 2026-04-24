@@ -328,7 +328,6 @@ pub async fn handle_oidc(state: &OidcState, head: Parts) -> Result<Response<Body
 
 pub fn get_req_session<'a>(log: &Log, headers: &HeaderMap) -> Option<String> {
     let Some(v) = headers.get(http::header::COOKIE).and_then(|c| c.to_str().ok()) else {
-        eprintln!("no cookie header");
         return None;
     };
     for cookie in cookie::Cookie::split_parse(v) {
@@ -342,9 +341,7 @@ pub fn get_req_session<'a>(log: &Log, headers: &HeaderMap) -> Option<String> {
         if cookie.name() == COOKIE_SESSION {
             return Some(cookie.value().to_string());
         }
-        eprintln!("cookie not session: {} v {}", cookie.name(), COOKIE_SESSION);
     }
-    eprintln!("no session header");
     return None;
 }
 
