@@ -28,6 +28,8 @@
  * @property {Array<{type: string} & MediaResult>} media
  */
 
+import { create_capture_button } from "./content2.js";
+
 /** @type {() => void} */
 export const do_twitter = () => {
   const BUTTON_MARKER = "sunwet-capture-btn";
@@ -63,10 +65,8 @@ export const do_twitter = () => {
    * @type {(videoEl: HTMLVideoElement) => string}
    */
   const getVideoUrl = (videoEl) => {
-    // Try to get the highest quality source
     const sources = videoEl.querySelectorAll("source");
     if (sources.length > 0) {
-      // Return the first source (usually highest quality)
       return sources[0].src;
     }
     return videoEl.src;
@@ -104,7 +104,6 @@ export const do_twitter = () => {
       media: [],
     };
 
-    // Find author URL - look for first user profile link (not the status link)
     const links = article.querySelectorAll(
       'a[href*="x.com/"], a[href*="twitter.com/"]',
     );
@@ -116,7 +115,6 @@ export const do_twitter = () => {
         !href.includes("/analytics") &&
         !href.includes("/photo/")
       ) {
-        // This is likely the author profile link
         if (href.match(/\/(x|twitter)\.com\/[^\/]+\/?$/)) {
           data.authorUrl = href;
           break;
@@ -124,22 +122,18 @@ export const do_twitter = () => {
       }
     }
 
-    // Find post URL and timestamp from the time element's parent link
     const timeEl = article.querySelector("time[datetime]");
     if (timeEl) {
       const datetime = timeEl.getAttribute("datetime");
       data.timestamp = datetime;
-      // Convert to UTC Date object and back to ISO string
       const date = new Date(/** @type {string} */ (datetime));
       data.timestampUtc = date.toISOString();
 
-      // The time element is usually inside the post link
       const postLink = /** @type {HTMLAnchorElement|null} */ (
         timeEl.closest('a[href*="/status/"]')
       );
       if (postLink) {
         data.postUrl = postLink.href;
-        // Also extract author from post URL if not found yet
         if (!data.authorUrl) {
           const match = postLink.href.match(
             /(https?:\/\/(?:x|twitter)\.com\/[^\/]+)/,
@@ -151,16 +145,13 @@ export const do_twitter = () => {
       }
     }
 
-    // Find tweet text
     const tweetText = article.querySelector('[data-testid="tweetText"]');
     if (tweetText) {
       data.text = tweetText.textContent;
     }
 
-    // Find images
     const tweetPhotos = article.querySelectorAll('[data-testid="tweetPhoto"]');
     for (const photo of tweetPhotos) {
-      // Try to find img element
       const img = /** @type {HTMLImageElement|null} */ (
         photo.querySelector("img[src]")
       );
@@ -169,7 +160,6 @@ export const do_twitter = () => {
         const result = await downloadMedia(origUrl);
         data.media.push({ type: "image", ...result });
       } else {
-        // Check for background-image style
         const photoEl = /** @type {HTMLElement} */ (photo);
         const style =
           photoEl.style.backgroundImage ||
@@ -183,7 +173,6 @@ export const do_twitter = () => {
       }
     }
 
-    // Find videos
     const videos = article.querySelectorAll("video");
     for (const video of videos) {
       const videoUrl = getVideoUrl(video);
@@ -197,20 +186,40 @@ export const do_twitter = () => {
   };
 
   /**
-   * Create the capture button SVG icon
-   * @type {() => SVGSVGElement}
+   * Build triples from post data
+   * @type {(id: string, data: PostData) => {comment: string, triples: Array<{subject: string, predicate: string, object: string}>, files: Array<{data: Uint8Array, hash: string, mimetype: string}>}}
    */
-  const createButtonSvg = () => {
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("viewBox", "0 0 24 24");
-    svg.setAttribute("aria-hidden", "true");
-    svg.style.width = "1.25em";
-    svg.style.height = "1.25em";
-    svg.style.fill = "currentColor";
-    // Download/save icon
-    svg.innerHTML =
-      '<g><path d="M12 2.59l5.7 5.7-1.41 1.42L13 6.41V16h-2V6.41l-3.3 3.3-1.41-1.42L12 2.59zM21 15v4c0 1.1-.9 2-2 2H5c-1.1 0-2-.9-2-2v-4h2v4h14v-4h2z"></path></g>';
-    return svg;
+  const buildPostCommit = (id, data) => {
+    const subject = data.postUrl || id;
+    /** @type {Array<{subject: string, predicate: string, object: string}>} */
+    const triples = [
+      { subject, predicate: "rdf:type", object: "https://schema.org/SocialMediaPosting" },
+    ];
+    if (data.authorUrl) {
+      triples.push({ subject, predicate: "https://schema.org/author", object: data.authorUrl });
+    }
+    if (data.text) {
+      triples.push({ subject, predicate: "https://schema.org/text", object: data.text });
+    }
+    if (data.timestampUtc) {
+      triples.push({ subject, predicate: "https://schema.org/datePublished", object: data.timestampUtc });
+    }
+
+    /** @type {Array<{data: Uint8Array, hash: string, mimetype: string}>} */
+    const files = [];
+    for (const m of data.media) {
+      if (!m.error && m.digest) {
+        triples.push({ subject, predicate: "https://schema.org/associatedMedia", object: `sha256:${m.digest}` });
+        // Files are not included here because we don't have the ArrayBuffer after downloadMedia returns.
+        // For now, triples reference media by hash. File upload would require passing the buffer.
+      }
+    }
+
+    return {
+      comment: "Capture twitter post",
+      triples,
+      files,
+    };
   };
 
   /**
@@ -218,108 +227,33 @@ export const do_twitter = () => {
    * @type {(article: HTMLElement) => void}
    */
   const addCaptureButton = (article) => {
-    // Check if button already exists
     if (article.querySelector(`.${BUTTON_MARKER}`)) {
       return;
     }
 
-    // Find the bookmark button to insert our button next to it
     const bookmarkBtn = article.querySelector('[data-testid="bookmark"]');
     if (!bookmarkBtn) {
       return;
     }
 
-    // Find the parent container of the bookmark button
     const btnContainer = bookmarkBtn.closest("div");
     if (!btnContainer || !btnContainer.parentElement) {
       return;
     }
 
-    // Create our button wrapper (clone the structure of the bookmark button's container)
-    const wrapper = document.createElement("div");
-    wrapper.className = BUTTON_MARKER;
+    const timeEl = article.querySelector("time[datetime]");
+    const postLink = timeEl?.closest('a[href*="/status/"]');
+    const id = postLink?.href || article.getAttribute("aria-labelledby") || Math.random().toString(36);
 
-    // Create button
-    const button = document.createElement("button");
-    button.setAttribute("aria-label", "Capture post");
-    button.setAttribute("role", "button");
-    button.setAttribute("type", "button");
-    button.style.cssText = `
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: rgb(83, 100, 113);
-            transition: color 0.2s;
-        `;
+    const callback = async (/** @type {string} */ _id) => {
+      const postData = await extractPostData(article);
+      return buildPostCommit(_id, postData);
+    };
 
-    const innerDiv = document.createElement("div");
-    innerDiv.style.display = "flex";
-    innerDiv.style.alignItems = "center";
-    innerDiv.appendChild(createButtonSvg());
-    button.appendChild(innerDiv);
+    const button = create_capture_button(id, "microblog-exists", callback);
+    button.classList.add(BUTTON_MARKER);
 
-    button.addEventListener("mouseenter", () => {
-      button.style.color = "rgb(29, 155, 240)";
-    });
-    button.addEventListener("mouseleave", () => {
-      button.style.color = "rgb(83, 100, 113)";
-    });
-
-    // Click handler
-    button.addEventListener("click", async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      // Visual feedback
-      button.style.color = "rgb(29, 155, 240)";
-      const originalSvg = innerDiv.innerHTML;
-      innerDiv.innerHTML = '<span style="font-size: 12px;">...</span>';
-
-      try {
-        const postData = await extractPostData(article);
-        console.log("=== Captured Post Data ===");
-        console.log("Author URL:", postData.authorUrl);
-        console.log("Post URL:", postData.postUrl);
-        console.log("Timestamp (original):", postData.timestamp);
-        console.log("Timestamp (UTC):", postData.timestampUtc);
-        console.log("Text:", postData.text);
-        console.log("Media count:", postData.media.length);
-        for (const m of postData.media) {
-          if (m.error) {
-            console.log(`  ${m.type}: ${m.url} - ERROR: ${m.error}`);
-          } else {
-            console.log(`  ${m.type}: ${m.url}`);
-            console.log(`    MIME: ${m.mimeType}`);
-            console.log(`    SHA256: ${m.digest}`);
-            console.log(`    Size: ${m.size} bytes`);
-          }
-        }
-        console.log("=========================");
-
-        // Success feedback
-        innerDiv.innerHTML = '<span style="font-size: 12px;">✓</span>';
-        setTimeout(() => {
-          innerDiv.innerHTML = originalSvg;
-          button.style.color = "rgb(83, 100, 113)";
-        }, 1500);
-      } catch (err) {
-        console.error("Error capturing post:", err);
-        innerDiv.innerHTML = '<span style="font-size: 12px;">✗</span>';
-        setTimeout(() => {
-          innerDiv.innerHTML = originalSvg;
-          button.style.color = "rgb(83, 100, 113)";
-        }, 1500);
-      }
-    });
-
-    wrapper.appendChild(button);
-
-    // Insert after the bookmark button's container
-    btnContainer.parentElement.insertBefore(wrapper, btnContainer.nextSibling);
+    btnContainer.parentElement.insertBefore(button, btnContainer.nextSibling);
   };
 
   /**
@@ -333,10 +267,8 @@ export const do_twitter = () => {
     }
   };
 
-  // Initial processing
   processAllTweets();
 
-  // Set up MutationObserver to detect new tweets
   /** @type {MutationCallback} */
   const tweetObserverCallback = (mutations) => {
     let shouldProcess = false;
@@ -345,7 +277,6 @@ export const do_twitter = () => {
         for (const node of mutation.addedNodes) {
           if (node.nodeType === Node.ELEMENT_NODE) {
             const el = /** @type {Element} */ (node);
-            // Check if the added node is or contains a tweet
             if (
               el.matches?.('article[data-testid="tweet"]') ||
               el.querySelector?.('article[data-testid="tweet"]')
@@ -364,8 +295,6 @@ export const do_twitter = () => {
   };
 
   const observer = new MutationObserver(tweetObserverCallback);
-
-  // Start observing
   observer.observe(document.body, {
     childList: true,
     subtree: true,
@@ -392,7 +321,6 @@ export const do_twitter = () => {
       media: [],
     };
 
-    // Get user URL from current page or profile link
     const path = window.location.pathname;
     const userMatch = path.match(/^\/([^\/]+)\/?$/);
     if (userMatch) {
@@ -400,15 +328,12 @@ export const do_twitter = () => {
       data.userUrl = window.location.origin + "/" + userMatch[1];
     }
 
-    // Get user name from UserName element
     const userNameEl = document.querySelector('[data-testid="UserName"]');
     if (userNameEl) {
-      // The first span with the actual name text
       const nameSpan = userNameEl.querySelector("span span");
       if (nameSpan) {
         data.userName = nameSpan.textContent;
       }
-      // Also try to get handle if not found from URL
       if (!data.userHandle) {
         const handleEl = userNameEl.querySelector('div[dir="ltr"] span');
         if (handleEl && handleEl.textContent?.startsWith("@")) {
@@ -417,7 +342,6 @@ export const do_twitter = () => {
       }
     }
 
-    // Get profile description with markdown links
     const descEl = document.querySelector('[data-testid="UserDescription"]');
     if (descEl) {
       let text = "";
@@ -445,11 +369,8 @@ export const do_twitter = () => {
       data.profileText = text.trim();
     }
 
-    // Get profile image URL
-    // First try to find the photo link
     const photoLink = document.querySelector('a[href$="/photo"]');
     if (photoLink) {
-      // The profile image is typically in a div with background-image inside
       const avatarContainer = photoLink.closest(
         '[data-testid^="UserAvatar-Container-"]',
       );
@@ -474,7 +395,6 @@ export const do_twitter = () => {
           }
         }
       }
-      // Also check for img element
       if (!data.profileImageUrl) {
         const img = /** @type {HTMLImageElement|null} */ (
           photoLink.querySelector('img[src^="http"]')
@@ -485,17 +405,14 @@ export const do_twitter = () => {
       }
     }
 
-    // Get banner/header image URL
     const headerLink = document.querySelector('a[href$="/header_photo"]');
     if (headerLink) {
-      // Look for image inside
       const img = /** @type {HTMLImageElement|null} */ (
         headerLink.querySelector('img[src^="http"]')
       );
       if (img) {
         data.bannerImageUrl = getOriginalImageUrl(img.src);
       } else {
-        // Check for background-image
         const bgDiv = /** @type {HTMLElement|null} */ (
           headerLink.querySelector('div[style*="background-image"]')
         );
@@ -511,7 +428,6 @@ export const do_twitter = () => {
       }
     }
 
-    // Download media if URLs found
     if (data.profileImageUrl && !data.profileImageUrl.startsWith("data:")) {
       const result = await downloadMedia(data.profileImageUrl);
       data.media.push({ type: "profile_image", ...result });
@@ -525,16 +441,49 @@ export const do_twitter = () => {
   };
 
   /**
+   * Build triples from profile data
+   * @type {(id: string, data: ProfileData) => {comment: string, triples: Array<{subject: string, predicate: string, object: string}>, files: Array<{data: Uint8Array, hash: string, mimetype: string}>}}
+   */
+  const buildProfileCommit = (id, data) => {
+    const subject = data.userUrl || id;
+    /** @type {Array<{subject: string, predicate: string, object: string}>} */
+    const triples = [
+      { subject, predicate: "rdf:type", object: "https://schema.org/Person" },
+    ];
+    if (data.userName) {
+      triples.push({ subject, predicate: "https://schema.org/name", object: data.userName });
+    }
+    if (data.userHandle) {
+      triples.push({ subject, predicate: "https://schema.org/identifier", object: data.userHandle });
+    }
+    if (data.profileText) {
+      triples.push({ subject, predicate: "https://schema.org/description", object: data.profileText });
+    }
+
+    /** @type {Array<{data: Uint8Array, hash: string, mimetype: string}>} */
+    const files = [];
+    for (const m of data.media) {
+      if (!m.error && m.digest) {
+        triples.push({ subject, predicate: "https://schema.org/image", object: `sha256:${m.digest}` });
+      }
+    }
+
+    return {
+      comment: "Capture twitter profile",
+      triples,
+      files,
+    };
+  };
+
+  /**
    * Add capture button to profile
    * @type {() => void}
    */
   const addProfileCaptureButton = () => {
-    // Check if already added
     if (document.querySelector(`.${PROFILE_BUTTON_MARKER}`)) {
       return;
     }
 
-    // Find the edit profile button or follow button
     /** @type {Element|null} */
     let profileBtn = document.querySelector(
       '[data-testid="placementTracking"]',
@@ -546,107 +495,38 @@ export const do_twitter = () => {
       return;
     }
 
-    // Get the parent container
     const btnContainer = profileBtn.parentElement;
     if (!btnContainer) {
       return;
     }
 
-    // Create our button
-    const button = document.createElement("button");
-    button.className = PROFILE_BUTTON_MARKER;
-    button.setAttribute("aria-label", "Capture profile");
-    button.setAttribute("role", "button");
-    button.setAttribute("type", "button");
-    button.style.cssText = `
-            background: none;
-            border: 1px solid rgb(207, 217, 222);
-            border-radius: 9999px;
-            cursor: pointer;
-            padding: 8px 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: rgb(15, 20, 25);
-            font-weight: bold;
-            font-size: 14px;
-            margin-right: 8px;
-            transition: background-color 0.2s;
-        `;
+    const path = window.location.pathname;
+    const userMatch = path.match(/^\/([^\/]+)\/?$/);
+    const id = userMatch ? window.location.origin + "/" + userMatch[1] : window.location.href;
 
-    const innerSpan = document.createElement("span");
-    innerSpan.textContent = "Capture";
-    button.appendChild(innerSpan);
+    const callback = async (/** @type {string} */ _id) => {
+      const profileData = await extractProfileData();
+      return buildProfileCommit(_id, profileData);
+    };
 
-    button.addEventListener("mouseenter", () => {
-      button.style.backgroundColor = "rgba(15, 20, 25, 0.1)";
-    });
-    button.addEventListener("mouseleave", () => {
-      button.style.backgroundColor = "transparent";
-    });
+    const button = create_capture_button(id, "profile-exists", callback);
+    button.classList.add(PROFILE_BUTTON_MARKER);
+    button.style.marginRight = "8px";
+    button.style.width = "28px";
+    button.style.height = "28px";
 
-    // Click handler
-    button.addEventListener("click", async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      innerSpan.textContent = "...";
-      button.disabled = true;
-
-      try {
-        const profileData = await extractProfileData();
-        console.log("=== Captured Profile Data ===");
-        console.log("User URL:", profileData.userUrl);
-        console.log("User Name:", profileData.userName);
-        console.log("User Handle:", profileData.userHandle);
-        console.log("Profile Text:", profileData.profileText);
-        console.log("Profile Image URL:", profileData.profileImageUrl);
-        console.log("Banner Image URL:", profileData.bannerImageUrl);
-        console.log("Media count:", profileData.media.length);
-        for (const m of profileData.media) {
-          if (m.error) {
-            console.log(`  ${m.type}: ${m.url} - ERROR: ${m.error}`);
-          } else {
-            console.log(`  ${m.type}: ${m.url}`);
-            console.log(`    MIME: ${m.mimeType}`);
-            console.log(`    SHA256: ${m.digest}`);
-            console.log(`    Size: ${m.size} bytes`);
-          }
-        }
-        console.log("=============================");
-
-        innerSpan.textContent = "✓";
-        setTimeout(() => {
-          innerSpan.textContent = "Capture";
-          button.disabled = false;
-        }, 1500);
-      } catch (err) {
-        console.error("Error capturing profile:", err);
-        innerSpan.textContent = "✗";
-        setTimeout(() => {
-          innerSpan.textContent = "Capture";
-          button.disabled = false;
-        }, 1500);
-      }
-    });
-
-    // Insert before the profile button
     btnContainer.insertBefore(button, profileBtn);
   };
 
-  // Also observe for profile button
-  /** @type {MutationCallback} */
   const profileObserverCallback = () => {
     addProfileCaptureButton();
   };
 
   const profileObserver = new MutationObserver(profileObserverCallback);
-
   profileObserver.observe(document.body, {
     childList: true,
     subtree: true,
   });
 
-  // Initial check for profile
   addProfileCaptureButton();
 };

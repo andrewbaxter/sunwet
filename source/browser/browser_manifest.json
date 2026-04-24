@@ -16,7 +16,8 @@
   "content_scripts": [
     {
       "matches": ["https://*/*"],
-      "js": ["content.js"]
+      "js": ["content.js"],
+      "css": ["sunwet.css"]
     }
   ],
   "options_page": "options.html"

@@ -1,8 +1,14 @@
 use {
     gloo::utils::window,
-    lunk::EventGraph,
+    lunk::{
+        EventGraph,
+        Prim,
+    },
     shared_wasm::{
-        log::ConsoleLog,
+        log::{
+            ConsoleLog,
+            Log,
+        },
         online::{
             OnliningState,
             trigger_onlining,
@@ -10,7 +16,10 @@ use {
         world::scan_env,
     },
     std::rc::Rc,
-    sunwet_browser::site_twitter::build_twitter,
+    sunwet_browser::{
+        capture_button::init_app_state,
+        site_twitter::build_twitter,
+    },
 };
 
 fn main() {
@@ -18,9 +27,10 @@ fn main() {
         bg: Default::default(),
         running: Prim::new(false),
     });
-    let log = Rc::new(ConsoleLog);
+    let log: Rc<dyn Log> = Rc::new(ConsoleLog {});
     let eg = EventGraph::new();
     let env = scan_env(&log);
+    init_app_state(state.clone(), eg.clone(), log.clone());
     trigger_onlining(&state, eg, &log, &env.base_url);
     if let Ok(host) = window().location().hostname() {
         let host = host.split_once(":").map(|x| x.0).unwrap_or(&host);
@@ -28,6 +38,7 @@ fn main() {
             "x.com" => {
                 build_twitter();
             },
+            _ => { },
         }
     }
 }

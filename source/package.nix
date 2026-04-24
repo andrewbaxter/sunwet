@@ -43,6 +43,7 @@ let
     ./wasm/.cargo
     ./wasm
     ./shared
+    ./shared-wasm
   ];
   wasm = naersk.buildPackage {
     pname = "sunwet-wasm";
