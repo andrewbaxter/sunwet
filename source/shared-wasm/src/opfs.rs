@@ -107,8 +107,8 @@ impl OpfsDir {
             let path = at.0.join(vec![seg.clone()]);
             let out =
                 JsFuture::from(at.1.get_directory_handle_with_options(&seg, &{
-                    let x = FileSystemGetDirectoryOptions::new();
-                    x.set_create(true);
+                    let mut x = FileSystemGetDirectoryOptions::new();
+                    x.create(true);
                     x
                 }))
                     .await
@@ -143,8 +143,8 @@ impl OpfsDir {
         let debug_path = parent.0.join(vec![file.clone()]);
         let out =
             JsFuture::from(parent.1.get_file_handle_with_options(&file, &{
-                let o = FileSystemGetFileOptions::new();
-                o.set_create(true);
+                let mut o = FileSystemGetFileOptions::new();
+                o.create(true);
                 o
             }))
                 .await
@@ -156,7 +156,15 @@ impl OpfsDir {
 
     pub async fn list(&self, log: &Rc<dyn Log>) -> Result<Vec<(String, OpfsAmbig)>, String> {
         let mut entries = vec![];
-        let mut entries0 = JsStream::from(self.1.entries());
+        let entries_fn: js_sys::Function = js_sys::Reflect::get(&self.1, &JsValue::from_str("entries"))
+            .map_err(|e| format!("Error getting entries method for [{}]: {}", self.0, jsstr(e)))?
+            .dyn_into()
+            .map_err(|e| format!("entries is not a function for [{}]: {}", self.0, jsstr(e)))?;
+        let iter = entries_fn.call0(&self.1)
+            .map_err(|e| format!("Error calling entries for [{}]: {}", self.0, jsstr(e)))?;
+        let iter: js_sys::AsyncIterator = iter.dyn_into()
+            .map_err(|e| format!("entries result is not an async iterator for [{}]: {}", self.0, jsstr(e)))?;
+        let mut entries0 = JsStream::from(iter);
         while let Some(e) = entries0.next().await {
             let e = match e {
                 Ok(e) => e,
@@ -175,8 +183,8 @@ impl OpfsDir {
 
     pub async fn delete(&self, log: &Rc<dyn Log>, seg: &str) {
         if let Err(e) = JsFuture::from(self.1.remove_entry_with_options(seg, &{
-            let o = FileSystemRemoveOptions::new();
-            o.set_recursive(true);
+            let mut o = FileSystemRemoveOptions::new();
+            o.recursive(true);
             o
         })).await {
             log.log_js(&format!("Error deleting opfs entry at [{}]", self.0), &e);
@@ -204,19 +212,20 @@ pub struct OpfsFile(pub DebugPath, pub FileSystemFileHandle);
 impl OpfsFile {
     pub async fn read_binary(&self) -> Result<Vec<u8>, String> {
         return Ok(
-            JsFuture::from(
-                web_sys::File::from(
+            Uint8Array::new(
+                &JsFuture::from(
                     JsFuture::from(self.1.get_file())
                         .await
                         .map_err(
                             |e| format!("Error getting file from file handle at seg [{}]: {}", self.0, jsstr(e)),
-                        )?,
-                ).bytes(),
+                        )?
+                        .dyn_into::<web_sys::File>()
+                        .unwrap()
+                        .array_buffer(),
+                )
+                    .await
+                    .map_err(|e| format!("Error getting array buffer of file at seg [{}]: {}", self.0, jsstr(e)))?,
             )
-                .await
-                .map_err(|e| format!("Error getting string contents of file at seg [{}]: {}", self.0, jsstr(e)))?
-                .dyn_into::<Uint8Array>()
-                .unwrap()
                 .to_vec(),
         );
     }
@@ -264,10 +273,9 @@ impl OpfsWriteFile {
                         |e| format!("Error getting file handle writable [{}]: {:?}", self.0, JSON::stringify(&e)),
                     )?,
             );
-        let arr = Uint8Array::new_from_slice(data);
         JsFuture::from(
             w
-                .write_with_js_u8_array(&arr)
+                .write_with_u8_array(data)
                 .map_err(|e| format!("Error writing message to opfs file [{}]: {:?}", self.0, jsstr(e)))?,
         )
             .await

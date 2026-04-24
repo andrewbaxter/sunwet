@@ -1,0 +1,26 @@
+.sunwet-import-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background-image: url("big-icon.svg");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  background-color: transparent;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 2px;
+  box-sizing: border-box;
+  transition: opacity 0.2s ease, border-color 0.2s ease;
+}
+
+.sunwet-import-button.fade {
+  opacity: 0.5;
+}
+
+.sunwet-import-button.error {
+  border-color: #ef5350;
+}

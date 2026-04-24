@@ -24,6 +24,9 @@ let
     lib = lib;
     debug = debug;
   };
+  nativeBindgen = rust.naersk.buildPackage {
+    root = ./native-bindgen;
+  };
   nativeId = "me.isandrew.sunwet";
   extensionIdKeyChrome = "TODO";
   extensionIdChrome = "TODO";
@@ -44,10 +47,21 @@ in
 
     ${pkgs.coreutils}/bin/mkdir -p stage
     hoj_cp ${./browser} browser_src
-        
+    hoj_cp ${./wasm/prestatic/big-icon.svg} browser_src/ext_static/big-icon.svg
+
+    # TypeScript type check JS files
+    if command -v ${pkgs.nodejs}/bin/node >/dev/null 2>&1 && command -v ${pkgs.typescript}/bin/tsc >/dev/null 2>&1; then
+      echo "Running TypeScript type checks..."
+      (cd browser_src/ext_static && ${pkgs.typescript}/bin/tsc --noEmit)
+    else
+      echo "Warning: node or tsc not available, skipping TypeScript type checks"
+    fi
+
     # Assemble browser bits
     ${pkgs.coreutils}/bin/mkdir -p browser_wasm
-    ${pkgs.passworth}/bin/bind_wasm --in-wasm ${wasmUnbound}/bin/browser-popup.wasm --out-name popup2 --out-dir browser_wasm
+    ${nativeBindgen}/bin/bind_wasm --in-wasm ${wasmUnbound}/bin/browser-content.wasm --out-name content2 --out-dir browser_wasm
+    ${nativeBindgen}/bin/bind_wasm --in-wasm ${wasmUnbound}/bin/browser-options.wasm --out-name options2 --out-dir browser_wasm
+
     version=$(${pkgs.gnugrep}/bin/grep "^version =" ${./shared/Cargo.toml} | ${pkgs.gnused}/bin/sed -e "s/.*\"\(.*\)\".*/\1/")
     hoj_set browser_src/browser_manifest.json _PLACEHOLDER_VERSION "$version"
 
@@ -56,7 +70,7 @@ in
     chrome_browser_manifest_path=stage/browser_chrome/manifest.json
     hoj_merge browser_src/browser_manifest.json ./browser_src/browser_manifest_chrome.json > $chrome_browser_manifest_path
     hoj_set $chrome_browser_manifest_path _PLACEHOLDER_BROWSERIDKEY '${extensionIdKeyChrome}'
-        
+
     hoj_cp browser_src/ext_static stage/browser_firefox
     hoj_cp browser_wasm/* stage/browser_firefox/
     firefox_browser_manifest_path=stage/browser_firefox/manifest.json

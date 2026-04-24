@@ -27,9 +27,10 @@
  * @property {string|null} sourceTextPattern
  */
 
+import { create_capture_button } from "./content2.js";
+
 /** @type {SiteConfig[]} */
 const siteConfigs = [
-  // Gelbooru
   {
     name: "gelbooru",
     match: (hostname) => hostname.includes("gelbooru.com"),
@@ -43,7 +44,6 @@ const siteConfigs = [
     sourceDataAttribute: "data-source",
     sourceTextPattern: null,
   },
-  // Safebooru
   {
     name: "safebooru",
     match: (hostname) => hostname.includes("safebooru.org"),
@@ -54,7 +54,6 @@ const siteConfigs = [
     sourceDataAttribute: null,
     sourceTextPattern: "Source:",
   },
-  // Danbooru
   {
     name: "danbooru",
     match: (hostname) => hostname.includes("danbooru.donmai.us"),
@@ -65,7 +64,6 @@ const siteConfigs = [
     sourceDataAttribute: "data-source",
     sourceTextPattern: "Source:",
   },
-  // Rule34.xxx
   {
     name: "rule34",
     match: (hostname) => hostname.includes("rule34.xxx"),
@@ -79,7 +77,6 @@ const siteConfigs = [
     sourceDataAttribute: "data-source",
     sourceTextPattern: "Source:",
   },
-  // Generic booru fallback
   {
     name: "generic",
     match: (hostname) => hostname.includes("booru"),
@@ -156,7 +153,6 @@ export const do_booru = () => {
   const isImagePage = () => {
     const mainImage = document.querySelector("img#image");
     if (mainImage) return true;
-
     const url = window.location.href;
     return url.includes("page=post") && url.includes("s=view");
   };
@@ -236,7 +232,6 @@ export const do_booru = () => {
    * @type {() => string|null}
    */
   const getSourceUrl = () => {
-    // Method 1: Check data attribute if configured
     if (siteConfig.sourceDataAttribute) {
       const el = document.querySelector(`[${siteConfig.sourceDataAttribute}]`);
       if (el) {
@@ -245,12 +240,10 @@ export const do_booru = () => {
       }
     }
 
-    // Method 2: Look for source in configured selectors
     for (const selector of siteConfig.sourceSelectors) {
       const container = document.querySelector(selector);
       if (!container) continue;
 
-      // If there's a text pattern, search for it
       if (siteConfig.sourceTextPattern) {
         const walker = document.createTreeWalker(
           container,
@@ -273,7 +266,6 @@ export const do_booru = () => {
                   return href;
                 }
               }
-              // Check next sibling element for link
               const nextEl = parent.nextElementSibling;
               if (nextEl?.tagName === "A") {
                 const href = nextEl.getAttribute("href");
@@ -284,7 +276,6 @@ export const do_booru = () => {
         }
       }
 
-      // Also check for any external link in the container
       const links = container.querySelectorAll('a[href^="http"]');
       for (const link of links) {
         const href = link.getAttribute("href");
@@ -295,7 +286,6 @@ export const do_booru = () => {
           !href.includes("waifu2x")
         ) {
           const text = link.textContent?.toLowerCase() || "";
-          // Skip navigation links
           if (
             !text.includes("previous") &&
             !text.includes("next") &&
@@ -315,12 +305,10 @@ export const do_booru = () => {
    * @type {() => string|null}
    */
   const getOriginalImageUrl = () => {
-    // Method 1: Try site-specific selectors
     for (const selector of siteConfig.originalImageSelectors) {
       const el = document.querySelector(selector);
       if (!el) continue;
 
-      // Handle meta tags
       if (el.tagName === "META") {
         const content = el.getAttribute("content");
         if (content && content.includes("/images/")) {
@@ -329,12 +317,10 @@ export const do_booru = () => {
         continue;
       }
 
-      // Handle anchor tags
       if (el.tagName === "A") {
         const href = el.getAttribute("href");
         const text = el.textContent?.toLowerCase().trim() || "";
 
-        // Check if it's the "Original image" link
         if (text === "original image" || text === "original") {
           if (href) {
             if (href.startsWith("//")) return "https:" + href;
@@ -343,7 +329,6 @@ export const do_booru = () => {
           }
         }
 
-        // Or if href contains /images/
         if (href?.includes("/images/")) {
           if (href.startsWith("//")) return "https:" + href;
           if (href.startsWith("/")) return window.location.origin + href;
@@ -352,7 +337,6 @@ export const do_booru = () => {
       }
     }
 
-    // Method 2: Look for "Original image" link text anywhere
     const links = document.querySelectorAll("a");
     for (const link of links) {
       const text = link.textContent?.toLowerCase().trim();
@@ -366,7 +350,6 @@ export const do_booru = () => {
       }
     }
 
-    // Method 3: Check og:image meta tag as fallback
     const ogImage = document.querySelector('meta[property="og:image"]');
     if (ogImage) {
       const content = ogImage.getAttribute("content");
@@ -404,81 +387,40 @@ export const do_booru = () => {
   };
 
   /**
-   * Create the capture button
-   * @type {() => HTMLButtonElement}
+   * Build triples from booru post data
+   * @type {(id: string, data: BooruPostData) => {comment: string, triples: Array<{subject: string, predicate: string, object: string}>, files: Array<{data: Uint8Array, hash: string, mimetype: string}>}}
    */
-  const createCaptureButton = () => {
-    const button = document.createElement("button");
-    button.className = BUTTON_MARKER;
-    button.setAttribute("type", "button");
-    button.style.cssText = `
-      display: block;
-      width: 100%;
-      padding: 8px 12px;
-      margin-bottom: 10px;
-      background: #006ffa;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-weight: bold;
-      font-size: 14px;
-      transition: background-color 0.2s;
-    `;
-    button.textContent = "Capture";
+  const buildPostCommit = (id, data) => {
+    const subject = data.pageUrl || id;
+    /** @type {Array<{subject: string, predicate: string, object: string}>} */
+    const triples = [
+      { subject, predicate: "rdf:type", object: "https://schema.org/ImageObject" },
+    ];
+    if (data.sourceUrl) {
+      triples.push({ subject, predicate: "https://schema.org/isBasedOn", object: data.sourceUrl });
+    }
 
-    button.addEventListener("mouseenter", () => {
-      button.style.backgroundColor = "#0056cc";
-    });
-    button.addEventListener("mouseleave", () => {
-      button.style.backgroundColor = "#006ffa";
-    });
-
-    button.addEventListener("click", async () => {
-      const originalText = button.textContent;
-      button.textContent = "...";
-      button.disabled = true;
-
-      try {
-        const postData = await extractPostData();
-
-        console.log("=== Captured Booru Post Data ===");
-        console.log("Site:", siteConfig.name);
-        console.log("Page URL:", postData.pageUrl);
-        console.log("Source URL:", postData.sourceUrl);
-        console.log("Tags:");
-        for (const [type, tagList] of Object.entries(postData.tags)) {
-          console.log(`  ${type}: ${tagList.join(", ")}`);
-        }
-        if (postData.image) {
-          if (postData.image.error) {
-            console.log("Image: ERROR -", postData.image.error);
-          } else {
-            console.log("Image:");
-            console.log("  MIME:", postData.image.mimeType);
-            console.log("  SHA256:", postData.image.digest);
-          }
-        } else {
-          console.log("Image: Not found");
-        }
-        console.log("================================");
-
-        button.textContent = "✓";
-        setTimeout(() => {
-          button.textContent = originalText;
-          button.disabled = false;
-        }, 1500);
-      } catch (err) {
-        console.error("Error capturing booru post:", err);
-        button.textContent = "✗";
-        setTimeout(() => {
-          button.textContent = originalText;
-          button.disabled = false;
-        }, 1500);
+    for (const [type, tagList] of Object.entries(data.tags)) {
+      for (const tag of tagList) {
+        triples.push({ subject, predicate: `tag:${type}`, object: tag });
       }
-    });
+    }
 
-    return button;
+    /** @type {Array<{data: Uint8Array, hash: string, mimetype: string}>} */
+    const files = [];
+    if (data.image && !data.image.error && data.image.digest) {
+      triples.push({
+        subject,
+        predicate: "https://schema.org/associatedMedia",
+        object: `sha256:${data.image.digest}`,
+      });
+    }
+
+    return {
+      comment: "Capture booru post",
+      triples,
+      files,
+    };
   };
 
   /**
@@ -492,14 +434,24 @@ export const do_booru = () => {
     const sidebar = getSidebar();
     if (!sidebar) return;
 
-    const button = createCaptureButton();
+    const id = window.location.href;
+
+    const callback = async (/** @type {string} */ _id) => {
+      const postData = await extractPostData();
+      return buildPostCommit(_id, postData);
+    };
+
+    const button = create_capture_button(id, "image-exists", callback);
+    button.classList.add(BUTTON_MARKER);
+    button.style.width = "100%";
+    button.style.height = "36px";
+    button.style.marginBottom = "10px";
+
     sidebar.insertBefore(button, sidebar.firstChild);
   };
 
-  // Initial setup
   addCaptureButton();
 
-  // Observe for dynamic content changes
   const observer = new MutationObserver(() => {
     addCaptureButton();
   });
