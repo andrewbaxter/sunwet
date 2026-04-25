@@ -16,6 +16,7 @@ use {
     },
     flowcontrol::exenum,
     gloo::{
+        file::Blob,
         storage::{
             LocalStorage,
             Storage,
@@ -560,7 +561,7 @@ pub fn build_page_form(
                                 .unwrap()
                                 .item(0)
                                 .unwrap();
-                        fs.update(&id, CommitNode::File(index, file));
+                        fs.update(&id, CommitNode::File(index, Blob::from(file)));
                     }
                 });
                 out.push(style_res.root);
@@ -618,21 +619,16 @@ pub fn build_page_form(
                         _ => None,
                     });
                     let mut params_to_post = HashMap::new();
-                    let mut files_to_return = HashMap::new();
-                    let mut files_to_commit = vec![];
                     let mut files_to_upload = vec![];
                     let mut data_id = None;
                     for (k, v) in data {
-                        let Some(n) =
-                            prep_node(
-                                &state().log,
-                                &mut files_to_return,
-                                &mut files_to_commit,
-                                &mut files_to_upload,
-                                v,
-                            ).await else {
-                                continue;
-                            };
+                        let Some(result) = prep_node(&state().log, v).await else {
+                            continue;
+                        };
+                        if let Some(uf) = result.upload_file {
+                            files_to_upload.push(uf);
+                        }
+                        let n = result.node;
                         if data_id.is_none() {
                             if let Some(id_key) = id_key {
                                 if k == *id_key {

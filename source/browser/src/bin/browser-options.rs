@@ -3,6 +3,10 @@ use {
         LocalStorage,
         Storage,
     },
+    sunwet_browser::{
+        KEY_SERVER_URL,
+        KEY_TOKEN,
+    },
     wasm_bindgen::prelude::*,
     web_sys::{
         HtmlButtonElement,
@@ -10,9 +14,6 @@ use {
         MouseEvent,
     },
 };
-
-const KEY_SERVER_URL: &str = "sunwet_server_url";
-const KEY_TOKEN: &str = "sunwet_token";
 
 fn main() {
     let window = web_sys::window().unwrap();
@@ -59,6 +60,10 @@ fn main() {
     let token_wrapper = create_field("Access Token", "password", KEY_TOKEN);
     container.append_child(&token_wrapper).unwrap();
 
+    let error_block = document.create_element("div").unwrap();
+    error_block.set_class_name("sunwet-settings-error");
+    container.append_child(&error_block).unwrap();
+
     let save_btn = document
         .create_element("button")
         .unwrap()
@@ -67,7 +72,9 @@ fn main() {
     save_btn.set_class_name("sunwet-settings-button");
     save_btn.set_text_content(Some("Save"));
 
+    let error_block_closure = error_block.clone();
     let save_closure = Closure::wrap(Box::new(move |_e: MouseEvent| {
+        error_block_closure.set_text_content(None);
         let document = web_sys::window().unwrap().document().unwrap();
         let url_input = document
             .get_element_by_id(KEY_SERVER_URL)
@@ -81,12 +88,15 @@ fn main() {
             .unwrap();
         let url = url_input.value();
         let token = token_input.value();
-        let _ = LocalStorage::set(KEY_SERVER_URL, &url);
-        let _ = LocalStorage::set(KEY_TOKEN, &token);
-        web_sys::window()
-            .unwrap()
-            .alert_with_message("Settings saved!")
-            .unwrap();
+        if let Err(e) = LocalStorage::set(KEY_SERVER_URL, &url) {
+            error_block_closure.set_text_content(Some(&format!("Error saving server URL: {}", e)));
+            return;
+        }
+        if let Err(e) = LocalStorage::set(KEY_TOKEN, &token) {
+            error_block_closure.set_text_content(Some(&format!("Error saving token: {}", e)));
+            return;
+        }
+        error_block_closure.set_text_content(Some("Settings saved!"));
     }) as Box<dyn FnMut(_)>);
     save_btn
         .add_event_listener_with_callback("click", save_closure.as_ref().unchecked_ref())

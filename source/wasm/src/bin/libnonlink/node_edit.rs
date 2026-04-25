@@ -19,9 +19,12 @@ use {
         superif,
         ta_return,
     },
-    gloo::storage::{
-        LocalStorage,
-        Storage,
+    gloo::{
+        file::Blob,
+        storage::{
+            LocalStorage,
+            Storage,
+        },
     },
     lunk::{
         EventGraph,
@@ -164,7 +167,7 @@ fn type_value_to_node(unique: usize, type_: &NodeEditType, value: &NodeEditValue
             let v = exenum!(value, NodeEditValue:: Upload(v) => v).unwrap();
             match &v.new {
                 Some(n) => {
-                    return CommitNode::File(unique, n.clone());
+                    return CommitNode::File(unique, Blob::from(n.clone()));
                 },
                 None => {
                     return CommitNode::Node(Node::Value(serde_json::Value::String(v.old.clone())));
@@ -1708,30 +1711,34 @@ pub async fn build_node_edit_contents(
                         let mut files_to_commit = vec![];
                         let mut files_to_upload = vec![];
                         for rel in add {
-                            let Some(subject) =
-                                commit::prep_node(
-                                    &state().log,
-                                    &mut files_to_return,
-                                    &mut files_to_commit,
-                                    &mut files_to_upload,
-                                    rel.subject,
-                                ).await else {
-                                    continue;
-                                };
-                            let Some(object) =
-                                commit::prep_node(
-                                    &state().log,
-                                    &mut files_to_return,
-                                    &mut files_to_commit,
-                                    &mut files_to_upload,
-                                    rel.object,
-                                ).await else {
-                                    continue;
-                                };
+                            let Some(subject) = commit::prep_node(&state().log, rel.subject).await else {
+                                continue;
+                            };
+                            if let Some((unique, hash)) = subject.return_file {
+                                files_to_return.insert(unique, hash);
+                            }
+                            if let Some(cf) = subject.commit_file {
+                                files_to_commit.push(cf);
+                            }
+                            if let Some(uf) = subject.upload_file {
+                                files_to_upload.push(uf);
+                            }
+                            let Some(object) = commit::prep_node(&state().log, rel.object).await else {
+                                continue;
+                            };
+                            if let Some((unique, hash)) = object.return_file {
+                                files_to_return.insert(unique, hash);
+                            }
+                            if let Some(cf) = object.commit_file {
+                                files_to_commit.push(cf);
+                            }
+                            if let Some(uf) = object.upload_file {
+                                files_to_upload.push(uf);
+                            }
                             add1.push(Triple {
-                                subject: subject,
+                                subject: subject.node,
                                 predicate: rel.predicate,
-                                object: object,
+                                object: object.node,
                             });
                         }
 

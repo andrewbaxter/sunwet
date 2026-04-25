@@ -50,8 +50,6 @@ use {
     },
 };
 
-const KEY_SERVER_URL: &str = "sunwet_server_url";
-const KEY_TOKEN: &str = "sunwet_token";
 
 thread_local! {
     static APP_STATE: RefCell<Option<AppState>> = RefCell::new(None);
@@ -74,8 +72,8 @@ pub fn init_app_state(onlining: Rc<OnliningState>, eg: EventGraph, log: Rc<dyn L
 }
 
 fn get_settings() -> (Option<String>, Option<String>) {
-    let url: Result<String, _> = LocalStorage::get(KEY_SERVER_URL);
-    let token: Result<String, _> = LocalStorage::get(KEY_TOKEN);
+    let url: Result<String, _> = LocalStorage::get(crate::KEY_SERVER_URL);
+    let token: Result<String, _> = LocalStorage::get(crate::KEY_TOKEN);
     (url.ok(), token.ok())
 }
 
