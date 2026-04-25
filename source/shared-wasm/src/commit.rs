@@ -13,17 +13,13 @@ use {
         },
         wire::CommitFile,
     },
-    std::{
-        collections::HashMap,
-        rc::Rc,
-    },
-    web_sys::File,
+    std::rc::Rc,
 };
 
 #[derive(Clone)]
 pub enum CommitNode {
     Node(Node),
-    File(usize, File),
+    File(usize, Blob),
     DatetimeNow,
 }
 
@@ -47,17 +43,23 @@ pub struct UploadFile {
     pub hash: FileHash,
 }
 
-pub async fn prep_node(
-    log: &Rc<dyn Log>,
-    return_files: &mut HashMap<usize, FileHash>,
-    commit_files: &mut Vec<CommitFile>,
-    upload_files: &mut Vec<UploadFile>,
-    n: CommitNode,
-) -> Option<Node> {
+pub struct PrepNodeResult {
+    pub node: Node,
+    pub return_file: Option<(usize, FileHash)>,
+    pub commit_file: Option<CommitFile>,
+    pub upload_file: Option<UploadFile>,
+}
+
+pub async fn prep_node(log: &Rc<dyn Log>, n: CommitNode) -> Option<PrepNodeResult> {
     match n {
-        CommitNode::Node(n) => return Some(n),
+        CommitNode::Node(n) => Some(PrepNodeResult {
+            node: n,
+            return_file: None,
+            commit_file: None,
+            upload_file: None,
+        }),
         CommitNode::File(unique, file) => {
-            let b = match gloo::file::futures::read_as_bytes(&Blob::from(file.clone())).await {
+            let b = match gloo::file::futures::read_as_bytes(&file).await {
                 Ok(b) => b,
                 Err(e) => {
                     log.log(&format!("Error reading file for commit: {}", e));
@@ -65,21 +67,27 @@ pub async fn prep_node(
                 },
             };
             let hash = FileHash::from_sha256(Sha256::digest(&b));
-            let size = file.size() as u64;
-            return_files.insert(unique, hash.clone());
-            upload_files.push(UploadFile {
-                data: b,
-                hash: hash.clone(),
-            });
-            commit_files.push(CommitFile {
-                hash: hash.clone(),
-                size: size,
-                mimetype: file.type_(),
-            });
-            return Some(Node::File(hash));
+            let size = file.size();
+            let mimetype = file.raw_mime_type();
+            Some(PrepNodeResult {
+                node: Node::File(hash.clone()),
+                return_file: Some((unique, hash.clone())),
+                commit_file: Some(CommitFile {
+                    hash: hash.clone(),
+                    size,
+                    mimetype,
+                }),
+                upload_file: Some(UploadFile {
+                    data: b,
+                    hash: hash.clone(),
+                }),
+            })
         },
-        CommitNode::DatetimeNow => {
-            return Some(Node::Value(serde_json::Value::String(Utc::now().to_rfc3339())));
-        },
+        CommitNode::DatetimeNow => Some(PrepNodeResult {
+            node: Node::Value(serde_json::Value::String(Utc::now().to_rfc3339())),
+            return_file: None,
+            commit_file: None,
+            upload_file: None,
+        }),
     }
 }
