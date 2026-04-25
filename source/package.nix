@@ -26,8 +26,8 @@ let
   static = pkgs.runCommand "sunwet-static" { } ''
     set -xeu -o pipefail
     ${pkgs.coreutils}/bin/mkdir -p $out
-    ${nativeBindgen}/bin/bind_wasm --in-wasm ${wasm}/bin/nonlink.wasm --out-name nonlink --out-dir $out
-    ${nativeBindgen}/bin/bind_wasm --in-wasm ${wasm}/bin/link.wasm --out-name link --out-dir $out
+    ${shared.nativeBindgen}/bin/bind_wasm --in-wasm ${wasm}/bin/nonlink.wasm --out-name nonlink --out-dir $out
+    ${shared.nativeBindgen}/bin/bind_wasm --in-wasm ${wasm}/bin/link.wasm --out-name link --out-dir $out
     ${pkgs.coreutils}/bin/cp -r ${./wasm}/static/* $out/
     ${pkgs.ffmpeg}/bin/ffmpeg -f lavfi -i anullsrc=r=11025:cl=mono -t 0.1 -acodec mp3 $out/audiotest.mp3
     ${pkgs.ffmpeg}/bin/ffmpeg -f lavfi -i anullsrc=r=11025:cl=mono -f lavfi -i "color=c=black:size=1x1" -t 0.1 $out/videotest.webm

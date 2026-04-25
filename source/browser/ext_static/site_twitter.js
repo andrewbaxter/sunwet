@@ -242,7 +242,7 @@ export const do_twitter = () => {
     }
 
     const timeEl = article.querySelector("time[datetime]");
-    const postLink = timeEl?.closest('a[href*="/status/"]');
+    const postLink = /** @type {HTMLAnchorElement|null} */ (timeEl?.closest('a[href*="/status/"]'));
     const id = postLink?.href || article.getAttribute("aria-labelledby") || Math.random().toString(36);
 
     const callback = async (/** @type {string} */ _id) => {

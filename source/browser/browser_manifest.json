@@ -6,7 +6,7 @@
   "version": "_PLACEHOLDER_VERSION",
   "author": "Andrew Baxter",
   "icons": {
-    "48": "icon2.svg"
+    "48": "big-icon.svg"
   },
   "content_security_policy": {
     "extension_pages": "default-src 'self' 'wasm-unsafe-eval'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' 'wasm-unsafe-eval' https://publicsuffix.org/"
