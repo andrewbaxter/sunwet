@@ -15,6 +15,7 @@ use {
         },
     },
     std::{
+        collections::HashMap,
         rc::Rc,
         sync::Mutex,
     },
@@ -89,15 +90,18 @@ async fn post(req: Request) -> Result<Vec<u8>, TempFinalErr> {
     return read_resp(resp).await;
 }
 
-pub async fn req_post_json<
+pub async fn req_post_json_with_headers<
     T: C2SReqTrait,
->(log: &Rc<dyn Log>, base_url: &String, req: T) -> Result<T::Resp, String> {
+>(log: &Rc<dyn Log>, base_url: &String, headers: &HashMap<String, String>, req: T) -> Result<T::Resp, String> {
     let req = C2SReq::from(req.into());
     return retry(log, async || {
-        let req =
+        let mut builder =
             Request::post(&format!("{}api", base_url))
-                .header("Content-type", "application/json")
-                .body(serde_json::to_string(&req).unwrap_throw());
+                .header("Content-type", "application/json");
+        for (k, v) in headers.iter() {
+            builder = builder.header(k, v);
+        }
+        let req = builder.body(serde_json::to_string(&req).unwrap_throw());
         let body = post(req).await?;
         return Ok(
             serde_json::from_slice::<T::Resp>(
@@ -111,6 +115,33 @@ pub async fn req_post_json<
     }).await;
 }
 
+pub async fn req_post_json<
+    T: C2SReqTrait,
+>(log: &Rc<dyn Log>, base_url: &String, req: T) -> Result<T::Resp, String> {
+    return req_post_json_with_headers(log, base_url, &HashMap::new(), req).await;
+}
+
+pub async fn file_post_json_with_headers(
+    log: &Rc<dyn Log>,
+    base_url: &String,
+    headers: &HashMap<String, String>,
+    hash: &FileHash,
+    chunk_start: u64,
+    body: &[u8],
+) -> Result<(), String> {
+    return retry(log, async || {
+        let mut builder =
+            Request::post(&format!("{}file/{}", base_url, hash.to_string()))
+                .header(HEADER_OFFSET, &chunk_start.to_string());
+        for (k, v) in headers.iter() {
+            builder = builder.header(k, v);
+        }
+        let req = builder.body(Uint8Array::from(body));
+        post(req).await?;
+        return Ok(());
+    }).await;
+}
+
 pub async fn file_post_json(
     log: &Rc<dyn Log>,
     base_url: &String,
@@ -118,14 +149,7 @@ pub async fn file_post_json(
     chunk_start: u64,
     body: &[u8],
 ) -> Result<(), String> {
-    return retry(log, async || {
-        let req =
-            Request::post(&format!("{}file/{}", base_url, hash.to_string()))
-                .header(HEADER_OFFSET, &chunk_start.to_string())
-                .body(Uint8Array::from(body));
-        post(req).await?;
-        return Ok(());
-    }).await;
+    return file_post_json_with_headers(log, base_url, &HashMap::new(), hash, chunk_start, body).await;
 }
 
 pub async fn req_file(log: &Rc<dyn Log>, url: &str) -> Result<Vec<u8>, String> {

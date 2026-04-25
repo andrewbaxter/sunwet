@@ -186,3 +186,49 @@ html {
         opacity: 0.5;
     }
 }
+
+/* Settings form styles */
+.sunwet-settings-container {
+    max-width: 480px;
+    margin: 40px auto;
+    padding: 24px;
+    font-family: sans-serif;
+}
+
+.sunwet-settings-title {
+    font-size: 24px;
+    margin-bottom: 24px;
+}
+
+.sunwet-settings-field {
+    margin-bottom: 16px;
+}
+
+.sunwet-settings-label {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.sunwet-settings-input {
+    width: 100%;
+    padding: 8px;
+    font-size: 14px;
+    border: 1px solid rgb(149, 148, 148);
+    border-radius: 4px;
+    box-sizing: border-box;
+    background: rgb(53, 55, 58);
+    color: rgb(237, 231, 223);
+}
+
+.sunwet-settings-button {
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    background: #1565c0;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
