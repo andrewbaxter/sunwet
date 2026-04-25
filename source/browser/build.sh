@@ -22,7 +22,8 @@ cp ext_static/* "$BUILD_DIR/"
 cp ../wasm/prestatic/big-icon.svg "$BUILD_DIR/"
 cp browser_manifest.json "$BUILD_DIR/manifest.json"
 
-# TypeScript type check JS files (requires node + tsc)
+# TypeScript type check JS files
+# Note: in Nix environments pkgs.nodejs and pkgs.typescript guarantee node/tsc.
 if command -v tsc >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
   echo "Running TypeScript type checks..."
   (cd "$BUILD_DIR" && tsc --noEmit)

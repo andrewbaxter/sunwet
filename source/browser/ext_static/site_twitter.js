@@ -186,39 +186,39 @@ export const do_twitter = () => {
   };
 
   /**
-   * Build triples from post data
-   * @type {(id: string, data: PostData) => {comment: string, triples: Array<{subject: string, predicate: string, object: string}>, files: Array<{data: Uint8Array, hash: string, mimetype: string}>}}
+   * Build form commit from post data
+   * @type {(id: string, data: PostData) => {form_id: string, parameters: Record<string, string>}}
    */
   const buildPostCommit = (id, data) => {
-    const subject = data.postUrl || id;
-    /** @type {Array<{subject: string, predicate: string, object: string}>} */
-    const triples = [
-      { subject, predicate: "rdf:type", object: "https://schema.org/SocialMediaPosting" },
-    ];
+    /** @type {Record<string, string>} */
+    const parameters = {};
+    if (data.postUrl) {
+      parameters.url = data.postUrl;
+    }
     if (data.authorUrl) {
-      triples.push({ subject, predicate: "https://schema.org/author", object: data.authorUrl });
+      parameters.author = data.authorUrl;
     }
     if (data.text) {
-      triples.push({ subject, predicate: "https://schema.org/text", object: data.text });
+      parameters.text = data.text;
     }
     if (data.timestampUtc) {
-      triples.push({ subject, predicate: "https://schema.org/datePublished", object: data.timestampUtc });
+      parameters.date = data.timestampUtc;
     }
-
-    /** @type {Array<{data: Uint8Array, hash: string, mimetype: string}>} */
-    const files = [];
-    for (const m of data.media) {
-      if (!m.error && m.digest) {
-        triples.push({ subject, predicate: "https://schema.org/associatedMedia", object: `sha256:${m.digest}` });
-        // Files are not included here because we don't have the ArrayBuffer after downloadMedia returns.
-        // For now, triples reference media by hash. File upload would require passing the buffer.
+    if (data.media.length > 0) {
+      const hashes = [];
+      for (const m of data.media) {
+        if (!m.error && m.digest) {
+          hashes.push(`sha256:${m.digest}`);
+        }
+      }
+      if (hashes.length > 0) {
+        parameters.media = hashes.join(",");
       }
     }
 
     return {
-      comment: "Capture twitter post",
-      triples,
-      files,
+      form_id: "capture-microblog",
+      parameters,
     };
   };
 
@@ -441,37 +441,39 @@ export const do_twitter = () => {
   };
 
   /**
-   * Build triples from profile data
-   * @type {(id: string, data: ProfileData) => {comment: string, triples: Array<{subject: string, predicate: string, object: string}>, files: Array<{data: Uint8Array, hash: string, mimetype: string}>}}
+   * Build form commit from profile data
+   * @type {(id: string, data: ProfileData) => {form_id: string, parameters: Record<string, string>}}
    */
   const buildProfileCommit = (id, data) => {
-    const subject = data.userUrl || id;
-    /** @type {Array<{subject: string, predicate: string, object: string}>} */
-    const triples = [
-      { subject, predicate: "rdf:type", object: "https://schema.org/Person" },
-    ];
+    /** @type {Record<string, string>} */
+    const parameters = {};
+    if (data.userUrl) {
+      parameters.url = data.userUrl;
+    }
     if (data.userName) {
-      triples.push({ subject, predicate: "https://schema.org/name", object: data.userName });
+      parameters.name = data.userName;
     }
     if (data.userHandle) {
-      triples.push({ subject, predicate: "https://schema.org/identifier", object: data.userHandle });
+      parameters.handle = data.userHandle;
     }
     if (data.profileText) {
-      triples.push({ subject, predicate: "https://schema.org/description", object: data.profileText });
+      parameters.description = data.profileText;
     }
-
-    /** @type {Array<{data: Uint8Array, hash: string, mimetype: string}>} */
-    const files = [];
-    for (const m of data.media) {
-      if (!m.error && m.digest) {
-        triples.push({ subject, predicate: "https://schema.org/image", object: `sha256:${m.digest}` });
+    if (data.media.length > 0) {
+      const hashes = [];
+      for (const m of data.media) {
+        if (!m.error && m.digest) {
+          hashes.push(`sha256:${m.digest}`);
+        }
+      }
+      if (hashes.length > 0) {
+        parameters.images = hashes.join(",");
       }
     }
 
     return {
-      comment: "Capture twitter profile",
-      triples,
-      files,
+      form_id: "capture-profile",
+      parameters,
     };
   };
 

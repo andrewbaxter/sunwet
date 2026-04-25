@@ -6,38 +6,8 @@
   debug ? true,
 }:
 let
-  fenix = import ./fenix { };
-  toolchain = fenix.combine [
-    fenix.stable.rustc
-    fenix.stable.cargo
-    fenix.targets.wasm32-unknown-unknown.stable.rust-std
-  ];
-  naersk =
-    pkgs.callPackage
-      #(fetchTarball "https://github.com/nix-community/naersk/archive/378614f37a6bee5a3f2ef4f825a73d948d3ae921.zip")
-      ./naersk
-      {
-        rustc = toolchain;
-        cargo = toolchain;
-      };
-  stageWorkspace =
-    name: files:
-    let
-      linkLines = lib.strings.concatStringsSep "\n" (
-        map (f: ''
-          filename=$(${pkgs.coreutils}/bin/basename ${f} | ${pkgs.gnused}/bin/sed -e 's/[^-]*-//')
-          ${pkgs.coreutils}/bin/cp -r ${f} $filename
-        '') files
-      );
-    in
-    pkgs.runCommand "stage-rust-workspace-${name}" { } ''
-      set -xeu -o pipefail
-      ${pkgs.coreutils}/bin/mkdir $out
-      cd $out
-      ${linkLines}
-    '';
-
-  workspaceWasm = stageWorkspace "sunwet-wasm" [
+  shared = (import ./nixbuild/shared.nix) { pkgs=pkgs; lib=lib; };
+  workspaceWasm = shared.stageWorkspace "sunwet-wasm" [
     ./nixbuild/wasm/Cargo.toml
     ./wasm/Cargo.lock
     ./wasm/.cargo
@@ -45,16 +15,13 @@ let
     ./shared
     ./shared-wasm
   ];
-  wasm = naersk.buildPackage {
+  wasm = shared.naersk.buildPackage {
     pname = "sunwet-wasm";
     name = "sunwet-wasm"; # For nix build error messages only
     root = workspaceWasm;
     release = true;
     CARGO_BUILD_TARGET = "wasm32-unknown-unknown";
     GIT_HASH = "fakehash";
-  };
-  nativeBindgen = naersk.buildPackage {
-    root = ./native-bindgen;
   };
   static = pkgs.runCommand "sunwet-static" { } ''
     set -xeu -o pipefail
@@ -70,7 +37,7 @@ let
     ${pkgs.inkscape}/bin/inkscape --export-filename $out/favicon.png --export-width 128 ${./wasm}/prestatic/small-icon.svg
   '';
 
-  workspaceNative = stageWorkspace "sunwet-native" [
+  workspaceNative = shared.stageWorkspace "sunwet-native" [
     ./nixbuild/native/Cargo.toml
     ./native/Cargo.lock
     ./native
@@ -98,7 +65,7 @@ let
     ''
       wrapProgram $out/bin/${bin} ${lib.strings.concatStringsSep " " wrapArgs}
     '';
-  native = naersk.buildPackage {
+  native = shared.naersk.buildPackage {
     pname = "sunwet-native";
     name = "sunwet-native"; # For nix build error messages only
     root = workspaceNative;

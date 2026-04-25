@@ -387,39 +387,28 @@ export const do_booru = () => {
   };
 
   /**
-   * Build triples from booru post data
-   * @type {(id: string, data: BooruPostData) => {comment: string, triples: Array<{subject: string, predicate: string, object: string}>, files: Array<{data: Uint8Array, hash: string, mimetype: string}>}}
+   * Build form commit from booru post data
+   * @type {(id: string, data: BooruPostData) => {form_id: string, parameters: Record<string, string>}}
    */
   const buildPostCommit = (id, data) => {
-    const subject = data.pageUrl || id;
-    /** @type {Array<{subject: string, predicate: string, object: string}>} */
-    const triples = [
-      { subject, predicate: "rdf:type", object: "https://schema.org/ImageObject" },
-    ];
+    /** @type {Record<string, string>} */
+    const parameters = {};
+    parameters.page_url = data.pageUrl;
     if (data.sourceUrl) {
-      triples.push({ subject, predicate: "https://schema.org/isBasedOn", object: data.sourceUrl });
+      parameters.source_url = data.sourceUrl;
     }
-
     for (const [type, tagList] of Object.entries(data.tags)) {
-      for (const tag of tagList) {
-        triples.push({ subject, predicate: `tag:${type}`, object: tag });
+      if (tagList.length > 0) {
+        parameters[`tags_${type}`] = tagList.join(",");
       }
     }
-
-    /** @type {Array<{data: Uint8Array, hash: string, mimetype: string}>} */
-    const files = [];
     if (data.image && !data.image.error && data.image.digest) {
-      triples.push({
-        subject,
-        predicate: "https://schema.org/associatedMedia",
-        object: `sha256:${data.image.digest}`,
-      });
+      parameters.image_hash = `sha256:${data.image.digest}`;
     }
 
     return {
-      comment: "Capture booru post",
-      triples,
-      files,
+      form_id: "capture-image",
+      parameters,
     };
   };
 

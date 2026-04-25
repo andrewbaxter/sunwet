@@ -1,6 +1,6 @@
 [submodule "source/naersk"]
-	path = source/naersk
+	path = source/nixbuild/naersk
 	url = https://github.com/nix-community/naersk.git
 [submodule "source/fenix"]
-	path = source/fenix
+	path = source/nixbuild/fenix
 	url = https://github.com/nix-community/fenix.git

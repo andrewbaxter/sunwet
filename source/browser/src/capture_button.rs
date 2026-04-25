@@ -6,34 +6,30 @@ use {
     js_sys::{
         Array,
         Function,
-        JSON,
+        Object,
         Promise,
         Reflect,
-        Uint8Array,
     },
     lunk::EventGraph,
     shared::interface::{
-        config::view::ViewId,
-        triple::{
-            FileHash,
-            Node,
+        config::{
+            form::FormId,
+            view::ViewId,
         },
+        triple::Node,
         wire::{
-            C2SReq,
-            CommitFile,
-            ReqCommit,
-            ReqCommitFree,
+            ReqCommitForm,
             ReqViewQuery,
             RespQuery,
             RespQueryRows,
-            Triple,
+            TreeNode,
         },
     },
     shared_wasm::{
-        commit::UploadFile,
+        api::req_post_json_with_headers,
         log::Log,
         online::{
-            ensure_commit,
+            ensure_form_commit,
             OnliningState,
         },
     },
@@ -41,7 +37,6 @@ use {
         cell::RefCell,
         collections::HashMap,
         rc::Rc,
-        str::FromStr,
     },
     wasm_bindgen::prelude::*,
     wasm_bindgen_futures::{
@@ -54,6 +49,9 @@ use {
         MouseEvent,
     },
 };
+
+const KEY_SERVER_URL: &str = "sunwet_server_url";
+const KEY_TOKEN: &str = "sunwet_token";
 
 thread_local! {
     static APP_STATE: RefCell<Option<AppState>> = RefCell::new(None);
@@ -76,8 +74,8 @@ pub fn init_app_state(onlining: Rc<OnliningState>, eg: EventGraph, log: Rc<dyn L
 }
 
 fn get_settings() -> (Option<String>, Option<String>) {
-    let url: Result<String, _> = LocalStorage::get("sunwet_server_url");
-    let token: Result<String, _> = LocalStorage::get("sunwet_token");
+    let url: Result<String, _> = LocalStorage::get(KEY_SERVER_URL);
+    let token: Result<String, _> = LocalStorage::get(KEY_TOKEN);
     (url.ok(), token.ok())
 }
 
@@ -117,52 +115,6 @@ fn update_button_state(
     }
 }
 
-async fn api_request<Req, Resp>(base_url: &str, token: Option<&str>, req: Req) -> Result<Resp, String>
-where
-    Req: serde::Serialize,
-    Resp: serde::de::DeserializeOwned,
-{
-    let window = web_sys::window().ok_or("no window")?;
-    let url = format!("{}api", base_url);
-    let body = serde_json::to_string(&req).map_err(|e| e.to_string())?;
-
-    let mut opts = web_sys::RequestInit::new();
-    opts.method("POST");
-    opts.mode(web_sys::RequestMode::Cors);
-    opts.body(Some(&JsValue::from_str(&body)));
-
-    let request = web_sys::Request::new_with_str_and_init(&url, &opts)
-        .map_err(|e| format!("failed to create request: {:?}", e))?;
-    let headers = request.headers();
-    let _ = headers.set("Content-type", "application/json");
-    if let Some(t) = token {
-        let _ = headers.set("Authorization", &format!("Bearer {}", t));
-    }
-
-    let resp = JsFuture::from(window.fetch_with_request(&request))
-        .await
-        .map_err(|e| format!("fetch failed: {:?}", e))?;
-    let resp: web_sys::Response = resp
-        .dyn_into()
-        .map_err(|e| format!("invalid response: {:?}", e))?;
-
-    if resp.status() == 401 {
-        return Err("Unauthorized".to_string());
-    }
-    if resp.status() >= 400 {
-        let text = JsFuture::from(resp.text().unwrap())
-            .await
-            .map_err(|e| format!("failed to read error body: {:?}", e))?;
-        return Err(format!("HTTP {}: {:?}", resp.status(), text));
-    }
-
-    let json = JsFuture::from(resp.json().unwrap())
-        .await
-        .map_err(|e| format!("failed to parse json: {:?}", e))?;
-    let json_str = JSON::stringify(&json).unwrap().as_string().unwrap();
-    serde_json::from_str(&json_str).map_err(|e| format!("json decode error: {}", e))
-}
-
 async fn check_existence(button: &HtmlButtonElement, id: &str, view_query: &str) {
     let (url, token) = get_settings();
     let Some(base_url) = url else {
@@ -175,7 +127,12 @@ async fn check_existence(button: &HtmlButtonElement, id: &str, view_query: &str)
         format!("{}/", base_url)
     };
 
-    let req: C2SReq = ReqViewQuery {
+    let mut headers = HashMap::new();
+    if let Some(t) = token {
+        headers.insert("Authorization".to_string(), format!("Bearer {}", t));
+    }
+
+    let req = ReqViewQuery {
         view_id: ViewId(view_query.to_string()),
         query: "".to_string(),
         parameters: {
@@ -184,116 +141,95 @@ async fn check_existence(button: &HtmlButtonElement, id: &str, view_query: &str)
             map
         },
         pagination: None,
-    }.into();
+    };
 
-    let result: Result<RespQuery, String> = api_request(&base_url, token.as_deref(), req).await;
-    match result {
-        Ok(resp) => {
-            let exists = match resp.rows {
-                RespQueryRows::Scalar(v) => !v.is_empty(),
-                RespQueryRows::Record(v) => !v.is_empty(),
-            };
-            update_button_state(
-                button,
-                if exists {
-                    Existence::Exists
-                } else {
-                    Existence::New
-                },
-                ErrorState::None,
-            );
-        },
-        Err(e) => {
-            web_sys::console::error_1(&JsValue::from_str(&format!(
-                "sunwet existence check error: {}",
-                e
-            )));
+    APP_STATE.with(|state| {
+        let state = state.borrow();
+        let Some(app_state) = state.as_ref() else {
             update_button_state(button, Existence::New, ErrorState::Error);
-        },
-    }
+            return;
+        };
+        let log = app_state.log.clone();
+        let button = button.clone();
+        spawn_local(async move {
+            let result: Result<RespQuery, String> = req_post_json_with_headers(&log, &base_url, &headers, req).await;
+            match result {
+                Ok(resp) => {
+                    let exists = match resp.rows {
+                        RespQueryRows::Scalar(v) => !v.is_empty(),
+                        RespQueryRows::Record(v) => !v.is_empty(),
+                    };
+                    update_button_state(
+                        &button,
+                        if exists {
+                            Existence::Exists
+                        } else {
+                            Existence::New
+                        },
+                        ErrorState::None,
+                    );
+                },
+                Err(e) => {
+                    web_sys::console::error_1(&JsValue::from_str(&format!(
+                        "sunwet existence check error: {}",
+                        e
+                    )));
+                    update_button_state(&button, Existence::New, ErrorState::Error);
+                },
+            }
+        });
+    });
 }
 
-fn parse_callback_result(js_value: &JsValue) -> Result<(ReqCommitFree, Vec<UploadFile>), String> {
-    let comment = Reflect::get(js_value, &JsValue::from_str("comment"))
-        .ok()
-        .and_then(|v| v.as_string())
-        .unwrap_or_else(|| "Browser capture".to_string());
-
-    let triples_arr = Reflect::get(js_value, &JsValue::from_str("triples"))
-        .map_err(|_| "missing 'triples' field")?;
-    let triples_arr: Array = triples_arr
-        .dyn_into()
-        .map_err(|_| "'triples' must be an array")?;
-    let mut triples = Vec::with_capacity(triples_arr.length() as usize);
-    for i in 0..triples_arr.length() {
-        let item = triples_arr.get(i);
-        let subject = Reflect::get(&item, &JsValue::from_str("subject"))
-            .map_err(|_| "missing subject")?
-            .as_string()
-            .ok_or("subject must be a string")?;
-        let predicate = Reflect::get(&item, &JsValue::from_str("predicate"))
-            .map_err(|_| "missing predicate")?
-            .as_string()
-            .ok_or("predicate must be a string")?;
-        let object = Reflect::get(&item, &JsValue::from_str("object"))
-            .map_err(|_| "missing object")?
-            .as_string()
-            .ok_or("object must be a string")?;
-        triples.push(Triple {
-            subject: Node::from(subject),
-            predicate,
-            object: Node::from(object),
-        });
+fn js_value_to_treenode(value: &JsValue) -> Result<TreeNode, String> {
+    if let Some(s) = value.as_string() {
+        return Ok(TreeNode::Scalar(Node::from(s)));
     }
+    if let Some(arr) = value.dyn_ref::<Array>() {
+        let mut out = Vec::with_capacity(arr.length() as usize);
+        for i in 0..arr.length() {
+            out.push(js_value_to_treenode(&arr.get(i))?);
+        }
+        return Ok(TreeNode::Array(out));
+    }
+    if let Some(obj) = value.dyn_ref::<Object>() {
+        let mut out = std::collections::BTreeMap::new();
+        let keys = Object::keys(obj);
+        for i in 0..keys.length() {
+            let key = keys.get(i).as_string().ok_or("object key must be string")?;
+            let val = Reflect::get(obj, &JsValue::from_str(&key))
+                .map_err(|_| format!("missing key {}", key))?;
+            out.insert(key, js_value_to_treenode(&val)?);
+        }
+        return Ok(TreeNode::Record(out));
+    }
+    Err("unsupported value type for TreeNode".to_string())
+}
 
-    let mut upload_files = Vec::new();
-    let mut commit_files = Vec::new();
-    if let Ok(files_arr) = Reflect::get(js_value, &JsValue::from_str("files")) {
-        if !files_arr.is_undefined() && !files_arr.is_null() {
-            let files_arr: Array = files_arr
-                .dyn_into()
-                .map_err(|_| "'files' must be an array")?;
-            for i in 0..files_arr.length() {
-                let item = files_arr.get(i);
-                let data = Reflect::get(&item, &JsValue::from_str("data"))
-                    .map_err(|_| "missing file data")?;
-                let data: Uint8Array = data
-                    .dyn_into()
-                    .map_err(|_| "file data must be Uint8Array")?;
-                let hash = Reflect::get(&item, &JsValue::from_str("hash"))
-                    .map_err(|_| "missing file hash")?
-                    .as_string()
-                    .ok_or("file hash must be a string")?;
-                let mimetype = Reflect::get(&item, &JsValue::from_str("mimetype"))
-                    .map_err(|_| "missing file mimetype")?
-                    .as_string()
-                    .ok_or("file mimetype must be a string")?;
+fn parse_callback_result(js_value: &JsValue) -> Result<ReqCommitForm, String> {
+    let form_id = Reflect::get(js_value, &JsValue::from_str("form_id"))
+        .map_err(|_| "missing 'form_id' field")?
+        .as_string()
+        .ok_or("form_id must be a string")?;
 
-                let hash = FileHash::from_str(&hash).map_err(|e| e.to_string())?;
-                let data_vec = data.to_vec();
-                let size = data_vec.len() as u64;
-                upload_files.push(UploadFile {
-                    data: data_vec,
-                    hash: hash.clone(),
-                });
-                commit_files.push(CommitFile {
-                    hash,
-                    size,
-                    mimetype,
-                });
+    let mut parameters = HashMap::new();
+    if let Ok(params) = Reflect::get(js_value, &JsValue::from_str("parameters")) {
+        if !params.is_undefined() && !params.is_null() {
+            let params: Object = params.dyn_into().map_err(|_| "'parameters' must be an object")?;
+            let keys = Object::keys(&params);
+            for i in 0..keys.length() {
+                let key = keys.get(i).as_string().ok_or("parameter key must be string")?;
+                let val = Reflect::get(&params, &JsValue::from_str(&key))
+                    .map_err(|_| format!("missing parameter {}", key))?;
+                parameters.insert(key, js_value_to_treenode(&val)?);
             }
         }
     }
 
-    Ok((
-        ReqCommitFree {
-            comment,
-            add: triples,
-            remove: vec![],
-            files: commit_files,
-        },
-        upload_files,
-    ))
+    Ok(ReqCommitForm {
+        form_id: FormId(form_id),
+        parameters,
+    })
 }
 
 async fn handle_click(button: &HtmlButtonElement, id: &str, callback: &Function) {
@@ -322,7 +258,7 @@ async fn handle_click(button: &HtmlButtonElement, id: &str, callback: &Function)
     let result = JsFuture::from(promise).await;
     match result {
         Ok(js_value) => {
-            let (commit_free, upload_files) = match parse_callback_result(&js_value) {
+            let form = match parse_callback_result(&js_value) {
                 Ok(v) => v,
                 Err(e) => {
                     web_sys::console::error_1(&JsValue::from_str(&format!(
@@ -334,7 +270,6 @@ async fn handle_click(button: &HtmlButtonElement, id: &str, callback: &Function)
                 },
             };
 
-            let commit = ReqCommit::Free(commit_free);
             let (url, _) = get_settings();
             let Some(base_url) = url else {
                 update_button_state(button, Existence::New, ErrorState::Error);
@@ -359,13 +294,13 @@ async fn handle_click(button: &HtmlButtonElement, id: &str, callback: &Function)
                 let button = button.clone();
 
                 spawn_local(async move {
-                    match ensure_commit(&onlining, eg, &log, &base_url, commit, upload_files).await {
+                    match ensure_form_commit(&onlining, eg, &log, &base_url, form).await {
                         Ok(_) => {
                             update_button_state(&button, Existence::Exists, ErrorState::None);
                         },
                         Err(e) => {
                             web_sys::console::error_1(&JsValue::from_str(&format!(
-                                "sunwet ensure_commit error: {}",
+                                "sunwet ensure_form_commit error: {}",
                                 e
                             )));
                             update_button_state(&button, Existence::New, ErrorState::Error);
