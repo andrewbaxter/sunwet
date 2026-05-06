@@ -1,5 +1,7 @@
 pub mod dbv0;
 pub mod dbv1;
+pub mod dbv2;
+pub mod dbv3;
 
 use {
     good_ormning::sqlite::types::Type,

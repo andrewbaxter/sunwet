@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "module": "nodenext",
+    "lib": ["es2023"],
+    "target": "es2023",
+    "strict": true,
+    "moduleResolution": "nodenext",
+    "allowImportingTsExtensions": true
+  }
+}

@@ -12,6 +12,7 @@ use {
             db::{
                 self,
             },
+            dbwrite,
             dbutil::tx,
             filesutil::{
                 file_path,
@@ -144,64 +145,63 @@ async fn commit(
         // Insert triples
         let mut modified = false;
         let stamp = Utc::now();
+        fn update_fulltext(txn: &rusqlite::Connection, node: &Node) -> Result<(), loga::Error> {
+            let mut fulltext = String::new();
+
+            fn gather_value_text(fulltext: &mut String, value: &serde_json::Value) {
+                match value {
+                    serde_json::Value::Null => {
+                        // nop
+                    },
+                    serde_json::Value::Bool(_) => {
+                        // nop
+                    },
+                    serde_json::Value::Number(_) => {
+                        // nop
+                    },
+                    serde_json::Value::String(v) => {
+                        fulltext.push_str(v);
+                        fulltext.push_str(" ");
+                    },
+                    serde_json::Value::Array(v) => {
+                        for v in v {
+                            gather_value_text(fulltext, v);
+                        }
+                    },
+                    serde_json::Value::Object(v) => {
+                        for (k, v) in v {
+                            fulltext.push_str(k);
+                            fulltext.push_str(" ");
+                            gather_value_text(fulltext, v);
+                        }
+                    },
+                }
+            }
+
+            match node {
+                Node::File(_) => {
+                    // nop
+                },
+                Node::Value(v) => gather_value_text(&mut fulltext, v),
+            }
+            db::subjobj_update_fulltext(txn, &DbNode(node.clone()), &fulltext)?;
+            return Ok(());
+        }
+
         for t in c.remove {
             if db::triple_get(txn, &DbNode(t.subject.clone()), &t.predicate, &DbNode(t.object.clone()))?.is_none() {
                 continue;
             }
-            db::triple_insert(txn, &DbNode(t.subject), &t.predicate, &DbNode(t.object), stamp, false)?;
+            dbwrite::write_triple(txn, &DbNode(t.subject), &t.predicate, &DbNode(t.object), stamp, false)?;
             modified = true;
         }
         for t in c.add {
             if db::triple_get(txn, &DbNode(t.subject.clone()), &t.predicate, &DbNode(t.object.clone()))?.is_some() {
                 continue;
             }
-
-            fn update_fulltext(txn: &rusqlite::Transaction, node: &Node) -> Result<(), loga::Error> {
-                let mut fulltext = String::new();
-
-                fn gather_value_text(fulltext: &mut String, value: &serde_json::Value) {
-                    match value {
-                        serde_json::Value::Null => {
-                            // nop
-                        },
-                        serde_json::Value::Bool(_) => {
-                            // nop
-                        },
-                        serde_json::Value::Number(_) => {
-                            // nop
-                        },
-                        serde_json::Value::String(v) => {
-                            fulltext.push_str(v);
-                            fulltext.push_str(" ");
-                        },
-                        serde_json::Value::Array(v) => {
-                            for v in v {
-                                gather_value_text(fulltext, v);
-                            }
-                        },
-                        serde_json::Value::Object(v) => {
-                            for (k, v) in v {
-                                fulltext.push_str(k);
-                                fulltext.push_str(" ");
-                                gather_value_text(fulltext, v);
-                            }
-                        },
-                    }
-                }
-
-                match node {
-                    Node::File(_) => {
-                        // nop
-                    },
-                    Node::Value(v) => gather_value_text(&mut fulltext, v),
-                }
-                db::meta_upsert_fulltext(txn, &DbNode(node.clone()), &fulltext)?;
-                return Ok(());
-            }
-
             update_fulltext(txn, &t.subject)?;
             update_fulltext(txn, &t.object)?;
-            db::triple_insert(txn, &DbNode(t.subject), &t.predicate, &DbNode(t.object), stamp, true)?;
+            dbwrite::write_triple(txn, &DbNode(t.subject), &t.predicate, &DbNode(t.object), stamp, true)?;
             modified = true;
         }
 

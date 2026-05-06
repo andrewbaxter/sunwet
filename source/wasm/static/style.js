@@ -481,6 +481,11 @@
     /** @type { Presentation["classStateSharing"]} */ () => ({
       value: classStateSharing,
     });
+  const classStateFollowPlaying = "follow_playing";
+  presentation.classStateFollowPlaying =
+    /** @type { Presentation["classStateFollowPlaying"]} */ () => ({
+      value: classStateFollowPlaying,
+    });
   const classStateElementSelected = "element_selected";
   presentation.classStateElementSelected =
     /** @type { Presentation["classStateElementSelected"]} */ () => ({
@@ -2011,16 +2016,16 @@
         ],
       });
       const buttonCenter = leafTransportButton({
-        title: "Scroll to",
+        title: "Follow playing",
         iconv: { "": textIconCenter },
-      });
-      buttonCenter.root.addEventListener("click", (_) => {
-        for (const b of document.getElementsByClassName(
-          classStateElementSelected,
-        )) {
-          b.scrollIntoView({ block: "center", inline: "center" });
-          break;
-        }
+        extraStyles: [
+          ss(uniq("cont_bar_view_transport_center_button"), {
+            [`.${classStateFollowPlaying} text`]: (s) => {
+              s.color = varCHighlightBold;
+              s.fontWeight = varWTransportBold;
+            },
+          }),
+        ],
       });
       const { seekbar, seekbarFill, seekbarLabel } = leafSeekbar();
       return {
@@ -2032,6 +2037,7 @@
           rightChildren: [buttonCenter.root],
         }).root,
         buttonShare: buttonShare.root,
+        buttonCenter: buttonCenter.root,
         buttonNext: buttonNext.root,
         buttonPlay: buttonPlay.root,
         buttonPrev: buttonPrev.root,
