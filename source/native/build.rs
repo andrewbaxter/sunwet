@@ -20,11 +20,13 @@ fn main() {
         filehash_type: type_str().custom("crate::interface::triple::DbFileHash").build(),
         access_source_type: type_str().custom("crate::server::access::DbAccessSourceId").build(),
     };
-    let latest = buildlib::dbv1::build(db_build_input.clone());
+    let latest = buildlib::dbv3::build(db_build_input.clone());
     match good_ormning::sqlite::generate(&root.join("src/server/db.rs"), vec![
         // Versions
         (0usize, buildlib::dbv0::build(db_build_input.clone()).0),
-        (1usize, latest.0)
+        (1usize, buildlib::dbv1::build(db_build_input.clone()).0),
+        (2usize, buildlib::dbv2::build(db_build_input.clone()).0),
+        (3usize, latest.0)
     ], latest.1) {
         Ok(_) => { },
         Err(e) => {

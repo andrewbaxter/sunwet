@@ -664,19 +664,19 @@ fn build_chain_head(
                 let mut sql_cte = sea_query::CommonTableExpression::new();
                 sql_cte.table_name(ident_table_root.clone());
                 sql_cte.query({
-                    let ident_meta = SeaRc::new(Alias::new("meta"));
-                    let ident_meta_fts = SeaRc::new(Alias::new("meta_fts"));
+                    let ident_subjobj = SeaRc::new(Alias::new("subjobj"));
+                    let ident_subjobj_fts = SeaRc::new(Alias::new("subjobj_fts"));
                     let ident_rowid = SeaRc::new(Alias::new("rowid"));
                     let ident_fulltext = SeaRc::new(Alias::new("fulltext"));
-                    let ident_node = SeaRc::new(Alias::new("node"));
+                    let ident_node = SeaRc::new(Alias::new("value"));
                     let mut sql_sel = sea_query::Query::select();
-                    sql_sel.from(tableref(ident_meta.clone()));
-                    let node_expr = Expr::col(colref(ident_meta.clone(), ident_node.clone()));
+                    sql_sel.from(tableref(ident_subjobj.clone()));
+                    let node_expr = Expr::col(colref(ident_subjobj.clone(), ident_node.clone()));
                     sql_sel.expr(node_expr.clone());
                     sql_sel.expr(node_expr.clone());
-                    sql_sel.and_where(Expr::col(colref(ident_meta.clone(), ident_rowid.clone())).in_subquery({
+                    sql_sel.and_where(Expr::col(colref(ident_subjobj.clone(), ident_rowid.clone())).in_subquery({
                         let mut sql_sel = sea_query::Query::select();
-                        sql_sel.from(tableref(ident_meta_fts.clone()));
+                        sql_sel.from(tableref(ident_subjobj_fts.clone()));
                         sql_sel.column(ident_rowid.clone());
                         let raw = build_value_str(query_state, &root)?;
                         let match_str;
@@ -726,7 +726,7 @@ fn build_chain_head(
                                     .join(" AND ");
                         }
                         sql_sel.and_where(
-                            Expr::col(colref(ident_meta_fts.clone(), ident_fulltext.clone())).matches(match_str),
+                            Expr::col(colref(ident_subjobj_fts.clone(), ident_fulltext.clone())).matches(match_str),
                         );
                         sql_sel
                     }));
@@ -895,87 +895,13 @@ pub fn build_root_chain(
         ident_col_subject: SeaRc::new(Alias::new("subject")),
         ident_col_predicate: SeaRc::new(Alias::new("predicate")),
         ident_col_object: SeaRc::new(Alias::new("object")),
-        triple_exist_table: SeaRc::new(Alias::new("triple_exist")),
+        triple_exist_table: SeaRc::new(Alias::new("triple_snapshot")),
         func_json_extract: sea_query::Func::cust(SeaRc::new(Alias::new("json_extract"))),
         global_unique: Default::default(),
         ctes: Default::default(),
         reuse_roots: Default::default(),
         reuse_steps: Default::default(),
     };
-    {
-        // Build a cte of only currently existing triples
-        let ident_cte_triple_exist0 = SeaRc::new(Alias::new("triple_exist0"));
-        let ident_col_exists = SeaRc::new(Alias::new("exists"));
-        {
-            let ident_col_commit = SeaRc::new(Alias::new("commit_"));
-            let mut sql_cte = sea_query::CommonTableExpression::new();
-            sql_cte.table_name(ident_cte_triple_exist0.clone());
-            let mut sql_sel = sea_query::Query::select();
-            let local_ident_table_primary = query_state.ident_table_primary.clone();
-            sql_sel.from_as(tableref(SeaRc::new(Alias::new("triple"))), local_ident_table_primary.clone());
-            let col_sub = colref(local_ident_table_primary.clone(), query_state.ident_col_subject.clone());
-            let col_pred = colref(local_ident_table_primary.clone(), query_state.ident_col_predicate.clone());
-            let col_obj = colref(local_ident_table_primary.clone(), query_state.ident_col_object.clone());
-
-            // Subj
-            sql_cte.column(query_state.ident_col_subject.clone());
-            sql_sel.column(col_sub.clone());
-
-            // Pred
-            sql_cte.column(query_state.ident_col_predicate.clone());
-            sql_sel.column(col_pred.clone());
-
-            // Obj
-            sql_cte.column(query_state.ident_col_object.clone());
-            sql_sel.column(col_obj.clone());
-
-            // Exists
-            sql_cte.column(ident_col_exists.clone());
-            sql_sel.column(colref(local_ident_table_primary.clone(), ident_col_exists.clone()));
-
-            // Take last commit
-            sql_cte.column(SeaRc::new(Alias::new("_unused_timestamp")));
-            sql_sel.expr(
-                sea_query::Expr::max(
-                    sea_query::Expr::col(colref(local_ident_table_primary.clone(), ident_col_commit.clone())),
-                ),
-            );
-            sql_sel.group_by_col(col_sub);
-            sql_sel.group_by_col(col_pred);
-            sql_sel.group_by_col(col_obj);
-
-            // Assemble
-            sql_cte.query(sql_sel);
-            query_state.ctes.push(sql_cte);
-        }
-        {
-            let ident_cte_triple_exist = query_state.triple_exist_table.clone();
-            let mut sql_cte = sea_query::CommonTableExpression::new();
-            sql_cte.table_name(ident_cte_triple_exist.clone());
-            let mut sql_sel = sea_query::Query::select();
-            let local_ident_table_primary = query_state.ident_table_primary.clone();
-            sql_sel.from_as(tableref(ident_cte_triple_exist0), local_ident_table_primary.clone());
-
-            // Subj
-            sql_cte.column(query_state.ident_col_subject.clone());
-            sql_sel.column(colref(local_ident_table_primary.clone(), query_state.ident_col_subject.clone()));
-
-            // Pred
-            sql_cte.column(query_state.ident_col_predicate.clone());
-            sql_sel.column(colref(local_ident_table_primary.clone(), query_state.ident_col_predicate.clone()));
-
-            // Obj
-            sql_cte.column(query_state.ident_col_object.clone());
-            sql_sel.column(colref(local_ident_table_primary.clone(), query_state.ident_col_object.clone()));
-
-            // Filter
-            sql_sel.and_where(sea_query::Expr::col(colref(local_ident_table_primary.clone(), ident_col_exists.clone())).into());
-
-            // Assemble
-            sql_cte.query(sql_sel);
-            query_state.ctes.push(sql_cte);
-        }
-    }
 
     // Build actual query now
     let chain_tail = match &query.suffix {

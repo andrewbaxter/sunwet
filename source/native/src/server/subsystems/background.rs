@@ -681,6 +681,8 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                 db::meta_gc(txn)?;
                                 db::commit_gc(txn)?;
                                 db::gen_gc(txn)?;
+                                db::subjobj_gc(txn)?;
+                                db::predicate_gc(txn)?;
                                 return Ok(());
                             }).await?;
 

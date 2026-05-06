@@ -132,6 +132,7 @@ use {
 pub mod libnonlink;
 
 pub const LOCALSTORAGE_CLIENTCONFIG: &str = "clientconfig";
+pub const LOCALSTORAGE_FOLLOW_PLAYING: &str = "follow_playing";
 
 pub fn main() {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
@@ -220,6 +221,7 @@ pub fn main() {
                 };
                 break None;
             }),
+            follow_playing: Prim::new(LocalStorage::get::<bool>(LOCALSTORAGE_FOLLOW_PLAYING).unwrap_or(false)),
         })));
         spawn_local({
             let eg = pc.eg();
@@ -758,6 +760,12 @@ pub fn main() {
                 } else {
                     stop_offlining();
                 }
+            }),
+            link!((_pc = pc), (follow_playing = state().follow_playing.clone()), (), () {
+                LocalStorage::set(
+                    LOCALSTORAGE_FOLLOW_PLAYING,
+                    *follow_playing.borrow(),
+                ).log(&state().log, "Error storing follow_playing setting");
             }),
         ))]);
     });

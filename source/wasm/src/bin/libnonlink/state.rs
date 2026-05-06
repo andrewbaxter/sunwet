@@ -101,6 +101,7 @@ pub struct State_ {
     pub log: Rc<dyn Log>,
     pub log1: Rc<VecLog>,
     pub current_list: Prim<Option<CurrentList>>,
+    pub follow_playing: Prim<bool>,
 }
 
 thread_local!{

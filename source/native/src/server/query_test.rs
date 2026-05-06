@@ -6,6 +6,7 @@ use {
         interface::triple::DbNode,
         server::{
             db,
+            dbwrite,
             defaultviews::node_media_audio,
             query::{
                 build_root_chain,
@@ -86,7 +87,7 @@ fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, TreeNode)]], query
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
     db::migrate(&mut db).unwrap();
     for (s, p, o) in triples {
-        db::triple_insert(&db, &DbNode((*s).clone()), p, &DbNode((*o).clone()), Utc::now().into(), true).unwrap();
+        dbwrite::write_triple(&db, &DbNode((*s).clone()), p, &DbNode((*o).clone()), Utc::now().into(), true).unwrap();
     }
 
     //.    {
@@ -181,7 +182,7 @@ fn test_versions() {
     })).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
     db::migrate(&mut db).unwrap();
-    db::triple_insert(
+    dbwrite::write_triple(
         &db,
         &DbNode(s("x")),
         "y",
@@ -189,7 +190,7 @@ fn test_versions() {
         DateTime::from_timestamp_nanos(1),
         true,
     ).unwrap();
-    db::triple_insert(
+    dbwrite::write_triple(
         &db,
         &DbNode(s("x")),
         "y",
@@ -229,7 +230,7 @@ fn test_delete() {
     })).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
     db::migrate(&mut db).unwrap();
-    db::triple_insert(
+    dbwrite::write_triple(
         &db,
         &DbNode(s("x")),
         "y",
@@ -237,7 +238,7 @@ fn test_delete() {
         DateTime::from_timestamp_nanos(1),
         true,
     ).unwrap();
-    db::triple_insert(
+    dbwrite::write_triple(
         &db,
         &DbNode(s("x")),
         "y",
@@ -274,7 +275,7 @@ fn test_undelete() {
     })).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
     db::migrate(&mut db).unwrap();
-    db::triple_insert(
+    dbwrite::write_triple(
         &db,
         &DbNode(s("x")),
         "y",
@@ -282,7 +283,7 @@ fn test_undelete() {
         DateTime::from_timestamp_nanos(1),
         true,
     ).unwrap();
-    db::triple_insert(
+    dbwrite::write_triple(
         &db,
         &DbNode(s("x")),
         "y",
@@ -290,7 +291,7 @@ fn test_undelete() {
         DateTime::from_timestamp_nanos(2),
         false,
     ).unwrap();
-    db::triple_insert(
+    dbwrite::write_triple(
         &db,
         &DbNode(s("x")),
         "y",
@@ -571,17 +572,17 @@ fn test_gc() {
     let stamp3 = chrono::Local.with_ymd_and_hms(2014, 12, 1, 1, 1, 1).unwrap().into();
 
     // Newest is after epoch
-    db::triple_insert(&db, &DbNode(s("a")), "b", &DbNode(s("c")), stamp1, true).unwrap();
-    db::triple_insert(&db, &DbNode(s("a")), "b", &DbNode(s("c")), stamp2, false).unwrap();
-    db::triple_insert(&db, &DbNode(s("a")), "b", &DbNode(s("c")), stamp3, true).unwrap();
+    dbwrite::write_triple(&db, &DbNode(s("a")), "b", &DbNode(s("c")), stamp1, true).unwrap();
+    dbwrite::write_triple(&db, &DbNode(s("a")), "b", &DbNode(s("c")), stamp2, false).unwrap();
+    dbwrite::write_triple(&db, &DbNode(s("a")), "b", &DbNode(s("c")), stamp3, true).unwrap();
 
     // Newest is before epoch, but exists
-    db::triple_insert(&db, &DbNode(s("d")), "e", &DbNode(s("f")), stamp1, false).unwrap();
-    db::triple_insert(&db, &DbNode(s("d")), "e", &DbNode(s("f")), stamp2, true).unwrap();
+    dbwrite::write_triple(&db, &DbNode(s("d")), "e", &DbNode(s("f")), stamp1, false).unwrap();
+    dbwrite::write_triple(&db, &DbNode(s("d")), "e", &DbNode(s("f")), stamp2, true).unwrap();
 
     // Newest is before epoch, but doesn't exist
-    db::triple_insert(&db, &DbNode(s("g")), "h", &DbNode(s("i")), stamp1, true).unwrap();
-    db::triple_insert(&db, &DbNode(s("g")), "h", &DbNode(s("i")), stamp1b, false).unwrap();
+    dbwrite::write_triple(&db, &DbNode(s("g")), "h", &DbNode(s("i")), stamp1, true).unwrap();
+    dbwrite::write_triple(&db, &DbNode(s("g")), "h", &DbNode(s("i")), stamp1b, false).unwrap();
 
     // Gc
     db::triple_gc_deleted(&db, stamp2 + Duration::seconds(1)).unwrap();

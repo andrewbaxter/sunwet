@@ -1,4 +1,5 @@
 pub mod db;
+pub mod dbwrite;
 pub mod filesutil;
 pub mod defaultviews;
 pub mod state;
@@ -1100,15 +1101,15 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
                 }
                 db::migrate(db)?;
                 if db
-                    .prepare("select 1 from sqlite_master where type='table' and name='meta_fts'")
-                    .context("Error preparing statement to check for meta_fts")?
+                    .prepare("select 1 from sqlite_master where type='table' and name='subjobj_fts'")
+                    .context("Error preparing statement to check for subjobj_fts")?
                     .query([])
-                    .context("Error running query to check for meta_fts")?
+                    .context("Error running query to check for subjobj_fts")?
                     .next()
-                    .context("Error reading query to check for meta_fts results")?
+                    .context("Error reading query to check for subjobj_fts results")?
                     .is_none() {
                     log.log(loga::DEBUG, "Initializing fts table");
-                    db.execute_batch(include_str!("setup_fts.sql")).context("Error setting up meta_fts")?;
+                    db.execute_batch(include_str!("setup_fts.sql")).context("Error setting up subjobj_fts")?;
                     log.log(loga::DEBUG, "Done initializing fts table");
                 }
                 return Ok(()) as Result<_, loga::Error>;

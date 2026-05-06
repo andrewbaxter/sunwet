@@ -65,6 +65,10 @@ use {
             Storage,
         },
         timers::callback::Timeout,
+        utils::{
+            document,
+            window,
+        },
     },
     js_sys::Math::random,
     lunk::{
@@ -149,6 +153,8 @@ use {
     web_sys::{
         DomParser,
         HtmlElement,
+        ScrollIntoViewOptions,
+        ScrollLogicalPosition,
     },
 };
 
@@ -1383,6 +1389,32 @@ fn build_widget_root_data_rows(
     });
 }
 
+fn center_to_playing() {
+    let class = style_export::class_state_element_selected().value;
+    let elements = document().get_elements_by_class_name(&class);
+    let Some(element) = elements.item(0) else {
+        return;
+    };
+    let mut parent = element.parent_element();
+    while let Some(p) = parent {
+        if p.tag_name().eq_ignore_ascii_case("details") && !p.has_attribute("open") {
+            p
+                .set_attribute("open", "")
+                .log(&state().log, "Error opening details element");
+        }
+        parent = p.parent_element();
+    }
+    let rect = element.get_bounding_client_rect();
+    let inner_height = window().inner_height().ok().and_then(|v| v.as_f64()).unwrap_or(f64::MAX);
+    let inner_width = window().inner_width().ok().and_then(|v| v.as_f64()).unwrap_or(f64::MAX);
+    if rect.top() < 0. || rect.bottom() > inner_height || rect.left() < 0. || rect.right() > inner_width {
+        let mut options = ScrollIntoViewOptions::new();
+        options.block(ScrollLogicalPosition::Center);
+        options.inline(ScrollLogicalPosition::Center);
+        element.scroll_into_view_with_scroll_into_view_options(&options);
+    }
+}
+
 fn build_transport(pc: &mut ProcessingContext, offline: bool) -> El {
     let transport_res = style_export::cont_bar_view_transport();
     if offline {
@@ -1519,6 +1551,42 @@ fn build_transport(pc: &mut ProcessingContext, offline: bool) -> El {
         }),
     ));
     setup_seekbar(pc, transport_res.seekbar, transport_res.seekbar_fill, transport_res.seekbar_label);
+
+    // Follow playing toggle
+    let button_center = transport_res.button_center;
+    button_center.ref_on("click", {
+        let eg = pc.eg();
+        move |_| eg.event(|pc| {
+            let new_val = !*state().follow_playing.borrow();
+            state().follow_playing.set(pc, new_val);
+            if new_val {
+                center_to_playing();
+            }
+        }).unwrap()
+    });
+    button_center.ref_own(
+        |b| link!(
+            (_pc = pc),
+            (follow_playing = state().follow_playing.clone()),
+            (),
+            (b = b.weak()) {
+                let b = b.upgrade()?;
+                b.ref_modify_classes(&[(&style_export::class_state_follow_playing().value, *follow_playing.borrow())]);
+            }
+        ),
+    );
+    button_center.ref_own(
+        |_b| link!(
+            (_pc = pc),
+            (follow_playing = state().follow_playing.clone(), playing_i = state().playlist.0.playing_i.clone()),
+            (),
+            () {
+                if *follow_playing.borrow() {
+                    center_to_playing();
+                }
+            }
+        ),
+    );
 
     // Assemble
     return transport_res.root;

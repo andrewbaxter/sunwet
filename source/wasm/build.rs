@@ -193,6 +193,11 @@ fn main() {
             returns: vec![("value", &string_)],
         },
         Func {
+            name: "classStateFollowPlaying",
+            args: vec![],
+            returns: vec![("value", &string_)],
+        },
+        Func {
             name: "classStateElementSelected",
             args: vec![],
             returns: vec![("value", &string_)],
@@ -450,6 +455,7 @@ fn main() {
             returns: vec![
                 ("root", &el_),
                 ("buttonShare", &el_),
+                ("buttonCenter", &el_),
                 ("buttonPrev", &el_),
                 ("buttonNext", &el_),
                 ("buttonPlay", &el_),
