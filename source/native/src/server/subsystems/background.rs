@@ -681,12 +681,13 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                             log.log(loga::DEBUG, "Doing database garbage collection");
                             tx(&state.db, |txn| {
                                 let epoch = Utc::now() - chrono::Duration::days(365);
-                                dbutil::triple_gc_deleted(txn, epoch)?;
-                                dbutil::meta_gc(txn)?;
-                                dbutil::commit_gc(txn)?;
-                                dbutil::gen_gc(txn)?;
-                                dbutil::subjobj_gc(txn)?;
-                                dbutil::predicate_gc(txn)?;
+                                let mut db = dbutil::db3(txn);
+                                dbutil::triple_gc_deleted(&mut db, epoch)?;
+                                dbutil::meta_gc(&mut db)?;
+                                dbutil::commit_gc(&mut db)?;
+                                dbutil::gen_gc(&mut db)?;
+                                dbutil::subjobj_gc(&mut db)?;
+                                dbutil::predicate_gc(&mut db)?;
                                 return Ok(());
                             }).await?;
 

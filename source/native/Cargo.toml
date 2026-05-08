@@ -8,7 +8,7 @@ chrono = { version = "0.4", features = ["serde"] }
 shared = { path = "../shared" }
 aargvark = { version = "0.6", features = ["serde_json"] }
 flowcontrol = "0.2"
-good-ormning = { version = "0.5.3", features = ["sqlite", "chrono"] }
+good-ormning = { version = "0.5.4", features = ["sqlite", "chrono"] }
 http = "1"
 http-body-util = "0.1"
 htwrap = { version = "=0.15.1" }
@@ -71,7 +71,7 @@ xmltree = "0.11"
 ts-rs = { version = "11", features = ["serde-json-impl"] }
 
 [build-dependencies]
-good-ormning = { version = "0.5.3", features = ["sqlite", "chrono"] }
+good-ormning = { version = "0.5.4", features = ["sqlite", "chrono"] }
 
 [dev-dependencies]
 pretty_assertions = "1"
