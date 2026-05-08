@@ -586,7 +586,7 @@ fn test_gc() {
     dbwrite::write_triple(&mut db, &DbNode(s("g")), "h", &DbNode(s("i")), stamp1b, false).unwrap();
 
     // Gc
-    dbutil::triple_gc_deleted(&db.0, stamp2 + Duration::seconds(1)).unwrap();
+    dbutil::triple_gc_deleted(&mut db, stamp2 + Duration::seconds(1)).unwrap();
     let want = vec![
         //. .
         format!("{:?}", (s("a"), "b".to_string(), s("c"), stamp3, true)),
@@ -600,7 +600,7 @@ fn test_gc() {
             .collect::<Vec<_>>();
     have.sort();
     pretty_assertions::assert_eq!(want, have);
-    dbutil::triple_gc_deleted(&db.0, stamp2 + Duration::seconds(1)).unwrap();
+    dbutil::triple_gc_deleted(&mut db, stamp2 + Duration::seconds(1)).unwrap();
     let mut have =
         db::hist_list_all(&mut db)
             .unwrap()
