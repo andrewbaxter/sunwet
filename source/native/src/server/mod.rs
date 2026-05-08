@@ -1,4 +1,6 @@
-pub mod db;
+use good_ormning::good_module;
+
+good_module!(pub db);
 pub mod dbwrite;
 pub mod filesutil;
 pub mod defaultviews;
@@ -61,7 +63,7 @@ use {
         ta_return,
     },
     fsutil::create_dirs,
-    good_ormning_runtime::GoodError,
+    good_ormning::runtime::GoodError,
     http::{
         HeaderMap,
         HeaderName,
@@ -260,17 +262,18 @@ async fn handle_query_req(
     }
     let meta = tx(&state.db, {
         move |txn| {
+            let mut db = dbutil::db3(txn);
             if let Some((view_id, view_hash)) = view_access {
                 let access_source_id = DbAccessSourceId(AccessSourceId::ViewId(view_id.clone()));
-                db::file_access_clear_nonversion(txn, &access_source_id, view_hash as i64)?;
+                db::file_access_clear_nonversion(&mut db, &access_source_id, view_hash as i64)?;
                 for file in &files {
-                    db::file_access_insert(txn, &DbFileHash(file.clone()), &access_source_id, view_hash as i64)?;
+                    db::file_access_insert(&mut db, &DbFileHash(file.clone()), &access_source_id, view_hash as i64)?;
                 }
             }
             let mut meta = HashMap::new();
             for file in files {
                 let node = Node::File(file);
-                if let Some(node_meta) = db::meta_get(txn, &DbNode(node.clone()))? {
+                if let Some(node_meta) = db::meta_get(&mut db, &DbNode(node.clone()))? {
                     meta.insert(node, NodeMeta { mime: node_meta.mimetype });
                 }
             }
@@ -583,7 +586,8 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                             C2SReq::GetNodeMeta(req) => {
                                 let responder = req.respond();
                                 let meta = tx(&state.db, move |txn| {
-                                    return Ok(db::meta_get(txn, &DbNode(req.node))?);
+                                    let mut db = dbutil::db3(txn);
+                                    return Ok(db::meta_get(&mut db, &DbNode(req.node))?);
                                 }).await.err_internal()?;
                                 resp = responder(match meta {
                                     Some(m) => Some(NodeMeta { mime: m.mimetype }),
@@ -605,6 +609,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     }
                                 }
                                 let (events, commit_descriptions) = tx(&state.db, move |txn| {
+                                    let mut db = dbutil::db3(txn);
                                     let events;
                                     if let Some(f) = req.filter {
                                         if let Some(p) = f.predicate {
@@ -612,7 +617,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                 ReqHistoryFilterPredicate::Incoming(p) => {
                                                     events = if let Some(after) = req.page_key {
                                                         db::hist_list_by_predicate_object_after(
-                                                            txn,
+                                                            &mut db,
                                                             after.0,
                                                             &DbNode(after.1.subject),
                                                             &after.1.predicate,
@@ -621,13 +626,13 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                             &DbNode(f.node),
                                                         )?
                                                     } else {
-                                                        db::hist_list_by_predicate_object(txn, &p, &DbNode(f.node))?
+                                                        db::hist_list_by_predicate_object(&mut db, &p, &DbNode(f.node))?
                                                     };
                                                 },
                                                 ReqHistoryFilterPredicate::Outgoing(p) => {
                                                     events = if let Some(after) = req.page_key {
                                                         db::hist_list_by_subject_predicate_after(
-                                                            txn,
+                                                            &mut db,
                                                             after.0,
                                                             &DbNode(after.1.subject),
                                                             &after.1.predicate,
@@ -637,7 +642,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                         )?
                                                     } else {
                                                         db::hist_list_by_subject_predicate(
-                                                            txn,
+                                                            &mut db,
                                                             &DbNode(f.node),
                                                             &p,
                                                         )?
@@ -647,7 +652,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                         } else {
                                             events = if let Some(after) = req.page_key {
                                                 db::hist_list_by_node_after(
-                                                    txn,
+                                                    &mut db,
                                                     after.0,
                                                     &DbNode(after.1.subject),
                                                     &after.1.predicate,
@@ -655,20 +660,20 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                     &DbNode(f.node),
                                                 )?
                                             } else {
-                                                db::hist_list_by_node(txn, &DbNode(f.node))?
+                                                db::hist_list_by_node(&mut db, &DbNode(f.node))?
                                             };
                                         }
                                     } else {
                                         events = if let Some(after) = req.page_key {
                                             db::hist_list_all_after(
-                                                txn,
+                                                &mut db,
                                                 after.0,
                                                 &DbNode(after.1.subject),
                                                 &after.1.predicate,
                                                 &DbNode(after.1.object),
                                             )?
                                         } else {
-                                            db::hist_list_all(txn)?
+                                            db::hist_list_all(&mut db)?
                                         };
                                     }
                                     let mut commit_descriptions = HashMap::new();
@@ -677,7 +682,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                             std::collections::hash_map::Entry::Occupied(_) => (),
                                             std::collections::hash_map::Entry::Vacant(entry) => {
                                                 entry.insert(
-                                                    db::commit_get(txn, ev.commit_)?
+                                                    db::commit_get(&mut db, ev.commit_)?
                                                         .ok_or_else(
                                                             || GoodError(
                                                                 format!(
@@ -723,8 +728,9 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 let triples = tx(&state.db, {
                                     let nodes = req.nodes.clone();
                                     move |txn| {
+                                        let mut db = dbutil::db3(txn);
                                         let nodes = nodes.into_iter().map(DbNode).collect::<Vec<_>>();
-                                        return Ok(db::triple_list_around(txn, nodes.iter().collect())?);
+                                        return Ok(db::triple_list_around(&mut db, nodes.iter().collect())?);
                                     }
                                 }).await.err_internal()?;
                                 resp = responder(triples.into_iter().map(|t| Triple {
@@ -795,21 +801,22 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                             loop {
                                                 let batch = tx(&state.db, {
                                                     move |txn| {
+                                                        let mut db = dbutil::db3(txn);
                                                         match (pivot, triple_end) {
                                                             (None, TripleEnd::Subject) => {
-                                                                return Ok(db::triples_get_subject_files_start(txn)?);
+                                                                return Ok(db::triples_get_subject_files_start(&mut db)?);
                                                             },
                                                             (None, TripleEnd::Object) => {
-                                                                return Ok(db::triples_get_object_files_start(txn)?);
+                                                                return Ok(db::triples_get_object_files_start(&mut db)?);
                                                             },
                                                             (Some(pivot), TripleEnd::Subject) => {
                                                                 return Ok(
-                                                                    db::triples_get_subject_files_after(txn, &pivot)?,
+                                                                    db::triples_get_subject_files_after(&mut db, &pivot)?,
                                                                 );
                                                             },
                                                             (Some(pivot), TripleEnd::Object) => {
                                                                 return Ok(
-                                                                    db::triples_get_object_files_after(txn, &pivot)?
+                                                                    db::triples_get_object_files_after(&mut db, &pivot)?
                                                                 );
                                                             },
                                                         }
@@ -1099,7 +1106,7 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
                         log.log(loga::INFO, "DB version 0 finished JSON canonicalization");
                     }
                 }
-                db::migrate(db)?;
+                db::migrate(dbutil::ConnWrap(db), None)?;
                 if db
                     .prepare("select 1 from sqlite_master where type='table' and name='subjobj_fts'")
                     .context("Error preparing statement to check for subjobj_fts")?

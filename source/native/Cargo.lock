@@ -720,6 +720,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "convert_case"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb402b8d4c85569410425650ce3eddc7d698ed96d39a73f941b08fb63082f1e7"
+dependencies = [
+ "unicode-segmentation",
+]
+
+[[package]]
 name = "cookie"
 version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1387,7 +1396,7 @@ checksum = "9b82684c1f420d684d4620d084161ebf3f9e5268eb57a93e4aaecdae050c02f7"
 dependencies = [
  "http 1.4.0",
  "htwrap 0.12.1",
- "loga",
+ "loga 0.5.4",
  "serde_json",
  "urlencoding",
 ]
@@ -1602,7 +1611,7 @@ checksum = "7a07b80ba95ed480e43942eafdead1386cc51478d106c6d658147354106701af"
 dependencies = [
  "cargo-manifest",
  "derive_more",
- "loga",
+ "loga 0.5.4",
  "markdown",
  "proc-macro2",
  "quote",
@@ -1673,30 +1682,72 @@ dependencies = [
 
 [[package]]
 name = "good-ormning"
-version = "0.4.1"
+version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab6b1abb44cba72c9b4cfea767f3e72f286d7e8d584bb5704bb289b52ad80979"
+checksum = "d0a56230cf3eb976b57a3386fe289783e9c69b4687de8d1a333154a0801f0949"
 dependencies = [
+ "async-trait",
  "chrono",
+ "convert_case 0.7.1",
+ "dyn-clone",
  "enum_dispatch",
  "flowcontrol",
  "genemichaels-lib",
+ "good-ormning-core",
+ "good-ormning-macros",
  "hex",
+ "loga 0.4.0",
  "proc-macro2",
  "quote",
  "rpds",
+ "rusqlite",
  "samevariant",
+ "serde",
+ "serde_json",
+ "sqlparser",
  "stable-hash",
  "syn 2.0.117",
 ]
 
 [[package]]
-name = "good-ormning-runtime"
-version = "0.4.0"
+name = "good-ormning-core"
+version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba1dffce551fe9cf85614bcf588727d0bfd5f1dd1b038f0a77e7bb11266129a3"
+checksum = "43cd7c1b6a9134256e42c9850b603c9791f5cd62c0e06552bd98cdbe1de08d21"
 dependencies = [
- "rusqlite",
+ "async-trait",
+ "chrono",
+ "convert_case 0.7.1",
+ "dyn-clone",
+ "enum_dispatch",
+ "flowcontrol",
+ "hex",
+ "loga 0.4.0",
+ "proc-macro2",
+ "quote",
+ "rpds",
+ "samevariant",
+ "serde",
+ "serde_json",
+ "sqlparser",
+ "stable-hash",
+ "syn 2.0.117",
+]
+
+[[package]]
+name = "good-ormning-macros"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a4eabd66084ee8cbb32dae786b6471b64784b043e24fd287ad68ebb44ad8df6"
+dependencies = [
+ "convert_case 0.7.1",
+ "good-ormning-core",
+ "proc-macro2",
+ "quote",
+ "serde",
+ "serde_json",
+ "sqlparser",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -1916,7 +1967,7 @@ dependencies = [
  "hyper",
  "hyper-rustls",
  "hyper-util",
- "loga",
+ "loga 0.5.4",
  "rand 0.8.5",
  "rustls",
  "serde",
@@ -1947,7 +1998,7 @@ dependencies = [
  "hyper",
  "hyper-rustls",
  "hyper-util",
- "loga",
+ "loga 0.5.4",
  "rand 0.8.5",
  "rustls",
  "serde",
@@ -2469,6 +2520,17 @@ checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 
 [[package]]
 name = "loga"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f4c823aa555242737bd893f76bfee5669a71f142e42da91fb6dad229c916b74"
+dependencies = [
+ "chrono",
+ "console 0.15.11",
+ "textwrap",
+]
+
+[[package]]
+name = "loga"
 version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2f50b649ed57e74d9ffd7c9410781bdc32ce7bfcae891c5debaf5dc423dc4aea"
@@ -2611,7 +2673,6 @@ dependencies = [
  "flowcontrol",
  "futures",
  "good-ormning",
- "good-ormning-runtime",
  "hex",
  "http 1.4.0",
  "http-body",
@@ -2623,7 +2684,7 @@ dependencies = [
  "hyper-util",
  "image",
  "log",
- "loga",
+ "loga 0.5.4",
  "mime_guess",
  "moka",
  "oauth2",
@@ -4080,6 +4141,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sqlparser"
+version = "0.52.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a875d8cd437cc8a97e9aeaeea352ec9a19aea99c23e9effb17757291de80b08"
+dependencies = [
+ "log",
+]
+
+[[package]]
 name = "stable-hash"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4379,7 +4449,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "badb7db9abf5142eb12f9a866904bcdcd5b2aecb9caa70858999d413d02baa75"
 dependencies = [
  "futures",
- "loga",
+ "loga 0.5.4",
  "tokio",
  "tokio-util",
  "waitgroup",

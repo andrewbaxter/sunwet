@@ -1,152 +1,117 @@
 use {
     crate::buildlib::BuildDbInput,
+    good_ormning::QueryResCount,
     good_ormning::sqlite::{
         Query,
-        QueryResCount,
         Version,
         new_delete,
         new_insert,
         new_select,
-        new_select_body,
         query::{
             expr::{
                 BinOp,
-                Binding,
                 Expr,
+                SerialExpr,
             },
             helpers::{
                 expr_and,
                 expr_field_eq,
                 expr_field_gt,
                 expr_field_lt,
-                expr_or,
                 field_param,
-                set_field,
             },
-            insert::InsertConflict,
-            select_body::Order,
-            utils::{
-                CteBuilder,
-                With,
-            },
+            select::Order,
         },
-        schema::{
-            constraint::{
-                ConstraintType::PrimaryKey,
-                PrimaryKeyDef,
-            },
-            field::{
-                FieldType,
-                field_bool,
-                field_i64,
-                field_str,
-                field_utctime_ms_chrono,
-            },
+        schema::field::{
+            field_bool,
+            field_i64,
+            field_str,
+            field_utctime_ms_chrono,
         },
+        types::type_str,
     },
 };
 
 pub fn build(input: BuildDbInput) -> (Version, Vec<Query>) {
-    let mut version = Version::default();
+    let version = Version::new();
     let mut queries = vec![];
 
-    // Subjobj (deduplicated node values with FTS fulltext)
-    let subjobj_table;
-    let subjobj_value;
+    let node_type = version.custom_type("node").rust_type(input.node_type_path).base_type(type_str().build());
+    let filehash_type = version.custom_type("filehash").rust_type(input.filehash_type_path).base_type(type_str().build());
+    let access_source_type = version.custom_type("access_source").rust_type(input.access_source_type_path).base_type(type_str().build());
+
+    // Subjobj (deduplicated node values)
     {
-        let t = version.table("subjobjt001", "subjobj");
-        let value = t.field(&mut version, "subjobjv001", "value", FieldType::with(&input.node_type));
-        let fulltext = t.field(&mut version, "subjobjf001", "fulltext", field_str().build());
-        t.constraint(
-            &mut version,
-            "subjobjpk01",
-            "subjobj_pk",
-            PrimaryKey(PrimaryKeyDef { fields: vec![value.clone()] }),
-        );
-        t.index("subjobjix01", "subjobj_value", &[&value]).build(&mut version);
+        let t = version.table("subjobj");
+        let value = t.field("value", node_type.field_type());
+        let fulltext = t.field("fulltext", field_str().migrate_fill(SerialExpr::LitString("".to_string())).build());
+        t.primary_key("subjobj_pk", &[&value]);
+        t.index("subjobj_value", &[&value]);
         queries.push(
-            new_insert(&t, vec![set_field("value", &value), (fulltext.clone(), Expr::LitString("".to_string()))])
-                .on_conflict(InsertConflict::DoNothing)
+            new_insert(&t, vec![
+                (value.clone(), field_param("value", &value)),
+                (fulltext.clone(), field_param("fulltext", &fulltext)),
+            ])
+                .on_conflict_do_nothing()
                 .build_query("subjobj_insert", QueryResCount::None),
         );
         queries.push(
-            new_insert(&t, vec![set_field("value", &value), set_field("fulltext", &fulltext)])
-                .on_conflict(InsertConflict::DoUpdate(vec![set_field("fulltext", &fulltext)]))
+            new_insert(&t, vec![
+                (value.clone(), field_param("value", &value)),
+                (fulltext.clone(), field_param("fulltext", &fulltext)),
+            ])
+                .on_conflict_do_update(&[&value], vec![
+                    (fulltext.clone(), field_param("fulltext", &fulltext)),
+                ])
                 .build_query("subjobj_update_fulltext", QueryResCount::None),
         );
-        subjobj_table = t;
-        subjobj_value = value;
     }
 
     // Predicate (deduplicated predicates)
-    let predicate_table;
-    let predicate_value;
     {
-        let t = version.table("predicatetb1", "predicate");
-        let value = t.field(&mut version, "predicatevl1", "value", field_str().build());
-        t.constraint(
-            &mut version,
-            "predicatepk1",
-            "predicate_pk",
-            PrimaryKey(PrimaryKeyDef { fields: vec![value.clone()] }),
-        );
-        t.index("predicateix1", "predicate_value", &[&value]).build(&mut version);
+        let t = version.table("predicate");
+        let value = t.field("value", field_str().build());
+        t.primary_key("predicate_pk", &[&value]);
+        t.index("predicate_value", &[&value]);
         queries.push(
-            new_insert(&t, vec![set_field("value", &value)])
-                .on_conflict(InsertConflict::DoNothing)
+            new_insert(&t, vec![
+                (value.clone(), field_param("value", &value)),
+            ])
+                .on_conflict_do_nothing()
                 .build_query("predicate_insert", QueryResCount::None),
         );
-        predicate_table = t;
-        predicate_value = value;
     }
 
-    // Triple snapshot (current state: only existing triples at latest commit)
-    let triple_snapshot_table;
-    let triple_snapshot_subject;
-    let triple_snapshot_predicate;
-    let triple_snapshot_object;
-    let triple_snapshot_commit;
+    // Triple snapshot (current state)
     {
-        let t = version.table("triplesstb01", "triple_snapshot");
-        let subject = t.field(&mut version, "triplessvl01", "subject", FieldType::with(&input.node_type));
-        let predicate = t.field(&mut version, "triplessvl02", "predicate", field_str().build());
-        let object = t.field(&mut version, "triplessvl03", "object", FieldType::with(&input.node_type));
-        let commit = t.field(&mut version, "triplessvl04", "commit_", field_utctime_ms_chrono().build());
-        t.constraint(
-            &mut version,
-            "triplesspk01",
-            "triple_snapshot_pk",
-            PrimaryKey(PrimaryKeyDef { fields: vec![subject.clone(), predicate.clone(), object.clone()] }),
-        );
-        t.index("triplessix01", "triple_snapshot_obj_pred_subj", &[&object, &predicate, &subject])
-            .unique()
-            .build(&mut version);
-        t.index("triplessix02", "triple_snapshot_pred_subj", &[&predicate, &subject]).build(&mut version);
-        t.index("triplessix03", "triple_snapshot_pred_obj", &[&predicate, &object]).build(&mut version);
+        let t = version.table("triple_snapshot");
+        let subject = t.field("subject", node_type.field_type());
+        let predicate = t.field("predicate", field_str().build());
+        let object = t.field("object", node_type.field_type());
+        let commit_ = t.field("commit_", field_utctime_ms_chrono().build());
+        t.primary_key("triple_snapshot_pk", &[&subject, &predicate, &object]);
+        t.unique_index("triple_snapshot_obj_pred_subj", &[&object, &predicate, &subject]);
+        t.index("triple_snapshot_pred_subj", &[&predicate, &subject]);
+        t.index("triple_snapshot_pred_obj", &[&predicate, &object]);
         queries.push(
-            new_insert(
-                &t,
-                vec![
-                    set_field("subject", &subject),
-                    set_field("predicate", &predicate),
-                    set_field("object", &object),
-                    set_field("commit_", &commit)
-                ],
-            )
-                .on_conflict(InsertConflict::DoUpdate(vec![set_field("commit_", &commit)]))
+            new_insert(&t, vec![
+                (subject.clone(), field_param("subject", &subject)),
+                (predicate.clone(), field_param("predicate", &predicate)),
+                (object.clone(), field_param("object", &object)),
+                (commit_.clone(), field_param("commit_", &commit_)),
+            ])
+                .on_conflict_do_update(&[&subject, &predicate, &object], vec![
+                    (commit_.clone(), field_param("commit_", &commit_)),
+                ])
                 .build_query("triple_snapshot_upsert", QueryResCount::None),
         );
         queries.push(
             new_delete(&t)
-                .where_(
-                    expr_and(
-                        vec![
-                            expr_field_eq("subject", &subject),
-                            expr_field_eq("predicate", &predicate),
-                            expr_field_eq("object", &object)
-                        ],
-                    ),
-                )
+                .where_(expr_and(vec![
+                    expr_field_eq("eq_subject", &subject),
+                    expr_field_eq("eq_predicate", &predicate),
+                    expr_field_eq("eq_object", &object),
+                ]))
                 .build_query("triple_snapshot_delete", QueryResCount::None),
         );
         queries.push(
@@ -154,114 +119,84 @@ pub fn build(input: BuildDbInput) -> (Version, Vec<Query>) {
                 .return_field(&subject)
                 .return_field(&predicate)
                 .return_field(&object)
-                .return_field(&commit)
-                .where_(
-                    expr_and(
-                        vec![
-                            expr_field_eq("subject", &subject),
-                            expr_field_eq("predicate", &predicate),
-                            expr_field_eq("object", &object)
+                .return_field(&commit_)
+                .where_(expr_and(vec![
+                    expr_field_eq("eq_subject", &subject),
+                    expr_field_eq("eq_predicate", &predicate),
+                    expr_field_eq("eq_object", &object),
+                ]))
+                .limit(Expr::LitI64(1))
+                .build_query_named_res("triple_get", QueryResCount::MaybeOne, "DbResTripleSnapshot"),
+        );
+        // triple_list_around: select triples where subject or object is in a list of nodes
+        {
+            let mut nodes_type = subject.r#type().type_.clone();
+            nodes_type.arr = true;
+            let nodes_param = Expr::Param { name: "nodes".into(), type_: nodes_type };
+            queries.push(
+                new_select(&t)
+                    .return_field(&subject)
+                    .return_field(&predicate)
+                    .return_field(&object)
+                    .where_(Expr::BinOpChain {
+                        op: BinOp::Or,
+                        exprs: vec![
+                            Expr::BinOp {
+                                left: Box::new(Expr::Field(subject.to_ref())),
+                                op: BinOp::In,
+                                right: Box::new(nodes_param.clone()),
+                            },
+                            Expr::BinOp {
+                                left: Box::new(Expr::Field(object.to_ref())),
+                                op: BinOp::In,
+                                right: Box::new(nodes_param),
+                            },
                         ],
-                    ),
-                )
-                .limit(Expr::LitI32(1))
-                .build_query("triple_get", QueryResCount::MaybeOne),
-        );
-        queries.push(new_select(&t)
-            .return_field(&subject)
-            .return_field(&predicate)
-            .return_field(&object)
-            .where_(expr_or(vec![Expr::BinOp {
-                left: Box::new(Expr::field(&subject)),
-                op: BinOp::In,
-                right: Box::new(Expr::Param {
-                    name: "nodes".to_string(),
-                    type_: input.node_array_type.clone(),
-                }),
-            }, Expr::BinOp {
-                left: Box::new(Expr::field(&object)),
-                op: BinOp::In,
-                right: Box::new(Expr::Param {
-                    name: "nodes".to_string(),
-                    type_: input.node_array_type.clone(),
-                }),
-            }]))
-            .build_query("triple_list_around", QueryResCount::Many));
-        queries.push(
-            new_select(&t)
-                .where_(Expr::BinOp {
-                    left: Box::new(Expr::field(&subject)),
-                    op: BinOp::In,
-                    right: Box::new(Expr::Param {
-                        name: "nodes".to_string(),
-                        type_: input.node_array_type.clone(),
-                    }),
-                })
-                .return_field(&subject)
-                .build_query("node_include_current_existing_subj", QueryResCount::Many),
-        );
-        queries.push(
-            new_select(&t)
-                .where_(Expr::BinOp {
-                    left: Box::new(Expr::field(&object)),
-                    op: BinOp::In,
-                    right: Box::new(Expr::Param {
-                        name: "nodes".to_string(),
-                        type_: input.node_array_type.clone(),
-                    }),
-                })
-                .return_field(&object)
-                .build_query("node_include_current_existing_obj", QueryResCount::Many),
-        );
-        triple_snapshot_table = t;
-        triple_snapshot_subject = subject;
-        triple_snapshot_predicate = predicate;
-        triple_snapshot_object = object;
-        triple_snapshot_commit = commit;
+                    })
+                    .build_query_named_res("triple_list_around", QueryResCount::Many, "DbResTripleAround"),
+            );
+        }
+        // node_include_current_existing_subj / obj: select nodes present in snapshot
+        for (name, field) in [("subj", &subject), ("obj", &object)] {
+            let mut nodes_type = field.r#type().type_.clone();
+            nodes_type.arr = true;
+            queries.push(
+                new_select(&t)
+                    .return_field(&field)
+                    .where_(Expr::BinOp {
+                        left: Box::new(Expr::Field(field.to_ref())),
+                        op: BinOp::In,
+                        right: Box::new(Expr::Param { name: "nodes".into(), type_: nodes_type }),
+                    })
+                    .build_query(&format!("node_include_current_existing_{}", name), QueryResCount::Many),
+            );
+        }
     }
 
     // Triple2 (normalized history table)
-    let triple2_table;
-    let triple2_commit;
-    let triple2_subject;
-    let triple2_predicate;
-    let triple2_object;
     {
-        let t = version.table("triple2tbl01", "triple2");
-        let subject = t.field(&mut version, "triple2subj1", "subject", FieldType::with(&input.node_type));
-        let predicate = t.field(&mut version, "triple2pred1", "predicate", field_str().build());
-        let object = t.field(&mut version, "triple2obj11", "object", FieldType::with(&input.node_type));
-        let commit = t.field(&mut version, "triple2comm1", "commit_", field_utctime_ms_chrono().build());
-        let exist = t.field(&mut version, "triple2exst1", "exists", field_bool().build());
-        t.constraint(
-            &mut version,
-            "triple2pk001",
-            "triple2_pk",
-            PrimaryKey(
-                PrimaryKeyDef { fields: vec![subject.clone(), predicate.clone(), object.clone(), commit.clone()] },
-            ),
-        );
-        t
-            .index("triple2ix001", "triple2_index_obj_pred_subj", &[&object, &predicate, &subject, &commit])
-            .unique()
-            .build(&mut version);
-        t.index("triple2ix002", "triple2_index_pred_subj", &[&predicate, &subject, &commit]).build(&mut version);
-        t.index("triple2ix003", "triple2_index_pred_obj", &[&predicate, &object, &commit]).build(&mut version);
-        t.index("triple2ix004", "triple2_commit_exists", &[&commit, &exist]).build(&mut version);
+        let t = version.table("triple2");
+        let subject = t.field("subject", node_type.field_type());
+        let predicate = t.field("predicate", field_str().build());
+        let object = t.field("object", node_type.field_type());
+        let commit = t.field("commit_", field_utctime_ms_chrono().build());
+        let exist = t.field("exists", field_bool().build());
+        t.primary_key("triple2_pk", &[&subject, &predicate, &object, &commit]);
+        t.unique_index("triple2_index_obj_pred_subj", &[&object, &predicate, &subject, &commit]);
+        t.index("triple2_index_pred_subj", &[&predicate, &subject, &commit]);
+        t.index("triple2_index_pred_obj", &[&predicate, &object, &commit]);
+        t.index("triple2_commit_exists", &[&commit, &exist]);
         queries.push(
-            new_insert(
-                &t,
-                vec![
-                    set_field("subject", &subject),
-                    set_field("predicate", &predicate),
-                    set_field("object", &object),
-                    set_field("commit_", &commit),
-                    set_field("exist", &exist)
-                ],
-            )
-                .on_conflict(InsertConflict::DoUpdate(vec![set_field("exist", &exist)]))
+            new_insert(&t, vec![
+                (subject.clone(), field_param("subject", &subject)),
+                (predicate.clone(), field_param("predicate", &predicate)),
+                (object.clone(), field_param("object", &object)),
+                (commit.clone(), field_param("commit_", &commit)),
+                (exist.clone(), field_param("exists", &exist)),
+            ])
                 .build_query("triple_insert", QueryResCount::None),
         );
+
         for (name0, where0) in [
             ("all", None),
             ("by_node", Some(Expr::BinOpChain {
@@ -270,9 +205,7 @@ pub fn build(input: BuildDbInput) -> (Version, Vec<Query>) {
             })),
             (
                 "by_subject_predicate",
-                Some(
-                    expr_and(vec![expr_field_eq("eq_subject", &subject), expr_field_eq("eq_predicate", &predicate)]),
-                ),
+                Some(expr_and(vec![expr_field_eq("eq_subject", &subject), expr_field_eq("eq_predicate", &predicate)])),
             ),
             (
                 "by_predicate_object",
@@ -290,24 +223,15 @@ pub fn build(input: BuildDbInput) -> (Version, Vec<Query>) {
                     where_exprs.push(expr_field_lt("time", &commit));
                     where_exprs.push(Expr::BinOp {
                         left: Box::new(Expr::LitArray(vec![
-                            Expr::field(&subject),
-                            Expr::field(&predicate),
-                            Expr::field(&object)
+                            Expr::Field(subject.to_ref()),
+                            Expr::Field(predicate.to_ref()),
+                            Expr::Field(object.to_ref()),
                         ])),
                         op: BinOp::GreaterThan,
                         right: Box::new(Expr::LitArray(vec![
-                            Expr::Param {
-                                name: "page_subject".to_string(),
-                                type_: subject.type_.type_.clone(),
-                            },
-                            Expr::Param {
-                                name: "page_predicate".to_string(),
-                                type_: predicate.type_.type_.clone(),
-                            },
-                            Expr::Param {
-                                name: "page_object".to_string(),
-                                type_: object.type_.type_.clone(),
-                            }
+                            field_param("page_subject", &subject),
+                            field_param("page_predicate", &predicate),
+                            field_param("page_object", &object),
                         ])),
                     });
                 }
@@ -326,12 +250,12 @@ pub fn build(input: BuildDbInput) -> (Version, Vec<Query>) {
                 }
                 sel =
                     sel
-                        .order(Expr::field(&commit), Order::Desc)
-                        .order(Expr::field(&exist), Order::Asc)
-                        .order(Expr::field(&subject), Order::Asc)
-                        .order(Expr::field(&predicate), Order::Asc)
-                        .order(Expr::field(&object), Order::Asc)
-                        .limit(Expr::LitI32(500));
+                        .order(Expr::Field(commit.to_ref()), Order::Desc)
+                        .order(Expr::Field(exist.to_ref()), Order::Asc)
+                        .order(Expr::Field(subject.to_ref()), Order::Asc)
+                        .order(Expr::Field(predicate.to_ref()), Order::Asc)
+                        .order(Expr::Field(object.to_ref()), Order::Asc)
+                        .limit(Expr::LitI64(500));
                 queries.push(
                     sel.build_query_named_res(
                         &format!("hist_list_{}{}", name0, suffix),
@@ -343,343 +267,183 @@ pub fn build(input: BuildDbInput) -> (Version, Vec<Query>) {
         }
         for (name, field) in [("subject", &subject), ("object", &object)] {
             let expr_like = Expr::BinOp {
-                left: Box::new(Expr::field(field)),
+                left: Box::new(Expr::Field(field.to_ref())),
                 op: BinOp::Like,
                 right: Box::new(Expr::LitString(r#"{"t":"f",%"#.to_string())),
             };
-            queries.push(
-                new_select(&t)
+            {
+                let mut sel = new_select(&t)
                     .where_(expr_like.clone())
-                    .order(Expr::field(field), Order::Asc)
-                    .limit(Expr::LitI32(500))
-                    .return_field(&field)
-                    .distinct()
-                    .build_query(&format!("triples_get_{}_files_start", name), QueryResCount::Many),
-            );
-            queries.push(
-                new_select(&t)
-                    .where_(expr_and(vec![expr_like, expr_field_gt(name, field)]))
-                    .order(Expr::field(field), Order::Asc)
-                    .limit(Expr::LitI32(500))
-                    .return_field(&field)
-                    .distinct()
-                    .build_query(&format!("triples_get_{}_files_after", name), QueryResCount::Many),
-            );
+                    .order(Expr::Field(field.to_ref()), Order::Asc)
+                    .limit(Expr::LitI64(500))
+                    .return_field(&field);
+                sel.q.distinct = true;
+                queries.push(sel.build_query(&format!("triples_get_{}_files_start", name), QueryResCount::Many));
+            }
+            {
+                let mut sel = new_select(&t)
+                    .where_(expr_and(vec![expr_like, expr_field_gt(name, &field)]))
+                    .order(Expr::Field(field.to_ref()), Order::Asc)
+                    .limit(Expr::LitI64(500))
+                    .return_field(&field);
+                sel.q.distinct = true;
+                queries.push(sel.build_query(&format!("triples_get_{}_files_after", name), QueryResCount::Many));
+            }
         }
-        // Delete old history entries: before epoch AND (is a delete marker OR not the snapshot entry)
-        queries.push({
-            new_delete(&t).where_(expr_and(vec![
-                expr_field_lt("epoch", &commit),
-                expr_or(vec![
-                    Expr::BinOp {
-                        left: Box::new(Expr::Binding(Binding::field(&exist))),
-                        op: BinOp::Equals,
-                        right: Box::new(Expr::LitBool(false)),
-                    },
-                    Expr::Exists {
-                        not: true,
-                        body: Box::new(
-                            new_select_body(&triple_snapshot_table)
-                                .return_named("x", Expr::LitI32(1))
-                                .where_(expr_and(vec![
-                                    Expr::BinOp {
-                                        left: Box::new(Expr::Binding(Binding::field(&subject))),
-                                        op: BinOp::Equals,
-                                        right: Box::new(Expr::Binding(Binding::field(&triple_snapshot_subject))),
-                                    },
-                                    Expr::BinOp {
-                                        left: Box::new(Expr::Binding(Binding::field(&predicate))),
-                                        op: BinOp::Equals,
-                                        right: Box::new(Expr::Binding(Binding::field(&triple_snapshot_predicate))),
-                                    },
-                                    Expr::BinOp {
-                                        left: Box::new(Expr::Binding(Binding::field(&object))),
-                                        op: BinOp::Equals,
-                                        right: Box::new(Expr::Binding(Binding::field(&triple_snapshot_object))),
-                                    },
-                                    Expr::BinOp {
-                                        left: Box::new(Expr::Binding(Binding::field(&commit))),
-                                        op: BinOp::Equals,
-                                        right: Box::new(Expr::Binding(Binding::field(&triple_snapshot_commit))),
-                                    }
-                                ]))
-                                .build(),
-                        ),
-                        body_junctions: vec![],
-                    }
-                ])
-            ])).build_query("triple_gc_deleted", QueryResCount::None)
-        });
-        triple2_table = t;
-        triple2_commit = commit;
-        triple2_subject = subject;
-        triple2_predicate = predicate;
-        triple2_object = object;
     }
-    // subjobj GC: delete node values no longer referenced as subject or object in any triple
-    queries.push(new_delete(&subjobj_table).where_(expr_and(vec![
-        Expr::Exists {
-            not: true,
-            body: Box::new(
-                new_select_body(&triple2_table)
-                    .return_named("x", Expr::LitI32(1))
-                    .where_(Expr::BinOp {
-                        left: Box::new(Expr::Binding(Binding::field(&subjobj_value))),
-                        op: BinOp::Equals,
-                        right: Box::new(Expr::Binding(Binding::field(&triple2_subject))),
-                    })
-                    .build(),
-            ),
-            body_junctions: vec![],
-        },
-        Expr::Exists {
-            not: true,
-            body: Box::new(
-                new_select_body(&triple2_table)
-                    .return_named("x", Expr::LitI32(1))
-                    .where_(Expr::BinOp {
-                        left: Box::new(Expr::Binding(Binding::field(&subjobj_value))),
-                        op: BinOp::Equals,
-                        right: Box::new(Expr::Binding(Binding::field(&triple2_object))),
-                    })
-                    .build(),
-            ),
-            body_junctions: vec![],
-        },
-    ])).build_query("subjobj_gc", QueryResCount::None));
-    // predicate GC: delete predicate values no longer referenced in any triple
-    queries.push(new_delete(&predicate_table).where_(Expr::Exists {
-        not: true,
-        body: Box::new(
-            new_select_body(&triple2_table)
-                .return_named("x", Expr::LitI32(1))
-                .where_(Expr::BinOp {
-                    left: Box::new(Expr::Binding(Binding::field(&predicate_value))),
-                    op: BinOp::Equals,
-                    right: Box::new(Expr::Binding(Binding::field(&triple2_predicate))),
-                })
-                .build(),
-        ),
-        body_junctions: vec![],
-    }).build_query("predicate_gc", QueryResCount::None));
 
     // Commits
     {
-        let t = version.table("z1YCS4PD2", "commit");
-        let event_stamp = t.field(&mut version, "zNKHCTSZK", "idtimestamp", field_utctime_ms_chrono().build());
-        t.constraint(
-            &mut version,
-            "zN5R3XY01",
-            "commit_timestamp",
-            PrimaryKey(PrimaryKeyDef { fields: vec![event_stamp.clone()] }),
-        );
-        let desc = t.field(&mut version, "z7K4EDCAB", "description", field_str().build());
+        let t = version.table("commit");
+        let event_stamp = t.field("idtimestamp", field_utctime_ms_chrono().build());
+        let desc = t.field("description", field_str().build());
+        t.primary_key("commit_timestamp", &[&event_stamp]);
         queries.push(
-            new_insert(
-                &t,
-                vec![set_field("stamp", &event_stamp), set_field("desc", &desc)],
-            ).build_query("commit_insert", QueryResCount::None),
+            new_insert(&t, vec![
+                (event_stamp.clone(), field_param("idtimestamp", &event_stamp)),
+                (desc.clone(), field_param("description", &desc)),
+            ])
+                .build_query("commit_insert", QueryResCount::None),
         );
         queries.push(
             new_select(&t)
                 .return_field(&event_stamp)
                 .return_field(&desc)
-                .where_(expr_field_eq("stamp", &event_stamp))
-                .build_query("commit_get", QueryResCount::MaybeOne),
+                .where_(expr_field_eq("eq_idtimestamp", &event_stamp))
+                .build_query_named_res("commit_get", QueryResCount::MaybeOne, "DbResCommit"),
         );
-        queries.push({
-            let mut active_commits =
-                CteBuilder::new(
-                    "active_commits",
-                    new_select_body(&triple2_table).distinct().return_field(&triple2_commit).build(),
-                );
-            let active_commits_stamp = active_commits.field("stamp", triple2_commit.type_.type_.clone());
-            let (table_active_commits, cte_active) = active_commits.build();
-            new_delete(&t).with(With {
-                recursive: false,
-                ctes: vec![cte_active],
-            }).where_(Expr::Exists {
-                not: true,
-                body: Box::new(
-                    new_select_body(&table_active_commits).return_named("x", Expr::LitI32(1)).where_(Expr::BinOp {
-                        left: Box::new(Expr::field(&event_stamp)),
-                        op: BinOp::Equals,
-                        right: Box::new(Expr::field(&active_commits_stamp)),
-                    }).build(),
-                ),
-                body_junctions: vec![],
-            }).build_query("commit_gc", QueryResCount::None)
-        });
     }
 
-    // Metadata (file mime types; fulltext column kept for schema compat but FTS now uses subjobj)
-    let meta_table;
-    let meta_node;
-    let meta_mimetype;
+    // Metadata (file mime types; fulltext for FTS)
     {
-        meta_table = version.table("z7B1CHM4F", "meta");
-        meta_node = meta_table.field(&mut version, "zLQI9HQUQ", "node", FieldType::with(&input.node_type));
-        meta_mimetype = meta_table.field(&mut version, "zSZVNBP0E", "mimetype", field_str().opt().build());
-        let fulltext = meta_table.field(&mut version, "zPI3TKEA8", "fulltext", field_str().build());
-        meta_table.constraint(
-            &mut version,
-            "zCW5WMK7U",
-            "meta_node",
-            PrimaryKey(PrimaryKeyDef { fields: vec![meta_node.clone()] }),
-        );
+        let t = version.table("meta");
+        let node = t.field("node", node_type.field_type());
+        let mimetype = t.field("mimetype", field_str().opt().build());
+        let fulltext = t.field("fulltext", field_str().build());
+        t.primary_key("meta_node", &[&node]);
         queries.push(
-            new_insert(
-                &meta_table,
-                vec![
-                    set_field("node", &meta_node),
-                    set_field("mimetype", &meta_mimetype),
-                    (fulltext.clone(), Expr::LitString("".to_string()))
-                ],
-            )
-                .on_conflict(InsertConflict::DoUpdate(vec![set_field("mimetype", &meta_mimetype)]))
-                .build_query("meta_upsert_file", QueryResCount::None),
-        );
-        queries.push(
-            new_delete(&meta_table)
-                .where_(expr_field_eq("node", &meta_node))
-                .build_query("meta_delete", QueryResCount::None),
-        );
-        queries.push(
-            new_select(&meta_table)
-                .where_(expr_field_eq("node", &meta_node))
-                .return_fields(&[&meta_mimetype, &fulltext])
+            new_select(&t)
+                .return_field(&mimetype)
+                .where_(expr_field_eq("eq_node", &node))
                 .build_query_named_res("meta_get", QueryResCount::MaybeOne, "Metadata"),
         );
-        queries.push(new_select(&meta_table).where_(Expr::BinOp {
-            left: Box::new(Expr::field(&meta_node)),
-            op: BinOp::In,
-            right: Box::new(Expr::Param {
-                name: "nodes".to_string(),
-                type_: input.node_array_type.clone(),
-            }),
-        }).return_field(&meta_node).build_query("meta_include_existing", QueryResCount::Many));
-        queries.push(new_delete(&meta_table).where_(Expr::Exists {
-            not: true,
-            body: Box::new(
-                new_select_body(&triple2_table)
-                    .return_named("x", Expr::LitI32(1))
+        queries.push(
+            new_insert(&t, vec![
+                (node.clone(), field_param("node", &node)),
+                (mimetype.clone(), field_param("mimetype", &mimetype)),
+                (fulltext.clone(), Expr::LitString("".into())),
+            ])
+                .on_conflict_do_update(&[&node], vec![
+                    (mimetype.clone(), field_param("mimetype", &mimetype)),
+                ])
+                .build_query("meta_upsert_file", QueryResCount::None),
+        );
+        {
+            let mut nodes_type = node.r#type().type_.clone();
+            nodes_type.arr = true;
+            queries.push(
+                new_select(&t)
+                    .return_field(&node)
                     .where_(Expr::BinOp {
-                        left: Box::new(Expr::BinOp {
-                            left: Box::new(Expr::field(&meta_node)),
-                            op: BinOp::Equals,
-                            right: Box::new(Expr::field(&triple2_subject)),
-                        }),
-                        op: BinOp::Or,
-                        right: Box::new(Expr::BinOp {
-                            left: Box::new(Expr::field(&meta_node)),
-                            op: BinOp::Equals,
-                            right: Box::new(Expr::field(&triple2_object)),
-                        }),
+                        left: Box::new(Expr::Field(node.to_ref())),
+                        op: BinOp::In,
+                        right: Box::new(Expr::Param { name: "nodes".into(), type_: nodes_type }),
                     })
-                    .build(),
-            ),
-            body_junctions: vec![],
-        }).build_query("meta_gc", QueryResCount::None));
+                    .build_query("meta_include_existing", QueryResCount::Many),
+            );
+        }
     }
 
     // Generated
     {
-        let t = version.table("ywyc97a308uwk6", "generated");
-        let node = t.field(&mut version, "ll73nt097vqp9h", "node", FieldType::with(&input.node_type));
-        let gentype = t.field(&mut version, "9ws4mwxpqo8f2t", "gentype", field_str().build());
-        let mimetype = t.field(&mut version, "cxp4q2vrhu3164", "mimetype", field_str().build());
-        t.constraint(
-            &mut version,
-            "66tg3ve8apuxrz",
-            "generated_pk",
-            PrimaryKey(PrimaryKeyDef { fields: vec![node.clone(), gentype.clone()] }),
-        );
-        queries.push(
-            new_insert(
-                &t,
-                vec![set_field("node", &node), set_field("gentype", &gentype), set_field("mimetype", &mimetype)],
-            )
-                .on_conflict(InsertConflict::DoUpdate(vec![(mimetype.clone(), field_param("mimetype", &mimetype))]))
-                .build_query("gen_ensure", QueryResCount::None),
-        );
+        let t = version.table("generated");
+        let node = t.field("node", node_type.field_type());
+        let gentype = t.field("gentype", field_str().build());
+        let mimetype = t.field("mimetype", field_str().build());
+        t.primary_key("generated_pk", &[&node, &gentype]);
         queries.push(
             new_select(&t)
-                .where_(expr_and(vec![expr_field_eq("node", &node), expr_field_eq("gentype", &gentype)]))
-                .return_fields(&[&mimetype])
-                .build_query_named_res("gen_get", QueryResCount::MaybeOne, "GenMetadata"),
+                .return_field(&mimetype)
+                .where_(expr_and(vec![
+                    expr_field_eq("eq_node", &node),
+                    expr_field_eq("eq_gentype", &gentype),
+                ]))
+                .build_query_named_res("gen_get", QueryResCount::MaybeOne, "DbResGen"),
         );
-        queries.push(new_select(&t).where_(Expr::BinOp {
-            left: Box::new(Expr::field(&node)),
-            op: BinOp::In,
-            right: Box::new(Expr::Param {
-                name: "nodes".to_string(),
-                type_: input.node_array_type.clone(),
-            }),
-        }).return_field(&node).build_query("gen_include_existing", QueryResCount::Many));
-        // Delete generated entries for nodes no longer in snapshot
-        queries.push(new_delete(&t).where_(Expr::Exists {
-            not: true,
-            body: Box::new(
-                new_select_body(&triple_snapshot_table)
-                    .return_named("x", Expr::LitI32(1))
-                    .where_(expr_or(vec![Expr::BinOp {
-                        left: Box::new(Expr::field(&node)),
-                        op: BinOp::Equals,
-                        right: Box::new(Expr::field(&triple_snapshot_object)),
-                    }, Expr::BinOp {
-                        left: Box::new(Expr::field(&node)),
-                        op: BinOp::Equals,
-                        right: Box::new(Expr::field(&triple_snapshot_subject)),
-                    }]))
-                    .build(),
-            ),
-            body_junctions: vec![],
-        }).build_query("gen_gc", QueryResCount::None));
+        queries.push(
+            new_insert(&t, vec![
+                (node.clone(), field_param("node", &node)),
+                (gentype.clone(), field_param("gentype", &gentype)),
+                (mimetype.clone(), field_param("mimetype", &mimetype)),
+            ])
+                .on_conflict_do_update(&[&node, &gentype], vec![
+                    (mimetype.clone(), field_param("mimetype", &mimetype)),
+                ])
+                .build_query("gen_ensure", QueryResCount::None),
+        );
+        {
+            let mut nodes_type = node.r#type().type_.clone();
+            nodes_type.arr = true;
+            queries.push(
+                new_select(&t)
+                    .return_field(&node)
+                    .where_(Expr::BinOp {
+                        left: Box::new(Expr::Field(node.to_ref())),
+                        op: BinOp::In,
+                        right: Box::new(Expr::Param { name: "nodes".into(), type_: nodes_type }),
+                    })
+                    .build_query("gen_include_existing", QueryResCount::Many),
+            );
+        }
     }
 
     // File access
     {
-        let t = version.table("zFFF18JKY", "file_access");
-        let file = t.field(&mut version, "zLQI9HQUQ", "file", FieldType::with(&input.filehash_type));
-        let access_source =
-            t.field(&mut version, "zSZVNBP0E", "access_source", FieldType::with(&input.access_source_type));
-        let spec_hash = t.field(&mut version, "zWZT5PZHR", "spec_hash", field_i64().build());
-        t.constraint(
-            &mut version,
-            "zCW5WMK7U",
-            "file_access_pk",
-            PrimaryKey(PrimaryKeyDef { fields: vec![file.clone(), access_source.clone(), spec_hash.clone()] }),
-        );
+        let t = version.table("file_access");
+        let file = t.field("file", filehash_type.field_type());
+        let access_source = t.field("access_source", access_source_type.field_type());
+        let spec_hash = t.field("spec_hash", field_i64().build());
+        t.primary_key("file_access_pk", &[&file, &access_source, &spec_hash]);
         queries.push(
-            new_insert(
-                &t,
-                vec![
-                    set_field("file", &file),
-                    set_field("access_source", &access_source),
-                    set_field("spec_hash", &spec_hash)
-                ],
-            )
-                .on_conflict(InsertConflict::DoNothing)
+            new_insert(&t, vec![
+                (file.clone(), field_param("file", &file)),
+                (access_source.clone(), field_param("access_source", &access_source)),
+                (spec_hash.clone(), field_param("spec_hash", &spec_hash)),
+            ])
+                .on_conflict_do_nothing()
                 .build_query("file_access_insert", QueryResCount::None),
         );
         queries.push(
-            new_delete(&t)
-                .where_(expr_and(vec![expr_field_eq("access_source", &access_source), Expr::BinOp {
-                    left: Box::new(Expr::Binding(Binding::field(&spec_hash))),
-                    op: BinOp::NotEquals,
-                    right: Box::new(Expr::Param {
-                        name: "version_hash".into(),
-                        type_: spec_hash.type_.type_.clone(),
-                    }),
-                }]))
-                .build_query("file_access_clear_nonversion", QueryResCount::None),
+            new_select(&t)
+                .return_field(&file)
+                .return_field(&access_source)
+                .return_field(&spec_hash)
+                .where_(expr_and(vec![
+                    expr_field_eq("eq_file", &file),
+                    expr_field_eq("eq_access_source", &access_source),
+                    expr_field_eq("eq_spec_hash", &spec_hash),
+                ]))
+                .build_query("file_access_get", QueryResCount::MaybeOne),
         );
         queries.push(
             new_select(&t)
-                .where_(expr_field_eq("file", &file))
                 .return_field(&access_source)
-                .build_query("file_access_get", QueryResCount::Many),
+                .where_(expr_field_eq("eq_file", &file))
+                .build_query("file_access_get_by_file", QueryResCount::Many),
+        );
+        queries.push(
+            new_delete(&t)
+                .where_(expr_and(vec![
+                    expr_field_eq("eq_access_source", &access_source),
+                    Expr::BinOp {
+                        left: Box::new(Expr::Field(spec_hash.to_ref())),
+                        op: BinOp::NotEquals,
+                        right: Box::new(field_param("ne_spec_hash", &spec_hash)),
+                    },
+                ]))
+                .build_query("file_access_clear_nonversion", QueryResCount::None),
         );
     }
-    return (version, queries);
+
+    return (version.build(), queries);
 }

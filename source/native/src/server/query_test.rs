@@ -6,6 +6,7 @@ use {
         interface::triple::DbNode,
         server::{
             db,
+            dbutil,
             dbwrite,
             defaultviews::node_media_audio,
             query::{
@@ -85,9 +86,9 @@ fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, TreeNode)]], query
         VisErr::External(e) => e,
     })).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
-    db::migrate(&mut db).unwrap();
+    let mut db = db::migrate(db, None).unwrap();
     for (s, p, o) in triples {
-        dbwrite::write_triple(&db, &DbNode((*s).clone()), p, &DbNode((*o).clone()), Utc::now().into(), true).unwrap();
+        dbwrite::write_triple(&mut db, &DbNode((*s).clone()), p, &DbNode((*o).clone()), Utc::now().into(), true).unwrap();
     }
 
     //.    {
@@ -113,7 +114,7 @@ fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, TreeNode)]], query
     println!("Query: {}", query_string);
 
     //.    {
-    //.        let mut s = db.prepare(&format!("explain query plan {}", query)).unwrap();
+    //.        let mut s = db.0.prepare(&format!("explain query plan {}", query)).unwrap();
     //.        let mut results = s.query(&*query_values.as_params()).unwrap();
     //.        loop {
     //.            let Some(row) = results.next().unwrap() else {
@@ -123,7 +124,7 @@ fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, TreeNode)]], query
     //.        }
     //.    }
     let got =
-        execute_sql_query(&db, query_string, query_values, &query, None)
+        execute_sql_query(&db.0, query_string, query_values, &query, None)
             .unwrap()
             .into_iter()
             .map(|x| x.tail_data)
@@ -181,9 +182,9 @@ fn test_versions() {
         VisErr::External(e) => e,
     })).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
-    db::migrate(&mut db).unwrap();
+    let mut db = db::migrate(db, None).unwrap();
     dbwrite::write_triple(
-        &db,
+        &mut db,
         &DbNode(s("x")),
         "y",
         &DbNode(s("no")),
@@ -191,7 +192,7 @@ fn test_versions() {
         true,
     ).unwrap();
     dbwrite::write_triple(
-        &db,
+        &mut db,
         &DbNode(s("x")),
         "y",
         &DbNode(s("no")),
@@ -200,7 +201,7 @@ fn test_versions() {
     ).unwrap();
     println!("Query: {}", query_sql);
     {
-        let mut s = db.prepare(&format!("explain query plan {}", query_sql)).unwrap();
+        let mut s = db.0.prepare(&format!("explain query plan {}", query_sql)).unwrap();
         let mut results = s.query(&*query_values.as_params()).unwrap();
         loop {
             let Some(row) = results.next().unwrap() else {
@@ -210,7 +211,7 @@ fn test_versions() {
         }
     }
     let got =
-        execute_sql_query(&db, query_sql, query_values, &query, None)
+        execute_sql_query(&db.0, query_sql, query_values, &query, None)
             .unwrap()
             .into_iter()
             .map(|x| x.tail_data)
@@ -229,9 +230,9 @@ fn test_delete() {
         VisErr::External(e) => e,
     })).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
-    db::migrate(&mut db).unwrap();
+    let mut db = db::migrate(db, None).unwrap();
     dbwrite::write_triple(
-        &db,
+        &mut db,
         &DbNode(s("x")),
         "y",
         &DbNode(s("no")),
@@ -239,7 +240,7 @@ fn test_delete() {
         true,
     ).unwrap();
     dbwrite::write_triple(
-        &db,
+        &mut db,
         &DbNode(s("x")),
         "y",
         &DbNode(s("no")),
@@ -248,7 +249,7 @@ fn test_delete() {
     ).unwrap();
     println!("Query: {}", query_sql);
     {
-        let mut s = db.prepare(&format!("explain query plan {}", query_sql)).unwrap();
+        let mut s = db.0.prepare(&format!("explain query plan {}", query_sql)).unwrap();
         let mut results = s.query(&*query_values.as_params()).unwrap();
         loop {
             let Some(row) = results.next().unwrap() else {
@@ -258,7 +259,7 @@ fn test_delete() {
         }
     }
     let got =
-        execute_sql_query(&db, query_sql, query_values, &query, None)
+        execute_sql_query(&db.0, query_sql, query_values, &query, None)
             .unwrap()
             .into_iter()
             .map(|x| x.tail_data)
@@ -274,9 +275,9 @@ fn test_undelete() {
         VisErr::External(e) => e,
     })).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
-    db::migrate(&mut db).unwrap();
+    let mut db = db::migrate(db, None).unwrap();
     dbwrite::write_triple(
-        &db,
+        &mut db,
         &DbNode(s("x")),
         "y",
         &DbNode(s("no")),
@@ -284,7 +285,7 @@ fn test_undelete() {
         true,
     ).unwrap();
     dbwrite::write_triple(
-        &db,
+        &mut db,
         &DbNode(s("x")),
         "y",
         &DbNode(s("no")),
@@ -292,7 +293,7 @@ fn test_undelete() {
         false,
     ).unwrap();
     dbwrite::write_triple(
-        &db,
+        &mut db,
         &DbNode(s("x")),
         "y",
         &DbNode(s("no")),
@@ -301,7 +302,7 @@ fn test_undelete() {
     ).unwrap();
     println!("Query: {}", query_sql);
     {
-        let mut s = db.prepare(&format!("explain query plan {}", query_sql)).unwrap();
+        let mut s = db.0.prepare(&format!("explain query plan {}", query_sql)).unwrap();
         let mut results = s.query(&*query_values.as_params()).unwrap();
         loop {
             let Some(row) = results.next().unwrap() else {
@@ -311,7 +312,7 @@ fn test_undelete() {
         }
     }
     let got =
-        execute_sql_query(&db, query_sql, query_values, &query, None)
+        execute_sql_query(&db.0, query_sql, query_values, &query, None)
             .unwrap()
             .into_iter()
             .map(|x| x.tail_data)
@@ -565,43 +566,43 @@ fn test_chain_union() {
 #[test]
 fn test_gc() {
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
-    db::migrate(&mut db).unwrap();
+    let mut db = db::migrate(db, None).unwrap();
     let stamp1 = chrono::Local.with_ymd_and_hms(2014, 10, 1, 1, 1, 1).unwrap().into();
     let stamp1b = stamp1 + Duration::seconds(1);
     let stamp2 = chrono::Local.with_ymd_and_hms(2014, 11, 1, 1, 1, 1).unwrap().into();
     let stamp3 = chrono::Local.with_ymd_and_hms(2014, 12, 1, 1, 1, 1).unwrap().into();
 
     // Newest is after epoch
-    dbwrite::write_triple(&db, &DbNode(s("a")), "b", &DbNode(s("c")), stamp1, true).unwrap();
-    dbwrite::write_triple(&db, &DbNode(s("a")), "b", &DbNode(s("c")), stamp2, false).unwrap();
-    dbwrite::write_triple(&db, &DbNode(s("a")), "b", &DbNode(s("c")), stamp3, true).unwrap();
+    dbwrite::write_triple(&mut db, &DbNode(s("a")), "b", &DbNode(s("c")), stamp1, true).unwrap();
+    dbwrite::write_triple(&mut db, &DbNode(s("a")), "b", &DbNode(s("c")), stamp2, false).unwrap();
+    dbwrite::write_triple(&mut db, &DbNode(s("a")), "b", &DbNode(s("c")), stamp3, true).unwrap();
 
     // Newest is before epoch, but exists
-    dbwrite::write_triple(&db, &DbNode(s("d")), "e", &DbNode(s("f")), stamp1, false).unwrap();
-    dbwrite::write_triple(&db, &DbNode(s("d")), "e", &DbNode(s("f")), stamp2, true).unwrap();
+    dbwrite::write_triple(&mut db, &DbNode(s("d")), "e", &DbNode(s("f")), stamp1, false).unwrap();
+    dbwrite::write_triple(&mut db, &DbNode(s("d")), "e", &DbNode(s("f")), stamp2, true).unwrap();
 
     // Newest is before epoch, but doesn't exist
-    dbwrite::write_triple(&db, &DbNode(s("g")), "h", &DbNode(s("i")), stamp1, true).unwrap();
-    dbwrite::write_triple(&db, &DbNode(s("g")), "h", &DbNode(s("i")), stamp1b, false).unwrap();
+    dbwrite::write_triple(&mut db, &DbNode(s("g")), "h", &DbNode(s("i")), stamp1, true).unwrap();
+    dbwrite::write_triple(&mut db, &DbNode(s("g")), "h", &DbNode(s("i")), stamp1b, false).unwrap();
 
     // Gc
-    db::triple_gc_deleted(&db, stamp2 + Duration::seconds(1)).unwrap();
+    dbutil::triple_gc_deleted(&db.0, stamp2 + Duration::seconds(1)).unwrap();
     let want = vec![
         //. .
         format!("{:?}", (s("a"), "b".to_string(), s("c"), stamp3, true)),
         format!("{:?}", (s("d"), "e".to_string(), s("f"), stamp2, true))
     ];
     let mut have =
-        db::hist_list_all(&db)
+        db::hist_list_all(&mut db)
             .unwrap()
             .into_iter()
             .map(|r| format!("{:?}", (r.subject.0, r.predicate, r.object.0, r.commit_, r.exists)))
             .collect::<Vec<_>>();
     have.sort();
     pretty_assertions::assert_eq!(want, have);
-    db::triple_gc_deleted(&db, stamp2 + Duration::seconds(1)).unwrap();
+    dbutil::triple_gc_deleted(&db.0, stamp2 + Duration::seconds(1)).unwrap();
     let mut have =
-        db::hist_list_all(&db)
+        db::hist_list_all(&mut db)
             .unwrap()
             .into_iter()
             .map(|r| format!("{:?}", (r.subject.0, r.predicate, r.object.0, r.commit_, r.exists)))

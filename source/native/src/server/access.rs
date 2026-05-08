@@ -11,6 +11,7 @@ use {
         },
         server::{
             db,
+            dbutil,
             dbutil::tx,
             state::{
                 get_iam_grants,
@@ -21,7 +22,7 @@ use {
     },
     cookie::Cookie,
     flowcontrol::shed,
-    good_ormning_runtime::sqlite::GoodOrmningCustomString,
+    good_ormning::runtime::sqlite::GoodOrmningCustomString,
     http::{
         header::COOKIE,
         HeaderMap,
@@ -60,6 +61,7 @@ pub enum AccessSourceId {
     ViewId(ViewId),
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DbAccessSourceId(pub AccessSourceId);
 
 impl GoodOrmningCustomString<DbAccessSourceId> for DbAccessSourceId {
@@ -188,7 +190,10 @@ pub async fn can_access_file(state: &State, identity: &Identity, file: &FileHash
             IamGrants::Limited(grants) => {
                 let stored_access = tx(&state.db, {
                     let file = DbFileHash(file.clone());
-                    move |txn| Ok(db::file_access_get(txn, &file)?)
+                    move |txn| {
+                        let mut db = dbutil::db3(txn);
+                        Ok(db::file_access_get_by_file(&mut db, &file)?)
+                    }
                 }).await?.into_iter().map(|x| x.0).collect::<HashSet<_>>();
                 for form_id in &grants.forms {
                     if stored_access.contains(&AccessSourceId::FormId(form_id.clone())) {

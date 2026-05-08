@@ -1,6 +1,7 @@
 use {
     super::{
         db,
+        dbutil,
         dbutil::tx,
         state::State,
     },
@@ -121,7 +122,8 @@ pub async fn get_meta(state: &Arc<State>, hash: &FileHash) -> Result<Option<db::
     let state = state.clone();
     let hash = hash.clone();
     let Some(meta) = tx(&state.db, move |txn| {
-        return Ok(db::meta_get(txn, &DbNode(Node::File(hash)))?);
+        let mut db = dbutil::db3(txn);
+        return Ok(db::meta_get(&mut db, &DbNode(Node::File(hash)))?);
     }).await? else {
         return Ok(None);
     };
