@@ -16,6 +16,7 @@ use {
         interface::triple::DbNode,
         server::{
             db,
+            dbutil,
             dbutil::tx,
             filesutil::{
                 file_path,
@@ -116,7 +117,8 @@ async fn generated_exists(state: &Arc<State>, file: &FileHash, gentype: &str) ->
         let gentype = gentype.to_string();
         let file = file.clone();
         move |txn| {
-            return Ok(db::gen_get(txn, &DbNode(Node::File(file)), &gentype)?);
+            let mut db = dbutil::db3(txn);
+            return Ok(db::gen_get(&mut db, &DbNode(Node::File(file)), &gentype)?);
         }
     }).await?;
     match found {
@@ -150,7 +152,8 @@ async fn commit_generated(
     let gentype = gentype.to_string();
     let mimetype = mimetype.to_string();
     tx(&state.db, move |txn| {
-        return Ok(db::gen_ensure(txn, &DbNode(Node::File(file)), &gentype, &mimetype)?);
+        let mut db = dbutil::db3(txn);
+        return Ok(db::gen_ensure(&mut db, &DbNode(Node::File(file)), &gentype, &mimetype)?);
     }).await?;
     return Ok(());
 }
@@ -600,14 +603,15 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                     let (found_sub, found_obj) = tx(&dbc, {
                                         let batch = batch.clone();
                                         move |txn| {
+                                            let mut db = dbutil::db3(txn);
                                             return Ok(
                                                 (
                                                     db::node_include_current_existing_subj(
-                                                        txn,
+                                                        &mut db,
                                                         batch.iter().collect(),
                                                     )?,
                                                     db::node_include_current_existing_obj(
-                                                        txn,
+                                                        &mut db,
                                                         batch.iter().collect(),
                                                     )?,
                                                 ),
@@ -677,12 +681,12 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                             log.log(loga::DEBUG, "Doing database garbage collection");
                             tx(&state.db, |txn| {
                                 let epoch = Utc::now() - chrono::Duration::days(365);
-                                db::triple_gc_deleted(txn, epoch)?;
-                                db::meta_gc(txn)?;
-                                db::commit_gc(txn)?;
-                                db::gen_gc(txn)?;
-                                db::subjobj_gc(txn)?;
-                                db::predicate_gc(txn)?;
+                                dbutil::triple_gc_deleted(txn, epoch)?;
+                                dbutil::meta_gc(txn)?;
+                                dbutil::commit_gc(txn)?;
+                                dbutil::gen_gc(txn)?;
+                                dbutil::subjobj_gc(txn)?;
+                                dbutil::predicate_gc(txn)?;
                                 return Ok(());
                             }).await?;
 
@@ -698,8 +702,9 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                     let unfiltered_keys =
                                         batch.keys().map(|k| DbNode(Node::File(k.clone()))).collect::<Vec<_>>();
                                     let found_keys = tx(&dbc, move |txn| {
+                                        let mut db = dbutil::db3(txn);
                                         return Ok(
-                                            db::meta_include_existing(txn, unfiltered_keys.iter().collect())?,
+                                            db::meta_include_existing(&mut db, unfiltered_keys.iter().collect())?,
                                         );
                                     }).await?;
                                     for key in found_keys {
@@ -791,8 +796,9 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                             .collect::<HashSet<_>>();
                                     let found_keys =
                                         tx(&dbc, move |txn| {
+                                            let mut db = dbutil::db3(txn);
                                             return Ok(
-                                                db::gen_include_existing(txn, unfiltered_keys.iter().collect())?,
+                                                db::gen_include_existing(&mut db, unfiltered_keys.iter().collect())?,
                                             );
                                         })
                                             .await?

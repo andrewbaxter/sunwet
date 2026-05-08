@@ -9,6 +9,10 @@ pub mod interface;
 pub mod client;
 pub mod server;
 
+pub mod dbm {
+    pub use crate::server::db::*;
+}
+
 /// Explicitly capturing async closure - clones elements in the second parens into
 /// the closure. Anything else will be moved.
 #[macro_export]

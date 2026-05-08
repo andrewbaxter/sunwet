@@ -1,12 +1,12 @@
 use {
-    good_ormning_runtime::sqlite::GoodOrmningCustomString,
+    good_ormning::runtime::sqlite::GoodOrmningCustomString,
     shared::interface::triple::{
         FileHash,
         Node,
     },
 };
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DbNode(pub Node);
 
 impl GoodOrmningCustomString<DbNode> for DbNode {
@@ -19,7 +19,7 @@ impl GoodOrmningCustomString<DbNode> for DbNode {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DbFileHash(pub FileHash);
 
 impl GoodOrmningCustomString<DbFileHash> for DbFileHash {
