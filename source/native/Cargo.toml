@@ -72,6 +72,10 @@ ts-rs = { version = "11", features = ["serde-json-impl"] }
 
 [build-dependencies]
 good-ormning = { version = "0.5.4", features = ["sqlite", "chrono"] }
+sea-query = { version = "1.0.0-rc.31", default-features = false, features = [
+    "backend-sqlite",
+] }
+chrono = { version = "0.4", features = ["serde"] }
 
 [dev-dependencies]
 pretty_assertions = "1"

@@ -4,9 +4,13 @@ use {
         FileHash,
         Node,
     },
+    serde::{
+        Serialize,
+        Deserialize,
+    },
 };
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct DbNode(pub Node);
 
 impl GoodOrmningCustomString<DbNode> for DbNode {
@@ -19,7 +23,7 @@ impl GoodOrmningCustomString<DbNode> for DbNode {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct DbFileHash(pub FileHash);
 
 impl GoodOrmningCustomString<DbFileHash> for DbFileHash {

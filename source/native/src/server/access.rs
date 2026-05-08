@@ -192,7 +192,17 @@ pub async fn can_access_file(state: &State, identity: &Identity, file: &FileHash
                     let file = DbFileHash(file.clone());
                     move |txn| {
                         let mut db = dbutil::db3(txn);
-                        Ok(db::file_access_get_by_file(&mut db, &file)?)
+                        Ok(good_ormning::sqlite::good_query!(
+                            //# genemichaels-external: sql-formatter-sqlite
+                            r#"select
+                                 "access_source"
+                               from
+                                 "file_access"
+                               where
+                                 "file" = ${filehash = file}
+                               "#;
+                            &mut db
+                        )?,)
                     }
                 }).await?.into_iter().map(|x| x.0).collect::<HashSet<_>>();
                 for form_id in &grants.forms {
