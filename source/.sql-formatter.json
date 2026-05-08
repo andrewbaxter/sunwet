@@ -1,0 +1,5 @@
+{
+  "paramTypes": {
+    "custom": [{ "regex": "\\$\\x7b[^\\x7d]*\\x7d" }]
+  }
+}

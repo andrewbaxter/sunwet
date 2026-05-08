@@ -88,7 +88,14 @@ fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, TreeNode)]], query
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
     let mut db = db::migrate(db, None).unwrap();
     for (s, p, o) in triples {
-        dbwrite::write_triple(&mut db, &DbNode((*s).clone()), p, &DbNode((*o).clone()), Utc::now().into(), true).unwrap();
+        dbwrite::write_triple(
+            &mut db,
+            &DbNode((*s).clone()),
+            p,
+            &DbNode((*o).clone()),
+            Utc::now().into(),
+            true,
+        ).unwrap();
     }
 
     //.    {
@@ -216,10 +223,7 @@ fn test_versions() {
             .into_iter()
             .map(|x| x.tail_data)
             .collect::<Vec<_>>();
-    assert_eq!(
-        got,
-        vec![[("y".to_string(), TreeNode::Scalar(s("no")))].into_iter().collect::<BTreeMap<_, _>>()]
-    );
+    assert_eq!(got, vec![[("y".to_string(), TreeNode::Scalar(s("no")))].into_iter().collect::<BTreeMap<_, _>>()]);
 }
 
 #[test]
@@ -317,10 +321,7 @@ fn test_undelete() {
             .into_iter()
             .map(|x| x.tail_data)
             .collect::<Vec<_>>();
-    assert_eq!(
-        got,
-        vec![[("y".to_string(), TreeNode::Scalar(s("no")))].into_iter().collect::<BTreeMap<_, _>>()]
-    );
+    assert_eq!(got, vec![[("y".to_string(), TreeNode::Scalar(s("no")))].into_iter().collect::<BTreeMap<_, _>>()]);
 }
 
 #[test]
