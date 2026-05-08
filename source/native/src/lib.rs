@@ -1,8 +1,10 @@
-use futures::Future;
-use tokio::{
-    select,
-    spawn,
-    sync::oneshot,
+use {
+    futures::Future,
+    tokio::{
+        select,
+        spawn,
+        sync::oneshot,
+    },
 };
 
 pub mod interface;

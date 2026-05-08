@@ -156,14 +156,19 @@ impl OpfsDir {
 
     pub async fn list(&self, log: &Rc<dyn Log>) -> Result<Vec<(String, OpfsAmbig)>, String> {
         let mut entries = vec![];
-        let entries_fn: js_sys::Function = js_sys::Reflect::get(&self.1, &JsValue::from_str("entries"))
-            .map_err(|e| format!("Error getting entries method for [{}]: {}", self.0, jsstr(e)))?
-            .dyn_into()
-            .map_err(|e| format!("entries is not a function for [{}]: {}", self.0, jsstr(e)))?;
-        let iter = entries_fn.call0(&self.1)
-            .map_err(|e| format!("Error calling entries for [{}]: {}", self.0, jsstr(e)))?;
-        let iter: js_sys::AsyncIterator = iter.dyn_into()
-            .map_err(|e| format!("entries result is not an async iterator for [{}]: {}", self.0, jsstr(e)))?;
+        let entries_fn: js_sys::Function =
+            js_sys::Reflect::get(&self.1, &JsValue::from_str("entries"))
+                .map_err(|e| format!("Error getting entries method for [{}]: {}", self.0, jsstr(e)))?
+                .dyn_into()
+                .map_err(|e| format!("entries is not a function for [{}]: {}", self.0, jsstr(e)))?;
+        let iter =
+            entries_fn
+                .call0(&self.1)
+                .map_err(|e| format!("Error calling entries for [{}]: {}", self.0, jsstr(e)))?;
+        let iter: js_sys::AsyncIterator =
+            iter
+                .dyn_into()
+                .map_err(|e| format!("entries result is not an async iterator for [{}]: {}", self.0, jsstr(e)))?;
         let mut entries0 = JsStream::from(iter);
         while let Some(e) = entries0.next().await {
             let e = match e {
@@ -225,8 +230,7 @@ impl OpfsFile {
                 )
                     .await
                     .map_err(|e| format!("Error getting array buffer of file at seg [{}]: {}", self.0, jsstr(e)))?,
-            )
-                .to_vec(),
+            ).to_vec(),
         );
     }
 

@@ -124,6 +124,7 @@ async fn commit(
     // Write new triples, commit (no-op if all triples already committed)
     tx(&state.db, move |txn| {
         let mut db = dbutil::db3(txn);
+
         // Update access if writing as non-admin - this is because multi-part uploads get
         // re-accessed checked so need to establish chain of trust for writing from commit
         if let Some((form_id, form_version_hash)) = update_access_reqs {
@@ -147,10 +148,10 @@ async fn commit(
         // Insert triples
         let mut modified = false;
         let stamp = Utc::now();
-        fn update_fulltext<C: good_ormning::runtime::sqlite::SqliteConnection>(
-            db: &mut crate::server::db::Db3<C>,
-            node: &Node,
-        ) -> Result<(), loga::Error> {
+
+        fn update_fulltext<
+            C: good_ormning::runtime::sqlite::SqliteConnection,
+        >(db: &mut crate::server::db::Db3<C>, node: &Node) -> Result<(), loga::Error> {
             let mut fulltext = String::new();
 
             fn gather_value_text(fulltext: &mut String, value: &serde_json::Value) {
@@ -194,14 +195,24 @@ async fn commit(
         }
 
         for t in c.remove {
-            if db::triple_get(&mut db, &DbNode(t.subject.clone()), &t.predicate, &DbNode(t.object.clone()))?.is_none() {
+            if db::triple_get(
+                &mut db,
+                &DbNode(t.subject.clone()),
+                &t.predicate,
+                &DbNode(t.object.clone()),
+            )?.is_none() {
                 continue;
             }
             dbwrite::write_triple(&mut db, &DbNode(t.subject), &t.predicate, &DbNode(t.object), stamp, false)?;
             modified = true;
         }
         for t in c.add {
-            if db::triple_get(&mut db, &DbNode(t.subject.clone()), &t.predicate, &DbNode(t.object.clone()))?.is_some() {
+            if db::triple_get(
+                &mut db,
+                &DbNode(t.subject.clone()),
+                &t.predicate,
+                &DbNode(t.object.clone()),
+            )?.is_some() {
                 continue;
             }
             update_fulltext(&mut db, &t.subject)?;

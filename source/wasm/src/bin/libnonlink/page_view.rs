@@ -1398,9 +1398,7 @@ fn center_to_playing() {
     let mut parent = element.parent_element();
     while let Some(p) = parent {
         if p.tag_name().eq_ignore_ascii_case("details") && !p.has_attribute("open") {
-            p
-                .set_attribute("open", "")
-                .log(&state().log, "Error opening details element");
+            p.set_attribute("open", "").log(&state().log, "Error opening details element");
         }
         parent = p.parent_element();
     }
@@ -1564,17 +1562,10 @@ fn build_transport(pc: &mut ProcessingContext, offline: bool) -> El {
             }
         }).unwrap()
     });
-    button_center.ref_own(
-        |b| link!(
-            (_pc = pc),
-            (follow_playing = state().follow_playing.clone()),
-            (),
-            (b = b.weak()) {
-                let b = b.upgrade()?;
-                b.ref_modify_classes(&[(&style_export::class_state_follow_playing().value, *follow_playing.borrow())]);
-            }
-        ),
-    );
+    button_center.ref_own(|b| link!((_pc = pc), (follow_playing = state().follow_playing.clone()), (), (b = b.weak()) {
+        let b = b.upgrade()?;
+        b.ref_modify_classes(&[(&style_export::class_state_follow_playing().value, *follow_playing.borrow())]);
+    }));
     button_center.ref_own(
         |_b| link!(
             (_pc = pc),

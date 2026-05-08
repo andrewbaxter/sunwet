@@ -95,9 +95,7 @@ pub async fn req_post_json_with_headers<
 >(log: &Rc<dyn Log>, base_url: &String, headers: &HashMap<String, String>, req: T) -> Result<T::Resp, String> {
     let req = C2SReq::from(req.into());
     return retry(log, async || {
-        let mut builder =
-            Request::post(&format!("{}api", base_url))
-                .header("Content-type", "application/json");
+        let mut builder = Request::post(&format!("{}api", base_url)).header("Content-type", "application/json");
         for (k, v) in headers.iter() {
             builder = builder.header(k, v);
         }
@@ -131,8 +129,9 @@ pub async fn file_post_json_with_headers(
 ) -> Result<(), String> {
     return retry(log, async || {
         let mut builder =
-            Request::post(&format!("{}file/{}", base_url, hash.to_string()))
-                .header(HEADER_OFFSET, &chunk_start.to_string());
+            Request::post(
+                &format!("{}file/{}", base_url, hash.to_string()),
+            ).header(HEADER_OFFSET, &chunk_start.to_string());
         for (k, v) in headers.iter() {
             builder = builder.header(k, v);
         }

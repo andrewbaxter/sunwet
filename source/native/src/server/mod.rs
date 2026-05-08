@@ -267,7 +267,12 @@ async fn handle_query_req(
                 let access_source_id = DbAccessSourceId(AccessSourceId::ViewId(view_id.clone()));
                 db::file_access_clear_nonversion(&mut db, &access_source_id, view_hash as i64)?;
                 for file in &files {
-                    db::file_access_insert(&mut db, &DbFileHash(file.clone()), &access_source_id, view_hash as i64)?;
+                    db::file_access_insert(
+                        &mut db,
+                        &DbFileHash(file.clone()),
+                        &access_source_id,
+                        view_hash as i64,
+                    )?;
                 }
             }
             let mut meta = HashMap::new();
@@ -626,7 +631,11 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                             &DbNode(f.node),
                                                         )?
                                                     } else {
-                                                        db::hist_list_by_predicate_object(&mut db, &p, &DbNode(f.node))?
+                                                        db::hist_list_by_predicate_object(
+                                                            &mut db,
+                                                            &p,
+                                                            &DbNode(f.node),
+                                                        )?
                                                     };
                                                 },
                                                 ReqHistoryFilterPredicate::Outgoing(p) => {
@@ -804,14 +813,21 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                         let mut db = dbutil::db3(txn);
                                                         match (pivot, triple_end) {
                                                             (None, TripleEnd::Subject) => {
-                                                                return Ok(db::triples_get_subject_files_start(&mut db)?);
+                                                                return Ok(
+                                                                    db::triples_get_subject_files_start(&mut db)?
+                                                                );
                                                             },
                                                             (None, TripleEnd::Object) => {
-                                                                return Ok(db::triples_get_object_files_start(&mut db)?);
+                                                                return Ok(
+                                                                    db::triples_get_object_files_start(&mut db)?
+                                                                );
                                                             },
                                                             (Some(pivot), TripleEnd::Subject) => {
                                                                 return Ok(
-                                                                    db::triples_get_subject_files_after(&mut db, &pivot)?,
+                                                                    db::triples_get_subject_files_after(
+                                                                        &mut db,
+                                                                        &pivot
+                                                                    )?,
                                                                 );
                                                             },
                                                             (Some(pivot), TripleEnd::Object) => {

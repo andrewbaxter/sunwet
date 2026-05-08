@@ -31,7 +31,8 @@ impl<'a> good_ormning::runtime::sqlite::SqliteConnection for ConnWrap<'a> {
     }
 }
 
-/// Wraps a `&mut Transaction` so it can be used with generated `db::Db3<impl SqliteConnection>` APIs.
+/// Wraps a `&mut Transaction` so it can be used with generated
+/// `db::Db3<impl SqliteConnection>` APIs.
 pub struct TxnWrap<'a, 'b>(pub &'a mut Transaction<'b>);
 
 impl<'a, 'b> good_ormning::runtime::sqlite::SqliteConnection for TxnWrap<'a, 'b> {
@@ -58,7 +59,8 @@ impl<'a, 'b> good_ormning::runtime::sqlite::SqliteConnection for TxnWrap<'a, 'b>
     }
 }
 
-/// Convenience helper to wrap a `&mut Transaction` into a `db::Db3` for use with generated queries.
+/// Convenience helper to wrap a `&mut Transaction` into a `db::Db3` for use with
+/// generated queries.
 pub fn db3<'a, 'b>(txn: &'a mut Transaction<'b>) -> crate::server::db::Db3<TxnWrap<'a, 'b>> {
     crate::server::db::Db3(TxnWrap(txn))
 }
@@ -137,24 +139,29 @@ pub fn triple_gc_deleted(
     epoch: chrono::DateTime<chrono::Utc>,
 ) -> Result<(), loga::Error> {
     good_ormning::sqlite::good_query!(
-        r#"
-            delete from "triple2"
-            where (
-                "triple2"."commit_" < ${utctime_ms_chrono = epoch}
-                and (
-                    "triple2"."exists" = false
-                    or not exists (
-                        select 1 from "triple_snapshot"
-                        where (
-                            "triple2"."subject" = "triple_snapshot"."subject"
-                            and "triple2"."predicate" = "triple_snapshot"."predicate"
-                            and "triple2"."object" = "triple_snapshot"."object"
-                            and "triple2"."commit_" = "triple_snapshot"."commit_"
-                        )
-                    )
-                )
-            )
-        "#;
+        //# genemichaels-external: sql-formatter-sqlite
+        r#"delete from "triple2"
+           where
+             (
+               "triple2"."commit_" < ${utctime_ms_chrono = epoch}
+               and (
+                 "triple2"."exists" = false
+                 or not exists (
+                   select
+                     1
+                   from
+                     "triple_snapshot"
+                   where
+                     (
+                       "triple2"."subject" = "triple_snapshot"."subject"
+                       and "triple2"."predicate" = "triple_snapshot"."predicate"
+                       and "triple2"."object" = "triple_snapshot"."object"
+                       and "triple2"."commit_" = "triple_snapshot"."commit_"
+                     )
+                 )
+               )
+             )
+           "#;
         db
     ).context("Error executing triple_gc_deleted")?;
     Ok(())
@@ -164,13 +171,28 @@ pub fn subjobj_gc(
     db: &mut db::Db3<impl good_ormning::runtime::sqlite::SqliteConnection>,
 ) -> Result<(), loga::Error> {
     good_ormning::sqlite::good_query!(
-        r#"
-            delete from "subjobj"
-            where (
-                not exists (select 1 from "triple2" where "subjobj"."value" = "triple2"."subject")
-                and not exists (select 1 from "triple2" where "subjobj"."value" = "triple2"."object")
-            )
-        "#;
+        //# genemichaels-external: sql-formatter-sqlite
+        r#"delete from "subjobj"
+           where
+             (
+               not exists (
+                 select
+                   1
+                 from
+                   "triple2"
+                 where
+                   "subjobj"."value" = "triple2"."subject"
+               )
+               and not exists (
+                 select
+                   1
+                 from
+                   "triple2"
+                 where
+                   "subjobj"."value" = "triple2"."object"
+               )
+             )
+           "#;
         db
     ).context("Error executing subjobj_gc")?;
     Ok(())
@@ -180,67 +202,88 @@ pub fn predicate_gc(
     db: &mut db::Db3<impl good_ormning::runtime::sqlite::SqliteConnection>,
 ) -> Result<(), loga::Error> {
     good_ormning::sqlite::good_query!(
-        r#"
-            delete from "predicate"
-            where not exists (select 1 from "triple2" where "predicate"."value" = "triple2"."predicate")
-        "#;
+        //# genemichaels-external: sql-formatter-sqlite
+        r#"delete from "predicate"
+           where
+             not exists (
+               select
+                 1
+               from
+                 "triple2"
+               where
+                 "predicate"."value" = "triple2"."predicate"
+             )
+           "#;
         db
     ).context("Error executing predicate_gc")?;
     Ok(())
 }
 
-pub fn meta_gc(
-    db: &mut db::Db3<impl good_ormning::runtime::sqlite::SqliteConnection>,
-) -> Result<(), loga::Error> {
+pub fn meta_gc(db: &mut db::Db3<impl good_ormning::runtime::sqlite::SqliteConnection>) -> Result<(), loga::Error> {
     good_ormning::sqlite::good_query!(
-        r#"
-            delete from "meta"
-            where not exists (
-                select 1 from "triple2"
-                where (
-                    "meta"."node" = "triple2"."subject"
-                    or "meta"."node" = "triple2"."object"
-                )
-            )
-        "#;
+        //# genemichaels-external: sql-formatter-sqlite
+        r#"delete from "meta"
+           where
+             not exists (
+               select
+                 1
+               from
+                 "triple2"
+               where
+                 (
+                   "meta"."node" = "triple2"."subject"
+                   or "meta"."node" = "triple2"."object"
+                 )
+             )
+           "#;
         db
     ).context("Error executing meta_gc")?;
     Ok(())
 }
 
-pub fn commit_gc(
-    db: &mut db::Db3<impl good_ormning::runtime::sqlite::SqliteConnection>,
-) -> Result<(), loga::Error> {
+pub fn commit_gc(db: &mut db::Db3<impl good_ormning::runtime::sqlite::SqliteConnection>) -> Result<(), loga::Error> {
     good_ormning::sqlite::good_query!(
-        r#"
-            with active_commits (stamp) as (
-                select distinct "triple2"."commit_" from "triple2"
-            )
-            delete from "commit"
-            where not exists (
-                select 1 from "active_commits"
-                where "commit"."idtimestamp" = "active_commits"."stamp"
-            )
-        "#;
+        //# genemichaels-external: sql-formatter-sqlite
+        r#"with
+             active_commits (stamp) as (
+               select distinct
+                 "triple2"."commit_"
+               from
+                 "triple2"
+             )
+           delete from "commit"
+           where
+             not exists (
+               select
+                 1
+               from
+                 "active_commits"
+               where
+                 "commit"."idtimestamp" = "active_commits"."stamp"
+             )
+           "#;
         db
     ).context("Error executing commit_gc")?;
     Ok(())
 }
 
-pub fn gen_gc(
-    db: &mut db::Db3<impl good_ormning::runtime::sqlite::SqliteConnection>,
-) -> Result<(), loga::Error> {
+pub fn gen_gc(db: &mut db::Db3<impl good_ormning::runtime::sqlite::SqliteConnection>) -> Result<(), loga::Error> {
     good_ormning::sqlite::good_query!(
-        r#"
-            delete from "generated"
-            where not exists (
-                select 1 from "triple_snapshot"
-                where (
-                    "generated"."node" = "triple_snapshot"."object"
-                    or "generated"."node" = "triple_snapshot"."subject"
-                )
-            )
-        "#;
+        //# genemichaels-external: sql-formatter-sqlite
+        r#"delete from "generated"
+           where
+             not exists (
+               select
+                 1
+               from
+                 "triple_snapshot"
+               where
+                 (
+                   "generated"."node" = "triple_snapshot"."object"
+                   or "generated"."node" = "triple_snapshot"."subject"
+                 )
+             )
+           "#;
         db
     ).context("Error executing gen_gc")?;
     Ok(())
