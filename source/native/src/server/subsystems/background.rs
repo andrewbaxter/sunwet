@@ -35,6 +35,7 @@ use {
             },
         },
     },
+    crate::dbm,
     async_walkdir::WalkDir,
     chrono::Utc,
     deadpool_sqlite::Pool,
@@ -118,7 +119,21 @@ async fn generated_exists(state: &Arc<State>, file: &FileHash, gentype: &str) ->
         let file = file.clone();
         move |txn| {
             let mut db = dbutil::db3(txn);
-            return Ok(db::gen_get(&mut db, &DbNode(Node::File(file)), &gentype)?);
+            let node = DbNode(Node::File(file));
+            return Ok(good_ormning::sqlite::good_query!(
+                //# genemichaels-external: sql-formatter-sqlite
+                r#"select
+                     "mimetype"
+                   from
+                     "generated"
+                   where
+                     (
+                       "node" = ${node = &node}
+                       and "gentype" = ${string = &gentype}
+                     )
+                   "#;
+                &mut db
+            )?.into_iter().next());
         }
     }).await?;
     match found {
@@ -153,7 +168,23 @@ async fn commit_generated(
     let mimetype = mimetype.to_string();
     tx(&state.db, move |txn| {
         let mut db = dbutil::db3(txn);
-        return Ok(db::gen_ensure(&mut db, &DbNode(Node::File(file)), &gentype, &mimetype)?);
+        let node = DbNode(Node::File(file));
+        return Ok(good_ormning::sqlite::good_query!(
+            //# genemichaels-external: sql-formatter-sqlite
+            r#"insert into
+                 "generated" ("node", "gentype", "mimetype")
+               values
+                 (
+                   ${node = &node},
+                   ${string = &gentype},
+                   ${string = &mimetype}
+                 )
+               on conflict ("node", "gentype") do update
+               set
+                 "mimetype" = excluded."mimetype"
+               "#;
+            &mut db
+        )?);
     }).await?;
     return Ok(());
 }
@@ -704,9 +735,17 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                         batch.keys().map(|k| DbNode(Node::File(k.clone()))).collect::<Vec<_>>();
                                     let found_keys = tx(&dbc, move |txn| {
                                         let mut db = dbutil::db3(txn);
-                                        return Ok(
-                                            db::meta_include_existing(&mut db, unfiltered_keys.iter().collect())?,
-                                        );
+                                        return Ok(good_ormning::sqlite::good_query!(
+                                            //# genemichaels-external: sql-formatter-sqlite
+                                            r#"select
+                                                 "node"
+                                               from
+                                                 "meta"
+                                               where
+                                                 "node" in ${node[] = &unfiltered_keys}
+                                               "#;
+                                            &mut db
+                                        )?);
                                     }).await?;
                                     for key in found_keys {
                                         batch.remove(&exenum!(key.0, Node:: File(x) => x).unwrap());
@@ -798,9 +837,17 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                     let found_keys =
                                         tx(&dbc, move |txn| {
                                             let mut db = dbutil::db3(txn);
-                                            return Ok(
-                                                db::gen_include_existing(&mut db, unfiltered_keys.iter().collect())?,
-                                            );
+                                            return Ok(good_ormning::sqlite::good_query!(
+                                                //# genemichaels-external: sql-formatter-sqlite
+                                                r#"select distinct
+                                                     "node"
+                                                   from
+                                                     "generated"
+                                                   where
+                                                     "node" in ${node[] = &unfiltered_keys}
+                                                   "#;
+                                                &mut db
+                                            )?);
                                         })
                                             .await?
                                             .into_iter()

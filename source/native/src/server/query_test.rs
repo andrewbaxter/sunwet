@@ -594,7 +594,19 @@ fn test_gc() {
         format!("{:?}", (s("d"), "e".to_string(), s("f"), stamp2, true))
     ];
     let mut have =
-        db::hist_list_all(&mut db)
+        good_ormning::sqlite::good_query!(
+            //# genemichaels-external: sql-formatter-sqlite
+            r#"select
+                 "subject",
+                 "predicate",
+                 "object",
+                 "exists",
+                 "commit_"
+               from
+                 "triple2"
+               "#;
+            &mut db
+        )
             .unwrap()
             .into_iter()
             .map(|r| format!("{:?}", (r.subject.0, r.predicate, r.object.0, r.commit_, r.exists)))
@@ -603,7 +615,19 @@ fn test_gc() {
     pretty_assertions::assert_eq!(want, have);
     dbutil::triple_gc_deleted(&mut db, stamp2 + Duration::seconds(1)).unwrap();
     let mut have =
-        db::hist_list_all(&mut db)
+        good_ormning::sqlite::good_query!(
+            //# genemichaels-external: sql-formatter-sqlite
+            r#"select
+                 "subject",
+                 "predicate",
+                 "object",
+                 "exists",
+                 "commit_"
+               from
+                 "triple2"
+               "#;
+            &mut db
+        )
             .unwrap()
             .into_iter()
             .map(|r| format!("{:?}", (r.subject.0, r.predicate, r.object.0, r.commit_, r.exists)))

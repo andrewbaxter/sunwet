@@ -1,6 +1,10 @@
 use good_ormning::good_module;
 
 good_module!(pub db);
+
+use db as dbm;
+
+pub mod migrate;
 pub mod dbwrite;
 pub mod filesutil;
 pub mod defaultviews;
@@ -265,21 +269,50 @@ async fn handle_query_req(
             let mut db = dbutil::db3(txn);
             if let Some((view_id, view_hash)) = view_access {
                 let access_source_id = DbAccessSourceId(AccessSourceId::ViewId(view_id.clone()));
-                db::file_access_clear_nonversion(&mut db, &access_source_id, view_hash as i64)?;
+                let view_hash_i64 = view_hash as i64;
+                good_ormning::sqlite::good_query!(
+                    //# genemichaels-external: sql-formatter-sqlite
+                    r#"delete from "file_access"
+                       where
+                         (
+                           "access_source" = ${access_source = &access_source_id}
+                           and "spec_hash" != ${i64 = &view_hash_i64}
+                         )
+                       "#;
+                    &mut db
+                ).context("Error clearing file access")?;
                 for file in &files {
-                    db::file_access_insert(
-                        &mut db,
-                        &DbFileHash(file.clone()),
-                        &access_source_id,
-                        view_hash as i64,
-                    )?;
+                    let filehash = DbFileHash(file.clone());
+                    good_ormning::sqlite::good_query!(
+                        //# genemichaels-external: sql-formatter-sqlite
+                        r#"insert or ignore into
+                             "file_access" ("file", "access_source", "spec_hash")
+                           values
+                             (
+                               ${filehash = &filehash},
+                               ${access_source = &access_source_id},
+                               ${i64 = &view_hash_i64}
+                             )
+                           "#;
+                        &mut db
+                    ).context("Error inserting file access")?;
                 }
             }
             let mut meta = HashMap::new();
             for file in files {
-                let node = Node::File(file);
-                if let Some(node_meta) = db::meta_get(&mut db, &DbNode(node.clone()))? {
-                    meta.insert(node, NodeMeta { mime: node_meta.mimetype });
+                let node = DbNode(Node::File(file.clone()));
+                if let Some(mimetype) = good_ormning::sqlite::good_query!(
+                    //# genemichaels-external: sql-formatter-sqlite
+                    r#"select
+                         "mimetype"
+                       from
+                         "meta"
+                       where
+                         "node" = ${node = &node}
+                       "#;
+                    &mut db
+                )?.into_iter().next() {
+                    meta.insert(Node::File(file), NodeMeta { mime: mimetype });
                 }
             }
             return Ok(meta);
@@ -592,10 +625,21 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 let responder = req.respond();
                                 let meta = tx(&state.db, move |txn| {
                                     let mut db = dbutil::db3(txn);
-                                    return Ok(db::meta_get(&mut db, &DbNode(req.node))?);
+                                    let node = DbNode(req.node);
+                                    return Ok(good_ormning::sqlite::good_query!(
+                                        //# genemichaels-external: sql-formatter-sqlite
+                                        r#"select
+                                             "mimetype"
+                                           from
+                                             "meta"
+                                           where
+                                             "node" = ${node = &node}
+                                           "#;
+                                        &mut db
+                                    )?.into_iter().next());
                                 }).await.err_internal()?;
                                 resp = responder(match meta {
-                                    Some(m) => Some(NodeMeta { mime: m.mimetype }),
+                                    Some(mimetype) => Some(NodeMeta { mime: mimetype }),
                                     None => None,
                                 });
                             },
@@ -690,8 +734,21 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                         match commit_descriptions.entry(ev.commit_) {
                                             std::collections::hash_map::Entry::Occupied(_) => (),
                                             std::collections::hash_map::Entry::Vacant(entry) => {
+                                                let commit_id = ev.commit_;
                                                 entry.insert(
-                                                    db::commit_get(&mut db, ev.commit_)?
+                                                    good_ormning::sqlite::good_query!(
+                                                        //# genemichaels-external: sql-formatter-sqlite
+                                                        r#"select
+                                                             "description"
+                                                           from
+                                                             "commit"
+                                                           where
+                                                             "idtimestamp" = ${utctime_ms_chrono = &commit_id}
+                                                           "#;
+                                                        &mut db
+                                                    )?
+                                                        .into_iter()
+                                                        .next()
                                                         .ok_or_else(
                                                             || GoodError(
                                                                 format!(
@@ -699,8 +756,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                                     ev.commit_.to_rfc3339()
                                                                 ),
                                                             ),
-                                                        )?
-                                                        .description,
+                                                        )?,
                                                 );
                                             },
                                         }
@@ -739,7 +795,26 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     move |txn| {
                                         let mut db = dbutil::db3(txn);
                                         let nodes = nodes.into_iter().map(DbNode).collect::<Vec<_>>();
-                                        return Ok(db::triple_list_around(&mut db, nodes.iter().collect())?);
+                                        return Ok(good_ormning::sqlite::good_query!(
+                                            //# genemichaels-external: sql-formatter-sqlite
+                                            r#"select
+                                                 "subject",
+                                                 "predicate",
+                                                 "object"
+                                               from
+                                                 "triple_snapshot"
+                                               where
+                                                 (
+                                                   "subject" in ${node[] = &nodes}
+                                                   or "object" in ${node[] = &nodes}
+                                                 )
+                                               "#;
+                                            &mut db
+                                        )?.into_iter().map(|x| db::DbResTripleAround {
+                                            subject: x.subject,
+                                            predicate: x.predicate,
+                                            object: x.object,
+                                        }).collect::<Vec<_>>());
                                     }
                                 }).await.err_internal()?;
                                 resp = responder(triples.into_iter().map(|t| Triple {
@@ -1122,17 +1197,17 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
                         log.log(loga::INFO, "DB version 0 finished JSON canonicalization");
                     }
                 }
-                db::migrate(dbutil::ConnWrap(db), None)?;
+                db::migrate(dbutil::ConnWrap(db), Some(&|v| migrate::migrate(v)))?;
                 if db
-                    .prepare("select 1 from sqlite_master where type='table' and name='subjobj_fts'")
-                    .context("Error preparing statement to check for subjobj_fts")?
+                    .prepare("select 1 from sqlite_master where type='table' and name='meta_fts'")
+                    .context("Error preparing statement to check for meta_fts")?
                     .query([])
-                    .context("Error running query to check for subjobj_fts")?
+                    .context("Error running query to check for meta_fts")?
                     .next()
-                    .context("Error reading query to check for subjobj_fts results")?
+                    .context("Error reading query to check for meta_fts results")?
                     .is_none() {
                     log.log(loga::DEBUG, "Initializing fts table");
-                    db.execute_batch(include_str!("setup_fts.sql")).context("Error setting up subjobj_fts")?;
+                    db.execute_batch(include_str!("setup_fts.sql")).context("Error setting up meta_fts")?;
                     log.log(loga::DEBUG, "Done initializing fts table");
                 }
                 return Ok(()) as Result<_, loga::Error>;

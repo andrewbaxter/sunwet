@@ -664,19 +664,19 @@ fn build_chain_head(
                 let mut sql_cte = sea_query::CommonTableExpression::new();
                 sql_cte.table_name(ident_table_root.clone());
                 sql_cte.query({
-                    let ident_subjobj = SeaRc::new(Alias::new("subjobj"));
-                    let ident_subjobj_fts = SeaRc::new(Alias::new("subjobj_fts"));
+                    let ident_meta = SeaRc::new(Alias::new("meta"));
+                    let ident_meta_fts = SeaRc::new(Alias::new("meta_fts"));
                     let ident_rowid = SeaRc::new(Alias::new("rowid"));
                     let ident_fulltext = SeaRc::new(Alias::new("fulltext"));
-                    let ident_node = SeaRc::new(Alias::new("value"));
+                    let ident_node = SeaRc::new(Alias::new("node"));
                     let mut sql_sel = sea_query::Query::select();
-                    sql_sel.from(tableref(ident_subjobj.clone()));
-                    let node_expr = Expr::col(colref(ident_subjobj.clone(), ident_node.clone()));
+                    sql_sel.from(tableref(ident_meta.clone()));
+                    let node_expr = Expr::col(colref(ident_meta.clone(), ident_node.clone()));
                     sql_sel.expr(node_expr.clone());
                     sql_sel.expr(node_expr.clone());
-                    sql_sel.and_where(Expr::col(colref(ident_subjobj.clone(), ident_rowid.clone())).in_subquery({
+                    sql_sel.and_where(Expr::col(colref(ident_meta.clone(), ident_rowid.clone())).in_subquery({
                         let mut sql_sel = sea_query::Query::select();
-                        sql_sel.from(tableref(ident_subjobj_fts.clone()));
+                        sql_sel.from(tableref(ident_meta_fts.clone()));
                         sql_sel.column(ident_rowid.clone());
                         let raw = build_value_str(query_state, &root)?;
                         let match_str;
@@ -726,7 +726,7 @@ fn build_chain_head(
                                     .join(" AND ");
                         }
                         sql_sel.and_where(
-                            Expr::col(colref(ident_subjobj_fts.clone(), ident_fulltext.clone())).matches(match_str),
+                            Expr::col(colref(ident_meta_fts.clone(), ident_fulltext.clone())).matches(match_str),
                         );
                         sql_sel
                     }));

@@ -20,20 +20,50 @@ pub fn write_triple<
     commit_: DateTime<Utc>,
     exist: bool,
 ) -> Result<(), loga::Error> {
-    db::subjobj_insert(conn, subject, "").context("Error inserting subject into subjobj")?;
-    db::subjobj_insert(conn, object, "").context("Error inserting object into subjobj")?;
-    db::predicate_insert(conn, predicate).context("Error inserting predicate")?;
-    db::triple_insert(conn, subject, predicate, object, commit_, exist).context("Error inserting triple")?;
+    let subject_str = serde_json_canonicalizer::to_string(subject).unwrap();
+    let object_str = serde_json_canonicalizer::to_string(object).unwrap();
+    conn.0.execute(r#"insert or ignore into "subjobj" ("value")
+           values
+             (?)"#, [&subject_str]).context("Error inserting subject into subjobj")?;
+    conn.0.execute(r#"insert or ignore into "subjobj" ("value")
+           values
+             (?)"#, [&object_str]).context("Error inserting object into subjobj")?;
+    conn.0.execute(r#"insert or ignore into "predicate" ("value")
+           values
+             (?)"#, [predicate]).context("Error inserting predicate")?;
+    conn
+        .0
+        .execute(
+            r#"insert into "triple2" ("subject", "predicate", "object", "commit_", "exists")
+           values
+             (?, ?, ?, ?, ?)"#,
+            rusqlite::params![subject_str, predicate, object_str, commit_.timestamp_millis(), exist],
+        )
+        .context("Error inserting triple")?;
     if exist {
-        db::triple_snapshot_upsert(
-            conn,
-            subject,
-            predicate,
-            object,
-            commit_,
-        ).context("Error upserting triple snapshot")?;
+        conn
+            .0
+            .execute(
+                r#"insert into "triple_snapshot" ("subject", "predicate", "object", "commit_")
+               values
+                 (?, ?, ?, ?)
+               on conflict("subject", "predicate", "object") do update
+               set
+                 "commit_" = excluded."commit_""#,
+                rusqlite::params![subject_str, predicate, object_str, commit_.timestamp_millis()],
+            )
+            .context("Error upserting triple snapshot")?;
     } else {
-        db::triple_snapshot_delete(conn, subject, predicate, object).context("Error deleting triple snapshot")?;
+        conn
+            .0
+            .execute(r#"delete from "triple_snapshot"
+               where
+                 (
+                   "subject" = ?
+                   and "predicate" = ?
+                   and "object" = ?
+                 )"#, rusqlite::params![subject_str, predicate, object_str])
+            .context("Error deleting triple snapshot")?;
     }
     return Ok(());
 }
