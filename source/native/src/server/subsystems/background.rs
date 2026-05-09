@@ -15,6 +15,7 @@ use {
     crate::{
         interface::triple::DbNode,
         server::{
+            db,
             dbutil,
             dbutil::tx,
             filesutil::{
@@ -34,7 +35,6 @@ use {
             },
         },
     },
-    crate::dbm,
     async_walkdir::WalkDir,
     chrono::Utc,
     deadpool_sqlite::Pool,
@@ -607,20 +607,24 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                         let batch = batch.clone();
                                         move |txn| -> Result<_, loga::Error> {
                                             let mut db = dbutil::db3(txn);
-                                            return Ok(
-                                                (
-                                                    good_ormning::sqlite::good_query_many!(
-                                                        r#"select distinct subject as "node" from triple_snapshot where subject in (select value from rarray($batch))"#;
-                                                        &mut db,
-                                                        batch: arr node = batch.iter().collect::<Vec<_>>()
-                                                    )?.into_iter().map(|x| x.0).collect::<Vec<_>>(),
-                                                    good_ormning::sqlite::good_query_many!(
-                                                        r#"select distinct object as "node" from triple_snapshot where object in (select value from rarray($batch))"#;
-                                                        &mut db,
-                                                        batch: arr node = batch.iter().collect::<Vec<_>>()
-                                                    )?.into_iter().map(|x| x.0).collect::<Vec<_>>(),
-                                                ),
-                                            );
+                                            return Ok((
+                                                good_ormning::sqlite::good_query_many!(
+                                                    db,
+                                                    "",
+                                                    3,
+                                                    r#"select distinct subject as "node" from triple_snapshot where subject in (select value from rarray($batch))"#;
+                                                    &mut db,
+                                                    batch: arr node = batch.iter().collect::< Vec < _ >>()
+                                                )?.into_iter().map(|x| x.0).collect::<Vec<_>>(),
+                                                good_ormning::sqlite::good_query_many!(
+                                                    db,
+                                                    "",
+                                                    3,
+                                                    r#"select distinct object as "node" from triple_snapshot where object in (select value from rarray($batch))"#;
+                                                    &mut db,
+                                                    batch: arr node = batch.iter().collect::< Vec < _ >>()
+                                                )?.into_iter().map(|x| x.0).collect::<Vec<_>>(),
+                                            ));
                                         }
                                     }).await?;
                                     let found_keys =
@@ -709,18 +713,18 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                         batch.keys().map(|k| DbNode(Node::File(k.clone()))).collect::<Vec<_>>();
                                     let found_keys = tx(&dbc, move |txn| -> Result<HashSet<Node>, loga::Error> {
                                         let mut db = dbutil::db3(txn);
-                                        return Ok(
-                                            good_ormning::sqlite::good_query_many!(
-                                                r#"select distinct subject as "node" from triple_snapshot where subject in (select value from rarray($unfiltered_keys))"#;
-                                                &mut db,
-                                                unfiltered_keys: arr node = unfiltered_keys.iter().collect::<Vec<_>>()
-                                            )?.into_iter().map(|x| x.0).collect::<HashSet<_>>(),
-                                        );
+                                        return Ok(good_ormning::sqlite::good_query_many!(
+                                            db,
+                                            "",
+                                            3,
+                                            r#"select distinct subject as "node" from triple_snapshot where subject in (select value from rarray($unfiltered_keys))"#;
+                                            &mut db,
+                                            unfiltered_keys: arr node = unfiltered_keys.iter().collect::< Vec < _ >>()
+                                        )?.into_iter().map(|x| x.0).collect::<HashSet<_>>());
                                     }).await?;
                                     for key in found_keys {
                                         batch.remove(&exenum!(key, Node:: File(x) => x).unwrap());
                                     }
-
                                     for path in batch.values() {
                                         log.log_with(
                                             loga::DEBUG,
@@ -805,21 +809,23 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                             .iter()
                                             .map(|(k, _)| DbNode(Node::File(k.clone())))
                                             .collect::<Vec<_>>();
-                                    let found_keys = tx(&dbc, move |txn| -> Result<HashSet<Node>, loga::Error> {
-                                        let mut db = dbutil::db3(txn);
-                                        return Ok(
-                                            good_ormning::sqlite::good_query_many!(
+                                    let found_keys =
+                                        tx(&dbc, move |txn| -> Result<HashSet<Node>, loga::Error> {
+                                            let mut db = dbutil::db3(txn);
+                                            return Ok(good_ormning::sqlite::good_query_many!(
+                                                db,
+                                                "",
+                                                3,
                                                 r#"select distinct node from generated where node in (select value from rarray($unfiltered_keys))"#;
                                                 &mut db,
-                                                unfiltered_keys: arr node = unfiltered_keys.iter().collect::<Vec<_>>()
-                                            )?.into_iter().map(|x| x.0).collect::<HashSet<_>>(),
-                                        );
-                                    })
-                                        .await?
-                                        .into_iter()
-                                        .map(|x| exenum!(x, Node:: File(x) => x).unwrap())
-                                        .collect::<HashSet<_>>();
-
+                                                unfiltered_keys: arr node = unfiltered_keys.iter(
+                                                ).collect::< Vec < _ >>()
+                                            )?.into_iter().map(|x| x.0).collect::<HashSet<_>>());
+                                        })
+                                            .await?
+                                            .into_iter()
+                                            .map(|x| exenum!(x, Node:: File(x) => x).unwrap())
+                                            .collect::<HashSet<_>>();
                                     for (hash, path) in batch {
                                         if found_keys.contains(&hash) {
                                             continue;

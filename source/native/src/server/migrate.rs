@@ -9,41 +9,54 @@ use {
     },
 };
 
-pub fn migrate<
-    C: SqliteConnection,
->(versions: &mut DbVersions<C>) -> Result<(), good_ormning::runtime::GoodError> {
+pub fn migrate<C: SqliteConnection>(versions: &mut DbVersions<C>) -> Result<(), good_ormning::runtime::GoodError> {
     match versions {
         DbVersions::V0(db) => {
-            let data = db.0.query(
-                "select subject, predicate, object, commit_, \"exists\" from triple",
-                [],
-                |row: &rusqlite::Row| {
-                    Ok((
-                        row.get::<_, String>(0).unwrap(),
-                        row.get::<_, String>(1).unwrap(),
-                        row.get::<_, String>(2).unwrap(),
-                        row.get::<_, i64>(3).unwrap(),
-                        row.get::<_, bool>(4).unwrap(),
-                    ))
-                }
-            ).map_err(|e: rusqlite::Error| good_ormning::runtime::GoodError(e.to_string()))?;
-            db.0.execute("delete from triple", []).map_err(|e: rusqlite::Error| good_ormning::runtime::GoodError(e.to_string()))?;
+            let data =
+                db
+                    .0
+                    .query(
+                        "select subject, predicate, object, commit_, \"exists\" from triple",
+                        [],
+                        |row: &rusqlite::Row| {
+                            Ok(
+                                (
+                                    row.get::<_, String>(0).unwrap(),
+                                    row.get::<_, String>(1).unwrap(),
+                                    row.get::<_, String>(2).unwrap(),
+                                    row.get::<_, i64>(3).unwrap(),
+                                    row.get::<_, bool>(4).unwrap(),
+                                ),
+                            )
+                        },
+                    )
+                    .map_err(|e: rusqlite::Error| good_ormning::runtime::GoodError(e.to_string()))?;
+            db
+                .0
+                .execute("delete from triple", [])
+                .map_err(|e: rusqlite::Error| good_ormning::runtime::GoodError(e.to_string()))?;
             for row in data {
-                db.0.execute(
-                    "insert into triple (subject, predicate, object, commit_, \"exists\") values (?, ?, ?, ?, ?)",
-                    rusqlite::params![
-                        <DbNode as GoodOrmningCustomString<DbNode>>::to_sql(&DbNode::from_sql(row.0).map_err(|e| good_ormning::runtime::GoodError(e))?),
-                        row.1,
-                        <DbNode as GoodOrmningCustomString<DbNode>>::to_sql(&DbNode::from_sql(row.2).map_err(|e| good_ormning::runtime::GoodError(e))?),
-                        row.3,
-                        row.4
-                    ],
-                ).map_err(|e: rusqlite::Error| good_ormning::runtime::GoodError(e.to_string()))?;
+                db
+                    .0
+                    .execute(
+                        "insert into triple (subject, predicate, object, commit_, \"exists\") values (?, ?, ?, ?, ?)",
+                        rusqlite::params![
+                            <DbNode as GoodOrmningCustomString<DbNode>>::to_sql(
+                                &DbNode::from_sql(row.0).map_err(|e| good_ormning::runtime::GoodError(e))?
+                            ),
+                            row.1,
+                            <DbNode as GoodOrmningCustomString<DbNode>>::to_sql(
+                                &DbNode::from_sql(row.2).map_err(|e| good_ormning::runtime::GoodError(e))?
+                            ),
+                            row.3,
+                            row.4
+                        ],
+                    )
+                    .map_err(|e: rusqlite::Error| good_ormning::runtime::GoodError(e.to_string()))?;
             }
         },
         DbVersions::V2(db) => {
-            db.0.execute(
-                r#"insert or ignore into "subjobj" ("value")
+            db.0.execute(r#"insert or ignore into "subjobj" ("value")
                    select
                      "subject"
                    from
@@ -53,20 +66,14 @@ pub fn migrate<
                      "object"
                    from
                      "triple"
-                   "#,
-                [],
-            ).map_err(|e: rusqlite::Error| good_ormning::runtime::GoodError(e.to_string()))?;
-            db.0.execute(
-                r#"insert or ignore into "predicate" ("value")
+                   "#, []).map_err(|e: rusqlite::Error| good_ormning::runtime::GoodError(e.to_string()))?;
+            db.0.execute(r#"insert or ignore into "predicate" ("value")
                    select
                      "predicate"
                    from
                      "triple"
-                   "#,
-                [],
-            ).map_err(|e: rusqlite::Error| good_ormning::runtime::GoodError(e.to_string()))?;
-            db.0.execute(
-                r#"insert into "triple2" ("subject", "predicate", "object", "commit_", "exists")
+                   "#, []).map_err(|e: rusqlite::Error| good_ormning::runtime::GoodError(e.to_string()))?;
+            db.0.execute(r#"insert into "triple2" ("subject", "predicate", "object", "commit_", "exists")
                    select
                      "subject",
                      "predicate",
@@ -75,11 +82,8 @@ pub fn migrate<
                      "exists"
                    from
                      "triple"
-                   "#,
-                [],
-            ).map_err(|e: rusqlite::Error| good_ormning::runtime::GoodError(e.to_string()))?;
-            db.0.execute(
-                r#"insert into "triple_snapshot" ("subject", "predicate", "object", "commit_")
+                   "#, []).map_err(|e: rusqlite::Error| good_ormning::runtime::GoodError(e.to_string()))?;
+            db.0.execute(r#"insert into "triple_snapshot" ("subject", "predicate", "object", "commit_")
                    select
                      "subject",
                      "predicate",
@@ -103,9 +107,7 @@ pub fn migrate<
                        )
                        and "exists" = true
                      )
-                   "#,
-                [],
-            ).map_err(|e: rusqlite::Error| good_ormning::runtime::GoodError(e.to_string()))?;
+                   "#, []).map_err(|e: rusqlite::Error| good_ormning::runtime::GoodError(e.to_string()))?;
         },
         _ => { },
     }

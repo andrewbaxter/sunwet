@@ -127,7 +127,11 @@ pub async fn get_meta(state: &Arc<State>, hash: &FileHash) -> Result<Option<Meta
     let res = tx(&state.db, move |txn| -> Result<_, loga::Error> {
         let mut db = dbutil::db3(txn);
         let node = DbNode(Node::File(hash));
-        return Ok(dbutil::meta_get_mimetype(&mut db, &node)?.flatten().map(|mimetype| Metadata { mimetype: Some(mimetype) }));
+        return Ok(
+            dbutil::meta_get_mimetype(&mut db, &node)?
+                .flatten()
+                .map(|mimetype| Metadata { mimetype: Some(mimetype) }),
+        );
     }).await?;
     return Ok(res);
 }

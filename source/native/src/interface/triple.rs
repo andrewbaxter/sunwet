@@ -4,18 +4,14 @@ use {
         FileHash,
         Node,
     },
-    serde::{
-        Serialize,
-        Deserialize,
-    },
 };
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DbNode(pub Node);
 
 impl GoodOrmningCustomString<DbNode> for DbNode {
     fn to_sql<'a>(value: &'a Self) -> String {
-        return serde_json::to_string(&value.0).unwrap();
+        return serde_json_canonicalizer::to_string(&value.0).unwrap();
     }
 
     fn from_sql(value: String) -> Result<Self, String> {
@@ -23,12 +19,12 @@ impl GoodOrmningCustomString<DbNode> for DbNode {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DbFileHash(pub FileHash);
 
 impl GoodOrmningCustomString<DbFileHash> for DbFileHash {
     fn to_sql<'a>(value: &'a Self) -> String {
-        return serde_json::to_string(&value.0).unwrap();
+        return serde_json_canonicalizer::to_string(&value.0).unwrap();
     }
 
     fn from_sql(value: String) -> Result<Self, String> {

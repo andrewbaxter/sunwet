@@ -22,6 +22,7 @@ fn main() {
     };
     let latest = buildlib::dbv3::build(db_build_input.clone());
     match generate(GenerateArgs {
+        db_name: None,
         versions: vec![
             (0usize, buildlib::dbv0::build(db_build_input.clone()).0),
             (1usize, buildlib::dbv1::build(db_build_input.clone()).0),
@@ -29,7 +30,6 @@ fn main() {
             (3usize, latest.0)
         ],
         queries: latest.1,
-        ..Default::default()
     }) {
         Ok(_) => { },
         Err(e) => {
