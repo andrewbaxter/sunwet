@@ -1451,7 +1451,7 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
         db.get().await?.interact({
             let log = log.clone();
             move |db| {
-                db::migrate(dbutil::ConnWrap(db), Some(&|v| migrate::migrate(v)))?;
+                db::migrate(&mut *db, Some(&|v| migrate::migrate(v)))?;
                 if db
                     .prepare("select 1 from sqlite_master where type='table' and name='meta_fts'")?
                     .query([])

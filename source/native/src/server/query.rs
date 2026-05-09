@@ -976,13 +976,13 @@ pub enum QueryResults {
 }
 
 pub fn execute_sql_query(
-    db: &mut crate::server::db::Db<crate::server::dbutil::TxnWrap<'_, '_>>,
+    db: &mut crate::server::db::Db<&mut rusqlite::Transaction<'_>>,
     sql_query: String,
     sql_parameters: sea_query_rusqlite::RusqliteValues,
     query: &Query,
     paginate: Option<Pagination>,
 ) -> Result<Vec<RecordRow>, loga::Error> {
-    let mut s = db.0.0.prepare(&sql_query)?;
+    let mut s = db.0.prepare(&sql_query)?;
     let column_names = s.column_names().into_iter().map(|k| k.to_string()).collect::<Vec<_>>();
     let mut sql_rows = s.query(&*sql_parameters.as_params()).context("Error executing query")?;
     let mut out = vec![];
