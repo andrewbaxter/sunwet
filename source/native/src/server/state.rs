@@ -4,7 +4,6 @@ use {
         subsystems::oidc,
     },
     crate::{
-        ScopeValue,
         interface::{
             self,
             config::{
@@ -17,6 +16,7 @@ use {
             },
         },
         server::access::AccessSourceId,
+        ScopeValue,
     },
     by_address::ByAddress,
     cookie::time::ext::InstantExt,
@@ -24,28 +24,28 @@ use {
     flowcontrol::shed,
     http::HeaderMap,
     loga::{
+        ea,
         DebugDisplay,
         Log,
         ResultContext,
-        ea,
     },
     moka::future::Cache,
     shared::{
         interface::{
             config::{
-                MenuItemId,
                 form::FormId,
                 view::{
                     self,
                     ViewId,
                 },
+                MenuItemId,
             },
             iam::UserIdentityId,
             query,
             triple::FileHash,
             wire::{
-                RespCheck,
                 link::WsS2L,
+                RespCheck,
             },
         },
         query_analysis::analyze_query,
@@ -346,7 +346,7 @@ pub async fn get_global_config(state: &State) -> Result<Arc<GlobalConfig>, loga:
                     .get(f.subpath.iter(), 100 * 1024 * 1024)
                     .await
                     .context("Error making request to FDAP server")? else {
-                    return Err(loga::err(format!("No config found in FDAP server at [{:?}]", f.subpath)))
+                    return Err(loga::err(format!("No config found in FDAP server at [{:?}]", f.subpath)));
                 };
             let config =
                 build_global_config(
@@ -453,16 +453,14 @@ fn build_iam_grants_limited(
 
 pub async fn get_iam_grants(state: &State, identity: &Identity) -> Result<IamGrants, loga::Error> {
     match identity {
-        Identity::Token(grants) => {
-            match &grants {
-                ConfigIamGrants::Admin => {
-                    return Ok(IamGrants::Admin);
-                },
-                ConfigIamGrants::Limited(access) => {
-                    let global_config = get_global_config(state).await?;
-                    return Ok(IamGrants::Limited(build_iam_grants_limited(&global_config, identity, access)?));
-                },
-            }
+        Identity::Token(grants) => match &grants {
+            ConfigIamGrants::Admin => {
+                return Ok(IamGrants::Admin);
+            },
+            ConfigIamGrants::Limited(access) => {
+                let global_config = get_global_config(state).await?;
+                return Ok(IamGrants::Limited(build_iam_grants_limited(&global_config, identity, access)?));
+            },
         },
         Identity::User(identity1) => {
             let user_config = get_user_config(state, identity1).await?;

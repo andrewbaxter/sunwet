@@ -1,16 +1,16 @@
 use good_ormning::good_module;
 
 good_module!(pub db);
-pub mod migrate;
-pub mod dbwrite;
-pub mod filesutil;
-pub mod defaultviews;
-pub mod state;
+pub mod access;
 pub mod dbutil;
+pub mod dbwrite;
+pub mod defaultviews;
+pub mod filesutil;
+pub mod fsutil;
+pub mod migrate;
 pub mod query;
 pub mod query_test;
-pub mod access;
-pub mod fsutil;
+pub mod state;
 pub mod subsystems;
 
 use {
@@ -28,11 +28,11 @@ use {
         },
         server::{
             access::{
+                can_access_file,
                 AccessRes,
                 AccessSourceId,
                 DbAccessSourceId,
                 Identity,
-                can_access_file,
             },
             filesutil::{
                 file_path,
@@ -46,8 +46,8 @@ use {
         },
     },
     aargvark::{
-        Aargvark,
         traits_impls::AargvarkJson,
+        Aargvark,
     },
     access::{
         check_is_admin,
@@ -66,15 +66,15 @@ use {
     fsutil::create_dirs,
     good_ormning::runtime::GoodError,
     http::{
+        status,
         HeaderMap,
         HeaderName,
         HeaderValue,
         Uri,
-        status,
     },
     http_body_util::{
-        BodyExt,
         combinators::BoxBody,
+        BodyExt,
     },
     htwrap::htserve::{
         responses::{
@@ -88,23 +88,23 @@ use {
         },
     },
     hyper::{
-        Method,
-        Request,
-        Response,
         body::{
             Bytes,
             Incoming,
         },
         server::conn::http1,
         service::service_fn,
+        Method,
+        Request,
+        Response,
     },
     hyper_util::rt::TokioIo,
     loga::{
+        ea,
         DebugDisplay,
         ErrContext,
         Log,
         ResultContext,
-        ea,
     },
     moka::future::Cache,
     shared::interface::{
@@ -131,6 +131,9 @@ use {
         },
     },
     state::{
+        build_global_config,
+        get_global_config,
+        get_iam_grants,
         FdapGlobalState,
         FdapState,
         FdapUsersState,
@@ -138,9 +141,6 @@ use {
         LocalUsersState,
         State,
         UsersState,
-        build_global_config,
-        get_global_config,
-        get_iam_grants,
     },
     std::{
         collections::{
@@ -220,23 +220,21 @@ async fn handle_query_req(
 ) -> Result<RespQuery, VisErr<loga::Error>> {
     let expect_count = pagination.as_ref().map(|x| x.count);
     let results = query::execute_query(&state.db, query, parameters, pagination).await?;
-    let page_end = expect_count.and_then(|x| {
-        match &results {
-            query::QueryResults::Scalar(rows) => {
-                if rows.len() < x {
-                    return None;
-                } else {
-                    return rows.last().cloned();
-                }
-            },
-            query::QueryResults::Record(rows) => {
-                if rows.len() < x {
-                    return None;
-                } else {
-                    return rows.last().map(|x| x.head_data.clone());
-                }
-            },
-        }
+    let page_end = expect_count.and_then(|x| match &results {
+        query::QueryResults::Scalar(rows) => {
+            if rows.len() < x {
+                return None;
+            } else {
+                return rows.last().cloned();
+            }
+        },
+        query::QueryResults::Record(rows) => {
+            if rows.len() < x {
+                return None;
+            } else {
+                return rows.last().map(|x| x.head_data.clone());
+            }
+        },
     });
     let mut files = vec![];
     let out_rows;
@@ -616,379 +614,74 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 }
                                 let (events, commit_descriptions): (Vec<_>, _) =
                                     tx(&state.db, move |db| -> Result<_, loga::Error> {
-                                        #[derive(Debug)]
-                                        struct DbResHistory {
-                                            subject: DbNode,
-                                            predicate: String,
-                                            object: DbNode,
-                                            commit_: chrono::DateTime<chrono::Utc>,
-                                            exists: bool,
-                                        }
-
-                                        let events: Vec<DbResHistory>;
+                                        let events: Vec<db::DbResHistory>;
                                         if let Some(f) = req.filter {
                                             if let Some(p) = f.predicate {
                                                 match p {
                                                     ReqHistoryFilterPredicate::Incoming(p) => {
                                                         events = if let Some(after) = req.page_key {
-                                                            good_ormning::sqlite::good_query_many!(
+                                                            db::hist_list_by_predicate_object_after(
                                                                 db,
-                                                                //# genemichaels-external: sql-formatter-sqlite
-                                                                r#"select
-                                                                     subject,
-                                                                     predicate,
-                                                                     object,
-                                                                     commit_,
-                                                                     "exists"
-                                                                   from
-                                                                     triple2
-                                                                   where
-                                                                     predicate = $predicate
-                                                                     and object = $object
-                                                                     and (
-                                                                       commit_ < $after_commit
-                                                                       or (
-                                                                         commit_ = $after_commit
-                                                                         and (
-                                                                           subject < $after_subject
-                                                                           or (
-                                                                             subject = $after_subject
-                                                                             and (
-                                                                               predicate < $after_predicate
-                                                                               or (
-                                                                                 predicate = $after_predicate
-                                                                                 and object < $after_object
-                                                                               )
-                                                                             )
-                                                                           )
-                                                                         )
-                                                                       )
-                                                                     )
-                                                                   order by
-                                                                     commit_ desc,
-                                                                     subject desc,
-                                                                     predicate desc,
-                                                                     object desc
-                                                                   limit
-                                                                     100
-                                                                   "#;
-                                                                db,
-                                                                predicate: string = & p,
-                                                                object: node = & DbNode(f.node.clone()),
-                                                                after_commit: utctime_ms_chrono = after.0,
-                                                                after_subject: node = & DbNode(after.1.subject),
-                                                                after_predicate: string = & after.1.predicate,
-                                                                after_object: node = & DbNode(after.1.object)
-                                                            )?.into_iter().map(|x| DbResHistory {
-                                                                subject: x.subject,
-                                                                predicate: x.predicate,
-                                                                object: x.object,
-                                                                commit_: x.commit_,
-                                                                exists: x.exists,
-                                                            }).collect()
+                                                                after.0,
+                                                                &DbNode(after.1.subject),
+                                                                &after.1.predicate,
+                                                                &DbNode(after.1.object),
+                                                                &p,
+                                                                &DbNode(f.node.clone()),
+                                                            )?
                                                         } else {
-                                                            good_ormning::sqlite::good_query_many!(
+                                                            db::hist_list_by_predicate_object(
                                                                 db,
-                                                                //# genemichaels-external: sql-formatter-sqlite
-                                                                r#"select
-                                                                     subject,
-                                                                     predicate,
-                                                                     object,
-                                                                     commit_,
-                                                                     "exists"
-                                                                   from
-                                                                     triple2
-                                                                   where
-                                                                     predicate = $predicate
-                                                                     and object = $object
-                                                                   order by
-                                                                     commit_ desc,
-                                                                     subject desc,
-                                                                     predicate desc,
-                                                                     object desc
-                                                                   limit
-                                                                     100
-                                                                   "#;
-                                                                db,
-                                                                predicate: string = & p,
-                                                                object: node = & DbNode(f.node.clone())
-                                                            )?.into_iter().map(|x| DbResHistory {
-                                                                subject: x.subject,
-                                                                predicate: x.predicate,
-                                                                object: x.object,
-                                                                commit_: x.commit_,
-                                                                exists: x.exists,
-                                                            }).collect()
+                                                                &p,
+                                                                &DbNode(f.node.clone()),
+                                                            )?
                                                         };
                                                     },
                                                     ReqHistoryFilterPredicate::Outgoing(p) => {
                                                         events = if let Some(after) = req.page_key {
-                                                            good_ormning::sqlite::good_query_many!(
+                                                            db::hist_list_by_subject_predicate_after(
                                                                 db,
-                                                                //# genemichaels-external: sql-formatter-sqlite
-                                                                r#"select
-                                                                     subject,
-                                                                     predicate,
-                                                                     object,
-                                                                     commit_,
-                                                                     "exists"
-                                                                   from
-                                                                     triple2
-                                                                   where
-                                                                     subject = $subject
-                                                                     and predicate = $predicate
-                                                                     and (
-                                                                       commit_ < $after_commit
-                                                                       or (
-                                                                         commit_ = $after_commit
-                                                                         and (
-                                                                           subject < $after_subject
-                                                                           or (
-                                                                             subject = $after_subject
-                                                                             and (
-                                                                               predicate < $after_predicate
-                                                                               or (
-                                                                                 predicate = $after_predicate
-                                                                                 and object < $after_object
-                                                                               )
-                                                                             )
-                                                                           )
-                                                                         )
-                                                                       )
-                                                                     )
-                                                                   order by
-                                                                     commit_ desc,
-                                                                     subject desc,
-                                                                     predicate desc,
-                                                                     object desc
-                                                                   limit
-                                                                     100
-                                                                   "#;
-                                                                db,
-                                                                subject: node = & DbNode(f.node.clone()),
-                                                                predicate: string = & p,
-                                                                after_commit: utctime_ms_chrono = after.0,
-                                                                after_subject: node = & DbNode(after.1.subject),
-                                                                after_predicate: string = & after.1.predicate,
-                                                                after_object: node = & DbNode(after.1.object)
-                                                            )?.into_iter().map(|x| DbResHistory {
-                                                                subject: x.subject,
-                                                                predicate: x.predicate,
-                                                                object: x.object,
-                                                                commit_: x.commit_,
-                                                                exists: x.exists,
-                                                            }).collect()
+                                                                after.0,
+                                                                &DbNode(after.1.subject),
+                                                                &after.1.predicate,
+                                                                &DbNode(after.1.object),
+                                                                &DbNode(f.node.clone()),
+                                                                &p,
+                                                            )?
                                                         } else {
-                                                            good_ormning::sqlite::good_query_many!(
+                                                            db::hist_list_by_subject_predicate(
                                                                 db,
-                                                                //# genemichaels-external: sql-formatter-sqlite
-                                                                r#"select
-                                                                     subject,
-                                                                     predicate,
-                                                                     object,
-                                                                     commit_,
-                                                                     "exists"
-                                                                   from
-                                                                     triple2
-                                                                   where
-                                                                     subject = $subject
-                                                                     and predicate = $predicate
-                                                                   order by
-                                                                     commit_ desc,
-                                                                     subject desc,
-                                                                     predicate desc,
-                                                                     object desc
-                                                                   limit
-                                                                     100
-                                                                   "#;
-                                                                db,
-                                                                subject: node = & DbNode(f.node.clone()),
-                                                                predicate: string = & p
-                                                            )?.into_iter().map(|x| DbResHistory {
-                                                                subject: x.subject,
-                                                                predicate: x.predicate,
-                                                                object: x.object,
-                                                                commit_: x.commit_,
-                                                                exists: x.exists,
-                                                            }).collect()
+                                                                &DbNode(f.node.clone()),
+                                                                &p,
+                                                            )?
                                                         };
                                                     },
                                                 }
                                             } else {
                                                 events = if let Some(after) = req.page_key {
-                                                    good_ormning::sqlite::good_query_many!(
+                                                    db::hist_list_by_node_after(
                                                         db,
-                                                        //# genemichaels-external: sql-formatter-sqlite
-                                                        r#"select
-                                                             subject,
-                                                             predicate,
-                                                             object,
-                                                             commit_,
-                                                             "exists"
-                                                           from
-                                                             triple2
-                                                           where
-                                                             (
-                                                               subject = $node
-                                                               or object = $node
-                                                             )
-                                                             and (
-                                                               commit_ < $after_commit
-                                                               or (
-                                                                 commit_ = $after_commit
-                                                                 and (
-                                                                   subject < $after_subject
-                                                                   or (
-                                                                     subject = $after_subject
-                                                                     and (
-                                                                       predicate < $after_predicate
-                                                                       or (
-                                                                         predicate = $after_predicate
-                                                                         and object < $after_object
-                                                                       )
-                                                                     )
-                                                                   )
-                                                                 )
-                                                               )
-                                                             )
-                                                           order by
-                                                             commit_ desc,
-                                                             subject desc,
-                                                             predicate desc,
-                                                             object desc
-                                                           limit
-                                                             100
-                                                           "#;
-                                                        db,
-                                                        node: node = & DbNode(f.node.clone()),
-                                                        after_commit: utctime_ms_chrono = after.0,
-                                                        after_subject: node = & DbNode(after.1.subject),
-                                                        after_predicate: string = & after.1.predicate,
-                                                        after_object: node = & DbNode(after.1.object)
-                                                    )?.into_iter().map(|x| DbResHistory {
-                                                        subject: x.subject,
-                                                        predicate: x.predicate,
-                                                        object: x.object,
-                                                        commit_: x.commit_,
-                                                        exists: x.exists,
-                                                    }).collect()
+                                                        after.0,
+                                                        &DbNode(after.1.subject),
+                                                        &after.1.predicate,
+                                                        &DbNode(after.1.object),
+                                                        &DbNode(f.node.clone()),
+                                                    )?
                                                 } else {
-                                                    good_ormning::sqlite::good_query_many!(
-                                                        db,
-                                                        //# genemichaels-external: sql-formatter-sqlite
-                                                        r#"select
-                                                             subject,
-                                                             predicate,
-                                                             object,
-                                                             commit_,
-                                                             "exists"
-                                                           from
-                                                             triple2
-                                                           where
-                                                             (
-                                                               subject = $node
-                                                               or object = $node
-                                                             )
-                                                           order by
-                                                             commit_ desc,
-                                                             subject desc,
-                                                             predicate desc,
-                                                             object desc
-                                                           limit
-                                                             100
-                                                           "#;
-                                                        db,
-                                                        node: node = & DbNode(f.node.clone())
-                                                    )?.into_iter().map(|x| DbResHistory {
-                                                        subject: x.subject,
-                                                        predicate: x.predicate,
-                                                        object: x.object,
-                                                        commit_: x.commit_,
-                                                        exists: x.exists,
-                                                    }).collect()
+                                                    db::hist_list_by_node(db, &DbNode(f.node.clone()))?
                                                 };
                                             }
                                         } else {
                                             events = if let Some(after) = req.page_key {
-                                                good_ormning::sqlite::good_query_many!(
+                                                db::hist_list_all_after(
                                                     db,
-                                                    //# genemichaels-external: sql-formatter-sqlite
-                                                    r#"select
-                                                         subject,
-                                                         predicate,
-                                                         object,
-                                                         commit_,
-                                                         "exists"
-                                                       from
-                                                         triple2
-                                                       where
-                                                         (
-                                                           commit_ < $after_commit
-                                                           or (
-                                                             commit_ = $after_commit
-                                                             and (
-                                                               subject < $after_subject
-                                                               or (
-                                                                 subject = $after_subject
-                                                                 and (
-                                                                   predicate < $after_predicate
-                                                                   or (
-                                                                     predicate = $after_predicate
-                                                                     and object < $after_object
-                                                                   )
-                                                                 )
-                                                               )
-                                                             )
-                                                           )
-                                                         )
-                                                       order by
-                                                         commit_ desc,
-                                                         subject desc,
-                                                         predicate desc,
-                                                         object desc
-                                                       limit
-                                                         100
-                                                       "#;
-                                                    db,
-                                                    after_commit: utctime_ms_chrono = after.0,
-                                                    after_subject: node = & DbNode(after.1.subject),
-                                                    after_predicate: string = & after.1.predicate,
-                                                    after_object: node = & DbNode(after.1.object)
-                                                )?.into_iter().map(|x| DbResHistory {
-                                                    subject: x.subject,
-                                                    predicate: x.predicate,
-                                                    object: x.object,
-                                                    commit_: x.commit_,
-                                                    exists: x.exists,
-                                                }).collect()
+                                                    after.0,
+                                                    &DbNode(after.1.subject),
+                                                    &after.1.predicate,
+                                                    &DbNode(after.1.object),
+                                                )?
                                             } else {
-                                                good_ormning::sqlite::good_query_many!(
-                                                    db,
-                                                    //# genemichaels-external: sql-formatter-sqlite
-                                                    r#"select
-                                                         subject,
-                                                         predicate,
-                                                         object,
-                                                         commit_,
-                                                         "exists"
-                                                       from
-                                                         triple2
-                                                       order by
-                                                         commit_ desc,
-                                                         subject desc,
-                                                         predicate desc,
-                                                         object desc
-                                                       limit
-                                                         100
-                                                       "#;
-                                                    db
-                                                )?.into_iter().map(|x| DbResHistory {
-                                                    subject: x.subject,
-                                                    predicate: x.predicate,
-                                                    object: x.object,
-                                                    commit_: x.commit_,
-                                                    exists: x.exists,
-                                                }).collect()
+                                                db::hist_list_all(db)?
                                             };
                                         }
                                         let mut commit_descriptions = HashMap::new();
@@ -1434,18 +1127,20 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
             deadpool_sqlite::Config::new(&db_path)
                 .builder(deadpool_sqlite::Runtime::Tokio1)
                 .context("Error creating sqlite pool builder")?
-                .post_create(Hook::async_fn(|db, _| Box::pin(async {
-                    db
-                        .interact(|db| {
-                            db.busy_timeout(Duration::from_secs(60 * 10))?;
-                            rusqlite::vtab::array::load_module(db)?;
-                            return Ok(());
-                        })
-                        .await
-                        .map_err(|e| HookError::Message(e.to_string().into()))?
-                        .map_err(|e| HookError::Backend(e))?;
-                    return Ok(());
-                })))
+                .post_create(Hook::async_fn(|db, _| {
+                    Box::pin(async {
+                        db
+                            .interact(|db| {
+                                db.busy_timeout(Duration::from_secs(60 * 10))?;
+                                rusqlite::vtab::array::load_module(db)?;
+                                return Ok(());
+                            })
+                            .await
+                            .map_err(|e| HookError::Message(e.to_string().into()))?
+                            .map_err(|e| HookError::Backend(e))?;
+                        return Ok(());
+                    })
+                }))
                 .build()
                 .context("Error creating sqlite pool")?;
         db.get().await?.interact({
@@ -1469,23 +1164,21 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
 
         // Setup state
         let oidc_state = match &config.oidc {
-            Some(oidc_config) => {
-                Some(oidc::new_state(&log, oidc_config.clone()).await.context("Error creating oidc state")?)
-            },
+            Some(oidc_config) => Some(
+                oidc::new_state(&log, oidc_config.clone()).await.context("Error creating oidc state")?,
+            ),
             None => None,
         };
         let fdap_state = match &config.fdap {
-            Some(fdap_config) => {
-                Some(
-                    FdapState {
-                        fdap_client: fdap::Client::builder()
-                            .with_base_url(Uri::from_str(&fdap_config.url).context("Invalid fdap url")?)
-                            .with_token(fdap_config.token.clone())
-                            .build()
-                            .context("Error setting up fdap client")?,
-                    },
-                )
-            },
+            Some(fdap_config) => Some(
+                FdapState {
+                    fdap_client: fdap::Client::builder()
+                        .with_base_url(Uri::from_str(&fdap_config.url).context("Invalid fdap url")?)
+                        .with_token(fdap_config.token.clone())
+                        .build()
+                        .context("Error setting up fdap client")?,
+                },
+            ),
             None => None,
         };
         let global_state = match &config.global {
@@ -1499,9 +1192,9 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
                     cache: Mutex::new(None),
                 })
             },
-            MaybeFdap::Local(global_config) => {
-                GlobalState::Local(build_global_config(global_config).context("Error assembling local config")?)
-            },
+            MaybeFdap::Local(global_config) => GlobalState::Local(
+                build_global_config(global_config).context("Error assembling local config")?,
+            ),
         };
         let users_state = match &config.users {
             Some(MaybeFdap::Fdap(subpath)) => {

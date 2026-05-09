@@ -48,7 +48,7 @@ impl Gather {
             track_superindex: Default::default(),
             track_language: Default::default(),
             track_cover: Default::default(),
-        }
+        };
     }
 }
 

@@ -13,14 +13,23 @@ pub fn migrate<C: SqliteConnection>(versions: &mut DbVersions<C>) -> Result<(), 
                 db,
                 0,
                 //# genemichaels-external: sql-formatter-sqlite
-                "select subject as s, predicate as p, object as o, commit_ as c, \"exists\" as e from triple";
+                r#"select
+                     subject as s,
+                     predicate as p,
+                     object as o,
+                     commit_ as c,
+                     "exists" as e
+                   from
+                     triple
+                   "#;
                 db
             )?;
             good_ormning::sqlite::good_query!(
                 db,
                 0,
                 //# genemichaels-external: sql-formatter-sqlite
-                "delete from triple";
+                r#"delete from triple
+                   "#;
                 db
             )?;
             for row in data {
@@ -28,7 +37,17 @@ pub fn migrate<C: SqliteConnection>(versions: &mut DbVersions<C>) -> Result<(), 
                     db,
                     0,
                     //# genemichaels-external: sql-formatter-sqlite
-                    "insert into triple (subject, predicate, object, commit_, \"exists\") values (${node = &row.s}, ${string = &row.p}, ${node = &row.o}, ${utctime_ms_chrono = row.c}, ${bool = row.e})";
+                    r#"insert into
+                         triple (subject, predicate, object, commit_, "exists")
+                       values
+                         (
+                           ${node = &row.s},
+                           ${string = &row.p},
+                           ${node = &row.o},
+                           ${utctime_ms_chrono = row.c},
+                           ${bool = row.e}
+                         )
+                       "#;
                     db
                 )?;
             }
@@ -38,7 +57,8 @@ pub fn migrate<C: SqliteConnection>(versions: &mut DbVersions<C>) -> Result<(), 
                 db,
                 2,
                 //# genemichaels-external: sql-formatter-sqlite
-                r#"insert or ignore into "subjobj" ("value")
+                r#"insert or ignore into
+                     "subjobj" ("value")
                    select
                      "subject"
                    from
@@ -55,7 +75,8 @@ pub fn migrate<C: SqliteConnection>(versions: &mut DbVersions<C>) -> Result<(), 
                 db,
                 2,
                 //# genemichaels-external: sql-formatter-sqlite
-                r#"insert or ignore into "predicate" ("value")
+                r#"insert or ignore into
+                     "predicate" ("value")
                    select
                      "predicate"
                    from
@@ -67,7 +88,14 @@ pub fn migrate<C: SqliteConnection>(versions: &mut DbVersions<C>) -> Result<(), 
                 db,
                 2,
                 //# genemichaels-external: sql-formatter-sqlite
-                r#"insert into "triple2" ("subject", "predicate", "object", "commit_", "exists")
+                r#"insert into
+                     "triple2" (
+                       "subject",
+                       "predicate",
+                       "object",
+                       "commit_",
+                       "exists"
+                     )
                    select
                      "subject",
                      "predicate",
@@ -83,7 +111,8 @@ pub fn migrate<C: SqliteConnection>(versions: &mut DbVersions<C>) -> Result<(), 
                 db,
                 2,
                 //# genemichaels-external: sql-formatter-sqlite
-                r#"insert into "triple_snapshot" ("subject", "predicate", "object", "commit_")
+                r#"insert into
+                     "triple_snapshot" ("subject", "predicate", "object", "commit_")
                    select
                      "subject",
                      "predicate",

@@ -10,16 +10,17 @@ use {
         VisErr,
     },
     loga::{
-        ResultContext,
         ea,
+        ResultContext,
     },
     rand::{
-        Rng,
-        SeedableRng,
         seq::SliceRandom,
         thread_rng,
+        Rng,
+        SeedableRng,
     },
     sea_query::{
+        extension::sqlite::SqliteExpr,
         Alias,
         ColumnRef,
         DynIden,
@@ -29,7 +30,6 @@ use {
         SeaRc,
         SimpleExpr,
         WindowStatement,
-        extension::sqlite::SqliteExpr,
     },
     sea_query_rusqlite::RusqliteBinder,
     shared::interface::{
@@ -716,14 +716,9 @@ fn build_chain_head(
                             if !buf.is_empty() || match_terms.is_empty() {
                                 match_terms.push(buf);
                             }
-                            match_str =
-                                match_terms
-                                    .into_iter()
-                                    .map(
-                                        |x| format!("\"{}\"", x.into_iter().collect::<String>().replace("\"", "\"\"")),
-                                    )
-                                    .collect::<Vec<_>>()
-                                    .join(" AND ");
+                            match_str = match_terms.into_iter().map(|x| {
+                                format!("\"{}\"", x.into_iter().collect::<String>().replace("\"", "\"\""))
+                            }).collect::<Vec<_>>().join(" AND ");
                         }
                         sql_sel.and_where(
                             Expr::col(colref(ident_meta_fts.clone(), ident_fulltext.clone())).matches(match_str),
@@ -905,9 +900,7 @@ pub fn build_root_chain(
 
     // Build actual query now
     let chain_tail = match &query.suffix {
-        Some(s) => {
-            s.chain_tail.clone()
-        },
+        Some(s) => s.chain_tail.clone(),
         None => ChainTail {
             bind: None,
             subchains: vec![],
@@ -939,17 +932,17 @@ pub fn build_root_chain(
                         Expr::value("t"),
                         Expr::value("v"),
                         Expr::value("v"),
-                        Expr::value(<String as Nullable>::null())
+                        Expr::value(<String as Nullable>::null()),
                     ],
-                )
-            ])).arg("$").into()
+                ),
+            ],)).arg("$").into(),
         ]);
         let ident_name = user_name;
         if plural {
             sel_root.expr_as(sql_fn("json_object", vec![
                 //. .
                 Expr::value("array"),
-                sql_fn("json_group_array", vec![expr])
+                sql_fn("json_group_array", vec![expr]),
             ]), ident_name);
         } else {
             sel_root.expr_as(expr, ident_name);
@@ -1047,16 +1040,20 @@ pub fn execute_sql_query(
                                         .unwrap_or(Ordering::Equal);
                                 let rev = *dir == SortDir::Desc;
                                 match res {
-                                    Ordering::Less => if rev {
-                                        return Ordering::Greater;
-                                    } else {
-                                        return Ordering::Less;
+                                    Ordering::Less => {
+                                        if rev {
+                                            return Ordering::Greater;
+                                        } else {
+                                            return Ordering::Less;
+                                        }
                                     },
                                     Ordering::Equal => { },
-                                    Ordering::Greater => if rev {
-                                        return Ordering::Less;
-                                    } else {
-                                        return Ordering::Greater;
+                                    Ordering::Greater => {
+                                        if rev {
+                                            return Ordering::Less;
+                                        } else {
+                                            return Ordering::Greater;
+                                        }
                                     },
                                 }
                             }

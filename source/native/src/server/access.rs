@@ -132,15 +132,13 @@ pub enum AccessRes {
 pub async fn check_is_admin(state: &State, identity: &Identity, context: &str) -> Result<AccessRes, loga::Error> {
     let out;
     match identity {
-        Identity::Token(grants) => {
-            match grants {
-                ConfigIamGrants::Admin => {
-                    out = AccessRes::Yes;
-                },
-                _ => {
-                    out = AccessRes::NoAccess;
-                },
-            }
+        Identity::Token(grants) => match grants {
+            ConfigIamGrants::Admin => {
+                out = AccessRes::Yes;
+            },
+            _ => {
+                out = AccessRes::NoAccess;
+            },
         },
         Identity::User(u) => {
             let user_config = get_user_config(&state, u).await?;

@@ -7,8 +7,8 @@ use {
     },
 };
 
-pub mod interface;
 pub mod client;
+pub mod interface;
 pub mod server;
 
 pub mod dbm {

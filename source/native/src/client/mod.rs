@@ -8,7 +8,6 @@ use {
         server::fsutil::create_dirs,
     },
     aargvark::{
-        Aargvark,
         help::{
             HelpPattern,
             HelpPatternElement,
@@ -18,6 +17,7 @@ use {
             AargvarkFromStr,
             AargvarkJson,
         },
+        Aargvark,
     },
     chrono::{
         DateTime,
@@ -35,10 +35,10 @@ use {
         url::UriJoin,
     },
     loga::{
+        ea,
         DebugDisplay,
         Log,
         ResultContext,
-        ea,
     },
     serde::Serialize,
     shared::{
@@ -49,9 +49,7 @@ use {
                 CliTriple,
             },
             query::Query,
-            triple::{
-                Node,
-            },
+            triple::Node,
             wire::{
                 ReqCheckGet,
                 ReqCheckStart,
@@ -79,18 +77,18 @@ use {
     },
     tokio::{
         fs::{
-            File,
             read,
             write,
+            File,
         },
         time::sleep,
     },
     uuid::Uuid,
 };
 
-pub mod req;
 pub mod commit;
 pub mod media_import;
+pub mod req;
 
 pub struct AargvarkStrNode(pub Node);
 
@@ -130,9 +128,7 @@ pub async fn handle_query(c: QueryCommand) -> Result<(), loga::Error> {
     });
     let query = match c.source {
         QueryCommandSource::File(v) => v.value,
-        QueryCommandSource::Inline(v) => {
-            compile_query(&v).map_err(loga::err)?
-        },
+        QueryCommandSource::Inline(v) => compile_query(&v).map_err(loga::err)?,
     };
     let out = req::req_simple(&log, ReqQuery {
         query: query,
@@ -215,9 +211,7 @@ pub async fn handle_export(c: ExportCommand) -> Result<(), loga::Error> {
                     pagination: None,
                 }).await?.rows
             },
-            ExportCommandSource::ResultFile(s) => {
-                s.value
-            },
+            ExportCommandSource::ResultFile(s) => s.value,
         }) else {
             return Err(loga::err("The list of nodes has structured elements, the input list must be plain nodes."));
         };
@@ -265,9 +259,7 @@ pub async fn handle_export(c: ExportCommand) -> Result<(), loga::Error> {
                                 ta_return!((), loga::Error);
                                 let mut conn1 = match conn.take() {
                                     Some(c) => c,
-                                    None => {
-                                        htreq::connect(limits, &server_url).await?
-                                    },
+                                    None => htreq::connect(limits, &server_url).await?,
                                 };
                                 let mut req = http::Request::builder().method(http::Method::GET);
                                 for (k, v) in server_headers()? {

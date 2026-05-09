@@ -81,10 +81,12 @@ fn n() -> Node {
 }
 
 fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, TreeNode)]], query: Query) {
-    let (query_string, query_values) = build_root_chain(&query, HashMap::new()).map_err(|e| panic!("{}", match e {
-        VisErr::Internal(e) => e.to_string(),
-        VisErr::External(e) => e,
-    })).unwrap();
+    let (query_string, query_values) = build_root_chain(&query, HashMap::new()).map_err(|e| {
+        panic!("{}", match e {
+            VisErr::Internal(e) => e.to_string(),
+            VisErr::External(e) => e,
+        })
+    }).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
     let mut db = db::migrate(db, None).unwrap();
     for (s, p, o) in triples {
@@ -131,16 +133,14 @@ fn execute(triples: &[(&Node, &str, &Node)], want: &[&[(&str, TreeNode)]], query
     //.        }
     //.    }
     let got =
-        execute_sql_query(&db.0, query_string, query_values, &query, None)
+        execute_sql_query(&mut db::Db(&mut db.0.transaction().unwrap()), query_string, query_values, &query, None)
             .unwrap()
             .into_iter()
             .map(|x| x.tail_data)
             .collect::<Vec<_>>();
-    let want =
-        want
-            .into_iter()
-            .map(|m| m.into_iter().map(|(k, v)| (k.to_string(), v.clone())).collect::<BTreeMap<_, _>>())
-            .collect::<Vec<_>>();
+    let want = want.into_iter().map(|m| {
+        m.into_iter().map(|(k, v)| (k.to_string(), v.clone())).collect::<BTreeMap<_, _>>()
+    }).collect::<Vec<_>>();
     assert_eq!(want, got);
 }
 
@@ -151,10 +151,9 @@ fn src_query_dir() -> PathBuf {
 #[test]
 fn test_base() {
     let query_dir = src_query_dir();
-    let query_head =
-        compile_query(&read_to_string(&query_dir.join("query_audio_albums_by_add_date.txt")).unwrap()).unwrap();
+    let query_head = compile_query(&read_to_string(&query_dir.join("query_audio_albums.txt")).unwrap()).unwrap();
     let query_tail =
-        compile_query(&read_to_string(&query_dir.join("query_audio_albums_suffix.txt")).unwrap()).unwrap();
+        compile_query(&read_to_string(&query_dir.join("query_audio_albums_select.txt")).unwrap()).unwrap();
     execute(
         &[
             (&s("a"), PREDICATE_IS, &node_is_album()),
@@ -184,10 +183,12 @@ fn test_base() {
 #[test]
 fn test_versions() {
     let query = compile_query("\"x\" -> \"y\" { => y }").unwrap();
-    let (query_sql, query_values) = build_root_chain(&query, HashMap::new()).map_err(|e| panic!("{}", match e {
-        VisErr::Internal(e) => e.to_string(),
-        VisErr::External(e) => e,
-    })).unwrap();
+    let (query_sql, query_values) = build_root_chain(&query, HashMap::new()).map_err(|e| {
+        panic!("{}", match e {
+            VisErr::Internal(e) => e.to_string(),
+            VisErr::External(e) => e,
+        })
+    }).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
     let mut db = db::migrate(db, None).unwrap();
     dbwrite::write_triple(
@@ -218,7 +219,7 @@ fn test_versions() {
         }
     }
     let got =
-        execute_sql_query(&db.0, query_sql, query_values, &query, None)
+        execute_sql_query(&mut db::Db(&mut db.0.transaction().unwrap()), query_sql, query_values, &query, None)
             .unwrap()
             .into_iter()
             .map(|x| x.tail_data)
@@ -229,10 +230,12 @@ fn test_versions() {
 #[test]
 fn test_delete() {
     let query = compile_query("\"x\" -> \"y\" { => y }").unwrap();
-    let (query_sql, query_values) = build_root_chain(&query, HashMap::new()).map_err(|e| panic!("{}", match e {
-        VisErr::Internal(e) => e.to_string(),
-        VisErr::External(e) => e,
-    })).unwrap();
+    let (query_sql, query_values) = build_root_chain(&query, HashMap::new()).map_err(|e| {
+        panic!("{}", match e {
+            VisErr::Internal(e) => e.to_string(),
+            VisErr::External(e) => e,
+        })
+    }).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
     let mut db = db::migrate(db, None).unwrap();
     dbwrite::write_triple(
@@ -263,7 +266,7 @@ fn test_delete() {
         }
     }
     let got =
-        execute_sql_query(&db.0, query_sql, query_values, &query, None)
+        execute_sql_query(&mut db::Db(&mut db.0.transaction().unwrap()), query_sql, query_values, &query, None)
             .unwrap()
             .into_iter()
             .map(|x| x.tail_data)
@@ -274,10 +277,12 @@ fn test_delete() {
 #[test]
 fn test_undelete() {
     let query = compile_query("\"x\" -> \"y\" { => y }").unwrap();
-    let (query_sql, query_values) = build_root_chain(&query, HashMap::new()).map_err(|e| panic!("{}", match e {
-        VisErr::Internal(e) => e.to_string(),
-        VisErr::External(e) => e,
-    })).unwrap();
+    let (query_sql, query_values) = build_root_chain(&query, HashMap::new()).map_err(|e| {
+        panic!("{}", match e {
+            VisErr::Internal(e) => e.to_string(),
+            VisErr::External(e) => e,
+        })
+    }).unwrap();
     let mut db = rusqlite::Connection::open_in_memory().unwrap();
     let mut db = db::migrate(db, None).unwrap();
     dbwrite::write_triple(
@@ -316,7 +321,7 @@ fn test_undelete() {
         }
     }
     let got =
-        execute_sql_query(&db.0, query_sql, query_values, &query, None)
+        execute_sql_query(&mut db::Db(&mut db.0.transaction().unwrap()), query_sql, query_values, &query, None)
             .unwrap()
             .into_iter()
             .map(|x| x.tail_data)
@@ -363,7 +368,7 @@ fn test_recurse() {
                                 sort: None,
                                 first: false,
                             }],
-                        } }),
+                        }, }),
                         sort: None,
                         first: false,
                     },
@@ -375,7 +380,7 @@ fn test_recurse() {
                         }),
                         sort: None,
                         first: false,
-                    }
+                    },
                 ],
             },
             suffix: Some(QuerySuffix {
@@ -415,7 +420,7 @@ fn test_filter_eq() {
                                     steps: vec![Step {
                                         specific: StepSpecific::Move(StepMove {
                                             dir: MoveDirection::Forward,
-                                            predicate: StrValue::Literal(PREDICATE_NAME.to_string()),
+                                            predicate: StrValue::Literal(PREDICATE_NAME.to_string(),),
                                             filter: None,
                                         }),
                                         sort: None,
@@ -425,12 +430,12 @@ fn test_filter_eq() {
                                 suffix: Some(shared::interface::query::FilterSuffix::Simple(FilterSuffixSimple {
                                     op: FilterSuffixSimpleOperator::Eq,
                                     value: Value::Literal(s("a_name")),
-                                })),
+                                },)),
                             })),
                         }),
                         sort: None,
                         first: false,
-                    }
+                    },
                 ],
             },
             suffix: Some(QuerySuffix {
@@ -480,12 +485,12 @@ fn test_filter_lt() {
                                 suffix: Some(shared::interface::query::FilterSuffix::Simple(FilterSuffixSimple {
                                     op: FilterSuffixSimpleOperator::Gte,
                                     value: Value::Literal(i(30)),
-                                })),
+                                },)),
                             })),
                         }),
                         sort: None,
                         first: false,
-                    }
+                    },
                 ],
             },
             suffix: Some(QuerySuffix {
@@ -535,7 +540,7 @@ fn test_chain_union() {
                                     }],
                                 },
                                 ChainHead {
-                                    root: Some(ChainRoot::Value(Value::Literal(s("sunwet/1/what")))),
+                                    root: Some(ChainRoot::Value(Value::Literal(s("sunwet/1/what",)))),
                                     steps: vec![Step {
                                         specific: StepSpecific::Move(StepMove {
                                             dir: MoveDirection::Backward,
@@ -545,12 +550,12 @@ fn test_chain_union() {
                                         sort: None,
                                         first: false,
                                     }],
-                                }
+                                },
                             ],
                         }),
                         sort: None,
                         first: false,
-                    }
+                    },
                 ],
             },
             suffix: Some(QuerySuffix {
@@ -591,49 +596,17 @@ fn test_gc() {
     let want = vec![
         //. .
         format!("{:?}", (s("a"), "b".to_string(), s("c"), stamp3, true)),
-        format!("{:?}", (s("d"), "e".to_string(), s("f"), stamp2, true))
+        format!("{:?}", (s("d"), "e".to_string(), s("f"), stamp2, true)),
     ];
-    let mut have =
-        good_ormning::sqlite::good_query!(
-            db,
-            //# genemichaels-external: sql-formatter-sqlite
-            r#"select
-                 "subject",
-                 "predicate",
-                 "object",
-                 "exists",
-                 "commit_"
-               from
-                 "triple2"
-               "#;
-            &mut db
-        )
-            .unwrap()
-            .into_iter()
-            .map(|r| format!("{:?}", (r.subject.0, r.predicate, r.object.0, r.commit_, r.exists)))
-            .collect::<Vec<_>>();
+    let mut have = db::hist_list_all(&mut db).unwrap().into_iter().map(|r| {
+        format!("{:?}", (r.subject.0, r.predicate, r.object.0, r.commit_, r.exists))
+    }).collect::<Vec<_>>();
     have.sort();
     pretty_assertions::assert_eq!(want, have);
     dbutil::triple_gc_deleted(&mut db, stamp2 + Duration::seconds(1)).unwrap();
-    let mut have =
-        good_ormning::sqlite::good_query!(
-            db,
-            //# genemichaels-external: sql-formatter-sqlite
-            r#"select
-                 "subject",
-                 "predicate",
-                 "object",
-                 "exists",
-                 "commit_"
-               from
-                 "triple2"
-               "#;
-            &mut db
-        )
-            .unwrap()
-            .into_iter()
-            .map(|r| format!("{:?}", (r.subject.0, r.predicate, r.object.0, r.commit_, r.exists)))
-            .collect::<Vec<_>>();
+    let mut have = db::hist_list_all(&mut db).unwrap().into_iter().map(|r| {
+        format!("{:?}", (r.subject.0, r.predicate, r.object.0, r.commit_, r.exists))
+    }).collect::<Vec<_>>();
     have.sort();
     pretty_assertions::assert_eq!(want, have);
 }

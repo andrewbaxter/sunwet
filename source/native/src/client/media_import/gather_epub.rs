@@ -4,9 +4,7 @@ use {
         Gather,
         GatherMedia,
     },
-    epub::doc::{
-        EpubDoc,
-    },
+    epub::doc::EpubDoc,
     loga::ResultContext,
     std::{
         path::Path,

@@ -1,13 +1,7 @@
 use {
     crate::buildlib::BuildDbInput,
-    good_ormning::sqlite::{
-        generate,
-        GenerateArgs,
-    },
-    std::{
-        env,
-        path::PathBuf,
-    },
+    good_ormning::sqlite::{generate, GenerateArgs},
+    std::{env, path::PathBuf},
 };
 
 pub mod buildlib;
@@ -27,17 +21,16 @@ fn main() {
             (0usize, buildlib::dbv0::build(db_build_input.clone()).0),
             (1usize, buildlib::dbv1::build(db_build_input.clone()).0),
             (2usize, buildlib::dbv2::build(db_build_input.clone()).0),
-            (3usize, latest.0)
+            (3usize, latest.0),
         ],
         queries: latest.1,
     }) {
-        Ok(_) => { },
+        Ok(_) => {}
         Err(e) => {
             for e in e {
                 eprintln!(" - {}", e);
             }
             panic!("Generate failed.");
-        },
+        }
     };
-
 }
