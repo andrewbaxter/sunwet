@@ -51,7 +51,6 @@ use {
             query::Query,
             triple::{
                 Node,
-                StrNode,
             },
             wire::{
                 ReqCheckGet,
@@ -75,7 +74,6 @@ use {
             HashSet,
         },
         path::PathBuf,
-        str::FromStr,
         time::Duration,
         usize,
     },
@@ -98,18 +96,13 @@ pub struct AargvarkStrNode(pub Node);
 
 impl AargvarkFromStr for AargvarkStrNode {
     fn from_str(s: &str) -> Result<Self, String> {
-        return Ok(AargvarkStrNode(StrNode::from_str(s)?.0));
+        return Ok(AargvarkStrNode(serde_json::from_str(s).map_err(|e| e.to_string())?));
     }
 
-    fn build_help_pattern(_state: &mut aargvark::help::HelpState) -> aargvark::help::HelpPattern {
+    fn build_help_pattern(_state: &mut aargvark::help::HelpState) -> HelpPattern {
         return HelpPattern(
             vec![
-                HelpPatternElement::Variant(
-                    vec![
-                        HelpPattern(vec![HelpPatternElement::Type("f=FILEHASH".to_string())]),
-                        HelpPattern(vec![HelpPatternElement::Type("v=JSON".to_string())])
-                    ],
-                )
+                HelpPatternElement::Type("JSON".to_string())
             ],
         );
     }
