@@ -13,7 +13,7 @@ use {
 pub fn write_triple<
     C: good_ormning::runtime::sqlite::SqliteConnection,
 >(
-    conn: &mut db::Db3<C>,
+    conn: &mut db::Db<C>,
     subject: &DbNode,
     predicate: &str,
     object: &DbNode,
@@ -22,47 +22,51 @@ pub fn write_triple<
 ) -> Result<(), loga::Error> {
     good_ormning::sqlite::good_query!(
         db,
-        "",
-        3,
-        r#"insert or ignore into "subjobj" ("value")
+        //# genemichaels-external: sql-formatter-sqlite
+        r#"insert or ignore into
+             "subjobj" ("value")
            values
-             ($node)"#;
+             ($node)
+           "#;
         conn,
         node: node = subject
     ).context("Error inserting subject into subjobj")?;
     good_ormning::sqlite::good_query!(
         db,
-        "",
-        3,
-        r#"insert or ignore into "subjobj" ("value")
+        //# genemichaels-external: sql-formatter-sqlite
+        r#"insert or ignore into
+             "subjobj" ("value")
            values
-             ($node)"#;
+             ($node)
+           "#;
         conn,
         node: node = object
     ).context("Error inserting object into subjobj")?;
     good_ormning::sqlite::good_query!(
         db,
-        "",
-        3,
-        r#"insert or ignore into "predicate" ("value")
+        //# genemichaels-external: sql-formatter-sqlite
+        r#"insert or ignore into
+             "predicate" ("value")
            values
-             ($value)"#;
+             ($value)
+           "#;
         conn,
         value: string = predicate
     ).context("Error inserting predicate")?;
     good_ormning::sqlite::good_query!(
         db,
-        "",
-        3,
-        r#"insert into "triple2" ("subject", "predicate", "object", "commit_", "exists")
+        //# genemichaels-external: sql-formatter-sqlite
+        r#"insert into
+             "triple2" (
+               "subject",
+               "predicate",
+               "object",
+               "commit_",
+               "exists"
+             )
            values
-             (
-               $subject,
-               $predicate,
-               $object,
-               $commit_,
-               $exist
-             )"#;
+             ($subject, $predicate, $object, $commit_, $exist)
+           "#;
         conn,
         subject: node = subject,
         predicate: string = predicate,
@@ -73,20 +77,15 @@ pub fn write_triple<
     if exist {
         good_ormning::sqlite::good_query!(
             db,
-            "",
-            3,
-            r#"insert into "triple_snapshot" ("subject", "predicate", "object", "commit_")
+            //# genemichaels-external: sql-formatter-sqlite
+            r#"insert into
+                 "triple_snapshot" ("subject", "predicate", "object", "commit_")
                values
-                 (
-                   $subject,
-                   $predicate,
-                   $object,
-                   $commit_
-                 )
-               on conflict ( "subject" , "predicate" , "object" )
-               do update
+                 ($subject, $predicate, $object, $commit_)
+               on conflict ("subject", "predicate", "object") do update
                set
-                 "commit_" = excluded."commit_""#;
+                 "commit_" = excluded."commit_"
+               "#;
             conn,
             subject: node = subject,
             predicate: string = predicate,
@@ -96,15 +95,15 @@ pub fn write_triple<
     } else {
         good_ormning::sqlite::good_query!(
             db,
-            "",
-            3,
+            //# genemichaels-external: sql-formatter-sqlite
             r#"delete from "triple_snapshot"
                where
                  (
                    "subject" = $subject
                    and "predicate" = $predicate
                    and "object" = $object
-                 )"#;
+                 )
+               "#;
             conn,
             subject: node = subject,
             predicate: string = predicate,

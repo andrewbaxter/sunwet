@@ -116,10 +116,9 @@ async fn generated_exists(state: &Arc<State>, file: &FileHash, gentype: &str) ->
     let found = tx(&state.db, {
         let gentype = gentype.to_string();
         let file = file.clone();
-        move |txn| -> Result<_, loga::Error> {
-            let mut db = dbutil::db3(txn);
+        move |db| -> Result<_, loga::Error> {
             let node = DbNode(Node::File(file));
-            return Ok(dbutil::generated_get_mimetype(&mut db, &node, &gentype)?);
+            return Ok(dbutil::generated_get_mimetype(db, &node, &gentype)?);
         }
     }).await?;
     match found {
@@ -152,10 +151,9 @@ async fn commit_generated(
         )?;
     let gentype = gentype.to_string();
     let mimetype = mimetype.to_string();
-    tx(&state.db, move |txn| -> Result<_, loga::Error> {
-        let mut db = dbutil::db3(txn);
+    tx(&state.db, move |db| -> Result<_, loga::Error> {
         let node = DbNode(Node::File(file));
-        dbutil::generated_upsert(&mut db, &node, &gentype, &mimetype).context("Error upserting generated file")?;
+        dbutil::generated_upsert(db, &node, &gentype, &mimetype).context("Error upserting generated file")?;
         return Ok(());
     }).await?;
     return Ok(());
@@ -605,23 +603,42 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                 ) -> Result<(), loga::Error> {
                                     let (found_sub, found_obj) = tx(&dbc, {
                                         let batch = batch.clone();
-                                        move |txn| -> Result<_, loga::Error> {
-                                            let mut db = dbutil::db3(txn);
+                                        move |db| -> Result<_, loga::Error> {
                                             return Ok((
                                                 good_ormning::sqlite::good_query_many!(
                                                     db,
-                                                    "",
-                                                    3,
-                                                    r#"select distinct subject as "node" from triple_snapshot where subject in (select value from rarray($batch))"#;
-                                                    &mut db,
+                                                    //# genemichaels-external: sql-formatter-sqlite
+                                                    r#"select distinct
+                                                         subject as "node"
+                                                       from
+                                                         triple_snapshot
+                                                       where
+                                                         subject in (
+                                                           select
+                                                             value
+                                                           from
+                                                             rarray ($batch)
+                                                         )
+                                                       "#;
+                                                    db,
                                                     batch: arr node = batch.iter().collect::< Vec < _ >>()
                                                 )?.into_iter().map(|x| x.0).collect::<Vec<_>>(),
                                                 good_ormning::sqlite::good_query_many!(
                                                     db,
-                                                    "",
-                                                    3,
-                                                    r#"select distinct object as "node" from triple_snapshot where object in (select value from rarray($batch))"#;
-                                                    &mut db,
+                                                    //# genemichaels-external: sql-formatter-sqlite
+                                                    r#"select distinct
+                                                         object as "node"
+                                                       from
+                                                         triple_snapshot
+                                                       where
+                                                         object in (
+                                                           select
+                                                             value
+                                                           from
+                                                             rarray ($batch)
+                                                         )
+                                                       "#;
+                                                    db,
                                                     batch: arr node = batch.iter().collect::< Vec < _ >>()
                                                 )?.into_iter().map(|x| x.0).collect::<Vec<_>>(),
                                             ));
@@ -688,15 +705,14 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                             //
                             // Clean graph
                             log.log(loga::DEBUG, "Doing database garbage collection");
-                            tx(&state.db, |txn| {
+                            tx(&state.db, |db| {
                                 let epoch = Utc::now() - chrono::Duration::days(365);
-                                let mut db = dbutil::db3(txn);
-                                dbutil::triple_gc_deleted(&mut db, epoch)?;
-                                dbutil::meta_gc(&mut db)?;
-                                dbutil::commit_gc(&mut db)?;
-                                dbutil::gen_gc(&mut db)?;
-                                dbutil::subjobj_gc(&mut db)?;
-                                dbutil::predicate_gc(&mut db)?;
+                                dbutil::triple_gc_deleted(db, epoch)?;
+                                dbutil::meta_gc(db)?;
+                                dbutil::commit_gc(db)?;
+                                dbutil::gen_gc(db)?;
+                                dbutil::subjobj_gc(db)?;
+                                dbutil::predicate_gc(db)?;
                                 return Ok(());
                             }).await?;
 
@@ -711,14 +727,23 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                 ) -> Result<(), loga::Error> {
                                     let unfiltered_keys =
                                         batch.keys().map(|k| DbNode(Node::File(k.clone()))).collect::<Vec<_>>();
-                                    let found_keys = tx(&dbc, move |txn| -> Result<HashSet<Node>, loga::Error> {
-                                        let mut db = dbutil::db3(txn);
+                                    let found_keys = tx(&dbc, move |db| -> Result<HashSet<Node>, loga::Error> {
                                         return Ok(good_ormning::sqlite::good_query_many!(
                                             db,
-                                            "",
-                                            3,
-                                            r#"select distinct subject as "node" from triple_snapshot where subject in (select value from rarray($unfiltered_keys))"#;
-                                            &mut db,
+                                            //# genemichaels-external: sql-formatter-sqlite
+                                            r#"select distinct
+                                                 subject as "node"
+                                               from
+                                                 triple_snapshot
+                                               where
+                                                 subject in (
+                                                   select
+                                                     value
+                                                   from
+                                                     rarray ($unfiltered_keys)
+                                                 )
+                                               "#;
+                                            db,
                                             unfiltered_keys: arr node = unfiltered_keys.iter().collect::< Vec < _ >>()
                                         )?.into_iter().map(|x| x.0).collect::<HashSet<_>>());
                                     }).await?;
@@ -810,14 +835,23 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                             .map(|(k, _)| DbNode(Node::File(k.clone())))
                                             .collect::<Vec<_>>();
                                     let found_keys =
-                                        tx(&dbc, move |txn| -> Result<HashSet<Node>, loga::Error> {
-                                            let mut db = dbutil::db3(txn);
+                                        tx(&dbc, move |db| -> Result<HashSet<Node>, loga::Error> {
                                             return Ok(good_ormning::sqlite::good_query_many!(
                                                 db,
-                                                "",
-                                                3,
-                                                r#"select distinct node from generated where node in (select value from rarray($unfiltered_keys))"#;
-                                                &mut db,
+                                                //# genemichaels-external: sql-formatter-sqlite
+                                                r#"select distinct
+                                                     node
+                                                   from
+                                                     generated
+                                                   where
+                                                     node in (
+                                                       select
+                                                         value
+                                                       from
+                                                         rarray ($unfiltered_keys)
+                                                     )
+                                                   "#;
+                                                db,
                                                 unfiltered_keys: arr node = unfiltered_keys.iter(
                                                 ).collect::< Vec < _ >>()
                                             )?.into_iter().map(|x| x.0).collect::<HashSet<_>>());

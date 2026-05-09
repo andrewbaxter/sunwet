@@ -124,13 +124,10 @@ pub async fn hash_file_sha256(log: &Log, source: &Path) -> Result<FileHash, loga
 pub async fn get_meta(state: &Arc<State>, hash: &FileHash) -> Result<Option<Metadata>, loga::Error> {
     let state = state.clone();
     let hash = hash.clone();
-    let res = tx(&state.db, move |txn| -> Result<_, loga::Error> {
-        let mut db = dbutil::db3(txn);
+    let res = tx(&state.db, move |db| -> Result<_, loga::Error> {
         let node = DbNode(Node::File(hash));
         return Ok(
-            dbutil::meta_get_mimetype(&mut db, &node)?
-                .flatten()
-                .map(|mimetype| Metadata { mimetype: Some(mimetype) }),
+            dbutil::meta_get_mimetype(db, &node)?.flatten().map(|mimetype| Metadata { mimetype: Some(mimetype) }),
         );
     }).await?;
     return Ok(res);

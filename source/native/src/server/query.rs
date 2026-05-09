@@ -976,13 +976,13 @@ pub enum QueryResults {
 }
 
 pub fn execute_sql_query(
-    db: &rusqlite::Connection,
+    db: &mut crate::server::db::Db<crate::server::dbutil::TxnWrap<'_, '_>>,
     sql_query: String,
     sql_parameters: sea_query_rusqlite::RusqliteValues,
     query: &Query,
     paginate: Option<Pagination>,
 ) -> Result<Vec<RecordRow>, loga::Error> {
-    let mut s = db.prepare(&sql_query)?;
+    let mut s = db.0.0.prepare(&sql_query)?;
     let column_names = s.column_names().into_iter().map(|k| k.to_string()).collect::<Vec<_>>();
     let mut sql_rows = s.query(&*sql_parameters.as_params()).context("Error executing query")?;
     let mut out = vec![];
@@ -1091,8 +1091,8 @@ pub async fn execute_query(
     // fields, not value-based sorting (ex: numbers). Therefore pagination also has to
     // happen in rust.
     let (sql_query, sql_parameters) = build_root_chain(&query, parameters)?;
-    let results = tx(&db, move |txn| {
-        return Ok(execute_sql_query(txn, sql_query, sql_parameters, &query, paginate)?);
+    let results = tx(&db, move |db| {
+        return Ok(execute_sql_query(db, sql_query, sql_parameters, &query, paginate)?);
     }).await.err_internal()?;
     if results_are_record {
         return Ok(QueryResults::Record(results));

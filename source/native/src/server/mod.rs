@@ -261,20 +261,15 @@ async fn handle_query_req(
         },
     }
     let meta = tx(&state.db, {
-        move |txn| -> Result<_, loga::Error> {
-            let mut db = dbutil::db3(txn);
+        move |db| -> Result<_, loga::Error> {
             if let Some((view_id, view_hash)) = view_access {
                 let access_source_id = DbAccessSourceId(AccessSourceId::ViewId(view_id.clone()));
                 let view_hash_i64 = view_hash as i64;
-                dbutil::file_access_gc(
-                    &mut db,
-                    &access_source_id,
-                    &view_hash_i64,
-                ).context("Error clearing file access")?;
+                dbutil::file_access_gc(db, &access_source_id, &view_hash_i64).context("Error clearing file access")?;
                 for file in &files {
                     let filehash = DbFileHash(file.clone());
                     dbutil::file_access_insert(
-                        &mut db,
+                        db,
                         &filehash,
                         &access_source_id,
                         &view_hash_i64,
@@ -284,7 +279,7 @@ async fn handle_query_req(
             let mut meta = HashMap::new();
             for file in files {
                 let node = DbNode(Node::File(file.clone()));
-                if let Some(mimetype) = dbutil::meta_get_mimetype(&mut db, &node)?.flatten() {
+                if let Some(mimetype) = dbutil::meta_get_mimetype(db, &node)?.flatten() {
                     meta.insert(Node::File(file), NodeMeta { mime: Some(mimetype) });
                 }
             }
@@ -596,10 +591,9 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                             },
                             C2SReq::GetNodeMeta(req) => {
                                 let responder = req.respond();
-                                let meta = tx(&state.db, move |txn| -> Result<_, loga::Error> {
-                                    let mut db = dbutil::db3(txn);
+                                let meta = tx(&state.db, move |db| -> Result<_, loga::Error> {
                                     let node = DbNode(req.node);
-                                    return Ok(dbutil::meta_get_mimetype(&mut db, &node)?.flatten());
+                                    return Ok(dbutil::meta_get_mimetype(db, &node)?.flatten());
                                 }).await.err_internal()?;
                                 resp = responder(match meta {
                                     Some(mimetype) => Some(NodeMeta { mime: Some(mimetype) }),
@@ -621,9 +615,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     }
                                 }
                                 let (events, commit_descriptions): (Vec<_>, _) =
-                                    tx(&state.db, move |txn| -> Result<_, loga::Error> {
-                                        let mut db = dbutil::db3(txn);
-
+                                    tx(&state.db, move |db| -> Result<_, loga::Error> {
                                         #[derive(Debug)]
                                         struct DbResHistory {
                                             subject: DbNode,
@@ -641,10 +633,46 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                         events = if let Some(after) = req.page_key {
                                                             good_ormning::sqlite::good_query_many!(
                                                                 db,
-                                                                "",
-                                                                3,
-                                                                r#"select subject, predicate, object, commit_, "exists" from triple2 where predicate = $predicate and object = $object and (commit_ < $after_commit or (commit_ = $after_commit and (subject < $after_subject or (subject = $after_subject and (predicate < $after_predicate or (predicate = $after_predicate and object < $after_object)))))) order by commit_ desc, subject desc, predicate desc, object desc limit 100"#;
-                                                                &mut db,
+                                                                //# genemichaels-external: sql-formatter-sqlite
+                                                                r#"select
+                                                                     subject,
+                                                                     predicate,
+                                                                     object,
+                                                                     commit_,
+                                                                     "exists"
+                                                                   from
+                                                                     triple2
+                                                                   where
+                                                                     predicate = $predicate
+                                                                     and object = $object
+                                                                     and (
+                                                                       commit_ < $after_commit
+                                                                       or (
+                                                                         commit_ = $after_commit
+                                                                         and (
+                                                                           subject < $after_subject
+                                                                           or (
+                                                                             subject = $after_subject
+                                                                             and (
+                                                                               predicate < $after_predicate
+                                                                               or (
+                                                                                 predicate = $after_predicate
+                                                                                 and object < $after_object
+                                                                               )
+                                                                             )
+                                                                           )
+                                                                         )
+                                                                       )
+                                                                     )
+                                                                   order by
+                                                                     commit_ desc,
+                                                                     subject desc,
+                                                                     predicate desc,
+                                                                     object desc
+                                                                   limit
+                                                                     100
+                                                                   "#;
+                                                                db,
                                                                 predicate: string = & p,
                                                                 object: node = & DbNode(f.node.clone()),
                                                                 after_commit: utctime_ms_chrono = after.0,
@@ -661,10 +689,27 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                         } else {
                                                             good_ormning::sqlite::good_query_many!(
                                                                 db,
-                                                                "",
-                                                                3,
-                                                                r#"select subject, predicate, object, commit_, "exists" from triple2 where predicate = $predicate and object = $object order by commit_ desc, subject desc, predicate desc, object desc limit 100"#;
-                                                                &mut db,
+                                                                //# genemichaels-external: sql-formatter-sqlite
+                                                                r#"select
+                                                                     subject,
+                                                                     predicate,
+                                                                     object,
+                                                                     commit_,
+                                                                     "exists"
+                                                                   from
+                                                                     triple2
+                                                                   where
+                                                                     predicate = $predicate
+                                                                     and object = $object
+                                                                   order by
+                                                                     commit_ desc,
+                                                                     subject desc,
+                                                                     predicate desc,
+                                                                     object desc
+                                                                   limit
+                                                                     100
+                                                                   "#;
+                                                                db,
                                                                 predicate: string = & p,
                                                                 object: node = & DbNode(f.node.clone())
                                                             )?.into_iter().map(|x| DbResHistory {
@@ -680,10 +725,46 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                         events = if let Some(after) = req.page_key {
                                                             good_ormning::sqlite::good_query_many!(
                                                                 db,
-                                                                "",
-                                                                3,
-                                                                r#"select subject, predicate, object, commit_, "exists" from triple2 where subject = $subject and predicate = $predicate and (commit_ < $after_commit or (commit_ = $after_commit and (subject < $after_subject or (subject = $after_subject and (predicate < $after_predicate or (predicate = $after_predicate and object < $after_object)))))) order by commit_ desc, subject desc, predicate desc, object desc limit 100"#;
-                                                                &mut db,
+                                                                //# genemichaels-external: sql-formatter-sqlite
+                                                                r#"select
+                                                                     subject,
+                                                                     predicate,
+                                                                     object,
+                                                                     commit_,
+                                                                     "exists"
+                                                                   from
+                                                                     triple2
+                                                                   where
+                                                                     subject = $subject
+                                                                     and predicate = $predicate
+                                                                     and (
+                                                                       commit_ < $after_commit
+                                                                       or (
+                                                                         commit_ = $after_commit
+                                                                         and (
+                                                                           subject < $after_subject
+                                                                           or (
+                                                                             subject = $after_subject
+                                                                             and (
+                                                                               predicate < $after_predicate
+                                                                               or (
+                                                                                 predicate = $after_predicate
+                                                                                 and object < $after_object
+                                                                               )
+                                                                             )
+                                                                           )
+                                                                         )
+                                                                       )
+                                                                     )
+                                                                   order by
+                                                                     commit_ desc,
+                                                                     subject desc,
+                                                                     predicate desc,
+                                                                     object desc
+                                                                   limit
+                                                                     100
+                                                                   "#;
+                                                                db,
                                                                 subject: node = & DbNode(f.node.clone()),
                                                                 predicate: string = & p,
                                                                 after_commit: utctime_ms_chrono = after.0,
@@ -700,10 +781,27 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                         } else {
                                                             good_ormning::sqlite::good_query_many!(
                                                                 db,
-                                                                "",
-                                                                3,
-                                                                r#"select subject, predicate, object, commit_, "exists" from triple2 where subject = $subject and predicate = $predicate order by commit_ desc, subject desc, predicate desc, object desc limit 100"#;
-                                                                &mut db,
+                                                                //# genemichaels-external: sql-formatter-sqlite
+                                                                r#"select
+                                                                     subject,
+                                                                     predicate,
+                                                                     object,
+                                                                     commit_,
+                                                                     "exists"
+                                                                   from
+                                                                     triple2
+                                                                   where
+                                                                     subject = $subject
+                                                                     and predicate = $predicate
+                                                                   order by
+                                                                     commit_ desc,
+                                                                     subject desc,
+                                                                     predicate desc,
+                                                                     object desc
+                                                                   limit
+                                                                     100
+                                                                   "#;
+                                                                db,
                                                                 subject: node = & DbNode(f.node.clone()),
                                                                 predicate: string = & p
                                                             )?.into_iter().map(|x| DbResHistory {
@@ -720,10 +818,48 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                 events = if let Some(after) = req.page_key {
                                                     good_ormning::sqlite::good_query_many!(
                                                         db,
-                                                        "",
-                                                        3,
-                                                        r#"select subject, predicate, object, commit_, "exists" from triple2 where (subject = $node or object = $node) and (commit_ < $after_commit or (commit_ = $after_commit and (subject < $after_subject or (subject = $after_subject and (predicate < $after_predicate or (predicate = $after_predicate and object < $after_object)))))) order by commit_ desc, subject desc, predicate desc, object desc limit 100"#;
-                                                        &mut db,
+                                                        //# genemichaels-external: sql-formatter-sqlite
+                                                        r#"select
+                                                             subject,
+                                                             predicate,
+                                                             object,
+                                                             commit_,
+                                                             "exists"
+                                                           from
+                                                             triple2
+                                                           where
+                                                             (
+                                                               subject = $node
+                                                               or object = $node
+                                                             )
+                                                             and (
+                                                               commit_ < $after_commit
+                                                               or (
+                                                                 commit_ = $after_commit
+                                                                 and (
+                                                                   subject < $after_subject
+                                                                   or (
+                                                                     subject = $after_subject
+                                                                     and (
+                                                                       predicate < $after_predicate
+                                                                       or (
+                                                                         predicate = $after_predicate
+                                                                         and object < $after_object
+                                                                       )
+                                                                     )
+                                                                   )
+                                                                 )
+                                                               )
+                                                             )
+                                                           order by
+                                                             commit_ desc,
+                                                             subject desc,
+                                                             predicate desc,
+                                                             object desc
+                                                           limit
+                                                             100
+                                                           "#;
+                                                        db,
                                                         node: node = & DbNode(f.node.clone()),
                                                         after_commit: utctime_ms_chrono = after.0,
                                                         after_subject: node = & DbNode(after.1.subject),
@@ -739,10 +875,29 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                 } else {
                                                     good_ormning::sqlite::good_query_many!(
                                                         db,
-                                                        "",
-                                                        3,
-                                                        r#"select subject, predicate, object, commit_, "exists" from triple2 where (subject = $node or object = $node) order by commit_ desc, subject desc, predicate desc, object desc limit 100"#;
-                                                        &mut db,
+                                                        //# genemichaels-external: sql-formatter-sqlite
+                                                        r#"select
+                                                             subject,
+                                                             predicate,
+                                                             object,
+                                                             commit_,
+                                                             "exists"
+                                                           from
+                                                             triple2
+                                                           where
+                                                             (
+                                                               subject = $node
+                                                               or object = $node
+                                                             )
+                                                           order by
+                                                             commit_ desc,
+                                                             subject desc,
+                                                             predicate desc,
+                                                             object desc
+                                                           limit
+                                                             100
+                                                           "#;
+                                                        db,
                                                         node: node = & DbNode(f.node.clone())
                                                     )?.into_iter().map(|x| DbResHistory {
                                                         subject: x.subject,
@@ -757,10 +912,44 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                             events = if let Some(after) = req.page_key {
                                                 good_ormning::sqlite::good_query_many!(
                                                     db,
-                                                    "",
-                                                    3,
-                                                    r#"select subject, predicate, object, commit_, "exists" from triple2 where (commit_ < $after_commit or (commit_ = $after_commit and (subject < $after_subject or (subject = $after_subject and (predicate < $after_predicate or (predicate = $after_predicate and object < $after_object)))))) order by commit_ desc, subject desc, predicate desc, object desc limit 100"#;
-                                                    &mut db,
+                                                    //# genemichaels-external: sql-formatter-sqlite
+                                                    r#"select
+                                                         subject,
+                                                         predicate,
+                                                         object,
+                                                         commit_,
+                                                         "exists"
+                                                       from
+                                                         triple2
+                                                       where
+                                                         (
+                                                           commit_ < $after_commit
+                                                           or (
+                                                             commit_ = $after_commit
+                                                             and (
+                                                               subject < $after_subject
+                                                               or (
+                                                                 subject = $after_subject
+                                                                 and (
+                                                                   predicate < $after_predicate
+                                                                   or (
+                                                                     predicate = $after_predicate
+                                                                     and object < $after_object
+                                                                   )
+                                                                 )
+                                                               )
+                                                             )
+                                                           )
+                                                         )
+                                                       order by
+                                                         commit_ desc,
+                                                         subject desc,
+                                                         predicate desc,
+                                                         object desc
+                                                       limit
+                                                         100
+                                                       "#;
+                                                    db,
                                                     after_commit: utctime_ms_chrono = after.0,
                                                     after_subject: node = & DbNode(after.1.subject),
                                                     after_predicate: string = & after.1.predicate,
@@ -775,10 +964,24 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                             } else {
                                                 good_ormning::sqlite::good_query_many!(
                                                     db,
-                                                    "",
-                                                    3,
-                                                    r#"select subject, predicate, object, commit_, "exists" from triple2 order by commit_ desc, subject desc, predicate desc, object desc limit 100"#;
-                                                    &mut db
+                                                    //# genemichaels-external: sql-formatter-sqlite
+                                                    r#"select
+                                                         subject,
+                                                         predicate,
+                                                         object,
+                                                         commit_,
+                                                         "exists"
+                                                       from
+                                                         triple2
+                                                       order by
+                                                         commit_ desc,
+                                                         subject desc,
+                                                         predicate desc,
+                                                         object desc
+                                                       limit
+                                                         100
+                                                       "#;
+                                                    db
                                                 )?.into_iter().map(|x| DbResHistory {
                                                     subject: x.subject,
                                                     predicate: x.predicate,
@@ -796,7 +999,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                     let commit_id = ev.commit_;
                                                     entry.insert(
                                                         dbutil::commit_get_description(
-                                                            &mut db,
+                                                            db,
                                                             &commit_id,
                                                         )?.ok_or_else(
                                                             || GoodError(
@@ -841,15 +1044,32 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 let responder = req.respond();
                                 let triples = tx(&state.db, {
                                     let nodes = req.nodes.clone();
-                                    move |txn| -> Result<_, loga::Error> {
-                                        let mut db = dbutil::db3(txn);
+                                    move |db| -> Result<_, loga::Error> {
                                         let nodes = nodes.into_iter().map(DbNode).collect::<Vec<_>>();
                                         return Ok(good_ormning::sqlite::good_query_many!(
                                             db,
-                                            "",
-                                            3,
-                                            r#"select subject, predicate, object from "triple_snapshot" where subject in (select value from rarray($nodes)) or object in (select value from rarray($nodes))"#;
-                                            &mut db,
+                                            //# genemichaels-external: sql-formatter-sqlite
+                                            r#"select
+                                                 subject,
+                                                 predicate,
+                                                 object
+                                               from
+                                                 "triple_snapshot"
+                                               where
+                                                 subject in (
+                                                   select
+                                                     value
+                                                   from
+                                                     rarray ($nodes)
+                                                 )
+                                                 or object in (
+                                                   select
+                                                     value
+                                                   from
+                                                     rarray ($nodes)
+                                                 )
+                                               "#;
+                                            db,
                                             nodes: arr node = nodes.iter().collect::< Vec < _ >>()
                                         )?);
                                     }
@@ -922,44 +1142,81 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                             loop {
                                                 let batch = tx(&state.db, {
                                                     let pivot = pivot.clone();
-                                                    move |txn| -> Result<Vec<DbNode>, loga::Error> {
-                                                        let mut db = dbutil::db3(txn);
+                                                    move |db| -> Result<Vec<DbNode>, loga::Error> {
                                                         match (pivot.as_ref(), triple_end) {
                                                             (None, TripleEnd::Subject) => {
                                                                 return Ok(good_ormning::sqlite::good_query_many!(
                                                                     db,
-                                                                    "",
-                                                                    3,
-                                                                    r#"select distinct subject as "node" from triple_snapshot where subject like 'f=%' order by subject limit 100"#;
-                                                                    &mut db
+                                                                    //# genemichaels-external: sql-formatter-sqlite
+                                                                    r#"select distinct
+                                                                         subject as "node"
+                                                                       from
+                                                                         triple_snapshot
+                                                                       where
+                                                                         subject like 'f=%'
+                                                                       order by
+                                                                         subject
+                                                                       limit
+                                                                         100
+                                                                       "#;
+                                                                    db
                                                                 )?.into_iter().collect());
                                                             },
                                                             (None, TripleEnd::Object) => {
                                                                 return Ok(good_ormning::sqlite::good_query_many!(
                                                                     db,
-                                                                    "",
-                                                                    3,
-                                                                    r#"select distinct object as "node" from triple_snapshot where object like 'f=%' order by object limit 100"#;
-                                                                    &mut db
+                                                                    //# genemichaels-external: sql-formatter-sqlite
+                                                                    r#"select distinct
+                                                                         object as "node"
+                                                                       from
+                                                                         triple_snapshot
+                                                                       where
+                                                                         object like 'f=%'
+                                                                       order by
+                                                                         object
+                                                                       limit
+                                                                         100
+                                                                       "#;
+                                                                    db
                                                                 )?.into_iter().collect());
                                                             },
                                                             (Some(pivot), TripleEnd::Subject) => {
                                                                 return Ok(good_ormning::sqlite::good_query_many!(
                                                                     db,
-                                                                    "",
-                                                                    3,
-                                                                    r#"select distinct subject as "node" from triple_snapshot where subject like 'f=%' and subject > $pivot order by subject limit 100"#;
-                                                                    &mut db,
+                                                                    //# genemichaels-external: sql-formatter-sqlite
+                                                                    r#"select distinct
+                                                                         subject as "node"
+                                                                       from
+                                                                         triple_snapshot
+                                                                       where
+                                                                         subject like 'f=%'
+                                                                         and subject > $pivot
+                                                                       order by
+                                                                         subject
+                                                                       limit
+                                                                         100
+                                                                       "#;
+                                                                    db,
                                                                     pivot: node = pivot
                                                                 )?.into_iter().collect());
                                                             },
                                                             (Some(pivot), TripleEnd::Object) => {
                                                                 return Ok(good_ormning::sqlite::good_query_many!(
                                                                     db,
-                                                                    "",
-                                                                    3,
-                                                                    r#"select distinct object as "node" from triple_snapshot where object like 'f=%' and object > $pivot order by object limit 100"#;
-                                                                    &mut db,
+                                                                    //# genemichaels-external: sql-formatter-sqlite
+                                                                    r#"select distinct
+                                                                         object as "node"
+                                                                       from
+                                                                         triple_snapshot
+                                                                       where
+                                                                         object like 'f=%'
+                                                                         and object > $pivot
+                                                                       order by
+                                                                         object
+                                                                       limit
+                                                                         100
+                                                                       "#;
+                                                                    db,
                                                                     pivot: node = pivot
                                                                 )?.into_iter().collect());
                                                             },

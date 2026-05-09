@@ -596,8 +596,6 @@ fn test_gc() {
     let mut have =
         good_ormning::sqlite::good_query!(
             db,
-            "",
-            3,
             //# genemichaels-external: sql-formatter-sqlite
             r#"select
                  "subject",
@@ -620,8 +618,6 @@ fn test_gc() {
     let mut have =
         good_ormning::sqlite::good_query!(
             db,
-            "",
-            3,
             //# genemichaels-external: sql-formatter-sqlite
             r#"select
                  "subject",
