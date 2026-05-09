@@ -1398,7 +1398,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1793,9 +1793,9 @@ dependencies = [
 
 [[package]]
 name = "good-ormning"
-version = "0.5.8"
+version = "0.5.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a069f23fe6440aa32fd0fcd3e67f5e68450b95b05653ca1e0ad510d1c82b807"
+checksum = "49000c8e034bec743e77dfe0344f47b48dd366e322d2a15df49b30620280777e"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1824,9 +1824,9 @@ dependencies = [
 
 [[package]]
 name = "good-ormning-core"
-version = "0.5.8"
+version = "0.5.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a47054159a65f53cda98f3430bd86827d9e61eb4b73b5d66390dedcfcffe5c8c"
+checksum = "cfa530aad2ccb540a233980676f0fc2c77e1ae7b0a43b459866317b4464cba60"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1849,9 +1849,9 @@ dependencies = [
 
 [[package]]
 name = "good-ormning-macros"
-version = "0.5.8"
+version = "0.5.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c91a389ba03d0f98199c2a51e3a31ebbfe5787725384e0911bb3a23636a880f"
+checksum = "fe2ab7cd6242f48471d07ed268e2f41b05a8f31fd892910ff0a63f27f661ac72"
 dependencies = [
  "convert_case 0.7.1",
  "good-ormning-core",
@@ -2213,7 +2213,7 @@ dependencies = [
  "hyper",
  "libc",
  "pin-project-lite",
- "socket2 0.5.10",
+ "socket2 0.6.3",
  "tokio",
  "tower-service",
  "tracing",
@@ -2489,7 +2489,7 @@ checksum = "3640c1c38b8e4e43584d8df18be5fc6b0aa314ce6ebf51b53313d4306cca8e46"
 dependencies = [
  "hermit-abi",
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3893,7 +3893,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4782,7 +4782,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5538,7 +5538,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
