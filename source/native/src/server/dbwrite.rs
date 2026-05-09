@@ -1,5 +1,6 @@
 use {
     crate::{
+        dbm,
         interface::triple::DbNode,
         server::db,
     },
@@ -20,50 +21,77 @@ pub fn write_triple<
     commit_: DateTime<Utc>,
     exist: bool,
 ) -> Result<(), loga::Error> {
-    let subject_str = serde_json_canonicalizer::to_string(subject).unwrap();
-    let object_str = serde_json_canonicalizer::to_string(object).unwrap();
-    conn.0.execute(r#"insert or ignore into "subjobj" ("value")
+    good_ormning::sqlite::good_query!(
+        r#"insert or ignore into "subjobj" ("value")
            values
-             (?)"#, [&subject_str]).context("Error inserting subject into subjobj")?;
-    conn.0.execute(r#"insert or ignore into "subjobj" ("value")
+             ($node)"#;
+        conn,
+        node: node = subject
+    ).context("Error inserting subject into subjobj")?;
+    good_ormning::sqlite::good_query!(
+        r#"insert or ignore into "subjobj" ("value")
            values
-             (?)"#, [&object_str]).context("Error inserting object into subjobj")?;
-    conn.0.execute(r#"insert or ignore into "predicate" ("value")
+             ($node)"#;
+        conn,
+        node: node = object
+    ).context("Error inserting object into subjobj")?;
+    good_ormning::sqlite::good_query!(
+        r#"insert or ignore into "predicate" ("value")
            values
-             (?)"#, [predicate]).context("Error inserting predicate")?;
-    conn
-        .0
-        .execute(
-            r#"insert into "triple2" ("subject", "predicate", "object", "commit_", "exists")
+             ($value)"#;
+        conn,
+        value: string = predicate
+    ).context("Error inserting predicate")?;
+    good_ormning::sqlite::good_query!(
+        r#"insert into "triple2" ("subject", "predicate", "object", "commit_", "exists")
            values
-             (?, ?, ?, ?, ?)"#,
-            rusqlite::params![subject_str, predicate, object_str, commit_.timestamp_millis(), exist],
-        )
-        .context("Error inserting triple")?;
+             (
+               $subject,
+               $predicate,
+               $object,
+               $commit_,
+               $exist
+             )"#;
+        conn,
+        subject: node = subject,
+        predicate: string = predicate,
+        object: node = object,
+        commit_: utctime_ms_chrono = commit_,
+        exist: bool = exist
+    ).context("Error inserting triple")?;
     if exist {
-        conn
-            .0
-            .execute(
-                r#"insert into "triple_snapshot" ("subject", "predicate", "object", "commit_")
+        good_ormning::sqlite::good_query!(
+            r#"insert into "triple_snapshot" ("subject", "predicate", "object", "commit_")
                values
-                 (?, ?, ?, ?)
+                 (
+                   $subject,
+                   $predicate,
+                   $object,
+                   $commit_
+                 )
                on conflict("subject", "predicate", "object") do update
                set
-                 "commit_" = excluded."commit_""#,
-                rusqlite::params![subject_str, predicate, object_str, commit_.timestamp_millis()],
-            )
-            .context("Error upserting triple snapshot")?;
+                 "commit_" = excluded."commit_""#;
+            conn,
+            subject: node = subject,
+            predicate: string = predicate,
+            object: node = object,
+            commit_: utctime_ms_chrono = commit_
+        ).context("Error upserting triple snapshot")?;
     } else {
-        conn
-            .0
-            .execute(r#"delete from "triple_snapshot"
+        good_ormning::sqlite::good_query!(
+            r#"delete from "triple_snapshot"
                where
                  (
-                   "subject" = ?
-                   and "predicate" = ?
-                   and "object" = ?
-                 )"#, rusqlite::params![subject_str, predicate, object_str])
-            .context("Error deleting triple snapshot")?;
+                   "subject" = $subject
+                   and "predicate" = $predicate
+                   and "object" = $object
+                 )"#;
+            conn,
+            subject: node = subject,
+            predicate: string = predicate,
+            object: node = object
+        ).context("Error deleting triple snapshot")?;
     }
     return Ok(());
 }

@@ -9,9 +9,6 @@ use {
                 AccessSourceId,
                 DbAccessSourceId,
             },
-            db::{
-                self,
-            },
             dbwrite,
             dbutil,
             dbutil::tx,
@@ -29,7 +26,6 @@ use {
             },
         },
     },
-    crate::dbm,
     chrono::Utc,
     flowcontrol::superif,
     http::Response,
@@ -131,32 +127,11 @@ async fn commit(
         if let Some((form_id, form_version_hash)) = update_access_reqs {
             let page_access = DbAccessSourceId(AccessSourceId::FormId(form_id));
             let form_version_hash_i64 = form_version_hash as i64;
-            good_ormning::sqlite::good_query!(
-                //# genemichaels-external: sql-formatter-sqlite
-                r#"delete from "file_access"
-                   where
-                     (
-                       "access_source" = ${access_source = &page_access}
-                       and "spec_hash" != ${i64 = &form_version_hash_i64}
-                     )
-                   "#;
-                &mut db
-            ).context("Error clearing file access")?;
+            dbutil::file_access_gc(&mut db, &page_access, &form_version_hash_i64).context("Error clearing file access")?;
             for file in &c.files {
                 let filehash = DbFileHash(file.hash.clone());
-                good_ormning::sqlite::good_query!(
-                    //# genemichaels-external: sql-formatter-sqlite
-                    r#"insert or ignore into
-                         "file_access" ("file", "access_source", "spec_hash")
-                       values
-                         (
-                           ${filehash = &filehash},
-                           ${access_source = &page_access},
-                           ${i64 = &form_version_hash_i64}
-                         )
-                       "#;
-                    &mut db
-                ).context("Error inserting file access")?;
+                dbutil::file_access_insert(&mut db, &filehash, &page_access, &form_version_hash_i64)
+                    .context("Error inserting file access")?;
             }
         }
 
@@ -164,18 +139,7 @@ async fn commit(
         for info in c.files {
             let node = DbNode(Node::File(info.hash));
             let mimetype = Some(info.mimetype);
-            good_ormning::sqlite::good_query!(
-                //# genemichaels-external: sql-formatter-sqlite
-                r#"insert into
-                     "meta" ("node", "mimetype", "fulltext")
-                   values
-                     (${node = &node}, ${string? = &mimetype}, '')
-                   on conflict ("node") do update
-                   set
-                     "mimetype" = excluded."mimetype"
-                   "#;
-                &mut db
-            ).context("Error upserting file meta")?;
+            dbutil::meta_upsert_mimetype(&mut db, &node, &mimetype).context("Error upserting file meta")?;
         }
 
         // Insert triples
@@ -224,39 +188,14 @@ async fn commit(
                 Node::Value(v) => gather_value_text(&mut fulltext, v),
             }
             let node_db = DbNode(node.clone());
-            good_ormning::sqlite::good_query!(
-                //# genemichaels-external: sql-formatter-sqlite
-                r#"insert into
-                     "meta" ("node", "mimetype", "fulltext")
-                   values
-                     (${node = &node_db}, null, ${string = &fulltext})
-                   on conflict ("node") do update
-                   set
-                     "fulltext" = excluded."fulltext"
-                   "#;
-                db
-            ).context("Error updating fulltext")?;
+            dbutil::meta_upsert_fulltext(db, &node_db, &fulltext).context("Error updating fulltext")?;
             return Ok(());
         }
 
         for t in c.remove {
             let subject = DbNode(t.subject.clone());
             let object = DbNode(t.object.clone());
-            if good_ormning::sqlite::good_query!(
-                //# genemichaels-external: sql-formatter-sqlite
-                r#"select
-                     1
-                   from
-                     "triple_snapshot"
-                   where
-                     (
-                       "subject" = ${node = &subject}
-                       and "predicate" = ${string = &t.predicate}
-                       and "object" = ${node = &object}
-                     )
-                   "#;
-                &mut db
-            )?.is_empty() {
+            if !dbutil::triple_snapshot_exists(&mut db, &subject, &t.predicate, &object)? {
                 continue;
             }
             dbwrite::write_triple(&mut db, &DbNode(t.subject), &t.predicate, &DbNode(t.object), stamp, false)?;
@@ -265,21 +204,7 @@ async fn commit(
         for t in c.add {
             let subject = DbNode(t.subject.clone());
             let object = DbNode(t.object.clone());
-            if !good_ormning::sqlite::good_query!(
-                //# genemichaels-external: sql-formatter-sqlite
-                r#"select
-                     1
-                   from
-                     "triple_snapshot"
-                   where
-                     (
-                       "subject" = ${node = &subject}
-                       and "predicate" = ${string = &t.predicate}
-                       and "object" = ${node = &object}
-                     )
-                   "#;
-                &mut db
-            )?.is_empty() {
+            if dbutil::triple_snapshot_exists(&mut db, &subject, &t.predicate, &object)? {
                 continue;
             }
             update_fulltext(&mut db, &t.subject)?;
@@ -290,18 +215,7 @@ async fn commit(
 
         // Write commit if changed
         if modified {
-            good_ormning::sqlite::good_query!(
-                //# genemichaels-external: sql-formatter-sqlite
-                r#"insert into
-                     "commit" ("idtimestamp", "description")
-                   values
-                     (
-                       ${utctime_ms_chrono = &stamp},
-                       ${string = &c.comment}
-                     )
-                   "#;
-                &mut db
-            ).context("Error inserting commit")?;
+            dbutil::commit_insert(&mut db, &stamp, &c.comment).context("Error inserting commit")?;
         }
         return Ok(());
     }).await?;
@@ -499,20 +413,7 @@ pub async fn handle_file_get(
             let gentype = gentype.to_string();
             move |txn| {
                 let mut db = dbutil::db3(txn);
-                Ok(good_ormning::sqlite::good_query!(
-                    //# genemichaels-external: sql-formatter-sqlite
-                    r#"select
-                         "mimetype"
-                       from
-                         "generated"
-                       where
-                         (
-                           "node" = ${node = &search_node}
-                           and "gentype" = ${string = &gentype}
-                         )
-                       "#;
-                    &mut db
-                )?.into_iter().next(),)
+                Ok(dbutil::generated_get_mimetype(&mut db, &search_node, &gentype)?)
             }
         }).await.err_internal()? else {
             break 'nogen;

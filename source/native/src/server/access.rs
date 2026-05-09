@@ -10,7 +10,6 @@ use {
             triple::DbFileHash,
         },
         server::{
-            db,
             dbutil,
             dbutil::tx,
             state::{
@@ -192,26 +191,16 @@ pub async fn can_access_file(state: &State, identity: &Identity, file: &FileHash
                     let file = DbFileHash(file.clone());
                     move |txn| {
                         let mut db = dbutil::db3(txn);
-                        Ok(good_ormning::sqlite::good_query!(
-                            //# genemichaels-external: sql-formatter-sqlite
-                            r#"select
-                                 "access_source"
-                               from
-                                 "file_access"
-                               where
-                                 "file" = ${filehash = file}
-                               "#;
-                            &mut db
-                        )?,)
+                        Ok(dbutil::file_access_get_sources(&mut db, &file)?)
                     }
-                }).await?.into_iter().map(|x| x.0).collect::<HashSet<_>>();
+                }).await?.into_iter().collect::<HashSet<_>>();
                 for form_id in &grants.forms {
-                    if stored_access.contains(&AccessSourceId::FormId(form_id.clone())) {
+                    if stored_access.contains(&DbAccessSourceId(AccessSourceId::FormId(form_id.clone()))) {
                         break 'done AccessRes::Yes;
                     }
                 }
                 for view_id in &grants.views {
-                    if stored_access.contains(&AccessSourceId::ViewId(view_id.clone())) {
+                    if stored_access.contains(&DbAccessSourceId(AccessSourceId::ViewId(view_id.clone()))) {
                         break 'done AccessRes::Yes;
                     }
                 }

@@ -27,7 +27,7 @@ pub async fn handle_static(
     path: &str,
 ) -> Result<Response<BoxBody<Bytes, std::io::Error>>, VisErr<loga::Error>> {
     #[derive(RustEmbed)]
-    #[folder = "$STATIC_DIR"]
+    #[folder = "fake_static"]
     struct Static;
 
     let mut f = Static::get(path);
