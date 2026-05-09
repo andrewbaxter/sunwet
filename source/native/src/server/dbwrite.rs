@@ -84,7 +84,7 @@ pub fn write_triple<
                  ($subject, $predicate, $object, $commit_)
                on conflict ("subject", "predicate", "object") do update
                set
-                 "commit_" = $commit_
+                 "commit_" = excluded."commit_"
                "#;
             conn,
             subject: node = subject,
