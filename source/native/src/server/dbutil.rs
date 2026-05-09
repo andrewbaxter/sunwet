@@ -294,12 +294,9 @@ pub fn file_access_gc(
     source: &crate::server::access::DbAccessSourceId,
     hash: &i64,
 ) -> Result<(), loga::Error> {
-    let hash = *hash;
     good_ormning::sqlite::good_query!(
-        r#"delete from "file_access" where "access_source" = $source and "spec_hash" != $hash"#;
-        db,
-        source: access_source = source,
-        hash: i64 = hash
+        r#"delete from "file_access" where "access_source" = ${access_source = source} and "spec_hash" != ${i64 = *hash}"#;
+        db
     ).context("Error executing file_access_gc")?;
     Ok(())
 }
@@ -310,13 +307,9 @@ pub fn file_access_insert(
     source: &crate::server::access::DbAccessSourceId,
     hash: &i64,
 ) -> Result<(), loga::Error> {
-    let hash = *hash;
     good_ormning::sqlite::good_query!(
-        r#"insert or ignore into "file_access" ("file", "access_source", "spec_hash") values ($file, $source, $hash)"#;
-        db,
-        file: filehash = file,
-        source: access_source = source,
-        hash: i64 = hash
+        r#"insert or ignore into "file_access" ("file", "access_source", "spec_hash") values (${filehash = file}, ${access_source = source}, ${i64 = *hash})"#;
+        db
     ).context("Error executing file_access_insert")?;
     Ok(())
 }
@@ -327,14 +320,10 @@ pub fn file_access_exists(
     source: &crate::server::access::DbAccessSourceId,
     hash: &i64,
 ) -> Result<bool, loga::Error> {
-    let hash = *hash;
     Ok(
         good_ormning::sqlite::good_query_opt!(
-            r#"select 1 as x from file_access where file = $file and access_source = $source and spec_hash = $hash"#;
-            db,
-            file: filehash = file,
-            source: access_source = source,
-            hash: i64 = hash
+            r#"select 1 as x from file_access where file = ${filehash = file} and access_source = ${access_source = source} and spec_hash = ${i64 = *hash}"#;
+            db
         ).context("Error executing file_access_exists")?.is_some()
     )
 }
@@ -345,9 +334,8 @@ pub fn file_access_get_sources(
 ) -> Result<Vec<crate::server::access::DbAccessSourceId>, loga::Error> {
     Ok(
         good_ormning::sqlite::good_query_many!(
-            r#"select access_source from file_access where file = $file"#;
-            db,
-            file: filehash = file
+            r#"select access_source from file_access where file = ${filehash = file}"#;
+            db
         ).context("Error executing file_access_get_sources")?
     )
 }
@@ -358,13 +346,11 @@ pub fn meta_get_mimetype(
 ) -> Result<Option<Option<String>>, loga::Error> {
     Ok(
         good_ormning::sqlite::good_query_opt!(
-            r#"select mimetype from meta where node = $node"#;
-            db,
-            node: node = node
+            r#"select mimetype from meta where node = ${node = node}"#;
+            db
         ).context("Error executing meta_get_mimetype")?
     )
 }
-
 
 pub fn meta_upsert_mimetype(
     db: &mut db::Db3<impl good_ormning::runtime::sqlite::SqliteConnection>,
@@ -372,10 +358,8 @@ pub fn meta_upsert_mimetype(
     mimetype: &Option<String>,
 ) -> Result<(), loga::Error> {
     good_ormning::sqlite::good_query!(
-        r#"insert into meta (node, mimetype, fulltext) values ($node, $mimetype, '') on conflict (node) do update set mimetype = excluded.mimetype"#;
-        db,
-        node: node = node,
-        mimetype: opt string = mimetype.as_deref()
+        r#"insert into meta (node, mimetype, fulltext) values (${node = node}, ${opt string = mimetype.as_deref()}, '') on conflict (node) do update set mimetype = excluded.mimetype"#;
+        db
     ).context("Error executing meta_upsert_mimetype")?;
     Ok(())
 }
@@ -386,10 +370,8 @@ pub fn meta_upsert_fulltext(
     fulltext: &str,
 ) -> Result<(), loga::Error> {
     good_ormning::sqlite::good_query!(
-        r#"insert into meta (node, mimetype, fulltext) values ($node, null, $fulltext) on conflict (node) do update set fulltext = excluded.fulltext"#;
-        db,
-        node: node = node,
-        fulltext: string = fulltext
+        r#"insert into meta (node, mimetype, fulltext) values (${node = node}, null, ${string = fulltext}) on conflict (node) do update set fulltext = excluded.fulltext"#;
+        db
     ).context("Error executing meta_upsert_fulltext")?;
     Ok(())
 }
@@ -402,27 +384,20 @@ pub fn triple_snapshot_exists(
 ) -> Result<bool, loga::Error> {
     Ok(
         good_ormning::sqlite::good_query_opt!(
-            r#"select 1 as x from "triple_snapshot" where "subject" = $subject and "predicate" = $predicate and "object" = $object"#;
-            db,
-            subject: node = subject,
-            predicate: string = predicate,
-            object: node = object
+            r#"select 1 as x from "triple_snapshot" where "subject" = ${node = subject} and "predicate" = ${string = predicate} and "object" = ${node = object}"#;
+            db
         ).context("Error executing triple_snapshot_exists")?.is_some()
     )
 }
-
 
 pub fn commit_insert(
     db: &mut db::Db3<impl good_ormning::runtime::sqlite::SqliteConnection>,
     id: &chrono::DateTime<chrono::Utc>,
     description: &str,
 ) -> Result<(), loga::Error> {
-    let id = *id;
     good_ormning::sqlite::good_query!(
-        r#"insert into "commit" (idtimestamp, description) values ($id, $description)"#;
-        db,
-        id: utctime_ms_chrono = id,
-        description: string = description
+        r#"insert into "commit" (idtimestamp, description) values (${utctime_ms_chrono = *id}, ${string = description})"#;
+        db
     ).context("Error executing commit_insert")?;
     Ok(())
 }
@@ -431,12 +406,10 @@ pub fn commit_get_description(
     db: &mut db::Db3<impl good_ormning::runtime::sqlite::SqliteConnection>,
     id: &chrono::DateTime<chrono::Utc>,
 ) -> Result<Option<String>, loga::Error> {
-    let id = *id;
     Ok(
         good_ormning::sqlite::good_query_opt!(
-            r#"select description from "commit" where idtimestamp = $id"#;
-            db,
-            id: utctime_ms_chrono = id
+            r#"select description from "commit" where idtimestamp = ${utctime_ms_chrono = *id}"#;
+            db
         ).context("Error executing commit_get_description")?
     )
 }
@@ -448,10 +421,8 @@ pub fn generated_get_mimetype(
 ) -> Result<Option<String>, loga::Error> {
     Ok(
         good_ormning::sqlite::good_query_opt!(
-            r#"select mimetype from generated where node = $node and gentype = $gentype"#;
-            db,
-            node: node = node,
-            gentype: string = gentype
+            r#"select mimetype from generated where node = ${node = node} and gentype = ${string = gentype}"#;
+            db
         ).context("Error executing generated_get_mimetype")?
     )
 }
@@ -463,11 +434,8 @@ pub fn generated_upsert(
     mimetype: &str,
 ) -> Result<(), loga::Error> {
     good_ormning::sqlite::good_query!(
-        r#"insert into generated (node, gentype, mimetype) values ($node, $gentype, $mimetype) on conflict (node, gentype) do update set mimetype = excluded.mimetype"#;
-        db,
-        node: node = node,
-        gentype: string = gentype,
-        mimetype: string = mimetype
+        r#"insert into generated (node, gentype, mimetype) values (${node = node}, ${string = gentype}, ${string = mimetype}) on conflict (node, gentype) do update set mimetype = excluded.mimetype"#;
+        db
     ).context("Error executing generated_upsert")?;
     Ok(())
 }
@@ -478,9 +446,8 @@ pub fn meta_filter_existing_nodes(
 ) -> Result<Vec<crate::interface::triple::DbNode>, loga::Error> {
     Ok(
         good_ormning::sqlite::good_query_many!(
-            r#"select node from meta where node in (select value from rarray($nodes))"#;
-            db,
-            nodes: arr node = nodes
+            r#"select node from meta where node in (select value from rarray(${arr node = nodes}))"#;
+            db
         ).context("Error executing meta_filter_existing_nodes")?
     )
 }
@@ -491,10 +458,10 @@ pub fn generated_filter_existing_nodes(
 ) -> Result<Vec<crate::interface::triple::DbNode>, loga::Error> {
     Ok(
         good_ormning::sqlite::good_query_many!(
-            r#"select node from generated where node in (select value from rarray($nodes))"#;
-            db,
-            nodes: arr node = nodes
+            r#"select node from generated where node in (select value from rarray(${arr node = nodes}))"#;
+            db
         ).context("Error executing generated_filter_existing_nodes")?
     )
 }
+
 
