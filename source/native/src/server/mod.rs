@@ -110,7 +110,6 @@ use {
         ea,
     },
     moka::future::Cache,
-    rusqlite::params_from_iter,
     shared::interface::{
         config::view::ViewId,
         query::Query,
@@ -265,57 +264,27 @@ async fn handle_query_req(
         },
     }
     let meta = tx(&state.db, {
-        move |txn| {
+        move |txn| -> Result<_, loga::Error> {
             let mut db = dbutil::db3(txn);
             if let Some((view_id, view_hash)) = view_access {
                 let access_source_id = DbAccessSourceId(AccessSourceId::ViewId(view_id.clone()));
                 let view_hash_i64 = view_hash as i64;
-                good_ormning::sqlite::good_query!(
-                    //# genemichaels-external: sql-formatter-sqlite
-                    r#"delete from "file_access"
-                       where
-                         (
-                           "access_source" = ${access_source = &access_source_id}
-                           and "spec_hash" != ${i64 = &view_hash_i64}
-                         )
-                       "#;
-                    &mut db
-                ).context("Error clearing file access")?;
+                dbutil::file_access_gc(&mut db, &access_source_id, &view_hash_i64).context("Error clearing file access")?;
                 for file in &files {
                     let filehash = DbFileHash(file.clone());
-                    good_ormning::sqlite::good_query!(
-                        //# genemichaels-external: sql-formatter-sqlite
-                        r#"insert or ignore into
-                             "file_access" ("file", "access_source", "spec_hash")
-                           values
-                             (
-                               ${filehash = &filehash},
-                               ${access_source = &access_source_id},
-                               ${i64 = &view_hash_i64}
-                             )
-                           "#;
-                        &mut db
-                    ).context("Error inserting file access")?;
+                    dbutil::file_access_insert(&mut db, &filehash, &access_source_id, &view_hash_i64)
+                        .context("Error inserting file access")?;
                 }
             }
             let mut meta = HashMap::new();
             for file in files {
                 let node = DbNode(Node::File(file.clone()));
-                if let Some(mimetype) = good_ormning::sqlite::good_query!(
-                    //# genemichaels-external: sql-formatter-sqlite
-                    r#"select
-                         "mimetype"
-                       from
-                         "meta"
-                       where
-                         "node" = ${node = &node}
-                       "#;
-                    &mut db
-                )?.into_iter().next() {
-                    meta.insert(Node::File(file), NodeMeta { mime: mimetype });
+                if let Some(mimetype) = dbutil::meta_get_mimetype(&mut db, &node)?.flatten() {
+                    meta.insert(Node::File(file), NodeMeta { mime: Some(mimetype) });
                 }
             }
             return Ok(meta);
+
         }
     }).await.err_internal()?;
     return Ok(RespQuery {
@@ -623,23 +592,13 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                             },
                             C2SReq::GetNodeMeta(req) => {
                                 let responder = req.respond();
-                                let meta = tx(&state.db, move |txn| {
+                                let meta = tx(&state.db, move |txn| -> Result<_, loga::Error> {
                                     let mut db = dbutil::db3(txn);
                                     let node = DbNode(req.node);
-                                    return Ok(good_ormning::sqlite::good_query!(
-                                        //# genemichaels-external: sql-formatter-sqlite
-                                        r#"select
-                                             "mimetype"
-                                           from
-                                             "meta"
-                                           where
-                                             "node" = ${node = &node}
-                                           "#;
-                                        &mut db
-                                    )?.into_iter().next());
+                                    return Ok(dbutil::meta_get_mimetype(&mut db, &node)?.flatten());
                                 }).await.err_internal()?;
                                 resp = responder(match meta {
-                                    Some(mimetype) => Some(NodeMeta { mime: mimetype }),
+                                    Some(mimetype) => Some(NodeMeta { mime: Some(mimetype) }),
                                     None => None,
                                 });
                             },
@@ -657,76 +616,97 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                         },
                                     }
                                 }
-                                let (events, commit_descriptions) = tx(&state.db, move |txn| {
+                                let (events, commit_descriptions): (Vec<_>, _) = tx(&state.db, move |txn| -> Result<_, loga::Error> {
                                     let mut db = dbutil::db3(txn);
-                                    let events;
+                                    #[derive(Debug)]
+                                    struct DbResHistory {
+                                        subject: DbNode,
+                                        predicate: String,
+                                        object: DbNode,
+                                        commit_: chrono::DateTime<chrono::Utc>,
+                                        exists: bool,
+                                    }
+                                    let events: Vec<DbResHistory>;
                                     if let Some(f) = req.filter {
                                         if let Some(p) = f.predicate {
                                             match p {
                                                 ReqHistoryFilterPredicate::Incoming(p) => {
                                                     events = if let Some(after) = req.page_key {
-                                                        db::hist_list_by_predicate_object_after(
+                                                        good_ormning::sqlite::good_query_many!(
+                                                            r#"select subject, predicate, object, commit_, "exists" from triple2 where predicate = $predicate and object = $object and (commit_ < $after_commit or (commit_ = $after_commit and (subject < $after_subject or (subject = $after_subject and (predicate < $after_predicate or (predicate = $after_predicate and object < $after_object)))))) order by commit_ desc, subject desc, predicate desc, object desc limit 100"#;
                                                             &mut db,
-                                                            after.0,
-                                                            &DbNode(after.1.subject),
-                                                            &after.1.predicate,
-                                                            &DbNode(after.1.object),
-                                                            &p,
-                                                            &DbNode(f.node),
-                                                        )?
+                                                            predicate: string = &p,
+                                                            object: node = &DbNode(f.node.clone()),
+                                                            after_commit: utctime_ms_chrono = after.0,
+                                                            after_subject: node = &DbNode(after.1.subject),
+                                                            after_predicate: string = &after.1.predicate,
+                                                            after_object: node = &DbNode(after.1.object)
+                                                        )?.into_iter().map(|x| DbResHistory { subject: x.subject, predicate: x.predicate, object: x.object, commit_: x.commit_, exists: x.exists }).collect()
                                                     } else {
-                                                        db::hist_list_by_predicate_object(
+                                                        good_ormning::sqlite::good_query_many!(
+                                                            r#"select subject, predicate, object, commit_, "exists" from triple2 where predicate = $predicate and object = $object order by commit_ desc, subject desc, predicate desc, object desc limit 100"#;
                                                             &mut db,
-                                                            &p,
-                                                            &DbNode(f.node),
-                                                        )?
+                                                            predicate: string = &p,
+                                                            object: node = &DbNode(f.node.clone())
+                                                        )?.into_iter().map(|x| DbResHistory { subject: x.subject, predicate: x.predicate, object: x.object, commit_: x.commit_, exists: x.exists }).collect()
                                                     };
                                                 },
                                                 ReqHistoryFilterPredicate::Outgoing(p) => {
                                                     events = if let Some(after) = req.page_key {
-                                                        db::hist_list_by_subject_predicate_after(
+                                                        good_ormning::sqlite::good_query_many!(
+                                                            r#"select subject, predicate, object, commit_, "exists" from triple2 where subject = $subject and predicate = $predicate and (commit_ < $after_commit or (commit_ = $after_commit and (subject < $after_subject or (subject = $after_subject and (predicate < $after_predicate or (predicate = $after_predicate and object < $after_object)))))) order by commit_ desc, subject desc, predicate desc, object desc limit 100"#;
                                                             &mut db,
-                                                            after.0,
-                                                            &DbNode(after.1.subject),
-                                                            &after.1.predicate,
-                                                            &DbNode(after.1.object),
-                                                            &DbNode(f.node),
-                                                            &p,
-                                                        )?
+                                                            subject: node = &DbNode(f.node.clone()),
+                                                            predicate: string = &p,
+                                                            after_commit: utctime_ms_chrono = after.0,
+                                                            after_subject: node = &DbNode(after.1.subject),
+                                                            after_predicate: string = &after.1.predicate,
+                                                            after_object: node = &DbNode(after.1.object)
+                                                        )?.into_iter().map(|x| DbResHistory { subject: x.subject, predicate: x.predicate, object: x.object, commit_: x.commit_, exists: x.exists }).collect()
                                                     } else {
-                                                        db::hist_list_by_subject_predicate(
+                                                        good_ormning::sqlite::good_query_many!(
+                                                            r#"select subject, predicate, object, commit_, "exists" from triple2 where subject = $subject and predicate = $predicate order by commit_ desc, subject desc, predicate desc, object desc limit 100"#;
                                                             &mut db,
-                                                            &DbNode(f.node),
-                                                            &p,
-                                                        )?
+                                                            subject: node = &DbNode(f.node.clone()),
+                                                            predicate: string = &p
+                                                        )?.into_iter().map(|x| DbResHistory { subject: x.subject, predicate: x.predicate, object: x.object, commit_: x.commit_, exists: x.exists }).collect()
                                                     };
                                                 },
                                             }
                                         } else {
                                             events = if let Some(after) = req.page_key {
-                                                db::hist_list_by_node_after(
+                                                good_ormning::sqlite::good_query_many!(
+                                                    r#"select subject, predicate, object, commit_, "exists" from triple2 where (subject = $node or object = $node) and (commit_ < $after_commit or (commit_ = $after_commit and (subject < $after_subject or (subject = $after_subject and (predicate < $after_predicate or (predicate = $after_predicate and object < $after_object)))))) order by commit_ desc, subject desc, predicate desc, object desc limit 100"#;
                                                     &mut db,
-                                                    after.0,
-                                                    &DbNode(after.1.subject),
-                                                    &after.1.predicate,
-                                                    &DbNode(after.1.object),
-                                                    &DbNode(f.node),
-                                                )?
+                                                    node: node = &DbNode(f.node.clone()),
+                                                    after_commit: utctime_ms_chrono = after.0,
+                                                    after_subject: node = &DbNode(after.1.subject),
+                                                    after_predicate: string = &after.1.predicate,
+                                                    after_object: node = &DbNode(after.1.object)
+                                                )?.into_iter().map(|x| DbResHistory { subject: x.subject, predicate: x.predicate, object: x.object, commit_: x.commit_, exists: x.exists }).collect()
                                             } else {
-                                                db::hist_list_by_node(&mut db, &DbNode(f.node))?
+                                                good_ormning::sqlite::good_query_many!(
+                                                    r#"select subject, predicate, object, commit_, "exists" from triple2 where (subject = $node or object = $node) order by commit_ desc, subject desc, predicate desc, object desc limit 100"#;
+                                                    &mut db,
+                                                    node: node = &DbNode(f.node.clone())
+                                                )?.into_iter().map(|x| DbResHistory { subject: x.subject, predicate: x.predicate, object: x.object, commit_: x.commit_, exists: x.exists }).collect()
                                             };
                                         }
                                     } else {
                                         events = if let Some(after) = req.page_key {
-                                            db::hist_list_all_after(
+                                            good_ormning::sqlite::good_query_many!(
+                                                r#"select subject, predicate, object, commit_, "exists" from triple2 where (commit_ < $after_commit or (commit_ = $after_commit and (subject < $after_subject or (subject = $after_subject and (predicate < $after_predicate or (predicate = $after_predicate and object < $after_object)))))) order by commit_ desc, subject desc, predicate desc, object desc limit 100"#;
                                                 &mut db,
-                                                after.0,
-                                                &DbNode(after.1.subject),
-                                                &after.1.predicate,
-                                                &DbNode(after.1.object),
-                                            )?
+                                                after_commit: utctime_ms_chrono = after.0,
+                                                after_subject: node = &DbNode(after.1.subject),
+                                                after_predicate: string = &after.1.predicate,
+                                                after_object: node = &DbNode(after.1.object)
+                                            )?.into_iter().map(|x| DbResHistory { subject: x.subject, predicate: x.predicate, object: x.object, commit_: x.commit_, exists: x.exists }).collect()
                                         } else {
-                                            db::hist_list_all(&mut db)?
+                                            good_ormning::sqlite::good_query_many!(
+                                                r#"select subject, predicate, object, commit_, "exists" from triple2 order by commit_ desc, subject desc, predicate desc, object desc limit 100"#;
+                                                &mut db
+                                            )?.into_iter().map(|x| DbResHistory { subject: x.subject, predicate: x.predicate, object: x.object, commit_: x.commit_, exists: x.exists }).collect()
                                         };
                                     }
                                     let mut commit_descriptions = HashMap::new();
@@ -736,19 +716,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                             std::collections::hash_map::Entry::Vacant(entry) => {
                                                 let commit_id = ev.commit_;
                                                 entry.insert(
-                                                    good_ormning::sqlite::good_query!(
-                                                        //# genemichaels-external: sql-formatter-sqlite
-                                                        r#"select
-                                                             "description"
-                                                           from
-                                                             "commit"
-                                                           where
-                                                             "idtimestamp" = ${utctime_ms_chrono = &commit_id}
-                                                           "#;
-                                                        &mut db
-                                                    )?
-                                                        .into_iter()
-                                                        .next()
+                                                    dbutil::commit_get_description(&mut db, &commit_id)?
                                                         .ok_or_else(
                                                             || GoodError(
                                                                 format!(
@@ -792,29 +760,14 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 let responder = req.respond();
                                 let triples = tx(&state.db, {
                                     let nodes = req.nodes.clone();
-                                    move |txn| {
+                                    move |txn| -> Result<_, loga::Error> {
                                         let mut db = dbutil::db3(txn);
                                         let nodes = nodes.into_iter().map(DbNode).collect::<Vec<_>>();
-                                        return Ok(good_ormning::sqlite::good_query!(
-                                            //# genemichaels-external: sql-formatter-sqlite
-                                            r#"select
-                                                 "subject",
-                                                 "predicate",
-                                                 "object"
-                                               from
-                                                 "triple_snapshot"
-                                               where
-                                                 (
-                                                   "subject" in ${node[] = &nodes}
-                                                   or "object" in ${node[] = &nodes}
-                                                 )
-                                               "#;
-                                            &mut db
-                                        )?.into_iter().map(|x| db::DbResTripleAround {
-                                            subject: x.subject,
-                                            predicate: x.predicate,
-                                            object: x.object,
-                                        }).collect::<Vec<_>>());
+                                        return Ok(good_ormning::sqlite::good_query_many!(
+                                            r#"select subject, predicate, object from "triple_snapshot" where subject in (select value from rarray($nodes)) or object in (select value from rarray($nodes))"#;
+                                            &mut db,
+                                            nodes: arr node = nodes.iter().collect::<Vec<_>>()
+                                        )?);
                                     }
                                 }).await.err_internal()?;
                                 resp = responder(triples.into_iter().map(|t| Triple {
@@ -884,30 +837,42 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                             let mut pivot = None;
                                             loop {
                                                 let batch = tx(&state.db, {
-                                                    move |txn| {
+                                                    let pivot = pivot.clone();
+                                                    move |txn| -> Result<Vec<DbNode>, loga::Error> {
                                                         let mut db = dbutil::db3(txn);
-                                                        match (pivot, triple_end) {
+                                                        match (pivot.as_ref(), triple_end) {
                                                             (None, TripleEnd::Subject) => {
                                                                 return Ok(
-                                                                    db::triples_get_subject_files_start(&mut db)?
+                                                                    good_ormning::sqlite::good_query_many!(
+                                                                        r#"select distinct subject as "node" from triple_snapshot where subject like 'f=%' order by subject limit 100"#;
+                                                                        &mut db
+                                                                    )?.into_iter().collect()
                                                                 );
                                                             },
                                                             (None, TripleEnd::Object) => {
                                                                 return Ok(
-                                                                    db::triples_get_object_files_start(&mut db)?
+                                                                    good_ormning::sqlite::good_query_many!(
+                                                                        r#"select distinct object as "node" from triple_snapshot where object like 'f=%' order by object limit 100"#;
+                                                                        &mut db
+                                                                    )?.into_iter().collect()
                                                                 );
                                                             },
                                                             (Some(pivot), TripleEnd::Subject) => {
                                                                 return Ok(
-                                                                    db::triples_get_subject_files_after(
+                                                                    good_ormning::sqlite::good_query_many!(
+                                                                        r#"select distinct subject as "node" from triple_snapshot where subject like 'f=%' and subject > $pivot order by subject limit 100"#;
                                                                         &mut db,
-                                                                        &pivot
-                                                                    )?,
+                                                                        pivot: node = pivot
+                                                                    )?.into_iter().collect()
                                                                 );
                                                             },
                                                             (Some(pivot), TripleEnd::Object) => {
                                                                 return Ok(
-                                                                    db::triples_get_object_files_after(&mut db, &pivot)?
+                                                                    good_ormning::sqlite::good_query_many!(
+                                                                        r#"select distinct object as "node" from triple_snapshot where object like 'f=%' and object > $pivot order by object limit 100"#;
+                                                                        &mut db,
+                                                                        pivot: node = pivot
+                                                                    )?.into_iter().collect()
                                                                 );
                                                             },
                                                         }
@@ -918,8 +883,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                 };
                                                 pivot = Some(pivot1);
                                                 for node in batch {
-                                                    let node = node.0;
-                                                    let Node::File(hash) = &node else {
+                                                    let Node::File(hash) = &node.0 else {
                                                         unreachable!();
                                                     };
                                                     if !seen.insert(hash.clone()) {
@@ -944,7 +908,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                     }.await {
                                                         Ok(_) => { },
                                                         Err(e) => {
-                                                            node_issues.insert(node, e.to_string());
+                                                            node_issues.insert(DbNode(Node::File(hash.clone())), e.to_string());
                                                         },
                                                     }
                                                 }
@@ -956,7 +920,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                             files_count: seen.len(),
                                             nodes_issues: node_issues
                                                 .into_iter()
-                                                .map(|(k, v)| (serde_json::to_string(&k).unwrap(), v))
+                                                .map(|(k, v)| (serde_json::to_string(&k.0).unwrap(), v))
                                                 .collect(),
                                         });
                                     };
@@ -1139,73 +1103,8 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
         db.get().await?.interact({
             let log = log.clone();
             move |db| {
-                if let Some(ver) = db::get_schema_version(db)? {
-                    if ver == 0 {
-                        // Canonicalize all json. Only triple data is affected, file hashes and access
-                        // should already be canonical (no floats).
-                        log.log(loga::INFO, "DB version 0 starting JSON canonicalization");
-                        let txn = db.transaction()?;
-                        {
-                            let mut rows =
-                                txn
-                                    .prepare("select subject, predicate, object, commit_, \"exists\" from triple")
-                                    .unwrap();
-                            let col_count = rows.column_count();
-                            let col_names =
-                                rows
-                                    .column_names()
-                                    .iter()
-                                    .enumerate()
-                                    .map(|(i, v)| (*v, i))
-                                    .collect::<HashMap<_, _>>();
-                            let subj_col = *col_names.get("subject").unwrap();
-                            let obj_col = *col_names.get("object").unwrap();
-                            rows.column_count();
-                            let mut rows = rows.query([]).unwrap();
-                            let mut update = vec![];
-                            while let Some(row) = rows.next().unwrap() {
-                                let mut replace = vec![];
-                                for col in 0 .. col_count {
-                                    if col == subj_col || col == obj_col {
-                                        replace.push(
-                                            rusqlite::types::Value::Text(
-                                                serde_json_canonicalizer::to_string(
-                                                    &serde_json::from_str::<serde_json::Value>(
-                                                        &row.get::<_, String>(col).unwrap(),
-                                                    ).unwrap(),
-                                                ).unwrap(),
-                                            ),
-                                        );
-                                    } else {
-                                        replace.push(row.get::<_, rusqlite::types::Value>(col).unwrap());
-                                    }
-                                }
-                                update.push(replace);
-                            }
-                            txn.execute("delete from triple", []).unwrap();
-                            for row in update {
-                                let mut update =
-                                    txn
-                                        .prepare(
-                                            "insert into triple (subject, predicate, object, commit_, \"exists\") values (?, ?, ?, ?, ?)",
-                                        )
-                                        .unwrap();
-                                update.execute(params_from_iter(row)).unwrap();
-                            }
-                        }
-                        txn.commit()?;
-                        log.log(loga::INFO, "DB version 0 finished JSON canonicalization");
-                    }
-                }
                 db::migrate(dbutil::ConnWrap(db), Some(&|v| migrate::migrate(v)))?;
-                if db
-                    .prepare("select 1 from sqlite_master where type='table' and name='meta_fts'")
-                    .context("Error preparing statement to check for meta_fts")?
-                    .query([])
-                    .context("Error running query to check for meta_fts")?
-                    .next()
-                    .context("Error reading query to check for meta_fts results")?
-                    .is_none() {
+                if db.prepare("select 1 from sqlite_master where type='table' and name='meta_fts'")?.query([]).context("Error checking for meta_fts")?.next().context("Error checking for meta_fts")?.is_none() {
                     log.log(loga::DEBUG, "Initializing fts table");
                     db.execute_batch(include_str!("setup_fts.sql")).context("Error setting up meta_fts")?;
                     log.log(loga::DEBUG, "Done initializing fts table");

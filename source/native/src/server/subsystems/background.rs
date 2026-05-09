@@ -15,7 +15,6 @@ use {
     crate::{
         interface::triple::DbNode,
         server::{
-            db,
             dbutil,
             dbutil::tx,
             filesutil::{
@@ -117,23 +116,10 @@ async fn generated_exists(state: &Arc<State>, file: &FileHash, gentype: &str) ->
     let found = tx(&state.db, {
         let gentype = gentype.to_string();
         let file = file.clone();
-        move |txn| {
+        move |txn| -> Result<_, loga::Error> {
             let mut db = dbutil::db3(txn);
             let node = DbNode(Node::File(file));
-            return Ok(good_ormning::sqlite::good_query!(
-                //# genemichaels-external: sql-formatter-sqlite
-                r#"select
-                     "mimetype"
-                   from
-                     "generated"
-                   where
-                     (
-                       "node" = ${node = &node}
-                       and "gentype" = ${string = &gentype}
-                     )
-                   "#;
-                &mut db
-            )?.into_iter().next());
+            return Ok(dbutil::generated_get_mimetype(&mut db, &node, &gentype)?);
         }
     }).await?;
     match found {
@@ -166,25 +152,11 @@ async fn commit_generated(
         )?;
     let gentype = gentype.to_string();
     let mimetype = mimetype.to_string();
-    tx(&state.db, move |txn| {
+    tx(&state.db, move |txn| -> Result<_, loga::Error> {
         let mut db = dbutil::db3(txn);
         let node = DbNode(Node::File(file));
-        return Ok(good_ormning::sqlite::good_query!(
-            //# genemichaels-external: sql-formatter-sqlite
-            r#"insert into
-                 "generated" ("node", "gentype", "mimetype")
-               values
-                 (
-                   ${node = &node},
-                   ${string = &gentype},
-                   ${string = &mimetype}
-                 )
-               on conflict ("node", "gentype") do update
-               set
-                 "mimetype" = excluded."mimetype"
-               "#;
-            &mut db
-        )?);
+        dbutil::generated_upsert(&mut db, &node, &gentype, &mimetype).context("Error upserting generated file")?;
+        return Ok(());
     }).await?;
     return Ok(());
 }
@@ -633,18 +605,20 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                 ) -> Result<(), loga::Error> {
                                     let (found_sub, found_obj) = tx(&dbc, {
                                         let batch = batch.clone();
-                                        move |txn| {
+                                        move |txn| -> Result<_, loga::Error> {
                                             let mut db = dbutil::db3(txn);
                                             return Ok(
                                                 (
-                                                    db::node_include_current_existing_subj(
+                                                    good_ormning::sqlite::good_query_many!(
+                                                        r#"select distinct subject as "node" from triple_snapshot where subject in (select value from rarray($batch))"#;
                                                         &mut db,
-                                                        batch.iter().collect(),
-                                                    )?,
-                                                    db::node_include_current_existing_obj(
+                                                        batch: arr node = batch.iter().collect::<Vec<_>>()
+                                                    )?.into_iter().map(|x| x.0).collect::<Vec<_>>(),
+                                                    good_ormning::sqlite::good_query_many!(
+                                                        r#"select distinct object as "node" from triple_snapshot where object in (select value from rarray($batch))"#;
                                                         &mut db,
-                                                        batch.iter().collect(),
-                                                    )?,
+                                                        batch: arr node = batch.iter().collect::<Vec<_>>()
+                                                    )?.into_iter().map(|x| x.0).collect::<Vec<_>>(),
                                                 ),
                                             );
                                         }
@@ -652,7 +626,7 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                     let found_keys =
                                         found_sub.into_iter().chain(found_obj.into_iter()).collect::<HashSet<_>>();
                                     for key in batch {
-                                        if !found_keys.contains(&key) {
+                                        if !found_keys.contains(&key.0) {
                                             continue;
                                         }
                                         let file = exenum!(key.0, Node:: File(x) => x).unwrap();
@@ -733,23 +707,20 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                 ) -> Result<(), loga::Error> {
                                     let unfiltered_keys =
                                         batch.keys().map(|k| DbNode(Node::File(k.clone()))).collect::<Vec<_>>();
-                                    let found_keys = tx(&dbc, move |txn| {
+                                    let found_keys = tx(&dbc, move |txn| -> Result<HashSet<Node>, loga::Error> {
                                         let mut db = dbutil::db3(txn);
-                                        return Ok(good_ormning::sqlite::good_query!(
-                                            //# genemichaels-external: sql-formatter-sqlite
-                                            r#"select
-                                                 "node"
-                                               from
-                                                 "meta"
-                                               where
-                                                 "node" in ${node[] = &unfiltered_keys}
-                                               "#;
-                                            &mut db
-                                        )?);
+                                        return Ok(
+                                            good_ormning::sqlite::good_query_many!(
+                                                r#"select distinct subject as "node" from triple_snapshot where subject in (select value from rarray($unfiltered_keys))"#;
+                                                &mut db,
+                                                unfiltered_keys: arr node = unfiltered_keys.iter().collect::<Vec<_>>()
+                                            )?.into_iter().map(|x| x.0).collect::<HashSet<_>>(),
+                                        );
                                     }).await?;
                                     for key in found_keys {
-                                        batch.remove(&exenum!(key.0, Node:: File(x) => x).unwrap());
+                                        batch.remove(&exenum!(key, Node:: File(x) => x).unwrap());
                                     }
+
                                     for path in batch.values() {
                                         log.log_with(
                                             loga::DEBUG,
@@ -833,26 +804,22 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                         batch
                                             .iter()
                                             .map(|(k, _)| DbNode(Node::File(k.clone())))
-                                            .collect::<HashSet<_>>();
-                                    let found_keys =
-                                        tx(&dbc, move |txn| {
-                                            let mut db = dbutil::db3(txn);
-                                            return Ok(good_ormning::sqlite::good_query!(
-                                                //# genemichaels-external: sql-formatter-sqlite
-                                                r#"select distinct
-                                                     "node"
-                                                   from
-                                                     "generated"
-                                                   where
-                                                     "node" in ${node[] = &unfiltered_keys}
-                                                   "#;
-                                                &mut db
-                                            )?);
-                                        })
-                                            .await?
-                                            .into_iter()
-                                            .map(|x| exenum!(x.0, Node:: File(x) => x).unwrap())
-                                            .collect::<HashSet<_>>();
+                                            .collect::<Vec<_>>();
+                                    let found_keys = tx(&dbc, move |txn| -> Result<HashSet<Node>, loga::Error> {
+                                        let mut db = dbutil::db3(txn);
+                                        return Ok(
+                                            good_ormning::sqlite::good_query_many!(
+                                                r#"select distinct node from generated where node in (select value from rarray($unfiltered_keys))"#;
+                                                &mut db,
+                                                unfiltered_keys: arr node = unfiltered_keys.iter().collect::<Vec<_>>()
+                                            )?.into_iter().map(|x| x.0).collect::<HashSet<_>>(),
+                                        );
+                                    })
+                                        .await?
+                                        .into_iter()
+                                        .map(|x| exenum!(x, Node:: File(x) => x).unwrap())
+                                        .collect::<HashSet<_>>();
+
                                     for (hash, path) in batch {
                                         if found_keys.contains(&hash) {
                                             continue;
