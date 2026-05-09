@@ -34,7 +34,11 @@ pub fn migrate<C: SqliteConnection>(versions: &mut DbVersions<C>) -> Result<(), 
             }
         },
         DbVersions::V2(db) => {
-            db.0.execute(r#"insert or ignore into "subjobj" ("value")
+            good_ormning::sqlite::good_query!(
+                db,
+                2,
+                //# genemichaels-external: sql-formatter-sqlite
+                r#"insert or ignore into "subjobj" ("value")
                    select
                      "subject"
                    from
@@ -44,14 +48,26 @@ pub fn migrate<C: SqliteConnection>(versions: &mut DbVersions<C>) -> Result<(), 
                      "object"
                    from
                      "triple"
-                   "#, [])?;
-            db.0.execute(r#"insert or ignore into "predicate" ("value")
+                   "#;
+                db
+            )?;
+            good_ormning::sqlite::good_query!(
+                db,
+                2,
+                //# genemichaels-external: sql-formatter-sqlite
+                r#"insert or ignore into "predicate" ("value")
                    select
                      "predicate"
                    from
                      "triple"
-                   "#, [])?;
-            db.0.execute(r#"insert into "triple2" ("subject", "predicate", "object", "commit_", "exists")
+                   "#;
+                db
+            )?;
+            good_ormning::sqlite::good_query!(
+                db,
+                2,
+                //# genemichaels-external: sql-formatter-sqlite
+                r#"insert into "triple2" ("subject", "predicate", "object", "commit_", "exists")
                    select
                      "subject",
                      "predicate",
@@ -60,8 +76,14 @@ pub fn migrate<C: SqliteConnection>(versions: &mut DbVersions<C>) -> Result<(), 
                      "exists"
                    from
                      "triple"
-                   "#, [])?;
-            db.0.execute(r#"insert into "triple_snapshot" ("subject", "predicate", "object", "commit_")
+                   "#;
+                db
+            )?;
+            good_ormning::sqlite::good_query!(
+                db,
+                2,
+                //# genemichaels-external: sql-formatter-sqlite
+                r#"insert into "triple_snapshot" ("subject", "predicate", "object", "commit_")
                    select
                      "subject",
                      "predicate",
@@ -85,7 +107,9 @@ pub fn migrate<C: SqliteConnection>(versions: &mut DbVersions<C>) -> Result<(), 
                        )
                        and "exists" = true
                      )
-                   "#, [])?;
+                   "#;
+                db
+            )?;
         },
         _ => { },
     }

@@ -5,83 +5,14 @@ use {
     rusqlite::Transaction,
 };
 
-pub struct ConnWrap<'a>(pub &'a mut rusqlite::Connection);
-
-impl<'a> good_ormning::runtime::sqlite::SqliteConnection for ConnWrap<'a> {
-    fn execute(
-        &mut self,
-        query: &str,
-        params: impl rusqlite::Params,
-    ) -> Result<usize, good_ormning::runtime::GoodError> {
-        self.0.execute(query, params).map_err(|e| good_ormning::runtime::GoodError(e.to_string()))
-    }
-
-    fn query<T, F: FnMut(&rusqlite::Row<'_>) -> rusqlite::Result<T>>(
-        &mut self,
-        query: &str,
-        params: impl rusqlite::Params,
-        mut f: F,
-    ) -> Result<Vec<T>, good_ormning::runtime::GoodError> {
-        let mut stmt =
-            self.0.prepare(query).map_err(|e| good_ormning::runtime::GoodError(e.to_string()))?;
-        let rows =
-            stmt.query_map(params, |row| f(row)).map_err(|e| good_ormning::runtime::GoodError(e.to_string()))?;
-        let mut res = vec![];
-        for row in rows {
-            res.push(row.map_err(|e| good_ormning::runtime::GoodError(e.to_string()))?);
-        }
-        Ok(res)
-    }
-
-    fn load_array_module(&mut self) -> Result<(), good_ormning::runtime::GoodError> {
-        rusqlite::vtab::array::load_module(self.0).map_err(|e| good_ormning::runtime::GoodError(e.to_string()))
-    }
-}
-
-/// Wraps a `&mut Transaction` so it can be used with generated
-/// `db::Db<impl SqliteConnection>` APIs.
-pub struct TxnWrap<'a, 'b>(pub &'a mut Transaction<'b>);
-
-impl<'a, 'b> good_ormning::runtime::sqlite::SqliteConnection for TxnWrap<'a, 'b> {
-    fn execute(
-        &mut self,
-        query: &str,
-        params: impl rusqlite::Params,
-    ) -> Result<usize, good_ormning::runtime::GoodError> {
-        self.0.execute(query, params).map_err(|e| good_ormning::runtime::GoodError(e.to_string()))
-    }
-
-    fn query<T, F: FnMut(&rusqlite::Row<'_>) -> rusqlite::Result<T>>(
-        &mut self,
-        query: &str,
-        params: impl rusqlite::Params,
-        mut f: F,
-    ) -> Result<Vec<T>, good_ormning::runtime::GoodError> {
-        let mut stmt =
-            self.0.prepare(query).map_err(|e| good_ormning::runtime::GoodError(e.to_string()))?;
-        let rows =
-            stmt.query_map(params, |row| f(row)).map_err(|e| good_ormning::runtime::GoodError(e.to_string()))?;
-        let mut res = vec![];
-        for row in rows {
-            res.push(row.map_err(|e| good_ormning::runtime::GoodError(e.to_string()))?);
-        }
-        Ok(res)
-    }
-
-    fn load_array_module(&mut self) -> Result<(), good_ormning::runtime::GoodError> {
-        // Assume loaded on connection
-        Ok(())
-    }
-}
-
 pub async fn tx<
     O: 'static + Send + Sync,
-    F: 'static + Send + FnOnce(&mut db::Db<TxnWrap<'_, '_>>) -> Result<O, loga::Error>,
+    F: 'static + Send + FnOnce(&mut db::Db<&mut Transaction<'_>>) -> Result<O, loga::Error>,
 >(pool: &Pool, cb: F) -> Result<O, loga::Error> {
     let conn = pool.get().await?;
     return Ok(conn.interact(|conn| {
         let mut tx = conn.transaction()?;
-        let mut db = db::Db(TxnWrap(&mut tx));
+        let mut db = db::Db(&mut tx);
         match cb(&mut db) {
             Ok(res) => {
                 tx.commit().context("Failed to commit transaction")?;
@@ -109,12 +40,12 @@ pub enum Txr<T> {
 
 pub async fn abortable_tx<
     O: 'static + Send + Sync,
-    F: 'static + Send + FnOnce(&mut db::Db<TxnWrap<'_, '_>>) -> Result<Txr<O>, loga::Error>,
+    F: 'static + Send + FnOnce(&mut db::Db<&mut Transaction<'_>>) -> Result<Txr<O>, loga::Error>,
 >(pool: &Pool, cb: F) -> Result<Option<O>, loga::Error> {
     let conn = pool.get().await?;
     return Ok(conn.interact(|conn| {
         let mut tx = conn.transaction()?;
-        let mut db = db::Db(TxnWrap(&mut tx));
+        let mut db = db::Db(&mut tx);
         match cb(&mut db) {
             Ok(Txr::Ok(res)) => {
                 tx.commit().context("Failed to commit transaction")?;
