@@ -46,9 +46,7 @@ pub async fn handle_get_filtered_client_config(
         has_access: bool,
     ) -> Result<Option<ClientMenuItem>, loga::Error> {
         let has_access = has_access || match iam_grants {
-            IamGrants::Admin => {
-                true
-            },
+            IamGrants::Admin => true,
             IamGrants::Limited(g) => {
                 if g.menu_items.contains(&at.id) {
                     true
@@ -88,12 +86,8 @@ pub async fn handle_get_filtered_client_config(
                             parameters: d.parameters.clone(),
                         }))
                     },
-                    MenuItemPage::History => {
-                        ClientMenuItemDetail::Page(ClientPage::History)
-                    },
-                    MenuItemPage::Query => {
-                        ClientMenuItemDetail::Page(ClientPage::Query)
-                    },
+                    MenuItemPage::History => ClientMenuItemDetail::Page(ClientPage::History),
+                    MenuItemPage::Query => ClientMenuItemDetail::Page(ClientPage::Query),
                 }
             },
         };

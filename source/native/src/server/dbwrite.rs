@@ -1,7 +1,7 @@
 use {
     crate::{
-        server::db,
         interface::triple::DbNode,
+        server::db,
     },
     chrono::{
         DateTime,
@@ -84,7 +84,7 @@ pub fn write_triple<
                  ($subject, $predicate, $object, $commit_)
                on conflict ("subject", "predicate", "object") do update
                set
-                 "commit_" = excluded."commit_"
+                 "commit_" = $commit_
                "#;
             conn,
             subject: node = subject,

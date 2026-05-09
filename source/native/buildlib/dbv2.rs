@@ -1,15 +1,9 @@
 use {
     crate::buildlib::BuildDbInput,
     good_ormning::sqlite::{
-        Query,
-        Version,
-        schema::field::{
-            field_bool,
-            field_i64,
-            field_str,
-            field_utctime_ms_chrono,
-        },
+        schema::field::{field_bool, field_i64, field_str, field_utctime_ms_chrono},
         types::type_str,
+        Query, Version,
     },
 };
 
@@ -17,9 +11,18 @@ pub fn build(input: BuildDbInput) -> (Version, Vec<Query>) {
     let version = Version::new();
     let mut queries = vec![];
 
-    let node_type = version.custom_type("node").rust_type(input.node_type_path).base_type(type_str().build());
-    let filehash_type = version.custom_type("filehash").rust_type(input.filehash_type_path).base_type(type_str().build());
-    let access_source_type = version.custom_type("access_source").rust_type(input.access_source_type_path).base_type(type_str().build());
+    let node_type = version
+        .custom_type("node")
+        .rust_type(input.node_type_path)
+        .base_type(type_str().build());
+    let filehash_type = version
+        .custom_type("filehash")
+        .rust_type(input.filehash_type_path)
+        .base_type(type_str().build());
+    let access_source_type = version
+        .custom_type("access_source")
+        .rust_type(input.access_source_type_path)
+        .base_type(type_str().build());
 
     // Triple (old table, kept for migration data source)
     {
@@ -30,7 +33,10 @@ pub fn build(input: BuildDbInput) -> (Version, Vec<Query>) {
         let commit = t.field("commit_", field_utctime_ms_chrono().build());
         let exist = t.field("exists", field_bool().build());
         t.primary_key("triple_pk", &[&subject, &predicate, &object, &commit]);
-        t.unique_index("triple_index_obj_pred_subj", &[&object, &predicate, &subject, &commit]);
+        t.unique_index(
+            "triple_index_obj_pred_subj",
+            &[&object, &predicate, &subject, &commit],
+        );
         t.index("triple_index_pred_subj", &[&predicate, &subject, &commit]);
         t.index("triple_index_pred_obj", &[&predicate, &object, &commit]);
         t.index("triple_commit_exists", &[&commit, &exist]);
@@ -60,7 +66,10 @@ pub fn build(input: BuildDbInput) -> (Version, Vec<Query>) {
         let object = t.field("object", node_type.field_type());
         let commit = t.field("commit_", field_utctime_ms_chrono().build());
         t.primary_key("triple_snapshot_pk", &[&subject, &predicate, &object]);
-        t.unique_index("triple_snapshot_obj_pred_subj", &[&object, &predicate, &subject]);
+        t.unique_index(
+            "triple_snapshot_obj_pred_subj",
+            &[&object, &predicate, &subject],
+        );
         t.index("triple_snapshot_pred_subj", &[&predicate, &subject]);
         t.index("triple_snapshot_pred_obj", &[&predicate, &object]);
     }
@@ -74,7 +83,10 @@ pub fn build(input: BuildDbInput) -> (Version, Vec<Query>) {
         let commit = t.field("commit_", field_utctime_ms_chrono().build());
         let exist = t.field("exists", field_bool().build());
         t.primary_key("triple2_pk", &[&subject, &predicate, &object, &commit]);
-        t.unique_index("triple2_index_obj_pred_subj", &[&object, &predicate, &subject, &commit]);
+        t.unique_index(
+            "triple2_index_obj_pred_subj",
+            &[&object, &predicate, &subject, &commit],
+        );
         t.index("triple2_index_pred_subj", &[&predicate, &subject, &commit]);
         t.index("triple2_index_pred_obj", &[&predicate, &object, &commit]);
         t.index("triple2_commit_exists", &[&commit, &exist]);

@@ -45,11 +45,11 @@ use {
     },
     image::ImageReader,
     loga::{
+        ea,
         DebugDisplay,
         ErrContext,
         Log,
         ResultContext,
-        ea,
     },
     regex::Regex,
     serde::Deserialize,
@@ -64,14 +64,14 @@ use {
                 Node,
             },
             wire::{
-                GEN_FILENAME_COMICMANIFEST,
+                gentype_transcode,
+                gentype_vtt_subpath,
                 GENTYPE_CBZDIR,
                 GENTYPE_EPUBHTML,
                 GENTYPE_VTT,
+                GEN_FILENAME_COMICMANIFEST,
                 TRANSCODE_MIME_AAC,
                 TRANSCODE_MIME_WEBM,
-                gentype_transcode,
-                gentype_vtt_subpath,
             },
         },
         steal,
@@ -107,8 +107,8 @@ use {
         sync::mpsc::UnboundedReceiver,
     },
     tokio_stream::{
-        StreamExt,
         wrappers::UnboundedReceiverStream,
+        StreamExt,
     },
 };
 
@@ -209,7 +209,7 @@ async fn generate_subs(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
             continue;
         };
         if codec_type != "subtitle" {
-            continue
+            continue;
         }
         if !is_text_sub(&codec_name) {
             continue;
@@ -543,15 +543,13 @@ async fn generate_files(
                     .log(&log, loga::WARN, "Error doing webm transcode file generation");
             }
         },
-        ("audio", _) => {
-            match mime_slice.1 {
-                "aac" | "mp3" => { },
-                _ => {
-                    generate_aac(&state, &file, &source)
-                        .await
-                        .log(&log, loga::WARN, "Error doing webm transcode file generation");
-                },
-            }
+        ("audio", _) => match mime_slice.1 {
+            "aac" | "mp3" => { },
+            _ => {
+                generate_aac(&state, &file, &source)
+                    .await
+                    .log(&log, loga::WARN, "Error doing webm transcode file generation");
+            },
         },
         ("application", "epub+zip") => {
             generate_book_html_dir(&state, &file, &source, mime)

@@ -53,30 +53,26 @@ pub fn gather(path: &Path) -> Result<Gather, loga::Error> {
                 continue;
             };
             match level.as_ref() {
-                "COLLECTION" => {
-                    match k.as_ref() {
-                        "TITLE" => {
-                            g.album_name = Some(v.to_string());
-                        },
-                        "ARTIST" => {
-                            g.album_artist.insert(v.to_string());
-                        },
-                        _ => { },
-                    }
+                "COLLECTION" => match k.as_ref() {
+                    "TITLE" => {
+                        g.album_name = Some(v.to_string());
+                    },
+                    "ARTIST" => {
+                        g.album_artist.insert(v.to_string());
+                    },
+                    _ => { },
                 },
-                "ALBUM" | "OPERA" | "CONCERT" | "MOVIE" | "EPISODE" => {
-                    match k.as_ref() {
-                        "TITLE" => {
-                            g.track_name = Some(v.to_string());
-                        },
-                        "ARTIST" => {
-                            g.track_artist.push(v.to_string());
-                        },
-                        "PART_NUMBER" => {
-                            g.track_index = Some(f64::from_str(&v)?);
-                        },
-                        _ => { },
-                    }
+                "ALBUM" | "OPERA" | "CONCERT" | "MOVIE" | "EPISODE" => match k.as_ref() {
+                    "TITLE" => {
+                        g.track_name = Some(v.to_string());
+                    },
+                    "ARTIST" => {
+                        g.track_artist.push(v.to_string());
+                    },
+                    "PART_NUMBER" => {
+                        g.track_index = Some(f64::from_str(&v)?);
+                    },
+                    _ => { },
                 },
                 _ => { },
             }

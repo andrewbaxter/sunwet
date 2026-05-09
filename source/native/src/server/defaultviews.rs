@@ -1,11 +1,9 @@
-use {
-    shared::interface::{
-        ont::{
-            OBJ_IS_ALBUM,
-            OBJ_MEDIA_AUDIO,
-        },
-        triple::Node,
+use shared::interface::{
+    ont::{
+        OBJ_IS_ALBUM,
+        OBJ_MEDIA_AUDIO,
     },
+    triple::Node,
 };
 
 pub fn node_is_album() -> Node {

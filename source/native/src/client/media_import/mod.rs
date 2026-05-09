@@ -1,8 +1,8 @@
+pub mod gather;
 pub mod gather_audio;
 pub mod gather_comic;
 pub mod gather_epub;
 pub mod gather_video;
-pub mod gather;
 
 use {
     crate::client::req::{
@@ -513,15 +513,11 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
         let mut album_artist2 = BTreeSet::new();
         for artist_name in &g.album_artist {
             let artist = match artists.entry(artist_name.clone()) {
-                Entry::Occupied(e) => {
-                    e.get().clone()
-                },
-                Entry::Vacant(e) => {
-                    e.insert(Rc::new(RefCell::new(GatherArtist {
-                        id: node_id_artist(&log, &mut query_cache, artist_name).await?,
-                        name: artist_name.clone(),
-                    }))).clone()
-                },
+                Entry::Occupied(e) => e.get().clone(),
+                Entry::Vacant(e) => e.insert(Rc::new(RefCell::new(GatherArtist {
+                    id: node_id_artist(&log, &mut query_cache, artist_name).await?,
+                    name: artist_name.clone(),
+                }))).clone(),
             };
             album_artist2.insert(ByAddress(artist));
         }
@@ -534,18 +530,14 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
             name: album_name.clone(),
             lang: g.track_language.clone(),
         }) {
-            Entry::Occupied(e) => {
-                e.get().clone()
-            },
-            Entry::Vacant(e) => {
-                e.insert(Rc::new(RefCell::new(GatherAlbum {
-                    name: album_name,
-                    artist: album_artist2,
-                    tracks: Default::default(),
-                    covers: Default::default(),
-                    documents: Default::default(),
-                }))).clone()
-            },
+            Entry::Occupied(e) => e.get().clone(),
+            Entry::Vacant(e) => e.insert(Rc::new(RefCell::new(GatherAlbum {
+                name: album_name,
+                artist: album_artist2,
+                tracks: Default::default(),
+                covers: Default::default(),
+                documents: Default::default(),
+            }))).clone(),
         };
         for (priority, cover) in &g.track_cover {
             *album.borrow_mut().covers.entry(*priority).or_default().entry(cover.clone()).or_default() += 1;
@@ -561,12 +553,10 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
         for artist_name in &g.track_artist {
             let artist = match artists.entry(artist_name.clone()) {
                 Entry::Occupied(e) => e.get().clone(),
-                Entry::Vacant(e) => {
-                    e.insert(Rc::new(RefCell::new(GatherArtist {
-                        id: node_id_artist(&log, &mut query_cache, &artist_name).await?,
-                        name: artist_name.clone(),
-                    }))).clone()
-                },
+                Entry::Vacant(e) => e.insert(Rc::new(RefCell::new(GatherArtist {
+                    id: node_id_artist(&log, &mut query_cache, &artist_name).await?,
+                    name: artist_name.clone(),
+                }))).clone(),
             };
             track_artist2.push(artist);
         }
@@ -640,44 +630,48 @@ async fn import_dir(log: &Log, root_dir: &PathBuf) -> Result<(), loga::Error> {
             GatherMedia::Book => obj_media_book(),
         };
         let album_id = match album.artist.iter().next() {
-            Some(a) => node_id(
-                &log,
-                &mut query_cache,
-                concat!(
-                    r#"$artist_id -< "sunwet/1/artist" "#,
-                    r#"  &( "#,
-                    r#"    ?(-> "sunwet/1/is" == "sunwet/1/album") "#,
-                    r#"    ?(-> "sunwet/1/name" == $album_name )"#,
-                    r#"  )"#,
-                    r#"  { => id } "#,
-                ),
-                [
-                    (format!("artist_id"), a.0.borrow().id.clone()),
-                    (format!("album_name"), Node::from_str(&album.name)),
-                ]
-                    .into_iter()
-                    .collect(),
-            ).await?,
-            None => node_id(
-                &log,
-                &mut query_cache,
-                concat!(
-                    r#"$album_name -< "sunwet/1/name" "#,
-                    r#"  &( "#,
-                    r#"    ?(-> "sunwet/1/media" == $album_media) "#,
-                    r#"    ?(-> "sunwet/1/is" == "sunwet/1/album") "#,
-                    r#"  )"#,
-                    r#"  { => id } "#,
-                ),
-                [
-                    //. .
-                    (format!("album_media"), match &predicate_media {
-                        CliNode::Value(v) => Node::Value(v.clone()),
-                        _ => panic!(),
-                    }),
-                    (format!("album_name"), Node::from_str(&album.name)),
-                ].into_iter().collect(),
-            ).await?,
+            Some(a) => {
+                node_id(
+                    &log,
+                    &mut query_cache,
+                    concat!(
+                        r#"$artist_id -< "sunwet/1/artist" "#,
+                        r#"  &( "#,
+                        r#"    ?(-> "sunwet/1/is" == "sunwet/1/album") "#,
+                        r#"    ?(-> "sunwet/1/name" == $album_name )"#,
+                        r#"  )"#,
+                        r#"  { => id } "#,
+                    ),
+                    [
+                        (format!("artist_id"), a.0.borrow().id.clone()),
+                        (format!("album_name"), Node::from_str(&album.name)),
+                    ]
+                        .into_iter()
+                        .collect(),
+                ).await?
+            },
+            None => {
+                node_id(
+                    &log,
+                    &mut query_cache,
+                    concat!(
+                        r#"$album_name -< "sunwet/1/name" "#,
+                        r#"  &( "#,
+                        r#"    ?(-> "sunwet/1/media" == $album_media) "#,
+                        r#"    ?(-> "sunwet/1/is" == "sunwet/1/album") "#,
+                        r#"  )"#,
+                        r#"  { => id } "#,
+                    ),
+                    [
+                        //. .
+                        (format!("album_media"), match &predicate_media {
+                            CliNode::Value(v) => Node::Value(v.clone()),
+                            _ => panic!(),
+                        }),
+                        (format!("album_name"), Node::from_str(&album.name)),
+                    ].into_iter().collect(),
+                ).await?
+            },
         };
         triples.push(triple(&node_node(&album_id), PREDICATE_IS, &obj_is_album()));
         triples.push(triple(&node_node(&album_id), PREDICATE_MEDIA, &predicate_media));
