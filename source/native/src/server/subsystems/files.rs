@@ -127,11 +127,19 @@ async fn commit(
         if let Some((form_id, form_version_hash)) = update_access_reqs {
             let page_access = DbAccessSourceId(AccessSourceId::FormId(form_id));
             let form_version_hash_i64 = form_version_hash as i64;
-            dbutil::file_access_gc(&mut db, &page_access, &form_version_hash_i64).context("Error clearing file access")?;
+            dbutil::file_access_gc(
+                &mut db,
+                &page_access,
+                &form_version_hash_i64,
+            ).context("Error clearing file access")?;
             for file in &c.files {
                 let filehash = DbFileHash(file.hash.clone());
-                dbutil::file_access_insert(&mut db, &filehash, &page_access, &form_version_hash_i64)
-                    .context("Error inserting file access")?;
+                dbutil::file_access_insert(
+                    &mut db,
+                    &filehash,
+                    &page_access,
+                    &form_version_hash_i64,
+                ).context("Error inserting file access")?;
             }
         }
 

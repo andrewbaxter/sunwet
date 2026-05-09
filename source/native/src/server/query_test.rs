@@ -595,6 +595,9 @@ fn test_gc() {
     ];
     let mut have =
         good_ormning::sqlite::good_query!(
+            db,
+            "",
+            3,
             //# genemichaels-external: sql-formatter-sqlite
             r#"select
                  "subject",
@@ -616,6 +619,9 @@ fn test_gc() {
     dbutil::triple_gc_deleted(&mut db, stamp2 + Duration::seconds(1)).unwrap();
     let mut have =
         good_ormning::sqlite::good_query!(
+            db,
+            "",
+            3,
             //# genemichaels-external: sql-formatter-sqlite
             r#"select
                  "subject",

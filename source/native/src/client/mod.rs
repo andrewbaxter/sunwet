@@ -100,11 +100,7 @@ impl AargvarkFromStr for AargvarkStrNode {
     }
 
     fn build_help_pattern(_state: &mut aargvark::help::HelpState) -> HelpPattern {
-        return HelpPattern(
-            vec![
-                HelpPatternElement::Type("JSON".to_string())
-            ],
-        );
+        return HelpPattern(vec![HelpPatternElement::Type("JSON".to_string())]);
     }
 }
 

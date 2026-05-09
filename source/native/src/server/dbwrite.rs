@@ -1,8 +1,7 @@
 use {
     crate::{
-        dbm,
-        interface::triple::DbNode,
         server::db,
+        interface::triple::DbNode,
     },
     chrono::{
         DateTime,
@@ -22,6 +21,9 @@ pub fn write_triple<
     exist: bool,
 ) -> Result<(), loga::Error> {
     good_ormning::sqlite::good_query!(
+        db,
+        "",
+        3,
         r#"insert or ignore into "subjobj" ("value")
            values
              ($node)"#;
@@ -29,6 +31,9 @@ pub fn write_triple<
         node: node = subject
     ).context("Error inserting subject into subjobj")?;
     good_ormning::sqlite::good_query!(
+        db,
+        "",
+        3,
         r#"insert or ignore into "subjobj" ("value")
            values
              ($node)"#;
@@ -36,6 +41,9 @@ pub fn write_triple<
         node: node = object
     ).context("Error inserting object into subjobj")?;
     good_ormning::sqlite::good_query!(
+        db,
+        "",
+        3,
         r#"insert or ignore into "predicate" ("value")
            values
              ($value)"#;
@@ -43,6 +51,9 @@ pub fn write_triple<
         value: string = predicate
     ).context("Error inserting predicate")?;
     good_ormning::sqlite::good_query!(
+        db,
+        "",
+        3,
         r#"insert into "triple2" ("subject", "predicate", "object", "commit_", "exists")
            values
              (
@@ -61,6 +72,9 @@ pub fn write_triple<
     ).context("Error inserting triple")?;
     if exist {
         good_ormning::sqlite::good_query!(
+            db,
+            "",
+            3,
             r#"insert into "triple_snapshot" ("subject", "predicate", "object", "commit_")
                values
                  (
@@ -69,7 +83,8 @@ pub fn write_triple<
                    $object,
                    $commit_
                  )
-               on conflict("subject", "predicate", "object") do update
+               on conflict ( "subject" , "predicate" , "object" )
+               do update
                set
                  "commit_" = excluded."commit_""#;
             conn,
@@ -80,6 +95,9 @@ pub fn write_triple<
         ).context("Error upserting triple snapshot")?;
     } else {
         good_ormning::sqlite::good_query!(
+            db,
+            "",
+            3,
             r#"delete from "triple_snapshot"
                where
                  (
