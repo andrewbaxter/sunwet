@@ -119,23 +119,17 @@ async fn commit(
     }
 
     // Write new triples, commit (no-op if all triples already committed)
-    tx(&state.db, move |txn| {
-        let mut db = dbutil::db3(txn);
-
+    tx(&state.db, move |db| {
         // Update access if writing as non-admin - this is because multi-part uploads get
         // re-accessed checked so need to establish chain of trust for writing from commit
         if let Some((form_id, form_version_hash)) = update_access_reqs {
             let page_access = DbAccessSourceId(AccessSourceId::FormId(form_id));
             let form_version_hash_i64 = form_version_hash as i64;
-            dbutil::file_access_gc(
-                &mut db,
-                &page_access,
-                &form_version_hash_i64,
-            ).context("Error clearing file access")?;
+            dbutil::file_access_gc(db, &page_access, &form_version_hash_i64).context("Error clearing file access")?;
             for file in &c.files {
                 let filehash = DbFileHash(file.hash.clone());
                 dbutil::file_access_insert(
-                    &mut db,
+                    db,
                     &filehash,
                     &page_access,
                     &form_version_hash_i64,
@@ -147,7 +141,7 @@ async fn commit(
         for info in c.files {
             let node = DbNode(Node::File(info.hash));
             let mimetype = Some(info.mimetype);
-            dbutil::meta_upsert_mimetype(&mut db, &node, &mimetype).context("Error upserting file meta")?;
+            dbutil::meta_upsert_mimetype(db, &node, &mimetype).context("Error upserting file meta")?;
         }
 
         // Insert triples
@@ -156,7 +150,7 @@ async fn commit(
 
         fn update_fulltext<
             C: good_ormning::runtime::sqlite::SqliteConnection,
-        >(db: &mut crate::server::db::Db3<C>, node: &Node) -> Result<(), loga::Error> {
+        >(db: &mut crate::server::db::Db<C>, node: &Node) -> Result<(), loga::Error> {
             let mut fulltext = String::new();
 
             fn gather_value_text(fulltext: &mut String, value: &serde_json::Value) {
@@ -203,27 +197,27 @@ async fn commit(
         for t in c.remove {
             let subject = DbNode(t.subject.clone());
             let object = DbNode(t.object.clone());
-            if !dbutil::triple_snapshot_exists(&mut db, &subject, &t.predicate, &object)? {
+            if !dbutil::triple_snapshot_exists(db, &subject, &t.predicate, &object)? {
                 continue;
             }
-            dbwrite::write_triple(&mut db, &DbNode(t.subject), &t.predicate, &DbNode(t.object), stamp, false)?;
+            dbwrite::write_triple(db, &DbNode(t.subject), &t.predicate, &DbNode(t.object), stamp, false)?;
             modified = true;
         }
         for t in c.add {
             let subject = DbNode(t.subject.clone());
             let object = DbNode(t.object.clone());
-            if dbutil::triple_snapshot_exists(&mut db, &subject, &t.predicate, &object)? {
+            if dbutil::triple_snapshot_exists(db, &subject, &t.predicate, &object)? {
                 continue;
             }
-            update_fulltext(&mut db, &t.subject)?;
-            update_fulltext(&mut db, &t.object)?;
-            dbwrite::write_triple(&mut db, &DbNode(t.subject), &t.predicate, &DbNode(t.object), stamp, true)?;
+            update_fulltext(db, &t.subject)?;
+            update_fulltext(db, &t.object)?;
+            dbwrite::write_triple(db, &DbNode(t.subject), &t.predicate, &DbNode(t.object), stamp, true)?;
             modified = true;
         }
 
         // Write commit if changed
         if modified {
-            dbutil::commit_insert(&mut db, &stamp, &c.comment).context("Error inserting commit")?;
+            dbutil::commit_insert(db, &stamp, &c.comment).context("Error inserting commit")?;
         }
         return Ok(());
     }).await?;
@@ -419,9 +413,8 @@ pub async fn handle_file_get(
         let search_node = DbNode(Node::File(file.clone()));
         let Some(gen_mimetype) = tx(&state.db, {
             let gentype = gentype.to_string();
-            move |txn| {
-                let mut db = dbutil::db3(txn);
-                Ok(dbutil::generated_get_mimetype(&mut db, &search_node, &gentype)?)
+            move |db| {
+                Ok(dbutil::generated_get_mimetype(db, &search_node, &gentype)?)
             }
         }).await.err_internal()? else {
             break 'nogen;

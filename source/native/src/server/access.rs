@@ -189,9 +189,8 @@ pub async fn can_access_file(state: &State, identity: &Identity, file: &FileHash
             IamGrants::Limited(grants) => {
                 let stored_access = tx(&state.db, {
                     let file = DbFileHash(file.clone());
-                    move |txn| {
-                        let mut db = dbutil::db3(txn);
-                        Ok(dbutil::file_access_get_sources(&mut db, &file)?)
+                    move |db| {
+                        Ok(dbutil::file_access_get_sources(db, &file)?)
                     }
                 }).await?.into_iter().collect::<HashSet<_>>();
                 for form_id in &grants.forms {
