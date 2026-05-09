@@ -1,58 +1,36 @@
 use {
-    crate::{
-        interface::triple::DbNode,
-        server::db::DbVersions,
+    crate::server::db::{
+        self,
+        DbVersions,
     },
-    good_ormning::runtime::sqlite::{
-        GoodOrmningCustomString,
-        SqliteConnection,
-    },
+    good_ormning::runtime::sqlite::SqliteConnection,
 };
 
 pub fn migrate<C: SqliteConnection>(versions: &mut DbVersions<C>) -> Result<(), good_ormning::runtime::GoodError> {
     match versions {
         DbVersions::V0(db) => {
-            let data =
+            let data = good_ormning::sqlite::good_query_many!(
+                db,
+                0,
+                //# genemichaels-external: sql-formatter-sqlite
+                "select subject as s, predicate as p, object as o, commit_ as c, \"exists\" as e from triple";
                 db
-                    .0
-                    .query(
-                        "select subject, predicate, object, commit_, \"exists\" from triple",
-                        [],
-                        |row: &rusqlite::Row| {
-                            Ok(
-                                (
-                                    row.get::<_, String>(0).unwrap(),
-                                    row.get::<_, String>(1).unwrap(),
-                                    row.get::<_, String>(2).unwrap(),
-                                    row.get::<_, i64>(3).unwrap(),
-                                    row.get::<_, bool>(4).unwrap(),
-                                ),
-                            )
-                        },
-                    )
-                    .map_err(|e: rusqlite::Error| good_ormning::runtime::GoodError(e.to_string()))?;
-            db
-                .0
-                .execute("delete from triple", [])
-                .map_err(|e: rusqlite::Error| good_ormning::runtime::GoodError(e.to_string()))?;
+            )?;
+            good_ormning::sqlite::good_query!(
+                db,
+                0,
+                //# genemichaels-external: sql-formatter-sqlite
+                "delete from triple";
+                db
+            )?;
             for row in data {
-                db
-                    .0
-                    .execute(
-                        "insert into triple (subject, predicate, object, commit_, \"exists\") values (?, ?, ?, ?, ?)",
-                        rusqlite::params![
-                            <DbNode as GoodOrmningCustomString<DbNode>>::to_sql(
-                                &DbNode::from_sql(row.0).map_err(|e| good_ormning::runtime::GoodError(e))?
-                            ),
-                            row.1,
-                            <DbNode as GoodOrmningCustomString<DbNode>>::to_sql(
-                                &DbNode::from_sql(row.2).map_err(|e| good_ormning::runtime::GoodError(e))?
-                            ),
-                            row.3,
-                            row.4
-                        ],
-                    )
-                    .map_err(|e: rusqlite::Error| good_ormning::runtime::GoodError(e.to_string()))?;
+                good_ormning::sqlite::good_query!(
+                    db,
+                    0,
+                    //# genemichaels-external: sql-formatter-sqlite
+                    "insert into triple (subject, predicate, object, commit_, \"exists\") values (${node = &row.s}, ${string = &row.p}, ${node = &row.o}, ${utctime_ms_chrono = row.c}, ${bool = row.e})";
+                    db
+                )?;
             }
         },
         DbVersions::V2(db) => {
@@ -66,13 +44,13 @@ pub fn migrate<C: SqliteConnection>(versions: &mut DbVersions<C>) -> Result<(), 
                      "object"
                    from
                      "triple"
-                   "#, []).map_err(|e: rusqlite::Error| good_ormning::runtime::GoodError(e.to_string()))?;
+                   "#, [])?;
             db.0.execute(r#"insert or ignore into "predicate" ("value")
                    select
                      "predicate"
                    from
                      "triple"
-                   "#, []).map_err(|e: rusqlite::Error| good_ormning::runtime::GoodError(e.to_string()))?;
+                   "#, [])?;
             db.0.execute(r#"insert into "triple2" ("subject", "predicate", "object", "commit_", "exists")
                    select
                      "subject",
@@ -82,7 +60,7 @@ pub fn migrate<C: SqliteConnection>(versions: &mut DbVersions<C>) -> Result<(), 
                      "exists"
                    from
                      "triple"
-                   "#, []).map_err(|e: rusqlite::Error| good_ormning::runtime::GoodError(e.to_string()))?;
+                   "#, [])?;
             db.0.execute(r#"insert into "triple_snapshot" ("subject", "predicate", "object", "commit_")
                    select
                      "subject",
@@ -107,7 +85,7 @@ pub fn migrate<C: SqliteConnection>(versions: &mut DbVersions<C>) -> Result<(), 
                        )
                        and "exists" = true
                      )
-                   "#, []).map_err(|e: rusqlite::Error| good_ormning::runtime::GoodError(e.to_string()))?;
+                   "#, [])?;
         },
         _ => { },
     }
