@@ -739,9 +739,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     let nodes = req.nodes.clone();
                                     move |db| -> Result<_, loga::Error> {
                                         let nodes = nodes.into_iter().map(DbNode).collect::<Vec<_>>();
-                                        return Ok(
-                                            dbutil::snapshot_triples_around(db, nodes.iter().collect())?,
-                                        );
+                                        return Ok(dbutil::snapshot_triples_around(db, nodes.iter().collect())?);
                                     }
                                 }).await.err_internal()?;
                                 resp = responder(triples.into_iter().map(|t| Triple {
@@ -800,7 +798,6 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                         let started = Utc::now();
                                         let mut seen = HashSet::new();
                                         let mut node_issues = HashMap::new();
-
                                         for triple_end in ["subject", "object"] {
                                             let mut pivot: Option<DbNode> = None;
                                             loop {

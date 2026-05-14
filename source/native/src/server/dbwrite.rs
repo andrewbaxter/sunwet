@@ -66,9 +66,30 @@ pub fn write_triple<
              )
            values
              (
-               (select "id" from "subjobj" where "value" = $subject),
-               (select "id" from "predicate" where "value" = $predicate),
-               (select "id" from "subjobj" where "value" = $object),
+               (
+                 select
+                   "id"
+                 from
+                   "subjobj"
+                 where
+                   "value" = $subject
+               ),
+               (
+                 select
+                   "id"
+                 from
+                   "predicate"
+                 where
+                   "value" = $predicate
+               ),
+               (
+                 select
+                   "id"
+                 from
+                   "subjobj"
+                 where
+                   "value" = $object
+               ),
                $commit_,
                $exist
              )
@@ -88,9 +109,30 @@ pub fn write_triple<
                  "triple_snapshot" ("subject", "predicate", "object", "commit_")
                values
                  (
-                   (select "id" from "subjobj" where "value" = $subject),
-                   (select "id" from "predicate" where "value" = $predicate),
-                   (select "id" from "subjobj" where "value" = $object),
+                   (
+                     select
+                       "id"
+                     from
+                       "subjobj"
+                     where
+                       "value" = $subject
+                   ),
+                   (
+                     select
+                       "id"
+                     from
+                       "predicate"
+                     where
+                       "value" = $predicate
+                   ),
+                   (
+                     select
+                       "id"
+                     from
+                       "subjobj"
+                     where
+                       "value" = $object
+                   ),
                    $commit_
                  )
                on conflict ("subject", "predicate", "object") do update
@@ -110,9 +152,30 @@ pub fn write_triple<
             r#"delete from "triple_snapshot"
                where
                  (
-                   "subject" = (select "id" from "subjobj" where "value" = $subject)
-                   and "predicate" = (select "id" from "predicate" where "value" = $predicate)
-                   and "object" = (select "id" from "subjobj" where "value" = $object)
+                   "subject" = (
+                     select
+                       "id"
+                     from
+                       "subjobj"
+                     where
+                       "value" = $subject
+                   )
+                   and "predicate" = (
+                     select
+                       "id"
+                     from
+                       "predicate"
+                     where
+                       "value" = $predicate
+                   )
+                   and "object" = (
+                     select
+                       "id"
+                     from
+                       "subjobj"
+                     where
+                       "value" = $object
+                   )
                  )
                "#;
             conn,

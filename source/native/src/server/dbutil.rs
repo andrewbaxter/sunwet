@@ -440,9 +440,30 @@ pub fn triple_snapshot_exists(
            from
              "triple_snapshot"
            where
-             "subject" = (select "id" from "subjobj" where "value" = ${node = subject})
-             and "predicate" = (select "id" from "predicate" where "value" = ${string = predicate})
-             and "object" = (select "id" from "subjobj" where "value" = ${node = object})
+             "subject" = (
+               select
+                 "id"
+               from
+                 "subjobj"
+               where
+                 "value" = ${node = subject}
+             )
+             and "predicate" = (
+               select
+                 "id"
+               from
+                 "predicate"
+               where
+                 "value" = ${string = predicate}
+             )
+             and "object" = (
+               select
+                 "id"
+               from
+                 "subjobj"
+               where
+                 "value" = ${node = object}
+             )
            "#;
         db
     ).context("Error executing triple_snapshot_exists")?.is_some())
@@ -589,28 +610,25 @@ pub fn snapshot_filter_nodes_by_end(
         std::rc::Rc::new(
             node_strings.iter().map(|s| rusqlite::types::Value::Text(s.clone())).collect::<Vec<_>>(),
         );
-    let sql = format!(
-        r#"SELECT DISTINCT so."value" AS "node"
+    let sql = format!(r#"SELECT DISTINCT so."value" AS "node"
            FROM "triple_snapshot" ts
            JOIN "subjobj" so ON ts."{col}" = so."id"
-           WHERE so."value" IN (SELECT value FROM rarray(?1))"#,
-    );
-    Ok(
-        db
-            .0
-            .query(&sql, rusqlite::params![values], |row| {
-                let node_str: String = row.get(0)?;
-                let node =
-                    DbNode::from_sql(node_str)
-                        .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, e))))?;
-                Ok(node)
-            })
-            .map_err(|e| loga::err(e.to_string()))?,
-    )
+           WHERE so."value" IN (SELECT value FROM rarray(?1))"#,);
+    Ok(db.0.query(&sql, rusqlite::params![values], |row| {
+        let node_str: String = row.get(0)?;
+        let node =
+            DbNode::from_sql(
+                node_str,
+            ).map_err(
+                |e| rusqlite::Error::ToSqlConversionFailure(
+                    Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, e)),
+                ),
+            )?;
+        Ok(node)
+    }).map_err(|e| loga::err(e.to_string()))?)
 }
 
 // History query types and functions (manual SQL with JOINs for normalized schema)
-
 pub struct HistoryRow {
     pub subject: DbNode,
     pub predicate: String,
@@ -619,7 +637,6 @@ pub struct HistoryRow {
     pub exists: bool,
 }
 
-
 fn parse_history_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<HistoryRow> {
     let subject_str: String = row.get(0)?;
     let predicate: String = row.get(1)?;
@@ -627,11 +644,21 @@ fn parse_history_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<HistoryRow> {
     let commit_ts: GoodOrmningSqliteTimestamp = row.get(3)?;
     let exists: bool = row.get(4)?;
     let subject =
-        DbNode::from_sql(subject_str)
-            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, e))))?;
+        DbNode::from_sql(
+            subject_str,
+        ).map_err(
+            |e| rusqlite::Error::ToSqlConversionFailure(
+                Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, e)),
+            ),
+        )?;
     let object =
-        DbNode::from_sql(object_str)
-            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, e))))?;
+        DbNode::from_sql(
+            object_str,
+        ).map_err(
+            |e| rusqlite::Error::ToSqlConversionFailure(
+                Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, e)),
+            ),
+        )?;
     let commit_ = match commit_ts {
         GoodOrmningSqliteTimestamp::String(s) => {
             chrono::DateTime::parse_from_rfc3339(&s)
@@ -639,13 +666,22 @@ fn parse_history_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<HistoryRow> {
                 .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?
         },
         GoodOrmningSqliteTimestamp::I64(ms) => {
-            chrono::DateTime::from_timestamp_millis(ms)
-                .ok_or_else(|| rusqlite::Error::ToSqlConversionFailure(
+            chrono::DateTime::from_timestamp_millis(
+                ms,
+            ).ok_or_else(
+                || rusqlite::Error::ToSqlConversionFailure(
                     Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid timestamp millis")),
-                ))?
+                ),
+            )?
         },
     };
-    Ok(HistoryRow { subject, predicate, object, commit_, exists })
+    Ok(HistoryRow {
+        subject,
+        predicate,
+        object,
+        commit_,
+        exists,
+    })
 }
 
 const HIST_BASE_SQL: &str = r#"
@@ -655,12 +691,10 @@ const HIST_BASE_SQL: &str = r#"
     JOIN "predicate" p ON t."predicate" = p."id"
     JOIN "subjobj" o ON t."object" = o."id"
 "#;
-
 const HIST_ORDER: &str = r#"
     ORDER BY t."commit_" DESC, s."value" DESC, p."value" DESC, o."value" DESC
     LIMIT 100
 "#;
-
 const HIST_AFTER: &str = r#"
     (t."commit_", s."value", p."value", o."value") < (?1, ?2, ?3, ?4)
 "#;
@@ -669,9 +703,7 @@ fn commit_to_ts(c: &DateTime<Utc>) -> GoodOrmningSqliteTimestamp {
     GoodOrmningSqliteTimestamp::String(c.to_rfc3339())
 }
 
-pub fn hist_list_all(
-    db: &mut db::Db<impl SqliteConnection>,
-) -> Result<Vec<HistoryRow>, loga::Error> {
+pub fn hist_list_all(db: &mut db::Db<impl SqliteConnection>) -> Result<Vec<HistoryRow>, loga::Error> {
     let sql = format!("{}{}", HIST_BASE_SQL, HIST_ORDER);
     Ok(db.0.query(&sql, [], parse_history_row).map_err(|e| loga::err(e.to_string()))?)
 }
@@ -690,11 +722,7 @@ pub fn hist_list_all_after(
     Ok(
         db
             .0
-            .query(
-                &sql,
-                rusqlite::params![ac, as_, after_predicate, ao],
-                parse_history_row,
-            )
+            .query(&sql, rusqlite::params![ac, as_, after_predicate, ao], parse_history_row)
             .map_err(|e| loga::err(e.to_string()))?,
     )
 }
@@ -716,10 +744,8 @@ pub fn hist_list_by_node_after(
     after_object: &DbNode,
     node: &DbNode,
 ) -> Result<Vec<HistoryRow>, loga::Error> {
-    let sql = format!(
-        "{} WHERE {} AND (s.\"value\" = ?5 OR o.\"value\" = ?5) {}",
-        HIST_BASE_SQL, HIST_AFTER, HIST_ORDER
-    );
+    let sql =
+        format!("{} WHERE {} AND (s.\"value\" = ?5 OR o.\"value\" = ?5) {}", HIST_BASE_SQL, HIST_AFTER, HIST_ORDER);
     let ac = commit_to_ts(&after_commit);
     let as_ = DbNode::to_sql(after_subject);
     let ao = DbNode::to_sql(after_object);
@@ -727,11 +753,7 @@ pub fn hist_list_by_node_after(
     Ok(
         db
             .0
-            .query(
-                &sql,
-                rusqlite::params![ac, as_, after_predicate, ao, n],
-                parse_history_row,
-            )
+            .query(&sql, rusqlite::params![ac, as_, after_predicate, ao, n], parse_history_row)
             .map_err(|e| loga::err(e.to_string()))?,
     )
 }
@@ -741,12 +763,11 @@ pub fn hist_list_by_subject_predicate(
     subject: &DbNode,
     predicate: &str,
 ) -> Result<Vec<HistoryRow>, loga::Error> {
-    let sql = format!(
-        "{} WHERE s.\"value\" = ?1 AND p.\"value\" = ?2 {}",
-        HIST_BASE_SQL, HIST_ORDER
-    );
+    let sql = format!("{} WHERE s.\"value\" = ?1 AND p.\"value\" = ?2 {}", HIST_BASE_SQL, HIST_ORDER);
     let s = DbNode::to_sql(subject);
-    Ok(db.0.query(&sql, rusqlite::params![s, predicate], parse_history_row).map_err(|e| loga::err(e.to_string()))?)
+    Ok(
+        db.0.query(&sql, rusqlite::params![s, predicate], parse_history_row).map_err(|e| loga::err(e.to_string()))?,
+    )
 }
 
 pub fn hist_list_by_subject_predicate_after(
@@ -758,10 +779,8 @@ pub fn hist_list_by_subject_predicate_after(
     subject: &DbNode,
     predicate: &str,
 ) -> Result<Vec<HistoryRow>, loga::Error> {
-    let sql = format!(
-        "{} WHERE {} AND s.\"value\" = ?5 AND p.\"value\" = ?6 {}",
-        HIST_BASE_SQL, HIST_AFTER, HIST_ORDER
-    );
+    let sql =
+        format!("{} WHERE {} AND s.\"value\" = ?5 AND p.\"value\" = ?6 {}", HIST_BASE_SQL, HIST_AFTER, HIST_ORDER);
     let ac = commit_to_ts(&after_commit);
     let as_ = DbNode::to_sql(after_subject);
     let ao = DbNode::to_sql(after_object);
@@ -769,11 +788,7 @@ pub fn hist_list_by_subject_predicate_after(
     Ok(
         db
             .0
-            .query(
-                &sql,
-                rusqlite::params![ac, as_, after_predicate, ao, s, predicate],
-                parse_history_row,
-            )
+            .query(&sql, rusqlite::params![ac, as_, after_predicate, ao, s, predicate], parse_history_row)
             .map_err(|e| loga::err(e.to_string()))?,
     )
 }
@@ -783,12 +798,11 @@ pub fn hist_list_by_predicate_object(
     predicate: &str,
     object: &DbNode,
 ) -> Result<Vec<HistoryRow>, loga::Error> {
-    let sql = format!(
-        "{} WHERE p.\"value\" = ?1 AND o.\"value\" = ?2 {}",
-        HIST_BASE_SQL, HIST_ORDER
-    );
+    let sql = format!("{} WHERE p.\"value\" = ?1 AND o.\"value\" = ?2 {}", HIST_BASE_SQL, HIST_ORDER);
     let o = DbNode::to_sql(object);
-    Ok(db.0.query(&sql, rusqlite::params![predicate, o], parse_history_row).map_err(|e| loga::err(e.to_string()))?)
+    Ok(
+        db.0.query(&sql, rusqlite::params![predicate, o], parse_history_row).map_err(|e| loga::err(e.to_string()))?,
+    )
 }
 
 pub fn hist_list_by_predicate_object_after(
@@ -800,10 +814,8 @@ pub fn hist_list_by_predicate_object_after(
     predicate: &str,
     object: &DbNode,
 ) -> Result<Vec<HistoryRow>, loga::Error> {
-    let sql = format!(
-        "{} WHERE {} AND p.\"value\" = ?5 AND o.\"value\" = ?6 {}",
-        HIST_BASE_SQL, HIST_AFTER, HIST_ORDER
-    );
+    let sql =
+        format!("{} WHERE {} AND p.\"value\" = ?5 AND o.\"value\" = ?6 {}", HIST_BASE_SQL, HIST_AFTER, HIST_ORDER);
     let ac = commit_to_ts(&after_commit);
     let as_ = DbNode::to_sql(after_subject);
     let ao = DbNode::to_sql(after_object);
@@ -811,11 +823,7 @@ pub fn hist_list_by_predicate_object_after(
     Ok(
         db
             .0
-            .query(
-                &sql,
-                rusqlite::params![ac, as_, after_predicate, ao, predicate, o],
-                parse_history_row,
-            )
+            .query(&sql, rusqlite::params![ac, as_, after_predicate, ao, predicate, o], parse_history_row)
             .map_err(|e| loga::err(e.to_string()))?,
     )
 }
@@ -838,45 +846,35 @@ pub fn snapshot_file_nodes(
     };
     let (sql, params): (String, Vec<Box<dyn rusqlite::types::ToSql>>) = match pivot {
         None => {
-            (
-                format!(
-                    r#"SELECT DISTINCT so."value" AS "node"
+            (format!(r#"SELECT DISTINCT so."value" AS "node"
                        FROM "triple_snapshot" ts
                        JOIN "subjobj" so ON ts."{col}" = so."id"
                        WHERE so."value" LIKE 'f=%'
                        ORDER BY so."value"
-                       LIMIT 100"#,
-                ),
-                vec![],
-            )
+                       LIMIT 100"#,), vec![])
         },
         Some(pivot) => {
-            (
-                format!(
-                    r#"SELECT DISTINCT so."value" AS "node"
+            (format!(r#"SELECT DISTINCT so."value" AS "node"
                        FROM "triple_snapshot" ts
                        JOIN "subjobj" so ON ts."{col}" = so."id"
                        WHERE so."value" LIKE 'f=%'
                          AND so."value" > ?1
                        ORDER BY so."value"
-                       LIMIT 100"#,
-                ),
-                vec![Box::new(DbNode::to_sql(pivot))],
-            )
+                       LIMIT 100"#,), vec![Box::new(DbNode::to_sql(pivot))])
         },
     };
-    Ok(
-        db
-            .0
-            .query(&sql, rusqlite::params_from_iter(params.iter().map(|p| p.as_ref())), |row| {
-                let node_str: String = row.get(0)?;
-                let node =
-                    DbNode::from_sql(node_str)
-                        .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, e))))?;
-                Ok(node)
-            })
-            .map_err(|e| loga::err(e.to_string()))?,
-    )
+    Ok(db.0.query(&sql, rusqlite::params_from_iter(params.iter().map(|p| p.as_ref())), |row| {
+        let node_str: String = row.get(0)?;
+        let node =
+            DbNode::from_sql(
+                node_str,
+            ).map_err(
+                |e| rusqlite::Error::ToSqlConversionFailure(
+                    Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, e)),
+                ),
+            )?;
+        Ok(node)
+    }).map_err(|e| loga::err(e.to_string()))?)
 }
 
 pub fn snapshot_triples_around(
@@ -897,21 +895,30 @@ pub fn snapshot_triples_around(
         WHERE s."value" IN (SELECT value FROM rarray(?1))
            OR o."value" IN (SELECT value FROM rarray(?1))
     "#;
-    Ok(
-        db
-            .0
-            .query(sql, rusqlite::params![values], |row| {
-                let subject_str: String = row.get(0)?;
-                let predicate: String = row.get(1)?;
-                let object_str: String = row.get(2)?;
-                let subject =
-                    DbNode::from_sql(subject_str)
-                        .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, e))))?;
-                let object =
-                    DbNode::from_sql(object_str)
-                        .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, e))))?;
-                Ok(SnapshotTriple { subject, predicate, object })
-            })
-            .map_err(|e| loga::err(e.to_string()))?,
-    )
+    Ok(db.0.query(sql, rusqlite::params![values], |row| {
+        let subject_str: String = row.get(0)?;
+        let predicate: String = row.get(1)?;
+        let object_str: String = row.get(2)?;
+        let subject =
+            DbNode::from_sql(
+                subject_str,
+            ).map_err(
+                |e| rusqlite::Error::ToSqlConversionFailure(
+                    Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, e)),
+                ),
+            )?;
+        let object =
+            DbNode::from_sql(
+                object_str,
+            ).map_err(
+                |e| rusqlite::Error::ToSqlConversionFailure(
+                    Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, e)),
+                ),
+            )?;
+        Ok(SnapshotTriple {
+            subject,
+            predicate,
+            object,
+        })
+    }).map_err(|e| loga::err(e.to_string()))?)
 }

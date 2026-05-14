@@ -319,9 +319,7 @@ fn build_step(
                 }
 
                 // Predicate filter (using resolved predicate value)
-                sql_sel.and_where(
-                    sea_query::Expr::col(resolved_predicate).eq(build_value_str(query_state, &step.predicate)?),
-                );
+                sql_sel.and_where(sea_query::Expr::col(resolved_predicate).eq(build_value_str(query_state, &step.predicate)?));
 
                 // Output start col - subset of previous results
                 let out_col_start;
