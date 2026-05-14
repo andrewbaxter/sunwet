@@ -603,10 +603,12 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                         let batch = batch.clone();
                                         move |db| -> Result<(Vec<DbNode>, Vec<DbNode>), loga::Error> {
                                             let refs: Vec<&DbNode> = batch.iter().collect();
-                                            Ok((
-                                                dbutil::snapshot_filter_nodes_by_end(db, "subject", refs.clone())?,
-                                                dbutil::snapshot_filter_nodes_by_end(db, "object", refs)?,
-                                            ))
+                                            Ok(
+                                                (
+                                                    dbutil::snapshot_filter_nodes_by_end(db, "subject", refs.clone())?,
+                                                    dbutil::snapshot_filter_nodes_by_end(db, "object", refs)?,
+                                                ),
+                                            )
                                         }
                                     }).await?;
                                     let found_keys: HashSet<_> =
