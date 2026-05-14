@@ -697,33 +697,15 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                             db,
                                             //# genemichaels-external: sql-formatter-sqlite
                                             r#"select
-                                                 "value" as "node"
+                                                 "node"
                                                from
-                                                 "subjobj"
+                                                 "meta"
                                                where
-                                                 "value" in (
+                                                 "node" in (
                                                    select
                                                      value
                                                    from
                                                      rarray ($unfiltered_keys)
-                                                 )
-                                                 and (
-                                                   exists (
-                                                     select
-                                                       1
-                                                     from
-                                                       "triple_snapshot"
-                                                     where
-                                                       "triple_snapshot"."subject" = "subjobj"."id"
-                                                   )
-                                                   or exists (
-                                                     select
-                                                       1
-                                                     from
-                                                       "triple_snapshot"
-                                                     where
-                                                       "triple_snapshot"."object" = "subjobj"."id"
-                                                   )
                                                  )
                                                "#;
                                             db,
