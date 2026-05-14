@@ -780,7 +780,7 @@ fn test_migration_v1_to_latest() {
     let distinct_subjects: i64 = db
         .0
         .query_row(
-            r#"SELECT count(DISTINCT s."value") FROM "triple2" t JOIN "subjobj" s ON t."subject" = s."id""#,
+            r#"SELECT count(DISTINCT s."value") FROM "triple" t JOIN "subjobj" s ON t."subject" = s."id""#,
             [],
             |r| r.get(0),
         )
@@ -788,7 +788,7 @@ fn test_migration_v1_to_latest() {
     let distinct_predicates: i64 = db
         .0
         .query_row(
-            r#"SELECT count(DISTINCT p."value") FROM "triple2" t JOIN "predicate" p ON t."predicate" = p."id""#,
+            r#"SELECT count(DISTINCT p."value") FROM "triple" t JOIN "predicate" p ON t."predicate" = p."id""#,
             [],
             |r| r.get(0),
         )
@@ -796,7 +796,7 @@ fn test_migration_v1_to_latest() {
     let distinct_objects: i64 = db
         .0
         .query_row(
-            r#"SELECT count(DISTINCT o."value") FROM "triple2" t JOIN "subjobj" o ON t."object" = o."id""#,
+            r#"SELECT count(DISTINCT o."value") FROM "triple" t JOIN "subjobj" o ON t."object" = o."id""#,
             [],
             |r| r.get(0),
         )
@@ -948,7 +948,7 @@ fn test_migration_example_db() {
     // hist_list_all is paginated (limit 100), so use raw SQL for total count
     let triple_count_after: i64 = db
         .0
-        .query_row("SELECT count(*) FROM triple2", [], |r| r.get(0))
+        .query_row("SELECT count(*) FROM triple", [], |r| r.get(0))
         .unwrap();
     assert_eq!(
         triple_count_before, triple_count_after,
@@ -959,7 +959,7 @@ fn test_migration_example_db() {
     let distinct_subjects_after: i64 = db
         .0
         .query_row(
-            r#"SELECT count(DISTINCT s."value") FROM "triple2" t JOIN "subjobj" s ON t."subject" = s."id""#,
+            r#"SELECT count(DISTINCT s."value") FROM "triple" t JOIN "subjobj" s ON t."subject" = s."id""#,
             [],
             |r| r.get(0),
         )
@@ -967,7 +967,7 @@ fn test_migration_example_db() {
     let distinct_predicates_after: i64 = db
         .0
         .query_row(
-            r#"SELECT count(DISTINCT p."value") FROM "triple2" t JOIN "predicate" p ON t."predicate" = p."id""#,
+            r#"SELECT count(DISTINCT p."value") FROM "triple" t JOIN "predicate" p ON t."predicate" = p."id""#,
             [],
             |r| r.get(0),
         )
@@ -975,7 +975,7 @@ fn test_migration_example_db() {
     let distinct_objects_after: i64 = db
         .0
         .query_row(
-            r#"SELECT count(DISTINCT o."value") FROM "triple2" t JOIN "subjobj" o ON t."object" = o."id""#,
+            r#"SELECT count(DISTINCT o."value") FROM "triple" t JOIN "subjobj" o ON t."object" = o."id""#,
             [],
             |r| r.get(0),
         )

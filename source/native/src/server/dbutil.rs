@@ -95,12 +95,12 @@ pub fn triple_gc_deleted(
     good_ormning::sqlite::good_query!(
         db,
         //# genemichaels-external: sql-formatter-sqlite
-        r#"delete from "triple2"
+        r#"delete from "triple"
            where
              (
-               "triple2"."commit_" < ${utctime_ms_chrono = epoch}
+               "triple"."commit_" < ${utctime_ms_chrono = epoch}
                and (
-                 "triple2"."exists" = false
+                 "triple"."exists" = false
                  or not exists (
                    select
                      1
@@ -108,10 +108,10 @@ pub fn triple_gc_deleted(
                      "triple_snapshot"
                    where
                      (
-                       "triple2"."subject" = "triple_snapshot"."subject"
-                       and "triple2"."predicate" = "triple_snapshot"."predicate"
-                       and "triple2"."object" = "triple_snapshot"."object"
-                       and "triple2"."commit_" = "triple_snapshot"."commit_"
+                       "triple"."subject" = "triple_snapshot"."subject"
+                       and "triple"."predicate" = "triple_snapshot"."predicate"
+                       and "triple"."object" = "triple_snapshot"."object"
+                       and "triple"."commit_" = "triple_snapshot"."commit_"
                      )
                  )
                )
@@ -133,17 +133,17 @@ pub fn subjobj_gc(db: &mut db::Db<impl good_ormning::runtime::sqlite::SqliteConn
                  select
                    1
                  from
-                   "triple2"
+                   "triple"
                  where
-                   "subjobj"."id" = "triple2"."subject"
+                   "subjobj"."id" = "triple"."subject"
                )
                and not exists (
                  select
                    1
                  from
-                   "triple2"
+                   "triple"
                  where
-                   "subjobj"."id" = "triple2"."object"
+                   "subjobj"."id" = "triple"."object"
                )
              )
            "#;
@@ -164,9 +164,9 @@ pub fn predicate_gc(
                select
                  1
                from
-                 "triple2"
+                 "triple"
                where
-                 "predicate"."id" = "triple2"."predicate"
+                 "predicate"."id" = "triple"."predicate"
              )
            "#;
         db
@@ -193,17 +193,17 @@ pub fn meta_gc(db: &mut db::Db<impl good_ormning::runtime::sqlite::SqliteConnect
                        select
                          1
                        from
-                         "triple2"
+                         "triple"
                        where
-                         "triple2"."subject" = "subjobj"."id"
+                         "triple"."subject" = "subjobj"."id"
                      )
                      or exists (
                        select
                          1
                        from
-                         "triple2"
+                         "triple"
                        where
-                         "triple2"."object" = "subjobj"."id"
+                         "triple"."object" = "subjobj"."id"
                      )
                    )
                  )
@@ -221,9 +221,9 @@ pub fn commit_gc(db: &mut db::Db<impl good_ormning::runtime::sqlite::SqliteConne
         r#"with
              active_commits (stamp) as (
                select distinct
-                 "triple2"."commit_"
+                 "triple"."commit_"
                from
-                 "triple2"
+                 "triple"
              )
            delete from "commit"
            where
@@ -650,7 +650,7 @@ fn parse_history_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<HistoryRow> {
 
 const HIST_BASE_SQL: &str = r#"
     SELECT s."value", p."value", o."value", t."commit_", t."exists"
-    FROM "triple2" t
+    FROM "triple" t
     JOIN "subjobj" s ON t."subject" = s."id"
     JOIN "predicate" p ON t."predicate" = p."id"
     JOIN "subjobj" o ON t."object" = o."id"

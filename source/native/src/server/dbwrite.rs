@@ -57,7 +57,7 @@ pub fn write_triple<
         db,
         //# genemichaels-external: sql-formatter-sqlite
         r#"insert into
-             "triple2" (
+             "triple" (
                "subject",
                "predicate",
                "object",
