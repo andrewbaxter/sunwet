@@ -42,29 +42,31 @@ pub fn build(input: BuildDbInput) -> (Version, Vec<Query>) {
         t.index("triple_commit_exists", &[&commit, &exist]);
     }
 
-    // Subjobj (deduplicated node values)
+    // Subjobj (deduplicated node values, with integer id for normalization)
     {
         let t = version.table("subjobj");
+        let id = t.field("id", field_i64().build());
         let value = t.field("value", node_type.field_type());
-        t.primary_key("subjobj_pk", &[&value]);
-        t.index("subjobj_value", &[&value]);
+        t.primary_key("subjobj_pk", &[&id]);
+        t.unique_index("subjobj_value", &[&value]);
     }
 
-    // Predicate (deduplicated predicates)
+    // Predicate (deduplicated predicates, with integer id for normalization)
     {
         let t = version.table("predicate");
+        let id = t.field("id", field_i64().build());
         let value = t.field("value", field_str().build());
-        t.primary_key("predicate_pk", &[&value]);
-        t.index("predicate_value", &[&value]);
+        t.primary_key("predicate_pk", &[&id]);
+        t.unique_index("predicate_value", &[&value]);
     }
 
-    // Triple snapshot (current state)
+    // Triple snapshot (current state, normalized with integer references)
     {
         let t = version.table("triple_snapshot");
-        let subject = t.field("subject", node_type.field_type());
-        let predicate = t.field("predicate", field_str().build());
-        let object = t.field("object", node_type.field_type());
-        let commit = t.field("commit_", field_utctime_ms_chrono().build());
+        let subject = t.field("subject", field_i64().build());
+        let predicate = t.field("predicate", field_i64().build());
+        let object = t.field("object", field_i64().build());
+        let _commit = t.field("commit_", field_utctime_ms_chrono().build());
         t.primary_key("triple_snapshot_pk", &[&subject, &predicate, &object]);
         t.unique_index(
             "triple_snapshot_obj_pred_subj",
@@ -74,12 +76,12 @@ pub fn build(input: BuildDbInput) -> (Version, Vec<Query>) {
         t.index("triple_snapshot_pred_obj", &[&predicate, &object]);
     }
 
-    // Triple2 (normalized history table)
+    // Triple2 (normalized history table, integer references to subjobj/predicate)
     {
         let t = version.table("triple2");
-        let subject = t.field("subject", node_type.field_type());
-        let predicate = t.field("predicate", field_str().build());
-        let object = t.field("object", node_type.field_type());
+        let subject = t.field("subject", field_i64().build());
+        let predicate = t.field("predicate", field_i64().build());
+        let object = t.field("object", field_i64().build());
         let commit = t.field("commit_", field_utctime_ms_chrono().build());
         let exist = t.field("exists", field_bool().build());
         t.primary_key("triple2_pk", &[&subject, &predicate, &object, &commit]);
@@ -96,7 +98,7 @@ pub fn build(input: BuildDbInput) -> (Version, Vec<Query>) {
     {
         let t = version.table("commit");
         let event_stamp = t.field("idtimestamp", field_utctime_ms_chrono().build());
-        let desc = t.field("description", field_str().build());
+        let _desc = t.field("description", field_str().build());
         t.primary_key("commit_timestamp", &[&event_stamp]);
     }
 
@@ -104,8 +106,8 @@ pub fn build(input: BuildDbInput) -> (Version, Vec<Query>) {
     {
         let t = version.table("meta");
         let node = t.field("node", node_type.field_type());
-        let mimetype = t.field("mimetype", field_str().opt().build());
-        let fulltext = t.field("fulltext", field_str().build());
+        let _mimetype = t.field("mimetype", field_str().opt().build());
+        let _fulltext = t.field("fulltext", field_str().build());
         t.primary_key("meta_node", &[&node]);
     }
 
@@ -114,7 +116,7 @@ pub fn build(input: BuildDbInput) -> (Version, Vec<Query>) {
         let t = version.table("generated");
         let node = t.field("node", node_type.field_type());
         let gentype = t.field("gentype", field_str().build());
-        let mimetype = t.field("mimetype", field_str().build());
+        let _mimetype = t.field("mimetype", field_str().build());
         t.primary_key("generated_pk", &[&node, &gentype]);
     }
 

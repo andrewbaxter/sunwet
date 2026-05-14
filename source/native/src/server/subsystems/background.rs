@@ -601,49 +601,16 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                 ) -> Result<(), loga::Error> {
                                     let (found_sub, found_obj) = tx(&dbc, {
                                         let batch = batch.clone();
-                                        move |db| -> Result<_, loga::Error> {
-                                            return Ok((
-                                                good_ormning::sqlite::good_query_many!(
-                                                    db,
-                                                    //# genemichaels-external: sql-formatter-sqlite
-                                                    r#"select distinct
-                                                         subject as "node"
-                                                       from
-                                                         triple_snapshot
-                                                       where
-                                                         subject in (
-                                                           select
-                                                             value
-                                                           from
-                                                             rarray ($batch)
-                                                         )
-                                                       "#;
-                                                    db,
-                                                    batch: arr node = batch.iter().collect::< Vec < _ >>()
-                                                )?.into_iter().map(|x| x.0).collect::<Vec<_>>(),
-                                                good_ormning::sqlite::good_query_many!(
-                                                    db,
-                                                    //# genemichaels-external: sql-formatter-sqlite
-                                                    r#"select distinct
-                                                         object as "node"
-                                                       from
-                                                         triple_snapshot
-                                                       where
-                                                         object in (
-                                                           select
-                                                             value
-                                                           from
-                                                             rarray ($batch)
-                                                         )
-                                                       "#;
-                                                    db,
-                                                    batch: arr node = batch.iter().collect::< Vec < _ >>()
-                                                )?.into_iter().map(|x| x.0).collect::<Vec<_>>(),
-                                            ));
+                                        move |db| -> Result<(Vec<DbNode>, Vec<DbNode>), loga::Error> {
+                                            let refs: Vec<&DbNode> = batch.iter().collect();
+                                            Ok((
+                                                dbutil::snapshot_filter_nodes_by_end(db, "subject", refs.clone())?,
+                                                dbutil::snapshot_filter_nodes_by_end(db, "object", refs)?,
+                                            ))
                                         }
                                     }).await?;
-                                    let found_keys =
-                                        found_sub.into_iter().chain(found_obj.into_iter()).collect::<HashSet<_>>();
+                                    let found_keys: HashSet<_> =
+                                        found_sub.into_iter().chain(found_obj.into_iter()).map(|n| n.0).collect();
                                     for key in batch {
                                         if !found_keys.contains(&key.0) {
                                             continue;
@@ -729,16 +696,34 @@ pub fn start_background_job(state: &Arc<State>, tm: &TaskManager, rx: UnboundedR
                                         return Ok(good_ormning::sqlite::good_query_many!(
                                             db,
                                             //# genemichaels-external: sql-formatter-sqlite
-                                            r#"select distinct
-                                                 subject as "node"
+                                            r#"select
+                                                 "value" as "node"
                                                from
-                                                 triple_snapshot
+                                                 "subjobj"
                                                where
-                                                 subject in (
+                                                 "value" in (
                                                    select
                                                      value
                                                    from
                                                      rarray ($unfiltered_keys)
+                                                 )
+                                                 and (
+                                                   exists (
+                                                     select
+                                                       1
+                                                     from
+                                                       "triple_snapshot"
+                                                     where
+                                                       "triple_snapshot"."subject" = "subjobj"."id"
+                                                   )
+                                                   or exists (
+                                                     select
+                                                       1
+                                                     from
+                                                       "triple_snapshot"
+                                                     where
+                                                       "triple_snapshot"."object" = "subjobj"."id"
+                                                   )
                                                  )
                                                "#;
                                             db,

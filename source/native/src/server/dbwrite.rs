@@ -65,7 +65,13 @@ pub fn write_triple<
                "exists"
              )
            values
-             ($subject, $predicate, $object, $commit_, $exist)
+             (
+               (select "id" from "subjobj" where "value" = $subject),
+               (select "id" from "predicate" where "value" = $predicate),
+               (select "id" from "subjobj" where "value" = $object),
+               $commit_,
+               $exist
+             )
            "#;
         conn,
         subject: node = subject,
@@ -81,7 +87,12 @@ pub fn write_triple<
             r#"insert into
                  "triple_snapshot" ("subject", "predicate", "object", "commit_")
                values
-                 ($subject, $predicate, $object, $commit_)
+                 (
+                   (select "id" from "subjobj" where "value" = $subject),
+                   (select "id" from "predicate" where "value" = $predicate),
+                   (select "id" from "subjobj" where "value" = $object),
+                   $commit_
+                 )
                on conflict ("subject", "predicate", "object") do update
                set
                  "commit_" = excluded."commit_"
@@ -99,9 +110,9 @@ pub fn write_triple<
             r#"delete from "triple_snapshot"
                where
                  (
-                   "subject" = $subject
-                   and "predicate" = $predicate
-                   and "object" = $object
+                   "subject" = (select "id" from "subjobj" where "value" = $subject)
+                   and "predicate" = (select "id" from "predicate" where "value" = $predicate)
+                   and "object" = (select "id" from "subjobj" where "value" = $object)
                  )
                "#;
             conn,

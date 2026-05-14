@@ -261,33 +261,66 @@ fn build_step(
                 let mut sql_cte = sea_query::CommonTableExpression::new();
                 sql_cte.table_name(ident_cte.clone());
 
-                // Select
+                // Select from triple_snapshot with JOINs to resolve integer IDs to values
                 let mut sql_sel = sea_query::Query::select();
                 let local_ident_table_primary = query_state.ident_table_primary.clone();
                 sql_sel.from_as(query_state.triple_exist_table.clone(), local_ident_table_primary.clone());
 
-                // Direction selection
-                let from_ident_primary_start;
-                let from_ident_primary_end;
-                match step.dir {
-                    MoveDirection::Forward => {
-                        from_ident_primary_start = &query_state.ident_col_subject;
-                        from_ident_primary_end = &query_state.ident_col_object;
-                    },
-                    MoveDirection::Backward => {
-                        from_ident_primary_start = &query_state.ident_col_object;
-                        from_ident_primary_end = &query_state.ident_col_subject;
-                    },
-                }
-                let local_col_primary_start =
-                    colref(local_ident_table_primary.clone(), from_ident_primary_start.clone());
-                let local_col_primary_end = colref(local_ident_table_primary.clone(), from_ident_primary_end.clone());
-
-                // Movement
-                sql_sel.and_where(
+                // JOINs to resolve normalized integer references to actual values
+                let ident_resolve_subj = SeaRc::new(Alias::new("_rs"));
+                let ident_resolve_pred = SeaRc::new(Alias::new("_rp"));
+                let ident_resolve_obj = SeaRc::new(Alias::new("_ro"));
+                let ident_subjobj_table = SeaRc::new(Alias::new("subjobj"));
+                let ident_predicate_table = SeaRc::new(Alias::new("predicate"));
+                let ident_value_col = SeaRc::new(Alias::new("value"));
+                let ident_id_col = SeaRc::new(Alias::new("id"));
+                sql_sel.join_as(
+                    sea_query::JoinType::InnerJoin,
+                    ident_subjobj_table.clone(),
+                    ident_resolve_subj.clone(),
+                    sea_query::Expr::col(
+                        colref(local_ident_table_primary.clone(), query_state.ident_col_subject.clone()),
+                    ).eq(colref(ident_resolve_subj.clone(), ident_id_col.clone())),
+                );
+                sql_sel.join_as(
+                    sea_query::JoinType::InnerJoin,
+                    ident_predicate_table.clone(),
+                    ident_resolve_pred.clone(),
                     sea_query::Expr::col(
                         colref(local_ident_table_primary.clone(), query_state.ident_col_predicate.clone()),
-                    ).eq(build_value_str(query_state, &step.predicate)?),
+                    ).eq(colref(ident_resolve_pred.clone(), ident_id_col.clone())),
+                );
+                sql_sel.join_as(
+                    sea_query::JoinType::InnerJoin,
+                    ident_subjobj_table.clone(),
+                    ident_resolve_obj.clone(),
+                    sea_query::Expr::col(
+                        colref(local_ident_table_primary.clone(), query_state.ident_col_object.clone()),
+                    ).eq(colref(ident_resolve_obj.clone(), ident_id_col.clone())),
+                );
+
+                // Resolved column references (values from lookup tables)
+                let resolved_subject = colref(ident_resolve_subj.clone(), ident_value_col.clone());
+                let resolved_predicate = colref(ident_resolve_pred.clone(), ident_value_col.clone());
+                let resolved_object = colref(ident_resolve_obj.clone(), ident_value_col.clone());
+
+                // Direction selection (using resolved values)
+                let local_col_primary_start;
+                let local_col_primary_end;
+                match step.dir {
+                    MoveDirection::Forward => {
+                        local_col_primary_start = resolved_subject;
+                        local_col_primary_end = resolved_object;
+                    },
+                    MoveDirection::Backward => {
+                        local_col_primary_start = resolved_object;
+                        local_col_primary_end = resolved_subject;
+                    },
+                }
+
+                // Predicate filter (using resolved predicate value)
+                sql_sel.and_where(
+                    sea_query::Expr::col(resolved_predicate).eq(build_value_str(query_state, &step.predicate)?),
                 );
 
                 // Output start col - subset of previous results

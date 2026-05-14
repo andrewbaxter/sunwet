@@ -614,13 +614,13 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 }
                                 let (events, commit_descriptions): (Vec<_>, _) =
                                     tx(&state.db, move |db| -> Result<_, loga::Error> {
-                                        let events: Vec<db::DbResHistory>;
+                                        let events: Vec<dbutil::HistoryRow>;
                                         if let Some(f) = req.filter {
                                             if let Some(p) = f.predicate {
                                                 match p {
                                                     ReqHistoryFilterPredicate::Incoming(p) => {
                                                         events = if let Some(after) = req.page_key {
-                                                            db::hist_list_by_predicate_object_after(
+                                                            dbutil::hist_list_by_predicate_object_after(
                                                                 db,
                                                                 after.0,
                                                                 &DbNode(after.1.subject),
@@ -630,7 +630,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                                 &DbNode(f.node.clone()),
                                                             )?
                                                         } else {
-                                                            db::hist_list_by_predicate_object(
+                                                            dbutil::hist_list_by_predicate_object(
                                                                 db,
                                                                 &p,
                                                                 &DbNode(f.node.clone()),
@@ -639,7 +639,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                     },
                                                     ReqHistoryFilterPredicate::Outgoing(p) => {
                                                         events = if let Some(after) = req.page_key {
-                                                            db::hist_list_by_subject_predicate_after(
+                                                            dbutil::hist_list_by_subject_predicate_after(
                                                                 db,
                                                                 after.0,
                                                                 &DbNode(after.1.subject),
@@ -649,7 +649,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                                 &p,
                                                             )?
                                                         } else {
-                                                            db::hist_list_by_subject_predicate(
+                                                            dbutil::hist_list_by_subject_predicate(
                                                                 db,
                                                                 &DbNode(f.node.clone()),
                                                                 &p,
@@ -659,7 +659,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                 }
                                             } else {
                                                 events = if let Some(after) = req.page_key {
-                                                    db::hist_list_by_node_after(
+                                                    dbutil::hist_list_by_node_after(
                                                         db,
                                                         after.0,
                                                         &DbNode(after.1.subject),
@@ -668,12 +668,12 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                         &DbNode(f.node.clone()),
                                                     )?
                                                 } else {
-                                                    db::hist_list_by_node(db, &DbNode(f.node.clone()))?
+                                                    dbutil::hist_list_by_node(db, &DbNode(f.node.clone()))?
                                                 };
                                             }
                                         } else {
                                             events = if let Some(after) = req.page_key {
-                                                db::hist_list_all_after(
+                                                dbutil::hist_list_all_after(
                                                     db,
                                                     after.0,
                                                     &DbNode(after.1.subject),
@@ -681,7 +681,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                     &DbNode(after.1.object),
                                                 )?
                                             } else {
-                                                db::hist_list_all(db)?
+                                                dbutil::hist_list_all(db)?
                                             };
                                         }
                                         let mut commit_descriptions = HashMap::new();
@@ -739,32 +739,9 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     let nodes = req.nodes.clone();
                                     move |db| -> Result<_, loga::Error> {
                                         let nodes = nodes.into_iter().map(DbNode).collect::<Vec<_>>();
-                                        return Ok(good_ormning::sqlite::good_query_many!(
-                                            db,
-                                            //# genemichaels-external: sql-formatter-sqlite
-                                            r#"select
-                                                 subject,
-                                                 predicate,
-                                                 object
-                                               from
-                                                 "triple_snapshot"
-                                               where
-                                                 subject in (
-                                                   select
-                                                     value
-                                                   from
-                                                     rarray ($nodes)
-                                                 )
-                                                 or object in (
-                                                   select
-                                                     value
-                                                   from
-                                                     rarray ($nodes)
-                                                 )
-                                               "#;
-                                            db,
-                                            nodes: arr node = nodes.iter().collect::< Vec < _ >>()
-                                        )?);
+                                        return Ok(
+                                            dbutil::snapshot_triples_around(db, nodes.iter().collect())?,
+                                        );
                                     }
                                 }).await.err_internal()?;
                                 resp = responder(triples.into_iter().map(|t| Triple {
@@ -824,96 +801,14 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                         let mut seen = HashSet::new();
                                         let mut node_issues = HashMap::new();
 
-                                        #[derive(Clone, Copy)]
-                                        enum TripleEnd {
-                                            Subject,
-                                            Object,
-                                        }
-
-                                        for triple_end in [TripleEnd::Subject, TripleEnd::Object] {
-                                            let mut pivot = None;
+                                        for triple_end in ["subject", "object"] {
+                                            let mut pivot: Option<DbNode> = None;
                                             loop {
                                                 let batch = tx(&state.db, {
                                                     let pivot = pivot.clone();
+                                                    let triple_end = triple_end.to_string();
                                                     move |db| -> Result<Vec<DbNode>, loga::Error> {
-                                                        match (pivot.as_ref(), triple_end) {
-                                                            (None, TripleEnd::Subject) => {
-                                                                return Ok(good_ormning::sqlite::good_query_many!(
-                                                                    db,
-                                                                    //# genemichaels-external: sql-formatter-sqlite
-                                                                    r#"select distinct
-                                                                         subject as "node"
-                                                                       from
-                                                                         triple_snapshot
-                                                                       where
-                                                                         subject like 'f=%'
-                                                                       order by
-                                                                         subject
-                                                                       limit
-                                                                         100
-                                                                       "#;
-                                                                    db
-                                                                )?.into_iter().collect());
-                                                            },
-                                                            (None, TripleEnd::Object) => {
-                                                                return Ok(good_ormning::sqlite::good_query_many!(
-                                                                    db,
-                                                                    //# genemichaels-external: sql-formatter-sqlite
-                                                                    r#"select distinct
-                                                                         object as "node"
-                                                                       from
-                                                                         triple_snapshot
-                                                                       where
-                                                                         object like 'f=%'
-                                                                       order by
-                                                                         object
-                                                                       limit
-                                                                         100
-                                                                       "#;
-                                                                    db
-                                                                )?.into_iter().collect());
-                                                            },
-                                                            (Some(pivot), TripleEnd::Subject) => {
-                                                                return Ok(good_ormning::sqlite::good_query_many!(
-                                                                    db,
-                                                                    //# genemichaels-external: sql-formatter-sqlite
-                                                                    r#"select distinct
-                                                                         subject as "node"
-                                                                       from
-                                                                         triple_snapshot
-                                                                       where
-                                                                         subject like 'f=%'
-                                                                         and subject > $pivot
-                                                                       order by
-                                                                         subject
-                                                                       limit
-                                                                         100
-                                                                       "#;
-                                                                    db,
-                                                                    pivot: node = pivot
-                                                                )?.into_iter().collect());
-                                                            },
-                                                            (Some(pivot), TripleEnd::Object) => {
-                                                                return Ok(good_ormning::sqlite::good_query_many!(
-                                                                    db,
-                                                                    //# genemichaels-external: sql-formatter-sqlite
-                                                                    r#"select distinct
-                                                                         object as "node"
-                                                                       from
-                                                                         triple_snapshot
-                                                                       where
-                                                                         object like 'f=%'
-                                                                         and object > $pivot
-                                                                       order by
-                                                                         object
-                                                                       limit
-                                                                         100
-                                                                       "#;
-                                                                    db,
-                                                                    pivot: node = pivot
-                                                                )?.into_iter().collect());
-                                                            },
-                                                        }
+                                                        dbutil::snapshot_file_nodes(db, &triple_end, pivot.as_ref())
                                                     }
                                                 }).await?;
                                                 let Some(pivot1) = batch.last().cloned() else {
@@ -1147,6 +1042,7 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
             let log = log.clone();
             move |db| {
                 db::migrate(&mut *db, Some(&|v| migrate::migrate(v)))?;
+                db.execute_batch("VACUUM").context("Error running VACUUM after migration")?;
                 if db
                     .prepare("select 1 from sqlite_master where type='table' and name='meta_fts'")?
                     .query([])
