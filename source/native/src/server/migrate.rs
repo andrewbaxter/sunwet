@@ -152,7 +152,7 @@ pub fn migrate<C: SqliteConnection>(versions: &mut DbVersions<C>) -> Result<(), 
                    "#;
                 db
             )?;
-            db.execute_batch("VACUUM").map_err(|e| good_ormning::runtime::GoodError(e.to_string()))?;
+            db.0.execute("VACUUM", [])?;
         },
         _ => { },
     }
