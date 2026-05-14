@@ -1793,9 +1793,9 @@ dependencies = [
 
 [[package]]
 name = "good-ormning"
-version = "0.5.10"
+version = "0.5.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49000c8e034bec743e77dfe0344f47b48dd366e322d2a15df49b30620280777e"
+checksum = "de270def64c7aaa8e8ca01a11cf043ed796223967e57b6a48d0d41d1ee03145e"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1824,9 +1824,9 @@ dependencies = [
 
 [[package]]
 name = "good-ormning-core"
-version = "0.5.10"
+version = "0.5.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfa530aad2ccb540a233980676f0fc2c77e1ae7b0a43b459866317b4464cba60"
+checksum = "9ea752ef23fb6a156e28c303c37e64c1362dd673cdf8bc31b9b499b90913243b"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1849,9 +1849,9 @@ dependencies = [
 
 [[package]]
 name = "good-ormning-macros"
-version = "0.5.10"
+version = "0.5.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe2ab7cd6242f48471d07ed268e2f41b05a8f31fd892910ff0a63f27f661ac72"
+checksum = "381eae5f2c0de09564d8779a61b7d9ff3d31cc35692e3d333019217920a95fcc"
 dependencies = [
  "convert_case 0.7.1",
  "good-ormning-core",

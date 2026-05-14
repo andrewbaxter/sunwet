@@ -89,34 +89,68 @@ pub fn migrate<C: SqliteConnection>(versions: &mut DbVersions<C>) -> Result<(), 
             )?;
 
             // 3. Copy triple data into triple2 with integer references
-            // (good_query! doesn't support JOINs, so use raw SQL)
-            db.0.execute(
-                r#"INSERT INTO "triple2" ("subject", "predicate", "object", "commit_", "exists")
-                   SELECT s."id", p."id", o."id", t."commit_", t."exists"
-                   FROM "triple" t
-                   JOIN "subjobj" s ON t."subject" = s."value"
-                   JOIN "predicate" p ON t."predicate" = p."value"
-                   JOIN "subjobj" o ON t."object" = o."value""#,
-                [],
+            good_ormning::sqlite::good_query!(
+                db,
+                2,
+                //# genemichaels-external: sql-formatter-sqlite
+                r#"insert into
+                     "triple2" (
+                       "subject",
+                       "predicate",
+                       "object",
+                       "commit_",
+                       "exists"
+                     )
+                   select
+                     s."id",
+                     p."id",
+                     o."id",
+                     t."commit_",
+                     t."exists"
+                   from
+                     "triple" t
+                     join "subjobj" s on t."subject" = s."value"
+                     join "predicate" p on t."predicate" = p."value"
+                     join "subjobj" o on t."object" = o."value"
+                   "#;
+                db
             )?;
 
             // 4. Populate triple_snapshot with integer references (latest existing state)
-            db.0.execute(
-                r#"INSERT INTO "triple_snapshot" ("subject", "predicate", "object", "commit_")
-                   SELECT s."id", p."id", o."id", t1."commit_"
-                   FROM "triple" t1
-                   JOIN "subjobj" s ON t1."subject" = s."value"
-                   JOIN "predicate" p ON t1."predicate" = p."value"
-                   JOIN "subjobj" o ON t1."object" = o."value"
-                   WHERE t1."commit_" = (
-                       SELECT MAX(t2."commit_")
-                       FROM "triple" t2
-                       WHERE t1."subject" = t2."subject"
-                         AND t1."predicate" = t2."predicate"
-                         AND t1."object" = t2."object"
-                   )
-                   AND t1."exists" = true"#,
-                [],
+            good_ormning::sqlite::good_query!(
+                db,
+                2,
+                //# genemichaels-external: sql-formatter-sqlite
+                r#"insert into
+                     "triple_snapshot" ("subject", "predicate", "object", "commit_")
+                   select
+                     s."id",
+                     p."id",
+                     o."id",
+                     t1."commit_"
+                   from
+                     "triple" t1
+                     join "subjobj" s on t1."subject" = s."value"
+                     join "predicate" p on t1."predicate" = p."value"
+                     join "subjobj" o on t1."object" = o."value"
+                   where
+                     (
+                       t1."commit_" = (
+                         select
+                           max(t2."commit_")
+                         from
+                           "triple" t2
+                         where
+                           (
+                             t1."subject" = t2."subject"
+                             and t1."predicate" = t2."predicate"
+                             and t1."object" = t2."object"
+                           )
+                       )
+                       and t1."exists" = true
+                     )
+                   "#;
+                db
             )?;
         },
         _ => { },

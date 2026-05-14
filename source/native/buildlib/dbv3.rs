@@ -58,28 +58,31 @@ pub fn build(input: BuildDbInput) -> (Version, Vec<Query>) {
         t.index("triple_snapshot_pred_obj", &[&predicate, &object]);
     }
 
-    // Triple2 (normalized history table with i64 references)
+    // Triple (history table, renamed from triple2, normalized with integer references)
     {
-        let t = version.table("triple2");
+        let t = version.table("triple").renamed_from("triple2");
         let subject = t.field("subject", field_i64().build());
         let predicate = t.field("predicate", field_i64().build());
         let object = t.field("object", field_i64().build());
         let commit = t.field("commit_", field_utctime_ms_chrono().build());
         let exist = t.field("exists", field_bool().build());
-        t.primary_key("triple2_pk", &[&subject, &predicate, &object, &commit]);
+        t.primary_key(
+            "triple_pk",
+            &[&subject, &predicate, &object, &commit],
+        ).renamed_from("triple2_pk");
         t.unique_index(
-            "triple2_index_obj_pred_subj",
+            "triple_index_obj_pred_subj",
             &[&object, &predicate, &subject, &commit],
-        );
+        ).renamed_from("triple2_index_obj_pred_subj");
         t.index(
-            "triple2_index_pred_subj",
+            "triple_index_pred_subj",
             &[&predicate, &subject, &commit],
-        );
+        ).renamed_from("triple2_index_pred_subj");
         t.index(
-            "triple2_index_pred_obj",
+            "triple_index_pred_obj",
             &[&predicate, &object, &commit],
-        );
-        t.index("triple2_commit_exists", &[&commit, &exist]);
+        ).renamed_from("triple2_index_pred_obj");
+        t.index("triple_commit_exists", &[&commit, &exist]).renamed_from("triple2_commit_exists");
     }
 
     // Commits
