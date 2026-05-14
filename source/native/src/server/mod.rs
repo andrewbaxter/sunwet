@@ -1042,7 +1042,6 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
             let log = log.clone();
             move |db| {
                 db::migrate(&mut *db, Some(&|v| migrate::migrate(v)))?;
-                db.execute_batch("VACUUM").context("Error running VACUUM after migration")?;
                 if db
                     .prepare("select 1 from sqlite_master where type='table' and name='meta_fts'")?
                     .query([])
