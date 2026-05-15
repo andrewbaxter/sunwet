@@ -2371,6 +2371,7 @@ dependencies = [
  "rooting",
  "serde",
  "serde_json",
+ "sha2",
  "shared",
  "shared-wasm",
  "tokio",

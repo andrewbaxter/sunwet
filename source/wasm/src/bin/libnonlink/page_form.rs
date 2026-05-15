@@ -619,12 +619,16 @@ pub fn build_page_form(
                         _ => None,
                     });
                     let mut params_to_post = HashMap::new();
+                    let mut commit_files = vec![];
                     let mut files_to_upload = vec![];
                     let mut data_id = None;
                     for (k, v) in data {
                         let Some(result) = prep_node(&state().log, v).await else {
                             continue;
                         };
+                        if let Some(cf) = result.commit_file {
+                            commit_files.push(cf);
+                        }
                         if let Some(uf) = result.upload_file {
                             files_to_upload.push(uf);
                         }
@@ -643,6 +647,7 @@ pub fn build_page_form(
                     online::ensure_commit(eg.clone(), ReqCommit::Form(ReqCommitForm {
                         form_id: id.clone(),
                         parameters: params_to_post,
+                        files: commit_files,
                     }), files_to_upload).await?;
                     return Ok(data_id);
                 }.await {

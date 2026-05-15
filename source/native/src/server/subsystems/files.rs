@@ -309,7 +309,7 @@ pub async fn handle_form_commit(state: Arc<State>, c: ReqCommitForm) -> Result<R
         comment: format!("Form [{}]", c.form_id),
         add: add,
         remove: vec![],
-        files: vec![],
+        files: c.files,
     }, Some((c.form_id.clone(), form_hash.finish()))).await.err_internal()?);
 }
 

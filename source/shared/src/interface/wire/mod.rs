@@ -69,6 +69,8 @@ pub struct ReqCommitForm {
     pub form_id: FormId,
     #[serde(default)]
     pub parameters: HashMap<String, TreeNode>,
+    #[serde(default)]
+    pub files: Vec<CommitFile>,
 }
 
 #[derive(Serialize, Deserialize, Clone, JsonSchema)]
