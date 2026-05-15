@@ -22,6 +22,7 @@ fn main() {
     let mut b = Bindgen::new();
     b.input_path(args.in_wasm);
     b.web(true).unwrap();
+    b.typescript(true);
     b.split_linked_modules(true);
     b.keep_debug(true);
     b.out_name(&args.out_name);

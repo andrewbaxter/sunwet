@@ -4,14 +4,11 @@ use {
         Storage,
     },
     js_sys::{
-        Array,
         Function,
-        Object,
         Promise,
-        Reflect,
-        Uint8Array,
     },
     lunk::EventGraph,
+    serde::Deserialize,
     sha2::{
         Digest,
         Sha256,
@@ -49,6 +46,7 @@ use {
         collections::HashMap,
         rc::Rc,
     },
+    tsify_next::Tsify,
     wasm_bindgen::prelude::*,
     wasm_bindgen_futures::{
         spawn_local,
@@ -83,6 +81,26 @@ pub fn init_app_state(onlining: Rc<OnliningState>, eg: EventGraph, log: Rc<dyn L
         });
     });
 }
+
+#[derive(Deserialize, Tsify)]
+pub struct CaptureFile {
+    #[serde(with = "serde_bytes")]
+    #[tsify(type = "Uint8Array")]
+    pub data: Vec<u8>,
+    pub mimetype: String,
+    pub parameter: String,
+}
+
+#[derive(Deserialize, Tsify)]
+pub struct CaptureCallbackResult {
+    pub form_id: String,
+    #[tsify(type = "Record<string, string>")]
+    pub parameters: HashMap<String, String>,
+    pub files: Vec<CaptureFile>,
+}
+
+#[wasm_bindgen(typescript_custom_section)]
+const TS_CAPTURE_BUTTON: &str = "export function create_capture_button(id: string, view_query: string, callback: (id: string) => Promise<CaptureCallbackResult>): HTMLElement;";
 
 fn get_settings() -> (Option<String>, Option<String>) {
     let url: Result<String, _> = LocalStorage::get(KEY_SERVER_URL);
@@ -179,30 +197,6 @@ async fn check_existence(button: &HtmlButtonElement, id: &str, view_query: &str)
     });
 }
 
-fn js_value_to_treenode(value: &JsValue) -> Result<TreeNode, String> {
-    if let Some(s) = value.as_string() {
-        return Ok(TreeNode::Scalar(Node::from(s)));
-    }
-    if let Some(arr) = value.dyn_ref::<Array>() {
-        let mut out = Vec::with_capacity(arr.length() as usize);
-        for i in 0 .. arr.length() {
-            out.push(js_value_to_treenode(&arr.get(i))?);
-        }
-        return Ok(TreeNode::Array(out));
-    }
-    if let Some(obj) = value.dyn_ref::<Object>() {
-        let mut out = std::collections::BTreeMap::new();
-        let keys = Object::keys(obj);
-        for i in 0 .. keys.length() {
-            let key = keys.get(i).as_string().ok_or("object key must be string")?;
-            let val = Reflect::get(obj, &JsValue::from_str(&key)).map_err(|_| format!("missing key {}", key))?;
-            out.insert(key, js_value_to_treenode(&val)?);
-        }
-        return Ok(TreeNode::Record(out));
-    }
-    Err("unsupported value type for TreeNode".to_string())
-}
-
 async fn handle_click(button: &HtmlButtonElement, id: &str, callback: &Function) {
     update_button_state(button, Existence::New, ErrorState::None);
     let this = JsValue::null();
@@ -230,68 +224,37 @@ async fn handle_click(button: &HtmlButtonElement, id: &str, callback: &Function)
         },
     };
     let res: Result<(), String> = async {
-        let form_id =
-            Reflect::get(&js_value, &JsValue::from_str("form_id"))
-                .map_err(|_| "missing 'form_id' field")?
-                .as_string()
-                .ok_or("form_id must be a string")?;
-        let mut parameters = HashMap::new();
-        let params =
-            Reflect::get(&js_value, &JsValue::from_str("parameters")).map_err(|_| "missing 'parameters' field")?;
-        if !params.is_undefined() && !params.is_null() {
-            let params: Object = params.dyn_into().map_err(|_| "'parameters' must be an object")?;
-            let keys = Object::keys(&params);
-            for i in 0 .. keys.length() {
-                let key = keys.get(i).as_string().ok_or("parameter key must be string")?;
-                let val =
-                    Reflect::get(&params, &JsValue::from_str(&key)).map_err(|_| format!("missing parameter {}", key))?;
-                parameters.insert(key, js_value_to_treenode(&val)?);
-            }
-        }
+        let result: CaptureCallbackResult =
+            serde_wasm_bindgen::from_value(js_value).map_err(|e| format!("{}", e))?;
+        let form_id = result.form_id;
+        let mut parameters: HashMap<String, TreeNode> =
+            result
+                .parameters
+                .into_iter()
+                .map(|(k, v)| (k, TreeNode::Scalar(Node::from(v))))
+                .collect();
         let mut commit_files = vec![];
         let mut upload_files = vec![];
-        let files_val =
-            Reflect::get(&js_value, &JsValue::from_str("files")).map_err(|_| "missing 'files' field")?;
-        if !files_val.is_undefined() && !files_val.is_null() {
-            let files_arr: Array = files_val.dyn_into().map_err(|_| "'files' must be an array")?;
-            let mut param_files: HashMap<String, Vec<TreeNode>> = HashMap::new();
-            for i in 0 .. files_arr.length() {
-                let file_obj = files_arr.get(i);
-                let data: Uint8Array =
-                    Reflect::get(&file_obj, &JsValue::from_str("data"))
-                        .map_err(|_| "missing file 'data'")?
-                        .dyn_into()
-                        .map_err(|_| "file 'data' must be a Uint8Array")?;
-                let data = data.to_vec();
-                let mimetype =
-                    Reflect::get(&file_obj, &JsValue::from_str("mimetype"))
-                        .map_err(|_| "missing file 'mimetype'")?
-                        .as_string()
-                        .ok_or("file 'mimetype' must be a string")?;
-                let parameter =
-                    Reflect::get(&file_obj, &JsValue::from_str("parameter"))
-                        .map_err(|_| "missing file 'parameter'")?
-                        .as_string()
-                        .ok_or("file 'parameter' must be a string")?;
-                let hash = FileHash::from_sha256(Sha256::digest(&data));
-                param_files
-                    .entry(parameter)
-                    .or_default()
-                    .push(TreeNode::Scalar(Node::File(hash.clone())));
-                commit_files.push(CommitFile {
-                    hash: hash.clone(),
-                    size: data.len() as u64,
-                    mimetype,
-                });
-                upload_files.push(UploadFile { data, hash });
-            }
-            for (param_name, nodes) in param_files {
-                parameters.insert(param_name, if nodes.len() == 1 {
-                    nodes.into_iter().next().unwrap()
-                } else {
-                    TreeNode::Array(nodes)
-                });
-            }
+        let mut param_files: HashMap<String, Vec<TreeNode>> = HashMap::new();
+        for file in result.files {
+            let hash = FileHash::from_sha256(Sha256::digest(&file.data));
+            param_files
+                .entry(file.parameter)
+                .or_default()
+                .push(TreeNode::Scalar(Node::File(hash.clone())));
+            commit_files.push(CommitFile {
+                hash: hash.clone(),
+                size: file.data.len() as u64,
+                mimetype: file.mimetype,
+            });
+            upload_files.push(UploadFile { data: file.data, hash });
+        }
+        for (param_name, nodes) in param_files {
+            parameters.insert(param_name, if nodes.len() == 1 {
+                nodes.into_iter().next().unwrap()
+            } else {
+                TreeNode::Array(nodes)
+            });
         }
         let (url, _) = get_settings();
         let Some(base_url) = url else {
@@ -338,7 +301,7 @@ async fn handle_click(button: &HtmlButtonElement, id: &str, callback: &Function)
     }
 }
 
-#[wasm_bindgen]
+#[wasm_bindgen(skip_typescript)]
 pub fn create_capture_button(id: String, view_query: String, callback: Function) -> Result<HtmlElement, JsValue> {
     let window = web_sys::window().ok_or("no window")?;
     let document = window.document().ok_or("no document")?;

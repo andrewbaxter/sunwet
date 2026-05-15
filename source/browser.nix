@@ -57,6 +57,8 @@ in
     ${pkgs.coreutils}/bin/mkdir -p browser_wasm
     ${shared.nativeBindgen}/bin/bind_wasm --in-wasm ${wasmUnbound}/bin/browser-content.wasm --out-name content2 --out-dir browser_wasm
     ${shared.nativeBindgen}/bin/bind_wasm --in-wasm ${wasmUnbound}/bin/browser-options.wasm --out-name options2 --out-dir browser_wasm
+    hoj_cp browser_wasm/content2.d.ts browser_src/ext_static/content2.d.ts
+    hoj_cp browser_wasm/options2.d.ts browser_src/ext_static/options2.d.ts
     (cd browser_src/ext_static && ${pkgs.typescript}/bin/tsc --noEmit)
 
     version=$(${pkgs.gnugrep}/bin/grep "^version =" ${./shared/Cargo.toml} | ${pkgs.gnused}/bin/sed -e "s/.*\"\(.*\)\".*/\1/")

@@ -176,7 +176,7 @@ export const do_twitter = () => {
 
   /**
    * Build form commit from post data
-   * @type {(id: string, data: PostData) => {form_id: string, parameters: CaptureMicroblogParams, files: Array<{data: Uint8Array, mimetype: string, parameter: string}>}}
+   * @type {(id: string, data: PostData) => import("./content2.js").CaptureCallbackResult}
    */
   const buildPostCommit = (id, data) => {
     /** @type {CaptureMicroblogParams} */
@@ -428,7 +428,7 @@ export const do_twitter = () => {
 
   /**
    * Build form commit from profile data
-   * @type {(id: string, data: ProfileData) => {form_id: string, parameters: CaptureProfileParams, files: Array<{data: Uint8Array, mimetype: string, parameter: string}>}}
+   * @type {(id: string, data: ProfileData) => import("./content2.js").CaptureCallbackResult}
    */
   const buildProfileCommit = (id, data) => {
     /** @type {CaptureProfileParams} */

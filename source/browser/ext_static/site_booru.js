@@ -362,7 +362,7 @@ export const do_booru = () => {
 
   /**
    * Build form commit from booru post data
-   * @type {(id: string, data: BooruPostData) => {form_id: string, parameters: CaptureImageParams, files: Array<{data: Uint8Array, mimetype: string, parameter: string}>}}
+   * @type {(id: string, data: BooruPostData) => import("./content2.js").CaptureCallbackResult}
    */
   const buildPostCommit = (id, data) => {
     /** @type {CaptureImageParams} */
