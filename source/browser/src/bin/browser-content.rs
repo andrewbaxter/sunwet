@@ -1,5 +1,4 @@
 use {
-    gloo::utils::window,
     lunk::{
         EventGraph,
         Prim,
@@ -18,7 +17,6 @@ use {
     std::rc::Rc,
     sunwet_browser::{
         capture_button::init_app_state,
-        site_twitter::build_twitter,
     },
 };
 
@@ -32,13 +30,4 @@ fn main() {
     let env = scan_env(&log);
     init_app_state(state.clone(), eg.clone(), log.clone());
     trigger_onlining(&state, eg, &log, &env.base_url);
-    if let Ok(host) = window().location().hostname() {
-        let host = host.split_once(":").map(|x| x.0).unwrap_or(&host);
-        match host {
-            "x.com" => {
-                build_twitter();
-            },
-            _ => { },
-        }
-    }
 }

@@ -29,6 +29,7 @@
  */
 
 import { create_capture_button } from "./content2.js";
+import { forms, views } from "./extension_config.js";
 
 /** @type {() => void} */
 export const do_twitter = () => {
@@ -190,7 +191,7 @@ export const do_twitter = () => {
    * @type {(id: string, data: PostData) => {form_id: string, parameters: Record<string, string>}}
    */
   const buildPostCommit = (id, data) => {
-    /** @type {Record<string, string>} */
+    /** @type {Partial<Record<import("./extension_config.js").CaptureMicroblogParam, string>>} */
     const parameters = {};
     if (data.postUrl) {
       parameters.url = data.postUrl;
@@ -217,7 +218,7 @@ export const do_twitter = () => {
     }
 
     return {
-      form_id: "capture-microblog",
+      form_id: forms["capture-microblog"].id,
       parameters,
     };
   };
@@ -250,7 +251,7 @@ export const do_twitter = () => {
       return buildPostCommit(_id, postData);
     };
 
-    const button = create_capture_button(id, "microblog-exists", callback);
+    const button = create_capture_button(id, views["microblog-exists"].id, callback);
     button.classList.add(BUTTON_MARKER);
 
     btnContainer.parentElement.insertBefore(button, btnContainer.nextSibling);
@@ -445,7 +446,7 @@ export const do_twitter = () => {
    * @type {(id: string, data: ProfileData) => {form_id: string, parameters: Record<string, string>}}
    */
   const buildProfileCommit = (id, data) => {
-    /** @type {Record<string, string>} */
+    /** @type {Partial<Record<import("./extension_config.js").CaptureProfileParam, string>>} */
     const parameters = {};
     if (data.userUrl) {
       parameters.url = data.userUrl;
@@ -472,7 +473,7 @@ export const do_twitter = () => {
     }
 
     return {
-      form_id: "capture-profile",
+      form_id: forms["capture-profile"].id,
       parameters,
     };
   };
@@ -511,7 +512,7 @@ export const do_twitter = () => {
       return buildProfileCommit(_id, profileData);
     };
 
-    const button = create_capture_button(id, "profile-exists", callback);
+    const button = create_capture_button(id, views["profile-exists"].id, callback);
     button.classList.add(PROFILE_BUTTON_MARKER);
     button.style.marginRight = "8px";
     button.style.width = "28px";

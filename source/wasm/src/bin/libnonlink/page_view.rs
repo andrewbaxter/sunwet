@@ -66,7 +66,6 @@ use {
         },
         timers::callback::Timeout,
         utils::{
-            document,
             window,
         },
     },
@@ -1408,8 +1407,8 @@ fn center_to_playing() {
     let inner_width = window().inner_width().ok().and_then(|v| v.as_f64()).unwrap_or(f64::MAX);
     if rect.top() < 0. || rect.bottom() > inner_height || rect.left() < 0. || rect.right() > inner_width {
         let mut options = ScrollIntoViewOptions::new();
-        options.block(ScrollLogicalPosition::Center);
-        options.inline(ScrollLogicalPosition::Center);
+        options.set_block(ScrollLogicalPosition::Center);
+        options.set_inline(ScrollLogicalPosition::Center);
         entry.play_button.scroll_into_view_with_scroll_into_view_options(&options);
     }
 }
@@ -1570,7 +1569,7 @@ fn build_transport(pc: &mut ProcessingContext, offline: bool) -> El {
     button_center.ref_own(
         |_b| link!(
             (_pc = pc),
-            (follow_playing = state().follow_playing.clone(), playing_i = state().playlist.0.playing_i.clone()),
+            (follow_playing = state().follow_playing.clone(), _playing_i = state().playlist.0.playing_i.clone()),
             (),
             () {
                 if *follow_playing.borrow() {
