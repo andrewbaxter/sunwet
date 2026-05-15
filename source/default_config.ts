@@ -2022,11 +2022,8 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
           { id: "id", label: "", type: "id" },
           { id: "page_url", label: "Page URL", type: { text: {} } },
           { id: "source_url", label: "Source URL", type: { text: {} } },
-          { id: "tags_general", label: "Tags (general)", type: { text: {} } },
-          { id: "tags_artist", label: "Tags (artist)", type: { text: {} } },
-          { id: "tags_copyright", label: "Tags (copyright)", type: { text: {} } },
-          { id: "tags_character", label: "Tags (character)", type: { text: {} } },
-          { id: "tags_metadata", label: "Tags (metadata)", type: { text: {} } },
+          { id: "artist_name", label: "Artist name", type: { text: {} } },
+          { id: "artist_url", label: "Artist URL", type: { text: {} } },
           { id: "image_hash", label: "Image hash", type: { text: {} } },
         ],
         outputs: [
@@ -2047,28 +2044,13 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
           },
           {
             subject: { input: "id" },
-            predicate: { inline: "sunwet/1/tags_general" },
-            object: { input: "tags_general" },
+            predicate: { inline: "sunwet/1/artist_name" },
+            object: { input: "artist_name" },
           },
           {
             subject: { input: "id" },
-            predicate: { inline: "sunwet/1/tags_artist" },
-            object: { input: "tags_artist" },
-          },
-          {
-            subject: { input: "id" },
-            predicate: { inline: "sunwet/1/tags_copyright" },
-            object: { input: "tags_copyright" },
-          },
-          {
-            subject: { input: "id" },
-            predicate: { inline: "sunwet/1/tags_character" },
-            object: { input: "tags_character" },
-          },
-          {
-            subject: { input: "id" },
-            predicate: { inline: "sunwet/1/tags_metadata" },
-            object: { input: "tags_metadata" },
+            predicate: { inline: "sunwet/1/artist_url" },
+            object: { input: "artist_url" },
           },
           {
             subject: { input: "id" },

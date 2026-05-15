@@ -188,10 +188,10 @@ export const do_twitter = () => {
 
   /**
    * Build form commit from post data
-   * @type {(id: string, data: PostData) => {form_id: string, parameters: Record<string, string>}}
+   * @type {(id: string, data: PostData) => {form_id: string, parameters: import("./extension_config.js").CaptureMicroblogParams}}
    */
   const buildPostCommit = (id, data) => {
-    /** @type {Partial<Record<import("./extension_config.js").CaptureMicroblogParam, string>>} */
+    /** @type {import("./extension_config.js").CaptureMicroblogParams} */
     const parameters = {};
     if (data.postUrl) {
       parameters.url = data.postUrl;
@@ -218,7 +218,7 @@ export const do_twitter = () => {
     }
 
     return {
-      form_id: forms["capture-microblog"].id,
+      form_id: forms["capture-microblog"],
       parameters,
     };
   };
@@ -251,7 +251,7 @@ export const do_twitter = () => {
       return buildPostCommit(_id, postData);
     };
 
-    const button = create_capture_button(id, views["microblog-exists"].id, callback);
+    const button = create_capture_button(id, views["microblog-exists"], callback);
     button.classList.add(BUTTON_MARKER);
 
     btnContainer.parentElement.insertBefore(button, btnContainer.nextSibling);
@@ -443,10 +443,10 @@ export const do_twitter = () => {
 
   /**
    * Build form commit from profile data
-   * @type {(id: string, data: ProfileData) => {form_id: string, parameters: Record<string, string>}}
+   * @type {(id: string, data: ProfileData) => {form_id: string, parameters: import("./extension_config.js").CaptureProfileParams}}
    */
   const buildProfileCommit = (id, data) => {
-    /** @type {Partial<Record<import("./extension_config.js").CaptureProfileParam, string>>} */
+    /** @type {import("./extension_config.js").CaptureProfileParams} */
     const parameters = {};
     if (data.userUrl) {
       parameters.url = data.userUrl;
@@ -473,7 +473,7 @@ export const do_twitter = () => {
     }
 
     return {
-      form_id: forms["capture-profile"].id,
+      form_id: forms["capture-profile"],
       parameters,
     };
   };
@@ -512,7 +512,7 @@ export const do_twitter = () => {
       return buildProfileCommit(_id, profileData);
     };
 
-    const button = create_capture_button(id, views["profile-exists"].id, callback);
+    const button = create_capture_button(id, views["profile-exists"], callback);
     button.classList.add(PROFILE_BUTTON_MARKER);
     button.style.marginRight = "8px";
     button.style.width = "28px";
