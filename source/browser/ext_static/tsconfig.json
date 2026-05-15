@@ -9,6 +9,7 @@
       "DOM.Iterable"
     ],
     "target": "es2023",
+    "module": "es2022",
     "noImplicitReturns": true,
     "strict": true
   }

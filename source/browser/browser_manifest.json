@@ -20,5 +20,11 @@
       "css": ["sunwet.css"]
     }
   ],
+  "web_accessible_resources": [
+    {
+      "resources": ["content2.js", "content2_bg.wasm", "site_twitter.js", "site_booru.js"],
+      "matches": ["https://*/*"]
+    }
+  ],
   "options_page": "options.html"
 }

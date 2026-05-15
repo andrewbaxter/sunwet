@@ -28,7 +28,7 @@
  */
 
 import { create_capture_button } from "./content2.js";
-import { forms, views } from "./extension_config.js";
+/// <reference path="extension_config.d.ts" />
 
 /** @type {() => void} */
 export const do_twitter = () => {
@@ -176,10 +176,10 @@ export const do_twitter = () => {
 
   /**
    * Build form commit from post data
-   * @type {(id: string, data: PostData) => {form_id: string, parameters: import("./extension_config.js").CaptureMicroblogParams, files: Array<{data: Uint8Array, mimetype: string, parameter: string}>}}
+   * @type {(id: string, data: PostData) => {form_id: string, parameters: CaptureMicroblogParams, files: Array<{data: Uint8Array, mimetype: string, parameter: string}>}}
    */
   const buildPostCommit = (id, data) => {
-    /** @type {import("./extension_config.js").CaptureMicroblogParams} */
+    /** @type {CaptureMicroblogParams} */
     const parameters = {};
     if (data.postUrl) {
       parameters.url = data.postUrl;
@@ -202,7 +202,7 @@ export const do_twitter = () => {
     }
 
     return {
-      form_id: forms["capture-microblog"],
+      form_id: "capture-microblog",
       parameters,
       files,
     };
@@ -236,7 +236,7 @@ export const do_twitter = () => {
       return buildPostCommit(_id, postData);
     };
 
-    const button = create_capture_button(id, views["microblog-exists"], callback);
+    const button = create_capture_button(id, "microblog-exists", callback);
     button.classList.add(BUTTON_MARKER);
 
     btnContainer.parentElement.insertBefore(button, btnContainer.nextSibling);
@@ -428,10 +428,10 @@ export const do_twitter = () => {
 
   /**
    * Build form commit from profile data
-   * @type {(id: string, data: ProfileData) => {form_id: string, parameters: import("./extension_config.js").CaptureProfileParams, files: Array<{data: Uint8Array, mimetype: string, parameter: string}>}}
+   * @type {(id: string, data: ProfileData) => {form_id: string, parameters: CaptureProfileParams, files: Array<{data: Uint8Array, mimetype: string, parameter: string}>}}
    */
   const buildProfileCommit = (id, data) => {
-    /** @type {import("./extension_config.js").CaptureProfileParams} */
+    /** @type {CaptureProfileParams} */
     const parameters = {};
     if (data.userUrl) {
       parameters.url = data.userUrl;
@@ -454,7 +454,7 @@ export const do_twitter = () => {
     }
 
     return {
-      form_id: forms["capture-profile"],
+      form_id: "capture-profile",
       parameters,
       files,
     };
@@ -494,7 +494,7 @@ export const do_twitter = () => {
       return buildProfileCommit(_id, profileData);
     };
 
-    const button = create_capture_button(id, views["profile-exists"], callback);
+    const button = create_capture_button(id, "profile-exists", callback);
     button.classList.add(PROFILE_BUTTON_MARKER);
     button.style.marginRight = "8px";
     button.style.width = "28px";

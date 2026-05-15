@@ -28,7 +28,7 @@
  */
 
 import { create_capture_button } from "./content2.js";
-import { forms, views } from "./extension_config.js";
+/// <reference path="extension_config.d.ts" />
 
 /** @type {SiteConfig[]} */
 const siteConfigs = [
@@ -362,10 +362,10 @@ export const do_booru = () => {
 
   /**
    * Build form commit from booru post data
-   * @type {(id: string, data: BooruPostData) => {form_id: string, parameters: import("./extension_config.js").CaptureImageParams, files: Array<{data: Uint8Array, mimetype: string, parameter: string}>}}
+   * @type {(id: string, data: BooruPostData) => {form_id: string, parameters: CaptureImageParams, files: Array<{data: Uint8Array, mimetype: string, parameter: string}>}}
    */
   const buildPostCommit = (id, data) => {
-    /** @type {import("./extension_config.js").CaptureImageParams} */
+    /** @type {CaptureImageParams} */
     const parameters = {};
     parameters.page_url = data.pageUrl;
     if (data.sourceUrl) {
@@ -384,7 +384,7 @@ export const do_booru = () => {
     }
 
     return {
-      form_id: forms["capture-image"],
+      form_id: "capture-image",
       parameters,
       files,
     };
@@ -408,7 +408,7 @@ export const do_booru = () => {
       return buildPostCommit(_id, postData);
     };
 
-    const button = create_capture_button(id, views["image-exists"], callback);
+    const button = create_capture_button(id, "image-exists", callback);
     button.classList.add(BUTTON_MARKER);
     button.style.width = "100%";
     button.style.height = "36px";
