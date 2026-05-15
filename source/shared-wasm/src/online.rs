@@ -16,10 +16,7 @@ use {
     },
     chrono::Utc,
     flowcontrol::ta_return,
-    gloo::{
-        timers::future::TimeoutFuture,
-        utils::window,
-    },
+    gloo::timers::future::TimeoutFuture,
     js_sys::Promise,
     lunk::{
         EventGraph,
@@ -39,15 +36,26 @@ use {
         rc::Rc,
     },
     wasm_bindgen::{
-        JsCast,
         JsValue,
-        prelude::Closure,
+        prelude::{
+            wasm_bindgen,
+            Closure,
+        },
     },
     wasm_bindgen_futures::{
         JsFuture,
         future_to_promise,
     },
 };
+
+#[wasm_bindgen(inline_js = "
+export async function request_lock(name, cb) {
+    return await globalThis.navigator.locks.request(name, cb);
+}
+")]
+extern "C" {
+    fn request_lock(name: &str, cb: &JsValue) -> Promise;
+}
 
 pub struct OnliningState {
     pub bg: RefCell<Option<ScopeValue>>,
@@ -175,7 +183,7 @@ pub fn trigger_onlining(state: &Rc<OnliningState>, eg: EventGraph, log: &Rc<dyn 
                     });
                 }
             });
-            JsFuture::from(window().navigator().locks().request_with_callback("online", cb.as_ref().unchecked_ref()))
+            JsFuture::from(unsafe { request_lock("online", cb.as_ref()) })
                 .await
                 .log(&log, "Error doing work in `online` lock");
         }));
