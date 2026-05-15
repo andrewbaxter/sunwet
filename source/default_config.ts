@@ -993,6 +993,266 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
       },
     },
   };
+  const mediaItemMaxWidth = "min(15cm, 100%)";
+  const displayMicroblogMedia: sunwet.WidgetRootDataRows = {
+    data: { query: "root" },
+    element_body: {
+      layout: {
+        orientation: "down_right",
+        elements: [
+          {
+            media: {
+              data: { field: "media" },
+              height: "30dvh",
+            },
+          },
+          {
+            layout: {
+              orientation: "down_right",
+              con_size_max: mediaItemMaxWidth,
+              elements: [
+                {
+                  layout: {
+                    orientation: "right_down",
+                    elements: [
+                      widgetNodeLink("microblog_id", "microblog_id"),
+                      "space",
+                      {
+                        play_button: {
+                          media_file_field: "media",
+                          orientation: "right_down",
+                          name_field: "author",
+                          album_field: "url",
+                          artist_field: "author",
+                          cover_field: "media",
+                        },
+                      },
+                    ],
+                  },
+                },
+                {
+                  layout: {
+                    orientation: "right_down",
+                    elements: [
+                      {
+                        text: {
+                          data: { literal: "Author" },
+                          font_size: "12pt",
+                          color: "rgba(78, 94, 119, 0.8)",
+                          orientation: "right_down",
+                        },
+                      },
+                      "space",
+                      {
+                        text: {
+                          data: { field: "author" },
+                          font_size: "12pt",
+                          orientation: "right_down",
+                        },
+                      },
+                    ],
+                  },
+                },
+                {
+                  layout: {
+                    orientation: "right_down",
+                    elements: [
+                      {
+                        text: {
+                          data: { literal: "Date" },
+                          font_size: "12pt",
+                          color: "rgba(78, 94, 119, 0.8)",
+                          orientation: "right_down",
+                        },
+                      },
+                      "space",
+                      {
+                        text: {
+                          data: { field: "date" },
+                          font_size: "12pt",
+                          orientation: "right_down",
+                        },
+                      },
+                    ],
+                  },
+                },
+                {
+                  layout: {
+                    orientation: "right_down",
+                    elements: [
+                      {
+                        text: {
+                          data: { literal: "URL" },
+                          font_size: "12pt",
+                          color: "rgba(78, 94, 119, 0.8)",
+                          orientation: "right_down",
+                        },
+                      },
+                      "space",
+                      {
+                        text: {
+                          data: { field: "url" },
+                          font_size: "12pt",
+                          con_size_mode: "ellipsize",
+                          orientation: "right_down",
+                        },
+                      },
+                    ],
+                  },
+                },
+                {
+                  text: {
+                    data: { field: "text" },
+                    font_size: "12pt",
+                    con_size_mode: "wrap",
+                    orientation: "right_down",
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  };
+  const displayImages: sunwet.WidgetRootDataRows = {
+    data: { query: "root" },
+    element_body: {
+      layout: {
+        orientation: "down_right",
+        elements: [
+          {
+            media: {
+              data: { field: "image_hash" },
+              height: "30dvh",
+            },
+          },
+          {
+            layout: {
+              orientation: "down_right",
+              con_size_max: mediaItemMaxWidth,
+              elements: [
+                {
+                  layout: {
+                    orientation: "right_down",
+                    elements: [
+                      widgetNodeLink("image_id", "image_id"),
+                      "space",
+                      {
+                        play_button: {
+                          media_file_field: "image_hash",
+                          orientation: "right_down",
+                          name_field: "artist_name",
+                          album_field: "page_url",
+                          artist_field: "artist_name",
+                          cover_field: "image_hash",
+                        },
+                      },
+                    ],
+                  },
+                },
+                {
+                  layout: {
+                    orientation: "right_down",
+                    elements: [
+                      {
+                        text: {
+                          data: { literal: "Artist" },
+                          font_size: "12pt",
+                          color: "rgba(78, 94, 119, 0.8)",
+                          orientation: "right_down",
+                        },
+                      },
+                      "space",
+                      {
+                        text: {
+                          data: { field: "artist_name" },
+                          font_size: "12pt",
+                          orientation: "right_down",
+                        },
+                      },
+                    ],
+                  },
+                },
+                {
+                  layout: {
+                    orientation: "right_down",
+                    elements: [
+                      {
+                        text: {
+                          data: { literal: "Page URL" },
+                          font_size: "12pt",
+                          color: "rgba(78, 94, 119, 0.8)",
+                          orientation: "right_down",
+                        },
+                      },
+                      "space",
+                      {
+                        text: {
+                          data: { field: "page_url" },
+                          font_size: "12pt",
+                          con_size_mode: "ellipsize",
+                          orientation: "right_down",
+                        },
+                      },
+                    ],
+                  },
+                },
+                {
+                  layout: {
+                    orientation: "right_down",
+                    elements: [
+                      {
+                        text: {
+                          data: { literal: "Source URL" },
+                          font_size: "12pt",
+                          color: "rgba(78, 94, 119, 0.8)",
+                          orientation: "right_down",
+                        },
+                      },
+                      "space",
+                      {
+                        text: {
+                          data: { field: "source_url" },
+                          font_size: "12pt",
+                          con_size_mode: "ellipsize",
+                          orientation: "right_down",
+                        },
+                      },
+                    ],
+                  },
+                },
+                {
+                  layout: {
+                    orientation: "right_down",
+                    elements: [
+                      {
+                        text: {
+                          data: { literal: "Artist URL" },
+                          font_size: "12pt",
+                          color: "rgba(78, 94, 119, 0.8)",
+                          orientation: "right_down",
+                        },
+                      },
+                      "space",
+                      {
+                        text: {
+                          data: { field: "artist_url" },
+                          font_size: "12pt",
+                          con_size_mode: "ellipsize",
+                          orientation: "right_down",
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  };
   const displayPlaylists: sunwet.WidgetRootDataRows = {
     data: { query: "root" },
     element_width: audioAlbumTitleBlockSize,
@@ -1150,6 +1410,12 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
   const queryPlaylistsTracks = await compileQuery(
     `${dirname}/queries/query_playlists_tracks.txt`,
   );
+
+  // Microblog and image view queries
+  const queryMicroblogHead = `${dirname}/queries/query_microblog.txt`;
+  const queryMicroblogSelect = `${dirname}/queries/query_microblog_select.txt`;
+  const queryImageHead = `${dirname}/queries/query_image.txt`;
+  const queryImageSelect = `${dirname}/queries/query_image_select.txt`;
 
   // Browser extension: existence check queries
   const queryMicroblogExists = await compileQuery(
@@ -1454,6 +1720,62 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
                 name: "new file note",
                 detail: {
                   page: { form: { form_id: "notes_new_file" } },
+                },
+              },
+            ],
+          },
+        },
+      },
+      {
+        id: "microblog_group",
+        name: "Microblog",
+        detail: {
+          section: {
+            children: [
+              {
+                id: "microblog_media_by_add_date",
+                name: "media by add date",
+                detail: {
+                  page: {
+                    view: { view_id: "microblog_media_by_add_date" },
+                  },
+                },
+              },
+              {
+                id: "microblog_media_by_random",
+                name: "media random",
+                detail: {
+                  page: {
+                    view: { view_id: "microblog_media_by_random" },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+      {
+        id: "images_group",
+        name: "Images",
+        detail: {
+          section: {
+            children: [
+              {
+                id: "images_by_add_date",
+                name: "by add date",
+                detail: {
+                  page: {
+                    view: { view_id: "images_by_add_date" },
+                  },
+                },
+              },
+              {
+                id: "images_by_random",
+                name: "random",
+                detail: {
+                  page: {
+                    view: { view_id: "images_by_random" },
+                  },
                 },
               },
             ],
@@ -1824,6 +2146,58 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
         display: displayPlaylists,
       },
 
+      // Microblog media views
+      microblog_media_by_add_date: {
+        queries: {
+          root: await compileQueryHeadTail(
+            queryMicroblogHead,
+            queryMicroblogSelect,
+            {
+              fields: [
+                ["desc", "date"],
+              ],
+            },
+          ),
+        },
+        display: displayMicroblogMedia,
+      },
+      microblog_media_by_random: {
+        queries: {
+          root: await compileQueryHeadTail(
+            queryMicroblogHead,
+            queryMicroblogSelect,
+            "shuffle",
+          ),
+        },
+        display: displayMicroblogMedia,
+      },
+
+      // Image views
+      images_by_add_date: {
+        queries: {
+          root: await compileQueryHeadTail(
+            queryImageHead,
+            queryImageSelect,
+            {
+              fields: [
+                ["desc", "add_timestamp"],
+              ],
+            },
+          ),
+        },
+        display: displayImages,
+      },
+      images_by_random: {
+        queries: {
+          root: await compileQueryHeadTail(
+            queryImageHead,
+            queryImageSelect,
+            "shuffle",
+          ),
+        },
+        display: displayImages,
+      },
+
       // Browser extension: existence check views
       "microblog-exists": {
         parameters: { id: "text" },
@@ -2020,6 +2394,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
       "capture-image": {
         fields: [
           { id: "id", label: "", type: "id" },
+          { id: "stamp", label: "", type: "datetime_now" },
           { id: "page_url", label: "Page URL", type: { text: {} } },
           { id: "source_url", label: "Source URL", type: { text: {} } },
           { id: "artist_name", label: "Artist name", type: { text: {} } },
@@ -2031,6 +2406,11 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
             subject: { input: "id" },
             predicate: { inline: "sunwet/1/is" },
             object: { inline: { t: "v", v: "sunwet/1/image" } },
+          },
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/add_timestamp" },
+            object: { input: "stamp" },
           },
           {
             subject: { input: "id" },

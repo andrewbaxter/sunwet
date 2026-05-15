@@ -3313,6 +3313,11 @@
     }
     return { root: out };
   };
+  const videoThumbnail = (video) => {
+    video.addEventListener("loadedmetadata", () => {
+      video.currentTime = video.duration / 3;
+    });
+  };
   presentation.leafViewVideo = /** @type { Presentation["leafViewVideo"] } */ (
     args,
   ) => {
@@ -3320,9 +3325,10 @@
       if (args.link != null) {
         const media = e(
           "video",
-          { src: args.src, autoplay: true, muted: true, loop: true },
+          { src: args.src, muted: true, preload: "metadata" },
           { styles_: [viewMediaLinkMediaStyle] },
         );
+        videoThumbnail(media);
         const out = e(
           "a",
           { href: args.link },
@@ -3338,13 +3344,12 @@
       } else {
         const media = e(
           "video",
-          { src: args.src, controls: true },
+          { src: args.src, muted: true, preload: "metadata" },
           {
             styles_: [
               viewMediaNonlinkMediaStyle,
               ss(uniq("leaf_view_video"), {
                 "": (s) => {
-                  s.pointerEvents = "initial";
                   s.minWidth = "0";
                   s.minHeight = "0";
                 },
@@ -3352,9 +3357,7 @@
             ],
           },
         );
-        if (args.src != null) {
-          media.src = args.src;
-        }
+        videoThumbnail(media);
         if (args.text != null) {
           media.title = args.text;
         }
