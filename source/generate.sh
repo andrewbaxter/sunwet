@@ -6,3 +6,6 @@ rm -f generated/jsonschema/*.json
 rm -f generated/ts/sub/*.ts
 (cd native; cargo run --bin generate_jsonschema)
 (cd native; TS_RS_EXPORT_DIR=../generated/ts/sub cargo test export_bindings)
+
+# Generate browser extension config (form/view IDs + parameter types)
+npx tsx generate_extension_config.ts

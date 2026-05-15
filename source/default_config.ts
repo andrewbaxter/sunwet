@@ -1150,6 +1150,29 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
   const queryPlaylistsTracks = await compileQuery(
     `${dirname}/queries/query_playlists_tracks.txt`,
   );
+
+  // Browser extension: existence check queries
+  const queryMicroblogExists = await compileQuery(
+    `${dirname}/queries/query_microblog_exists.txt`,
+  );
+  const queryProfileExists = await compileQuery(
+    `${dirname}/queries/query_profile_exists.txt`,
+  );
+  const queryImageExists = await compileQuery(
+    `${dirname}/queries/query_image_exists.txt`,
+  );
+
+  // Browser extension: minimal display for existence-check-only views
+  const existsDisplay: sunwet.WidgetRootDataRows = {
+    data: { query: "root" },
+    element_body: {
+      text: {
+        data: { field: "id" },
+        orientation: "right_down",
+      },
+    },
+  };
+
   return {
     api_tokens: { [process.env.SUNWET_TOKEN]: "admin" },
     menu: [
@@ -1800,6 +1823,23 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
         },
         display: displayPlaylists,
       },
+
+      // Browser extension: existence check views
+      "microblog-exists": {
+        parameters: { id: "text" },
+        queries: { root: queryMicroblogExists },
+        display: existsDisplay,
+      },
+      "profile-exists": {
+        parameters: { id: "text" },
+        queries: { root: queryProfileExists },
+        display: existsDisplay,
+      },
+      "image-exists": {
+        parameters: { id: "text" },
+        queries: { root: queryImageExists },
+        display: existsDisplay,
+      },
     },
     forms: {
       notes_new: {
@@ -1888,6 +1928,152 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
             subject: { input: "id" },
             predicate: { inline: "sunwet/1/name" },
             object: { input: "name" },
+          },
+        ],
+      },
+
+      // Browser extension: capture forms
+      "capture-microblog": {
+        fields: [
+          { id: "id", label: "", type: "id" },
+          { id: "url", label: "URL", type: { text: {} } },
+          { id: "author", label: "Author", type: { text: {} } },
+          { id: "text", label: "Text", type: { text: {} } },
+          { id: "date", label: "Date", type: { text: {} } },
+          { id: "media", label: "Media", type: { text: {} } },
+        ],
+        outputs: [
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/is" },
+            object: { inline: { t: "v", v: "sunwet/1/microblog" } },
+          },
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/url" },
+            object: { input: "url" },
+          },
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/author" },
+            object: { input: "author" },
+          },
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/text" },
+            object: { input: "text" },
+          },
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/date" },
+            object: { input: "date" },
+          },
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/media" },
+            object: { input: "media" },
+          },
+        ],
+      },
+      "capture-profile": {
+        fields: [
+          { id: "id", label: "", type: "id" },
+          { id: "url", label: "URL", type: { text: {} } },
+          { id: "name", label: "Name", type: { text: {} } },
+          { id: "handle", label: "Handle", type: { text: {} } },
+          { id: "description", label: "Description", type: { text: {} } },
+          { id: "images", label: "Images", type: { text: {} } },
+        ],
+        outputs: [
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/is" },
+            object: { inline: { t: "v", v: "sunwet/1/profile" } },
+          },
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/url" },
+            object: { input: "url" },
+          },
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/name" },
+            object: { input: "name" },
+          },
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/handle" },
+            object: { input: "handle" },
+          },
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/description" },
+            object: { input: "description" },
+          },
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/images" },
+            object: { input: "images" },
+          },
+        ],
+      },
+      "capture-image": {
+        fields: [
+          { id: "id", label: "", type: "id" },
+          { id: "page_url", label: "Page URL", type: { text: {} } },
+          { id: "source_url", label: "Source URL", type: { text: {} } },
+          { id: "tags_general", label: "Tags (general)", type: { text: {} } },
+          { id: "tags_artist", label: "Tags (artist)", type: { text: {} } },
+          { id: "tags_copyright", label: "Tags (copyright)", type: { text: {} } },
+          { id: "tags_character", label: "Tags (character)", type: { text: {} } },
+          { id: "tags_metadata", label: "Tags (metadata)", type: { text: {} } },
+          { id: "image_hash", label: "Image hash", type: { text: {} } },
+        ],
+        outputs: [
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/is" },
+            object: { inline: { t: "v", v: "sunwet/1/image" } },
+          },
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/page_url" },
+            object: { input: "page_url" },
+          },
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/source_url" },
+            object: { input: "source_url" },
+          },
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/tags_general" },
+            object: { input: "tags_general" },
+          },
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/tags_artist" },
+            object: { input: "tags_artist" },
+          },
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/tags_copyright" },
+            object: { input: "tags_copyright" },
+          },
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/tags_character" },
+            object: { input: "tags_character" },
+          },
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/tags_metadata" },
+            object: { input: "tags_metadata" },
+          },
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/image_hash" },
+            object: { input: "image_hash" },
           },
         ],
       },

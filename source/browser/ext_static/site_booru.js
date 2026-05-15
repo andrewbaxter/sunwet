@@ -28,6 +28,7 @@
  */
 
 import { create_capture_button } from "./content2.js";
+import { forms, views } from "./extension_config.js";
 
 /** @type {SiteConfig[]} */
 const siteConfigs = [
@@ -407,7 +408,7 @@ export const do_booru = () => {
     }
 
     return {
-      form_id: "capture-image",
+      form_id: forms["capture-image"].id,
       parameters,
     };
   };
@@ -430,7 +431,7 @@ export const do_booru = () => {
       return buildPostCommit(_id, postData);
     };
 
-    const button = create_capture_button(id, "image-exists", callback);
+    const button = create_capture_button(id, views["image-exists"].id, callback);
     button.classList.add(BUTTON_MARKER);
     button.style.width = "100%";
     button.style.height = "36px";
