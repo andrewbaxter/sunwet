@@ -4,7 +4,16 @@ import * as child_process from "child_process";
 import * as process from "process";
 const dirname = import.meta.dirname;
 
-export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
+export const BROWSEREXT_VIEW_MICROBLOG_EXISTS = "microblog-exists";
+export const BROWSEREXT_VIEW_PROFILE_EXISTS = "profile-exists";
+export const BROWSEREXT_VIEW_IMAGE_EXISTS = "image-exists";
+export const BROWSEREXT_FORM_MICROBLOG = "capture-microblog";
+export const BROWSEREXT_FORM_PROFILE = "capture-profile";
+export const BROWSEREXT_FORM_IMAGE = "capture-image";
+
+export const buildGlobal = async (apiTokens: {
+  [x: string]: sunwet.ConfigIamGrants;
+}): Promise<sunwet.GlobalConfig> => {
   const run_output = async (cmd: string, args: string[]): Promise<string> => {
     return new Promise((yes, no) => {
       var p = child_process.spawn(cmd, args);
@@ -1440,7 +1449,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
   };
 
   return {
-    api_tokens: { [process.env.SUNWET_TOKEN]: "admin" },
+    api_tokens: { [process.env.SUNWET_TOKEN]: "admin", ...apiTokens },
     menu: [
       {
         id: "audio_group",
@@ -2153,9 +2162,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
             queryMicroblogHead,
             queryMicroblogSelect,
             {
-              fields: [
-                ["desc", "date"],
-              ],
+              fields: [["desc", "date"]],
             },
           ),
         },
@@ -2175,15 +2182,9 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
       // Image views
       images_by_add_date: {
         queries: {
-          root: await compileQueryHeadTail(
-            queryImageHead,
-            queryImageSelect,
-            {
-              fields: [
-                ["desc", "add_timestamp"],
-              ],
-            },
-          ),
+          root: await compileQueryHeadTail(queryImageHead, queryImageSelect, {
+            fields: [["desc", "add_timestamp"]],
+          }),
         },
         display: displayImages,
       },
@@ -2199,17 +2200,17 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
       },
 
       // Browser extension: existence check views
-      "microblog-exists": {
+      [BROWSEREXT_VIEW_MICROBLOG_EXISTS]: {
         parameters: { id: "text" },
         queries: { root: queryMicroblogExists },
         display: existsDisplay,
       },
-      "profile-exists": {
+      [BROWSEREXT_VIEW_PROFILE_EXISTS]: {
         parameters: { id: "text" },
         queries: { root: queryProfileExists },
         display: existsDisplay,
       },
-      "image-exists": {
+      [BROWSEREXT_VIEW_IMAGE_EXISTS]: {
         parameters: { id: "text" },
         queries: { root: queryImageExists },
         display: existsDisplay,
@@ -2307,7 +2308,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
       },
 
       // Browser extension: capture forms
-      "capture-microblog": {
+      [BROWSEREXT_FORM_MICROBLOG]: {
         fields: [
           { id: "id", label: "", type: "id" },
           { id: "url", label: "URL", type: { text: {} } },
@@ -2349,7 +2350,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
           },
         ],
       },
-      "capture-profile": {
+      [BROWSEREXT_FORM_PROFILE]: {
         fields: [
           { id: "id", label: "", type: "id" },
           { id: "url", label: "URL", type: { text: {} } },
@@ -2391,7 +2392,7 @@ export const buildGlobal = async (): Promise<sunwet.GlobalConfig> => {
           },
         ],
       },
-      "capture-image": {
+      [BROWSEREXT_FORM_IMAGE]: {
         fields: [
           { id: "id", label: "", type: "id" },
           { id: "stamp", label: "", type: "datetime_now" },

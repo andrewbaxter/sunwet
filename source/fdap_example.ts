@@ -3,7 +3,7 @@ import * as default_config from "./default_config.ts";
 import * as fdap from "./fdap.ts";
 
 (async () => {
-  const globalConfig = await default_config.buildGlobal();
+  const globalConfig = await default_config.buildGlobal({});
   await fdap.sendFdap(globalConfig, {
     you: {
       "fdap-login": { password: process.env.YOUR_PASSWORD },

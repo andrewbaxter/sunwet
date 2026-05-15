@@ -35,7 +35,7 @@ let
   };
   extensionIdKeyChrome = "TODO";
   extensionIdChrome = "TODO";
-  extensionIdFirefox = "sunwet@example.org";
+  extensionIdFirefox = "sunwet.2@example.org";
 in
 {
   extensionUnpacked = pkgs.runCommand "sunwet-browser-unpacked" { } ''
