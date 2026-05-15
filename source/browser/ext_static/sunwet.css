@@ -9,7 +9,7 @@
   background-position: center;
   background-size: contain;
   background-color: transparent;
-  border: 2px solid transparent;
+  border: none;
   border-radius: 4px;
   cursor: pointer;
   padding: 2px;
@@ -17,10 +17,18 @@
   transition: opacity 0.2s ease, border-color 0.2s ease;
 }
 
+.sunwet-import-button:hover {
+  opacity: 0.5;
+}
+
+.sunwet-import-button:active {
+  opacity: 0.2;
+}
+
 .sunwet-import-button.fade {
   opacity: 0.5;
 }
 
 .sunwet-import-button.error {
-  border-color: #ef5350;
+  border: 2px solid #ef5350;
 }

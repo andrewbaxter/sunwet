@@ -1,10 +1,13 @@
-(async () => {
-  const src = chrome.runtime.getURL("content2.js");
-  const { default: init } = await import(src);
-  const { do_twitter } = await import(chrome.runtime.getURL("site_twitter.js"));
-  const { do_booru } = await import(chrome.runtime.getURL("site_booru.js"));
+/** @type {{runtime: {getURL: (path: string) => string}}} */
+const browser = /** @type {any} */ (globalThis).browser;
 
-  await init(chrome.runtime.getURL("content2_bg.wasm"));
+(async () => {
+  const src = browser.runtime.getURL("content2.js");
+  const { default: init } = await import(src);
+  const { do_twitter } = await import(browser.runtime.getURL("site_twitter.js"));
+  const { do_booru } = await import(browser.runtime.getURL("site_booru.js"));
+
+  await init(browser.runtime.getURL("content2_bg.wasm"));
 
   const hostname = window.location.hostname;
 
