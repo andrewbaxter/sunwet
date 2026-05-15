@@ -1085,7 +1085,7 @@ pub async fn main(args: Args) -> Result<(), loga::Error> {
                 })
             },
             MaybeFdap::Local(global_config) => GlobalState::Local(
-                build_global_config(global_config).context("Error assembling local config")?,
+                build_global_config(&log, global_config).context("Error assembling local config")?,
             ),
         };
         let users_state = match &config.users {

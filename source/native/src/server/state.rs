@@ -105,7 +105,7 @@ pub struct GlobalConfig {
     pub api_tokens_iam_grants: HashMap<String, ConfigIamGrants>,
 }
 
-pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<Arc<GlobalConfig>, loga::Error> {
+pub fn build_global_config(log: &Log, config0: &interface::config::GlobalConfig) -> Result<Arc<GlobalConfig>, loga::Error> {
     let mut forms = HashMap::new();
     for (k, v) in &config0.forms {
         forms.insert(k.clone(), ServerForm { item: v.clone() });
@@ -262,7 +262,17 @@ pub fn build_global_config(config0: &interface::config::GlobalConfig) -> Result<
         forms: forms,
         views: views,
         public_iam_grants: config0.public_iam_grants.clone(),
-        api_tokens_iam_grants: config0.api_tokens.clone(),
+        api_tokens_iam_grants: {
+            let mut tokens = config0.api_tokens.clone();
+            tokens.retain(|k, _| {
+                if k.is_empty() {
+                    log.log(loga::WARN, "Ignoring API token with zero length");
+                    return false;
+                }
+                return true;
+            });
+            tokens
+        },
     }));
 }
 
@@ -350,6 +360,7 @@ pub async fn get_global_config(state: &State) -> Result<Arc<GlobalConfig>, loga:
                 };
             let config =
                 build_global_config(
+                    &state.log,
                     &serde_json::from_value::<interface::config::GlobalConfig>(
                         json,
                     ).context("Global config in FDAP doesn't match expected schema")?,
