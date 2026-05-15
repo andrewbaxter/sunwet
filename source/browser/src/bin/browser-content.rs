@@ -15,9 +15,7 @@ use {
         world::scan_env,
     },
     std::rc::Rc,
-    sunwet_browser::{
-        capture_button::init_app_state,
-    },
+    sunwet_browser::init_app_state,
 };
 
 fn main() {
