@@ -11,7 +11,8 @@
  * @typedef {Object} BooruPostData
  * @property {string} pageUrl
  * @property {string|null} sourceUrl
- * @property {Record<string, string[]>} tags
+ * @property {string|null} artistName
+ * @property {string|null} artistUrl
  * @property {MediaResult|null} image
  */
 
@@ -187,45 +188,28 @@ export const do_booru = () => {
   };
 
   /**
-   * Extract tags grouped by type
-   * @type {() => Record<string, string[]>}
+   * Extract the first artist tag name and its booru link URL.
+   * @type {() => { name: string|null, url: string|null }}
    */
-  const extractTags = () => {
-    /** @type {Record<string, string[]>} */
-    const tags = {};
-
+  const extractArtist = () => {
     const tagList = getTagList();
-    if (!tagList) return tags;
+    if (!tagList) return { name: null, url: null };
 
-    const tagItems = tagList.querySelectorAll("li[class*='tag-type-']");
+    const artistItems = tagList.querySelectorAll("li.tag-type-artist");
+    if (artistItems.length === 0) return { name: null, url: null };
 
-    for (const item of tagItems) {
-      const classList = item.className;
-      const typeMatch = classList.match(/tag-type-(\w+)/);
-      if (!typeMatch) continue;
-
-      const tagType = typeMatch[1];
-
-      const links = item.querySelectorAll("a");
-      let tagName = null;
-
-      for (const link of links) {
-        const href = link.getAttribute("href") || "";
-        if (href.includes("page=post") && href.includes("tags=")) {
-          tagName = link.textContent?.trim();
-          break;
-        }
-      }
-
-      if (tagName) {
-        if (!tags[tagType]) {
-          tags[tagType] = [];
-        }
-        tags[tagType].push(tagName);
+    const item = artistItems[0];
+    const links = item.querySelectorAll("a");
+    for (const link of links) {
+      const href = link.getAttribute("href") || "";
+      if (href.includes("page=post") && href.includes("tags=")) {
+        const name = link.textContent?.trim() ?? null;
+        const url = link.href;
+        return { name, url };
       }
     }
 
-    return tags;
+    return { name: null, url: null };
   };
 
   /**
@@ -369,7 +353,7 @@ export const do_booru = () => {
   const extractPostData = async () => {
     const pageUrl = window.location.href;
     const sourceUrl = getSourceUrl();
-    const tags = extractTags();
+    const artist = extractArtist();
     const originalImageUrl = getOriginalImageUrl();
 
     /** @type {MediaResult|null} */
@@ -382,33 +366,35 @@ export const do_booru = () => {
     return {
       pageUrl,
       sourceUrl,
-      tags,
+      artistName: artist.name,
+      artistUrl: artist.url,
       image,
     };
   };
 
   /**
    * Build form commit from booru post data
-   * @type {(id: string, data: BooruPostData) => {form_id: string, parameters: Record<string, string>}}
+   * @type {(id: string, data: BooruPostData) => {form_id: string, parameters: import("./extension_config.js").CaptureImageParams}}
    */
   const buildPostCommit = (id, data) => {
-    /** @type {Record<string, string>} */
+    /** @type {import("./extension_config.js").CaptureImageParams} */
     const parameters = {};
     parameters.page_url = data.pageUrl;
     if (data.sourceUrl) {
       parameters.source_url = data.sourceUrl;
     }
-    for (const [type, tagList] of Object.entries(data.tags)) {
-      if (tagList.length > 0) {
-        parameters[`tags_${type}`] = tagList.join(",");
-      }
+    if (data.artistName) {
+      parameters.artist_name = data.artistName;
+    }
+    if (data.artistUrl) {
+      parameters.artist_url = data.artistUrl;
     }
     if (data.image && !data.image.error && data.image.digest) {
       parameters.image_hash = `sha256:${data.image.digest}`;
     }
 
     return {
-      form_id: forms["capture-image"].id,
+      form_id: forms["capture-image"],
       parameters,
     };
   };
@@ -431,7 +417,7 @@ export const do_booru = () => {
       return buildPostCommit(_id, postData);
     };
 
-    const button = create_capture_button(id, views["image-exists"].id, callback);
+    const button = create_capture_button(id, views["image-exists"], callback);
     button.classList.add(BUTTON_MARKER);
     button.style.width = "100%";
     button.style.height = "36px";
