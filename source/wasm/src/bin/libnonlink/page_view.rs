@@ -1039,7 +1039,7 @@ impl Build {
                 cover_source_url: cover_source_url,
                 source_file: src_url,
                 media_type: media_type,
-                play_buttons: vec![out.raw().dyn_into().unwrap()],
+                play_button: out.raw().dyn_into().unwrap(),
             });
             out.ref_on("click", {
                 let data_id = data_id.clone();
@@ -1390,26 +1390,27 @@ fn build_widget_root_data_rows(
 }
 
 fn center_to_playing() {
-    let class = style_export::class_state_element_selected().value;
-    let elements = document().get_elements_by_class_name(&class);
-    let Some(element) = elements.item(0) else {
+    let Some(playing_i) = state().playlist.0.playing_i.get() else {
         return;
     };
-    let mut parent = element.parent_element();
+    let Some(entry) = state().playlist.0.playlist.borrow().get(&playing_i).cloned() else {
+        return;
+    };
+    let mut parent: Option<web_sys::Element> = entry.play_button.parent_element();
     while let Some(p) = parent {
         if p.tag_name().eq_ignore_ascii_case("details") && !p.has_attribute("open") {
             p.set_attribute("open", "").log(&state().log, "Error opening details element");
         }
         parent = p.parent_element();
     }
-    let rect = element.get_bounding_client_rect();
+    let rect = entry.play_button.get_bounding_client_rect();
     let inner_height = window().inner_height().ok().and_then(|v| v.as_f64()).unwrap_or(f64::MAX);
     let inner_width = window().inner_width().ok().and_then(|v| v.as_f64()).unwrap_or(f64::MAX);
     if rect.top() < 0. || rect.bottom() > inner_height || rect.left() < 0. || rect.right() > inner_width {
         let mut options = ScrollIntoViewOptions::new();
         options.block(ScrollLogicalPosition::Center);
         options.inline(ScrollLogicalPosition::Center);
-        element.scroll_into_view_with_scroll_into_view_options(&options);
+        entry.play_button.scroll_into_view_with_scroll_into_view_options(&options);
     }
 }
 

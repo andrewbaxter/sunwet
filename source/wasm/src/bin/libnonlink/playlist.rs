@@ -159,7 +159,7 @@ pub struct PlaylistEntry {
     pub source_file: FileHash,
     pub media_type: PlaylistEntryMediaType,
     pub media: Box<dyn PlaylistMedia>,
-    pub play_buttons: Vec<HtmlElement>,
+    pub play_button: HtmlElement,
 }
 
 pub struct PlaylistState_ {
@@ -615,7 +615,7 @@ pub struct PlaylistPushArg {
     pub cover_source_url: Option<FileHash>,
     pub source_file: FileHash,
     pub media_type: PlaylistEntryMediaType,
-    pub play_buttons: Vec<HtmlElement>,
+    pub play_button: HtmlElement,
 }
 
 pub async fn playlist_extend(
@@ -799,7 +799,7 @@ pub async fn playlist_extend(
             source_file: entry.source_file,
             media_type: entry.media_type,
             media: box_media,
-            play_buttons: entry.play_buttons,
+            play_button: entry.play_button,
         }));
         if let Some(restore_pos) = restore_pos {
             eg.event(|pc| {

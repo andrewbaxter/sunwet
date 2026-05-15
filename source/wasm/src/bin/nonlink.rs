@@ -665,12 +665,11 @@ pub fn main() {
                 }
                 if let Some(e_i) = playing_i.get() {
                     let e = state().playlist.0.playlist.borrow().get(&e_i).cloned().unwrap();
-                    for b in &e.play_buttons {
-                        b
-                            .class_list()
-                            .add_1(&class)
-                            .log(&state().log, "Error setting selected class from play button");
-                    }
+                    e
+                        .play_button
+                        .class_list()
+                        .add_1(&class)
+                        .log(&state().log, "Error setting selected class from play button");
                 }
             }),
             link!(
