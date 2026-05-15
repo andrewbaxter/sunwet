@@ -21,5 +21,5 @@ export default init;
 export function create_capture_button(
   id: string,
   view_query: string,
-  callback: (id: string) => Promise<{ form_id: string; parameters: Record<string, unknown> }>,
+  callback: (id: string) => Promise<{ form_id: string; parameters: Record<string, string | undefined> }>,
 ): HTMLElement;
