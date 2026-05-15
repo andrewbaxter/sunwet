@@ -17,10 +17,7 @@ use {
         viserr::VisErr,
     },
     hyper::body::Bytes,
-    rust_embed::{
-        Embed,
-        RustEmbed,
-    },
+    rust_embed::RustEmbed,
     std::sync::Arc,
 };
 
@@ -30,7 +27,7 @@ pub async fn handle_static(
     path: &str,
 ) -> Result<Response<BoxBody<Bytes, std::io::Error>>, VisErr<loga::Error>> {
     #[derive(RustEmbed)]
-    #[folder = "fake_static"]
+    #[folder = "$STATIC_DIR"]
     struct Static;
 
     let mut f = Static::get(path);
