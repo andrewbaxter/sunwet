@@ -32,7 +32,6 @@ use {
     },
     shared::interface::wire::{
         ReqCommit,
-        ReqCommitForm,
         ReqUploadFinish,
     },
     std::{
@@ -76,16 +75,6 @@ pub async fn ensure_commit(
     }
     trigger_onlining(state, eg, log, base_url);
     return Ok(());
-}
-
-pub async fn ensure_form_commit(
-    state: &Rc<OnliningState>,
-    eg: EventGraph,
-    log: &Rc<dyn Log>,
-    base_url: &String,
-    form: ReqCommitForm,
-) -> Result<(), String> {
-    ensure_commit(state, eg, log, base_url, ReqCommit::Form(form), vec![]).await
 }
 
 pub fn stop_onlining(state: &OnliningState) {

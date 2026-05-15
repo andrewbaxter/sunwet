@@ -1,8 +1,7 @@
 /**
  * @typedef {Object} MediaResult
  * @property {string} url
- * @property {string} [digest]
- * @property {number} [size]
+ * @property {Uint8Array} [data]
  * @property {string|null} [mimeType]
  * @property {string} [error]
  */
@@ -122,17 +121,7 @@ export const do_booru = () => {
   console.log(`Booru: Using config for ${siteConfig.name}`);
 
   /**
-   * Compute SHA256 hash of an ArrayBuffer
-   * @type {(buffer: ArrayBuffer) => Promise<string>}
-   */
-  const sha256 = async (buffer) => {
-    const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-  };
-
-  /**
-   * Download media and return sha256 digest
+   * Download media and return blob data
    * @type {(url: string) => Promise<MediaResult>}
    */
   const downloadMedia = async (url) => {
@@ -141,8 +130,7 @@ export const do_booru = () => {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const mimeType = response.headers.get("Content-Type");
       const buffer = await response.arrayBuffer();
-      const digest = await sha256(buffer);
-      return { url, digest, size: buffer.byteLength, mimeType };
+      return { url, data: new Uint8Array(buffer), mimeType };
     } catch (err) {
       return { url, error: /** @type {Error} */ (err).message };
     }
@@ -374,7 +362,7 @@ export const do_booru = () => {
 
   /**
    * Build form commit from booru post data
-   * @type {(id: string, data: BooruPostData) => {form_id: string, parameters: import("./extension_config.js").CaptureImageParams}}
+   * @type {(id: string, data: BooruPostData) => {form_id: string, parameters: import("./extension_config.js").CaptureImageParams, files: Array<{data: Uint8Array, mimetype: string, parameter: string}>}}
    */
   const buildPostCommit = (id, data) => {
     /** @type {import("./extension_config.js").CaptureImageParams} */
@@ -389,13 +377,16 @@ export const do_booru = () => {
     if (data.artistUrl) {
       parameters.artist_url = data.artistUrl;
     }
-    if (data.image && !data.image.error && data.image.digest) {
-      parameters.image_hash = `sha256:${data.image.digest}`;
+    /** @type {Array<{data: Uint8Array, mimetype: string, parameter: string}>} */
+    const files = [];
+    if (data.image && !data.image.error && data.image.data) {
+      files.push({ data: data.image.data, mimetype: data.image.mimeType || "application/octet-stream", parameter: "image_hash" });
     }
 
     return {
       form_id: forms["capture-image"],
       parameters,
+      files,
     };
   };
 

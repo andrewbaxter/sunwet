@@ -9,15 +9,25 @@ use {
         Object,
         Promise,
         Reflect,
+        Uint8Array,
     },
     lunk::EventGraph,
+    sha2::{
+        Digest,
+        Sha256,
+    },
     shared::interface::{
         config::{
             form::FormId,
             view::ViewId,
         },
-        triple::Node,
+        triple::{
+            FileHash,
+            Node,
+        },
         wire::{
+            CommitFile,
+            ReqCommit,
             ReqCommitForm,
             ReqViewQuery,
             RespQuery,
@@ -27,9 +37,10 @@ use {
     },
     shared_wasm::{
         api::req_post_json_with_headers,
+        commit::UploadFile,
         log::Log,
         online::{
-            ensure_form_commit,
+            ensure_commit,
             OnliningState,
         },
     },
@@ -189,34 +200,6 @@ fn js_value_to_treenode(value: &JsValue) -> Result<TreeNode, String> {
     Err("unsupported value type for TreeNode".to_string())
 }
 
-fn parse_callback_result(js_value: &JsValue) -> Result<ReqCommitForm, String> {
-    let form_id =
-        Reflect::get(js_value, &JsValue::from_str("form_id"))
-            .map_err(|_| "missing 'form_id' field")?
-            .as_string()
-            .ok_or("form_id must be a string")?;
-    let mut parameters = HashMap::new();
-    if let Ok(params) = Reflect::get(js_value, &JsValue::from_str("parameters")) {
-        if !params.is_undefined() && !params.is_null() {
-            let params: Object = params.dyn_into().map_err(|_| "'parameters' must be an object")?;
-            let keys = Object::keys(&params);
-            for i in 0 .. keys.length() {
-                let key = keys.get(i).as_string().ok_or("parameter key must be string")?;
-                let val =
-                    Reflect::get(
-                        &params,
-                        &JsValue::from_str(&key),
-                    ).map_err(|_| format!("missing parameter {}", key))?;
-                parameters.insert(key, js_value_to_treenode(&val)?);
-            }
-        }
-    }
-    Ok(ReqCommitForm {
-        form_id: FormId(form_id),
-        parameters,
-    })
-}
-
 async fn handle_click(button: &HtmlButtonElement, id: &str, callback: &Function) {
     update_button_state(button, Existence::New, ErrorState::None);
     let this = JsValue::null();
@@ -235,58 +218,120 @@ async fn handle_click(button: &HtmlButtonElement, id: &str, callback: &Function)
             return;
         },
     };
-    let result = JsFuture::from(promise).await;
-    match result {
-        Ok(js_value) => {
-            let form = match parse_callback_result(&js_value) {
-                Ok(v) => v,
-                Err(e) => {
-                    web_sys::console::error_1(
-                        &JsValue::from_str(&format!("sunwet parse callback result error: {}", e)),
-                    );
-                    update_button_state(button, Existence::New, ErrorState::Error);
-                    return;
-                },
-            };
-            let (url, _) = get_settings();
-            let Some(base_url) = url else {
-                update_button_state(button, Existence::New, ErrorState::Error);
-                return;
-            };
-            let base_url = if base_url.ends_with('/') {
-                base_url
-            } else {
-                format!("{}/", base_url)
-            };
-            APP_STATE.with(|state| {
-                let state = state.borrow();
-                let Some(app_state) = state.as_ref() else {
-                    update_button_state(button, Existence::New, ErrorState::Error);
-                    return;
-                };
-                let onlining = app_state.onlining.clone();
-                let eg = app_state.eg.clone();
-                let log = app_state.log.clone();
-                let button = button.clone();
-                spawn_local(async move {
-                    match ensure_form_commit(&onlining, eg, &log, &base_url, form).await {
-                        Ok(_) => {
-                            update_button_state(&button, Existence::Exists, ErrorState::None);
-                        },
-                        Err(e) => {
-                            web_sys::console::error_1(
-                                &JsValue::from_str(&format!("sunwet ensure_form_commit error: {}", e)),
-                            );
-                            update_button_state(&button, Existence::New, ErrorState::Error);
-                        },
-                    }
-                });
-            });
-        },
+    let js_value = match JsFuture::from(promise).await {
+        Ok(v) => v,
         Err(e) => {
             web_sys::console::error_1(&JsValue::from_str(&format!("sunwet capture promise rejected: {:?}", e)));
             update_button_state(button, Existence::New, ErrorState::Error);
+            return;
         },
+    };
+    let res: Result<(), String> = async {
+        let form_id =
+            Reflect::get(&js_value, &JsValue::from_str("form_id"))
+                .map_err(|_| "missing 'form_id' field")?
+                .as_string()
+                .ok_or("form_id must be a string")?;
+        let mut parameters = HashMap::new();
+        let params =
+            Reflect::get(&js_value, &JsValue::from_str("parameters")).map_err(|_| "missing 'parameters' field")?;
+        if !params.is_undefined() && !params.is_null() {
+            let params: Object = params.dyn_into().map_err(|_| "'parameters' must be an object")?;
+            let keys = Object::keys(&params);
+            for i in 0 .. keys.length() {
+                let key = keys.get(i).as_string().ok_or("parameter key must be string")?;
+                let val =
+                    Reflect::get(&params, &JsValue::from_str(&key)).map_err(|_| format!("missing parameter {}", key))?;
+                parameters.insert(key, js_value_to_treenode(&val)?);
+            }
+        }
+        let mut commit_files = vec![];
+        let mut upload_files = vec![];
+        let files_val =
+            Reflect::get(&js_value, &JsValue::from_str("files")).map_err(|_| "missing 'files' field")?;
+        if !files_val.is_undefined() && !files_val.is_null() {
+            let files_arr: Array = files_val.dyn_into().map_err(|_| "'files' must be an array")?;
+            let mut param_files: HashMap<String, Vec<TreeNode>> = HashMap::new();
+            for i in 0 .. files_arr.length() {
+                let file_obj = files_arr.get(i);
+                let data: Uint8Array =
+                    Reflect::get(&file_obj, &JsValue::from_str("data"))
+                        .map_err(|_| "missing file 'data'")?
+                        .dyn_into()
+                        .map_err(|_| "file 'data' must be a Uint8Array")?;
+                let data = data.to_vec();
+                let mimetype =
+                    Reflect::get(&file_obj, &JsValue::from_str("mimetype"))
+                        .map_err(|_| "missing file 'mimetype'")?
+                        .as_string()
+                        .ok_or("file 'mimetype' must be a string")?;
+                let parameter =
+                    Reflect::get(&file_obj, &JsValue::from_str("parameter"))
+                        .map_err(|_| "missing file 'parameter'")?
+                        .as_string()
+                        .ok_or("file 'parameter' must be a string")?;
+                let hash = FileHash::from_sha256(Sha256::digest(&data));
+                param_files
+                    .entry(parameter)
+                    .or_default()
+                    .push(TreeNode::Scalar(Node::File(hash.clone())));
+                commit_files.push(CommitFile {
+                    hash: hash.clone(),
+                    size: data.len() as u64,
+                    mimetype,
+                });
+                upload_files.push(UploadFile { data, hash });
+            }
+            for (param_name, nodes) in param_files {
+                parameters.insert(param_name, if nodes.len() == 1 {
+                    nodes.into_iter().next().unwrap()
+                } else {
+                    TreeNode::Array(nodes)
+                });
+            }
+        }
+        let (url, _) = get_settings();
+        let Some(base_url) = url else {
+            return Err("no server URL configured".to_string());
+        };
+        let base_url = if base_url.ends_with('/') {
+            base_url
+        } else {
+            format!("{}/", base_url)
+        };
+        let form = ReqCommitForm {
+            form_id: FormId(form_id),
+            parameters,
+            files: commit_files,
+        };
+        APP_STATE.with(|state| {
+            let state = state.borrow();
+            let Some(app_state) = state.as_ref() else {
+                return Err("app state not initialized".to_string());
+            };
+            let onlining = app_state.onlining.clone();
+            let eg = app_state.eg.clone();
+            let log = app_state.log.clone();
+            let button = button.clone();
+            spawn_local(async move {
+                match ensure_commit(&onlining, eg, &log, &base_url, ReqCommit::Form(form), upload_files).await {
+                    Ok(_) => {
+                        update_button_state(&button, Existence::Exists, ErrorState::None);
+                    },
+                    Err(e) => {
+                        web_sys::console::error_1(
+                            &JsValue::from_str(&format!("sunwet ensure_commit error: {}", e)),
+                        );
+                        update_button_state(&button, Existence::New, ErrorState::Error);
+                    },
+                }
+            });
+            Ok(())
+        })
+    }.await;
+    if let Err(e) = res {
+        web_sys::console::error_1(&JsValue::from_str(&format!("sunwet capture error: {}", e)));
+        update_button_state(button, Existence::New, ErrorState::Error);
     }
 }
 

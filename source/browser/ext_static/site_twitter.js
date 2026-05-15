@@ -1,8 +1,7 @@
 /**
  * @typedef {Object} MediaResult
  * @property {string} url
- * @property {string} [digest]
- * @property {number} [size]
+ * @property {Uint8Array} [data]
  * @property {string|null} [mimeType]
  * @property {string} [error]
  */
@@ -36,16 +35,6 @@ export const do_twitter = () => {
   const BUTTON_MARKER = "sunwet-capture-btn";
 
   /**
-   * Compute SHA256 hash of an ArrayBuffer
-   * @type {(buffer: ArrayBuffer) => Promise<string>}
-   */
-  const sha256 = async (buffer) => {
-    const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-  };
-
-  /**
    * Convert Twitter image URL to original quality
    * @type {(url: string) => string}
    */
@@ -74,7 +63,7 @@ export const do_twitter = () => {
   };
 
   /**
-   * Download media and return sha256 digest
+   * Download media and return blob data
    * @type {(url: string) => Promise<MediaResult>}
    */
   const downloadMedia = async (url) => {
@@ -83,8 +72,7 @@ export const do_twitter = () => {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const mimeType = response.headers.get("Content-Type");
       const buffer = await response.arrayBuffer();
-      const digest = await sha256(buffer);
-      return { url, digest, size: buffer.byteLength, mimeType };
+      return { url, data: new Uint8Array(buffer), mimeType };
     } catch (err) {
       return { url, error: /** @type {Error} */ (err).message };
     }
@@ -188,7 +176,7 @@ export const do_twitter = () => {
 
   /**
    * Build form commit from post data
-   * @type {(id: string, data: PostData) => {form_id: string, parameters: import("./extension_config.js").CaptureMicroblogParams}}
+   * @type {(id: string, data: PostData) => {form_id: string, parameters: import("./extension_config.js").CaptureMicroblogParams, files: Array<{data: Uint8Array, mimetype: string, parameter: string}>}}
    */
   const buildPostCommit = (id, data) => {
     /** @type {import("./extension_config.js").CaptureMicroblogParams} */
@@ -205,21 +193,18 @@ export const do_twitter = () => {
     if (data.timestampUtc) {
       parameters.date = data.timestampUtc;
     }
-    if (data.media.length > 0) {
-      const hashes = [];
-      for (const m of data.media) {
-        if (!m.error && m.digest) {
-          hashes.push(`sha256:${m.digest}`);
-        }
-      }
-      if (hashes.length > 0) {
-        parameters.media = hashes.join(",");
+    /** @type {Array<{data: Uint8Array, mimetype: string, parameter: string}>} */
+    const files = [];
+    for (const m of data.media) {
+      if (!m.error && m.data) {
+        files.push({ data: m.data, mimetype: m.mimeType || "application/octet-stream", parameter: "media" });
       }
     }
 
     return {
       form_id: forms["capture-microblog"],
       parameters,
+      files,
     };
   };
 
@@ -443,7 +428,7 @@ export const do_twitter = () => {
 
   /**
    * Build form commit from profile data
-   * @type {(id: string, data: ProfileData) => {form_id: string, parameters: import("./extension_config.js").CaptureProfileParams}}
+   * @type {(id: string, data: ProfileData) => {form_id: string, parameters: import("./extension_config.js").CaptureProfileParams, files: Array<{data: Uint8Array, mimetype: string, parameter: string}>}}
    */
   const buildProfileCommit = (id, data) => {
     /** @type {import("./extension_config.js").CaptureProfileParams} */
@@ -460,21 +445,18 @@ export const do_twitter = () => {
     if (data.profileText) {
       parameters.description = data.profileText;
     }
-    if (data.media.length > 0) {
-      const hashes = [];
-      for (const m of data.media) {
-        if (!m.error && m.digest) {
-          hashes.push(`sha256:${m.digest}`);
-        }
-      }
-      if (hashes.length > 0) {
-        parameters.images = hashes.join(",");
+    /** @type {Array<{data: Uint8Array, mimetype: string, parameter: string}>} */
+    const files = [];
+    for (const m of data.media) {
+      if (!m.error && m.data) {
+        files.push({ data: m.data, mimetype: m.mimeType || "application/octet-stream", parameter: "images" });
       }
     }
 
     return {
       form_id: forms["capture-profile"],
       parameters,
+      files,
     };
   };
 
