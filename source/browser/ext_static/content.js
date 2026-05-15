@@ -1,13 +1,6 @@
 /** @type {{runtime: {getURL: (path: string) => string}}} */
 const browser = /** @type {any} */ (globalThis).browser;
 
-// Wrapper for navigator.locks.request that uses `await` instead of `.then()`
-// to avoid Firefox "Permission denied to access property 'then'" errors
-// on cross-context promises in content scripts.
-globalThis.__sunwet_request_lock = async (/** @type {string} */ name, /** @type {LockGrantedCallback<any>} */ cb) => {
-  return await globalThis.navigator.locks.request(name, cb);
-};
-
 (async () => {
   const src = browser.runtime.getURL("content2.js");
   const { default: init } = await import(src);
