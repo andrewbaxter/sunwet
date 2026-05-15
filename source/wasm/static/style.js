@@ -2022,7 +2022,6 @@
           ss(uniq("cont_bar_view_transport_center_button"), {
             [`.${classStateFollowPlaying} text`]: (s) => {
               s.color = varCHighlightBold;
-              s.fontWeight = varWTransportBold;
             },
           }),
         ],
