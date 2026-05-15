@@ -17,7 +17,10 @@ use {
         viserr::VisErr,
     },
     hyper::body::Bytes,
-    rust_embed::RustEmbed,
+    rust_embed::{
+        Embed,
+        RustEmbed,
+    },
     std::sync::Arc,
 };
 
