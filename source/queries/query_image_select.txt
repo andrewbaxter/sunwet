@@ -1,0 +1,9 @@
+{
+    => image_id
+    ( -> "sunwet/1/add_timestamp" first { => add_timestamp } )
+    ( -> "sunwet/1/page_url" first { => page_url } )
+    ( -> "sunwet/1/source_url" first { => source_url } )
+    ( -> "sunwet/1/artist_name" first { => artist_name } )
+    ( -> "sunwet/1/artist_url" first { => artist_url } )
+    ( -> "sunwet/1/image_hash" first { => image_hash } )
+}

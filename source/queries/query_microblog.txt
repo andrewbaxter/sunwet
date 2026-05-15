@@ -1,0 +1,1 @@
+"sunwet/1/microblog" -< "sunwet/1/is" !(-> "sunwet/1/delete") -> "sunwet/1/media"
