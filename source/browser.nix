@@ -53,6 +53,7 @@ in
     ${pkgs.coreutils}/bin/mkdir -p stage
     hoj_cp ${./browser} browser_src
     hoj_cp ${./wasm/prestatic/big-icon.svg} browser_src/ext_static/big-icon.svg
+    hoj_cp ${./wasm/prestatic/small-icon.svg} browser_src/ext_static/small-icon.svg
 
     ${pkgs.coreutils}/bin/mkdir -p browser_wasm
     ${shared.nativeBindgen}/bin/bind_wasm --in-wasm ${wasmUnbound}/bin/browser-content.wasm --out-name content2 --out-dir browser_wasm

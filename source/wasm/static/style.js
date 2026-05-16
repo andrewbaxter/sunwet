@@ -2243,7 +2243,11 @@
             styles_: [
               ...bodyStyles,
               ss(uniq("cont_view_element_summary"), {
-                "": (s) => {},
+                "": (s) => {
+                  s.display = "flex";
+                  s.flexDirection = "row";
+                  // Since root view starts with right-down
+                },
                 "::marker": (s) => {
                   s.display = "none";
                 },
