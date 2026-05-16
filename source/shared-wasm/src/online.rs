@@ -187,12 +187,12 @@ pub fn trigger_onlining(state: &Rc<OnliningState>, eg: EventGraph, log: &Rc<dyn 
         let log = log.clone();
         let base_url = base_url.clone();
         *bg = Some(spawn_rooted(async move {
-            let cb = Closure::<dyn Fn(JsValue) -> Promise>::new({
+            let cb = Closure::wrap(Box::new({
                 let eg = eg.clone();
                 let log = log.clone();
                 let base_url = base_url.clone();
                 let state = state.clone();
-                move |_| {
+                move |_: JsValue| -> Promise {
                     let eg = eg.clone();
                     let log = log.clone();
                     let base_url = base_url.clone();
@@ -202,7 +202,7 @@ pub fn trigger_onlining(state: &Rc<OnliningState>, eg: EventGraph, log: &Rc<dyn 
                         return Ok(JsValue::null());
                     });
                 }
-            });
+            }) as Box<dyn FnMut(JsValue) -> Promise>);
             JsFuture::from(window().navigator().locks().request_with_callback("online", cb.as_ref().unchecked_ref()))
                 .await
                 .log(&log, "Error doing work in `online` lock");
