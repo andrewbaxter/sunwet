@@ -3028,22 +3028,22 @@
         case "up":
         case "down":
           out.style.gridTemplateRows = `${transTemplate.join(" ")}`;
-          out.style.alignItems = "start";
           break;
         case "left":
         case "right":
           out.style.gridTemplateColumns = `${transTemplate.join(" ")}`;
-          out.style.justifyItems = "start";
           break;
       }
       switch (con(args.orientation)) {
         case "up":
         case "down":
           out.style.gridTemplateRows = `${conTemplate.join(" ")}`;
+          out.style.alignItems = "start";
           break;
         case "left":
         case "right":
           out.style.gridTemplateColumns = `${conTemplate.join(" ")}`;
+          out.style.justifyItems = "start";
           break;
       }
       if (args.rowGap != null) {
