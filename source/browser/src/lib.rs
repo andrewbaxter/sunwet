@@ -1,8 +1,4 @@
 use {
-    gloo::storage::{
-        LocalStorage,
-        Storage,
-    },
     js_sys::{
         Function,
         Promise,
@@ -63,6 +59,45 @@ use {
 pub const KEY_SERVER_URL: &str = "sunwet_server_url";
 pub const KEY_TOKEN: &str = "sunwet_token";
 
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = ["browser", "storage", "local"], js_name = "get")]
+    fn browser_storage_get(keys: &JsValue) -> Promise;
+
+    #[wasm_bindgen(js_namespace = ["browser", "storage", "local"], js_name = "set")]
+    fn browser_storage_set(items: &JsValue) -> Promise;
+}
+
+pub async fn get_setting(key: &str) -> Option<String> {
+    let keys = js_sys::Array::new();
+    keys.push(&JsValue::from_str(key));
+    let result = match JsFuture::from(browser_storage_get(&keys)).await {
+        Ok(v) => v,
+        Err(e) => {
+            web_sys::console::error_1(
+                &JsValue::from_str(&format!("sunwet get_setting({}) storage get error: {:?}", key, e)),
+            );
+            return None;
+        },
+    };
+    match js_sys::Reflect::get(&result, &JsValue::from_str(key)) {
+        Ok(v) => v.as_string(),
+        Err(e) => {
+            web_sys::console::error_1(
+                &JsValue::from_str(&format!("sunwet get_setting({}) reflect get error: {:?}", key, e)),
+            );
+            None
+        },
+    }
+}
+
+pub async fn set_setting(key: &str, value: &str) -> Result<(), JsValue> {
+    let items = js_sys::Object::new();
+    js_sys::Reflect::set(&items, &JsValue::from_str(key), &JsValue::from_str(value))?;
+    JsFuture::from(browser_storage_set(&items.into())).await?;
+    Ok(())
+}
+
 thread_local!{
     static APP_STATE: RefCell<Option<AppState>> = RefCell::new(None);
 }
@@ -103,10 +138,10 @@ pub struct CaptureCallbackResult {
 #[wasm_bindgen(typescript_custom_section)]
 const TS_CAPTURE_BUTTON: &str = "export function create_capture_button(id: string, view_query: string, callback: (id: string) => Promise<CaptureCallbackResult>): HTMLElement;";
 
-fn get_settings() -> (Option<String>, Option<String>) {
-    let url: Result<String, _> = LocalStorage::get(KEY_SERVER_URL);
-    let token: Result<String, _> = LocalStorage::get(KEY_TOKEN);
-    (url.ok(), token.ok())
+async fn get_settings() -> (Option<String>, Option<String>) {
+    let url = get_setting(KEY_SERVER_URL).await;
+    let token = get_setting(KEY_TOKEN).await;
+    (url, token)
 }
 
 #[derive(Clone, Copy)]
@@ -125,24 +160,40 @@ fn update_button_state(button: &HtmlButtonElement, existence: Existence, error: 
     let class_list = button.class_list();
     match existence {
         Existence::New => {
-            let _ = class_list.remove_1("fade");
+            if let Err(e) = class_list.remove_1("fade") {
+                web_sys::console::error_1(
+                    &JsValue::from_str(&format!("sunwet update_button_state remove fade error: {:?}", e)),
+                );
+            }
         },
         Existence::Exists => {
-            let _ = class_list.add_1("fade");
+            if let Err(e) = class_list.add_1("fade") {
+                web_sys::console::error_1(
+                    &JsValue::from_str(&format!("sunwet update_button_state add fade error: {:?}", e)),
+                );
+            }
         },
     }
     match error {
         ErrorState::None => {
-            let _ = class_list.remove_1("error");
+            if let Err(e) = class_list.remove_1("error") {
+                web_sys::console::error_1(
+                    &JsValue::from_str(&format!("sunwet update_button_state remove error class error: {:?}", e)),
+                );
+            }
         },
         ErrorState::Error => {
-            let _ = class_list.add_1("error");
+            if let Err(e) = class_list.add_1("error") {
+                web_sys::console::error_1(
+                    &JsValue::from_str(&format!("sunwet update_button_state add error class error: {:?}", e)),
+                );
+            }
         },
     }
 }
 
 async fn check_existence(button: &HtmlButtonElement, id: &str, view_query: &str) {
-    let (url, token) = get_settings();
+    let (url, token) = get_settings().await;
     let Some(base_url) = url else {
         update_button_state(button, Existence::New, ErrorState::Error);
         return;
@@ -257,7 +308,7 @@ async fn handle_click(button: &HtmlButtonElement, id: &str, callback: &Function)
                 TreeNode::Array(nodes)
             });
         }
-        let (url, _) = get_settings();
+        let (url, _) = get_settings().await;
         let Some(base_url) = url else {
             return Err("no server URL configured".to_string());
         };
