@@ -1009,15 +1009,24 @@ export const buildGlobal = async (apiTokens: {
     element_width: mediaBlockSize,
     element_height: mediaBlockSize,
     element_body: {
-      media: {
-        data: { field: "media" },
-        trans_align: "middle",
+      layout: {
+        orientation: "right_down",
+        elements: [
+          "space",
+          {
+            media: {
+              data: { field: "media" },
+              trans_align: "middle",
+            },
+          },
+          "space",
+        ],
       },
     },
     element_expansion: {
       layout: {
         orientation: "down_right",
-        con_size_max: "15cm",
+        trans_size_max: "20cm",
         elements: [
           {
             layout: {
