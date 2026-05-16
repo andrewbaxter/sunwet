@@ -23,10 +23,15 @@ use {
 };
 
 pub fn jsstr(v: JsValue) -> String {
-    return match v.dyn_ref::<Object>() {
+    if let Ok(s) = JSON::stringify(&v) {
+        if let Some(s) = s.as_string() {
+            return s;
+        }
+    }
+    match v.dyn_ref::<Object>() {
         Some(v) => v.to_string().as_string(),
-        None => v.js_typeof().as_string(),
-    }.unwrap();
+        None => v.as_string().or_else(|| v.js_typeof().as_string()),
+    }.unwrap_or_else(|| "[unknown]".to_string())
 }
 
 pub trait Log {

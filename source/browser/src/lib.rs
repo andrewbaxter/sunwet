@@ -2,48 +2,9 @@ use {
     js_sys::{
         Function,
         Promise,
-        Uint8Array,
     },
-    lunk::EventGraph,
     serde::Deserialize,
-    sha2::{
-        Digest,
-        Sha256,
-    },
-    shared::interface::{
-        config::{
-            form::FormId,
-            view::ViewId,
-        },
-        triple::{
-            FileHash,
-            Node,
-        },
-        wire::{
-            CommitFile,
-            ReqCommit,
-            ReqCommitForm,
-            ReqViewQuery,
-            RespQuery,
-            RespQueryRows,
-            TreeNode,
-        },
-    },
-    shared_wasm::{
-        api::req_post_json_with_headers,
-        commit::UploadFile,
-        log::Log,
-        online::{
-            store_commit,
-            trigger_onlining_no_lock,
-            OnliningState,
-        },
-    },
-    std::{
-        cell::RefCell,
-        collections::HashMap,
-        rc::Rc,
-    },
+    std::collections::HashMap,
     tsify_next::Tsify,
     wasm_bindgen::prelude::*,
     wasm_bindgen_futures::{
@@ -67,6 +28,9 @@ extern "C" {
 
     #[wasm_bindgen(js_namespace = ["browser", "storage", "local"], js_name = "set")]
     fn browser_storage_set(items: &JsValue) -> Promise;
+
+    #[wasm_bindgen(js_namespace = ["browser", "runtime"], js_name = "sendMessage")]
+    fn browser_send_message(msg: &JsValue) -> Promise;
 }
 
 pub async fn get_setting(key: &str) -> Option<String> {
@@ -99,32 +63,6 @@ pub async fn set_setting(key: &str, value: &str) -> Result<(), JsValue> {
     Ok(())
 }
 
-thread_local!{
-    static APP_STATE: RefCell<Option<AppState>> = RefCell::new(None);
-}
-
-struct AppState {
-    onlining: Rc<OnliningState>,
-    eg: EventGraph,
-    log: Rc<dyn Log>,
-}
-
-pub fn init_app_state(onlining: Rc<OnliningState>, eg: EventGraph, log: Rc<dyn Log>) {
-    APP_STATE.with(|s| {
-        *s.borrow_mut() = Some(AppState {
-            onlining,
-            eg,
-            log,
-        });
-    });
-}
-
-pub struct CaptureFile {
-    pub data: Vec<u8>,
-    pub mimetype: String,
-    pub parameter: String,
-}
-
 #[derive(Deserialize, Tsify)]
 pub struct CaptureCallbackResult {
     pub form_id: String,
@@ -135,42 +73,8 @@ pub struct CaptureCallbackResult {
 #[wasm_bindgen(typescript_custom_section)]
 const TS_CAPTURE_FILE: &str = "export interface CaptureCallbackResult { form_id: string; parameters: Record<string, string>; files: Array<{data: Uint8Array, mimetype: string, parameter: string}>; }";
 
-fn extract_callback_files(js_value: &JsValue) -> Result<Vec<CaptureFile>, String> {
-    let files_js =
-        js_sys::Reflect::get(js_value, &JsValue::from_str("files"))
-            .map_err(|e| format!("missing files: {:?}", e))?;
-    let arr = js_sys::Array::from(&files_js);
-    let mut files = vec![];
-    for i in 0 .. arr.length() {
-        let file_js = arr.get(i);
-        let data_js =
-            js_sys::Reflect::get(&file_js, &JsValue::from_str("data"))
-                .map_err(|e| format!("missing data in file {}: {:?}", i, e))?;
-        // Use Uint8Array::new to copy into the current realm (fixes cross-realm instanceof)
-        let data = Uint8Array::new(&data_js).to_vec();
-        let mimetype =
-            js_sys::Reflect::get(&file_js, &JsValue::from_str("mimetype"))
-                .ok()
-                .and_then(|v| v.as_string())
-                .unwrap_or_else(|| "application/octet-stream".to_string());
-        let parameter =
-            js_sys::Reflect::get(&file_js, &JsValue::from_str("parameter"))
-                .ok()
-                .and_then(|v| v.as_string())
-                .unwrap_or_default();
-        files.push(CaptureFile { data, mimetype, parameter });
-    }
-    Ok(files)
-}
-
 #[wasm_bindgen(typescript_custom_section)]
 const TS_CAPTURE_BUTTON: &str = "export function create_capture_button(id: string, view_query: string, callback: (id: string) => Promise<CaptureCallbackResult>): HTMLElement;";
-
-async fn get_settings() -> (Option<String>, Option<String>) {
-    let url = get_setting(KEY_SERVER_URL).await;
-    let token = get_setting(KEY_TOKEN).await;
-    (url, token)
-}
 
 #[derive(Clone, Copy)]
 enum Existence {
@@ -220,61 +124,42 @@ fn update_button_state(button: &HtmlButtonElement, existence: Existence, error: 
     }
 }
 
-async fn check_existence(button: &HtmlButtonElement, id: &str, view_query: &str) {
-    let (url, token) = get_settings().await;
-    let Some(base_url) = url else {
-        update_button_state(button, Existence::New, ErrorState::Error);
-        return;
-    };
-    let base_url = if base_url.ends_with('/') {
-        base_url
-    } else {
-        format!("{}/", base_url)
-    };
-    let mut headers = HashMap::new();
-    if let Some(t) = token {
-        headers.insert("Authorization".to_string(), format!("Bearer {}", t));
+async fn send_to_background(msg: &JsValue) -> Result<JsValue, String> {
+    let resp =
+        JsFuture::from(browser_send_message(msg))
+            .await
+            .map_err(|e| format!("sendMessage failed: {:?}", e))?;
+    if let Ok(err) = js_sys::Reflect::get(&resp, &JsValue::from_str("error")) {
+        if let Some(err_str) = err.as_string() {
+            return Err(err_str);
+        }
     }
-    let req = ReqViewQuery {
-        view_id: ViewId(view_query.to_string()),
-        query: "".to_string(),
-        parameters: {
-            let mut map = HashMap::new();
-            map.insert("id".to_string(), Node::from(id));
-            map
+    Ok(resp)
+}
+
+async fn check_existence(button: &HtmlButtonElement, id: &str, view_query: &str) {
+    let msg = js_sys::Object::new();
+    let _ = js_sys::Reflect::set(&msg, &JsValue::from_str("type"), &JsValue::from_str("check_existence"));
+    let _ = js_sys::Reflect::set(&msg, &JsValue::from_str("id"), &JsValue::from_str(id));
+    let _ = js_sys::Reflect::set(&msg, &JsValue::from_str("view_query"), &JsValue::from_str(view_query));
+    match send_to_background(&msg.into()).await {
+        Ok(resp) => {
+            let exists =
+                js_sys::Reflect::get(&resp, &JsValue::from_str("exists"))
+                    .ok()
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+            update_button_state(button, if exists {
+                Existence::Exists
+            } else {
+                Existence::New
+            }, ErrorState::None);
         },
-        pagination: None,
-    };
-    APP_STATE.with(|state| {
-        let state = state.borrow();
-        let Some(app_state) = state.as_ref() else {
+        Err(e) => {
+            web_sys::console::error_1(&JsValue::from_str(&format!("sunwet existence check error: {}", e)));
             update_button_state(button, Existence::New, ErrorState::Error);
-            return;
-        };
-        let log = app_state.log.clone();
-        let button = button.clone();
-        spawn_local(async move {
-            let result: Result<RespQuery, String> =
-                req_post_json_with_headers(&log, &base_url, &headers, req).await;
-            match result {
-                Ok(resp) => {
-                    let exists = match resp.rows {
-                        RespQueryRows::Scalar(v) => !v.is_empty(),
-                        RespQueryRows::Record(v) => !v.is_empty(),
-                    };
-                    update_button_state(&button, if exists {
-                        Existence::Exists
-                    } else {
-                        Existence::New
-                    }, ErrorState::None);
-                },
-                Err(e) => {
-                    web_sys::console::error_1(&JsValue::from_str(&format!("sunwet existence check error: {}", e)));
-                    update_button_state(&button, Existence::New, ErrorState::Error);
-                },
-            }
-        });
-    });
+        },
+    }
 }
 
 async fn handle_click(button: &HtmlButtonElement, id: &str, callback: &Function) {
@@ -303,83 +188,18 @@ async fn handle_click(button: &HtmlButtonElement, id: &str, callback: &Function)
             return;
         },
     };
-    let res: Result<(), String> = async {
-        let result: CaptureCallbackResult =
-            serde_wasm_bindgen::from_value(js_value.clone()).map_err(|e| format!("{}", e))?;
-        let files = extract_callback_files(&js_value)?;
-        let form_id = result.form_id;
-        let mut parameters: HashMap<String, TreeNode> =
-            result
-                .parameters
-                .into_iter()
-                .map(|(k, v)| (k, TreeNode::Scalar(Node::from(v))))
-                .collect();
-        let mut commit_files = vec![];
-        let mut upload_files = vec![];
-        let mut param_files: HashMap<String, Vec<TreeNode>> = HashMap::new();
-        for file in files {
-            let hash = FileHash::from_sha256(Sha256::digest(&file.data));
-            param_files
-                .entry(file.parameter)
-                .or_default()
-                .push(TreeNode::Scalar(Node::File(hash.clone())));
-            commit_files.push(CommitFile {
-                hash: hash.clone(),
-                size: file.data.len() as u64,
-                mimetype: file.mimetype,
-            });
-            upload_files.push(UploadFile { data: file.data, hash });
-        }
-        for (param_name, nodes) in param_files {
-            parameters.insert(param_name, if nodes.len() == 1 {
-                nodes.into_iter().next().unwrap()
-            } else {
-                TreeNode::Array(nodes)
-            });
-        }
-        let (url, _) = get_settings().await;
-        let Some(base_url) = url else {
-            return Err("no server URL configured".to_string());
-        };
-        let base_url = if base_url.ends_with('/') {
-            base_url
-        } else {
-            format!("{}/", base_url)
-        };
-        let form = ReqCommitForm {
-            form_id: FormId(form_id),
-            parameters,
-            files: commit_files,
-        };
-        APP_STATE.with(|state| {
-            let state = state.borrow();
-            let Some(app_state) = state.as_ref() else {
-                return Err("app state not initialized".to_string());
-            };
-            let onlining = app_state.onlining.clone();
-            let eg = app_state.eg.clone();
-            let log = app_state.log.clone();
-            let button = button.clone();
-            spawn_local(async move {
-                match store_commit(&log, ReqCommit::Form(form), upload_files).await {
-                    Ok(_) => {
-                        trigger_onlining_no_lock(&onlining, eg, &log, &base_url);
-                        update_button_state(&button, Existence::Exists, ErrorState::None);
-                    },
-                    Err(e) => {
-                        web_sys::console::error_1(
-                            &JsValue::from_str(&format!("sunwet store_commit error: {}", e)),
-                        );
-                        update_button_state(&button, Existence::New, ErrorState::Error);
-                    },
-                }
-            });
-            Ok(())
-        })
-    }.await;
-    if let Err(e) = res {
-        web_sys::console::error_1(&JsValue::from_str(&format!("sunwet capture error: {}", e)));
-        update_button_state(button, Existence::New, ErrorState::Error);
+
+    // Send the callback result to background for processing.
+    // Add "type": "capture" and forward the whole object.
+    let _ = js_sys::Reflect::set(&js_value, &JsValue::from_str("type"), &JsValue::from_str("capture"));
+    match send_to_background(&js_value).await {
+        Ok(_) => {
+            update_button_state(button, Existence::Exists, ErrorState::None);
+        },
+        Err(e) => {
+            web_sys::console::error_1(&JsValue::from_str(&format!("sunwet capture error: {}", e)));
+            update_button_state(button, Existence::New, ErrorState::Error);
+        },
     }
 }
 
