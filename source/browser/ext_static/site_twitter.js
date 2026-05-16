@@ -43,10 +43,11 @@ export const do_twitter = () => {
    */
   const getInterceptedVideoUrl = (tweetId) => {
     const store = document.getElementById('sunwet-video-store');
-    if (store) {
-      return store.getAttribute('data-tweet-' + tweetId);
+    if (!store) {
+      console.warn("[sunwet] video store element not found in DOM");
+      return null;
     }
-    return null;
+    return store.getAttribute('data-tweet-' + tweetId);
   };
 
   /**
@@ -66,10 +67,145 @@ export const do_twitter = () => {
   };
 
   /**
-   * Get video URL from video element, using intercepted API data
-   * @type {(videoEl: HTMLVideoElement, article: HTMLElement) => string}
+   * Find the GraphQL query ID for TweetResultByRestId by scanning Twitter's
+   * loaded script bundles. Twitter embeds query IDs in their JS like:
+   * {queryId:"abc123",operationName:"TweetResultByRestId",...}
+   * @type {() => Promise<{queryId: string, endpoint: string, features: string|null, fieldToggles: string|null}|null>}
    */
-  const getVideoUrl = (videoEl, article) => {
+  const findQueryIdFromScripts = async () => {
+    // First check if the intercept already captured one
+    const store = document.getElementById('sunwet-video-store');
+    if (store) {
+      const id = store.getAttribute('data-gql-id');
+      const ep = store.getAttribute('data-gql-endpoint');
+      if (id && ep) {
+        return {
+          queryId: id,
+          endpoint: ep,
+          features: store.getAttribute('data-gql-features'),
+          fieldToggles: store.getAttribute('data-gql-field-toggles'),
+        };
+      }
+    }
+
+    // Scan Twitter's loaded script bundles for query ID
+    const scripts = Array.from(document.querySelectorAll('script[src*="abs.twimg.com"]'));
+    for (const script of scripts) {
+      const src = /** @type {HTMLScriptElement} */ (script).src;
+      if (!src) continue;
+      try {
+        const resp = await fetch(src);
+        if (!resp.ok) continue;
+        const text = await resp.text();
+        // Look for TweetResultByRestId query ID pattern
+        const match = text.match(/queryId:"([^"]+)",operationName:"TweetResultByRestId"/);
+        if (match) {
+          console.log("[sunwet] found TweetResultByRestId queryId:", match[1]);
+          return { queryId: match[1], endpoint: "TweetResultByRestId", features: null, fieldToggles: null };
+        }
+      } catch {
+        continue;
+      }
+    }
+    console.warn("[sunwet] could not find TweetResultByRestId query ID in any script");
+    return null;
+  };
+
+  /**
+   * Fetch video URL from Twitter's GraphQL API.
+   * Uses captured query params from intercepted requests, or scans bundles for the query ID.
+   * @type {(tweetId: string) => Promise<string|null>}
+   */
+  const fetchVideoUrlFromApi = async (tweetId) => {
+    try {
+      const queryInfo = await findQueryIdFromScripts();
+      if (!queryInfo) {
+        return null;
+      }
+      const csrfToken = document.cookie.match(/ct0=([^;]+)/)?.[1];
+      if (!csrfToken) {
+        console.warn("[sunwet] no csrf token found in cookies");
+        return null;
+      }
+
+      /** @type {Record<string, string>} */
+      const params = {};
+      if (queryInfo.endpoint === 'TweetResultByRestId') {
+        params.variables = JSON.stringify({ tweetId, withCommunity: false, includePromotedContent: false, withVoice: false });
+      } else {
+        // TweetDetail
+        params.variables = JSON.stringify({
+          focalTweetId: tweetId,
+          with_rux_injections: false,
+          rankingMode: "Relevance",
+          includePromotedContent: false,
+          withCommunity: true,
+          withQuickPromoteEligibilityTweetFields: false,
+          withBirdwatchNotes: true,
+          withVoice: true,
+        });
+      }
+      if (queryInfo.features) {
+        params.features = queryInfo.features;
+      }
+      if (queryInfo.fieldToggles) {
+        params.fieldToggles = queryInfo.fieldToggles;
+      }
+
+      const searchParams = new URLSearchParams(params);
+      const resp = await fetch(`https://x.com/i/api/graphql/${queryInfo.queryId}/${queryInfo.endpoint}?${searchParams}`, {
+        headers: {
+          "authorization": "Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA",
+          "x-csrf-token": csrfToken,
+          "x-twitter-active-user": "yes",
+          "x-twitter-auth-type": "OAuth2Session",
+        },
+        credentials: "include",
+      });
+      if (!resp.ok) {
+        console.warn("[sunwet] GraphQL API returned", resp.status, await resp.text().catch(() => ""));
+        return null;
+      }
+      const json = await resp.json();
+      /** @type {string|null} */
+      let bestUrl = null;
+      /** @param {any} obj @param {number} depth */
+      const findVideo = (obj, depth) => {
+        if (!obj || typeof obj !== 'object' || depth > 20 || bestUrl) return;
+        if (obj.video_info && obj.video_info.variants) {
+          const mp4s = obj.video_info.variants
+            .filter(/** @param {any} v */ (v) => v.content_type === 'video/mp4' && v.bitrate)
+            .sort(/** @param {any} a @param {any} b */ (a, b) => b.bitrate - a.bitrate);
+          if (mp4s.length > 0) {
+            bestUrl = mp4s[0].url;
+            return;
+          }
+        }
+        if (Array.isArray(obj)) {
+          for (const item of obj) findVideo(item, depth + 1);
+        } else {
+          for (const val of Object.values(obj)) findVideo(val, depth + 1);
+        }
+      };
+      findVideo(json, 0);
+      if (bestUrl) {
+        const store = document.getElementById('sunwet-video-store');
+        if (store) {
+          store.setAttribute('data-tweet-' + tweetId, bestUrl);
+        }
+      }
+      return bestUrl;
+    } catch (err) {
+      console.warn("[sunwet] fetchVideoUrlFromApi error:", err);
+      return null;
+    }
+  };
+
+  /**
+   * Get video URL from video element, using intercepted API data or direct API call
+   * @type {(videoEl: HTMLVideoElement, article: HTMLElement) => Promise<string>}
+   */
+  const getVideoUrl = async (videoEl, article) => {
     // Try to find the tweet ID from the article and look up intercepted video URL
     const timeEl = article.querySelector("time[datetime]");
     const postLink = /** @type {HTMLAnchorElement|null} */ (
@@ -78,9 +214,16 @@ export const do_twitter = () => {
     if (postLink) {
       const match = postLink.href.match(/\/status\/(\d+)/);
       if (match) {
-        const intercepted = getInterceptedVideoUrl(match[1]);
+        const tweetId = match[1];
+        const intercepted = getInterceptedVideoUrl(tweetId);
         if (intercepted) {
           return intercepted;
+        }
+        // Fallback: fetch directly from API
+        console.log("[sunwet] no intercepted URL for tweet", tweetId, "- fetching from API");
+        const fetched = await fetchVideoUrlFromApi(tweetId);
+        if (fetched) {
+          return fetched;
         }
       }
     }
@@ -199,7 +342,7 @@ export const do_twitter = () => {
 
     const videos = article.querySelectorAll("video");
     for (const video of videos) {
-      const videoUrl = getVideoUrl(video, article);
+      const videoUrl = await getVideoUrl(video, article);
       if (videoUrl && !videoUrl.startsWith("data:") && !videoUrl.startsWith("blob:")) {
         const result = await downloadMedia(videoUrl);
         if (result.error) {
@@ -208,7 +351,7 @@ export const do_twitter = () => {
         data.media.push({ type: "video", ...result });
       } else if (video.querySelector("source") || video.src) {
         // A video element exists but we couldn't get a fetchable URL
-        throw new Error("Video found but no downloadable URL available (video may not have loaded via API yet)");
+        throw new Error("Video found but no downloadable URL available");
       }
     }
 
