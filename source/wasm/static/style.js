@@ -3272,6 +3272,8 @@
               ss(uniq("leaf_view_media_wrap"), {
                 "": (s) => {
                   s.display = "grid";
+                  s.alignItems = "center";
+                  s.justifyItems = "center";
                   s.gridTemplateColumns = "1fr";
                   s.gridTemplateRows = "1fr";
                   s.padding = "0.15cm";
@@ -3340,19 +3342,17 @@
   presentation.leafViewVideo = /** @type { Presentation["leafViewVideo"] } */ (
     args,
   ) => {
-    const videoThumbnail = /** @type { (v: HTMLVideoElement) => void } */ (
-      video,
-    ) => {
-      video.addEventListener("loadedmetadata", () => {
-        video.currentTime = video.duration / 3;
-      });
-    };
     const media = e(
       "video",
-      { src: args.src, muted: true, preload: "metadata" },
+      {
+        src: args.src,
+        autoplay: true,
+        loop: true,
+        muted: true,
+        preload: "metadata",
+      },
       { styles_: [viewMediaLinkMediaStyle] },
     );
-    videoThumbnail(media);
     return {
       root: leafMedia({
         parentOrientation: args.parentOrientation,
@@ -3397,7 +3397,7 @@
       if (args.link != null) {
         const media = e(
           "audio",
-          { src: args.src, autoplay: true, muted: true, loop: true },
+          { src: args.src, autoplay: false, muted: true, loop: true },
           { styles_: [viewMediaLinkMediaStyle, directionStyle] },
         );
         const out = e(
