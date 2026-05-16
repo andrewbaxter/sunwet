@@ -125,16 +125,28 @@ fn update_button_state(button: &HtmlButtonElement, existence: Existence, error: 
 }
 
 async fn send_to_background(msg: &JsValue) -> Result<JsValue, String> {
-    let resp =
-        JsFuture::from(browser_send_message(msg))
-            .await
-            .map_err(|e| format!("sendMessage failed: {:?}", e))?;
-    if let Ok(err) = js_sys::Reflect::get(&resp, &JsValue::from_str("error")) {
-        if let Some(err_str) = err.as_string() {
-            return Err(err_str);
+    // Retry a few times — the background WASM may still be initializing when the
+    // content script first loads, so the message listener doesn't exist yet.
+    let mut last_err = String::new();
+    for attempt in 0..5u32 {
+        if attempt > 0 {
+            gloo::timers::future::TimeoutFuture::new(500 * attempt).await;
+        }
+        match JsFuture::from(browser_send_message(msg)).await {
+            Ok(resp) => {
+                if let Ok(err) = js_sys::Reflect::get(&resp, &JsValue::from_str("error")) {
+                    if let Some(err_str) = err.as_string() {
+                        return Err(err_str);
+                    }
+                }
+                return Ok(resp);
+            },
+            Err(e) => {
+                last_err = format!("sendMessage failed: {:?}", e);
+            },
         }
     }
-    Ok(resp)
+    Err(last_err)
 }
 
 async fn check_existence(button: &HtmlButtonElement, id: &str, view_query: &str) {
