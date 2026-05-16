@@ -582,6 +582,11 @@ pub fn trigger_offlining(eg: EventGraph) {
                                                 stack.push((RootOrWidget::Widget(w), data_at.clone()));
                                             }
                                         },
+                                        Widget::Table(w) => {
+                                            for w in &w.elements {
+                                                stack.push((RootOrWidget::Widget(w), data_at.clone()));
+                                            }
+                                        },
                                         Widget::DataRows(w) => {
                                             for row in fetch_query_or_field(&w.data, &data_at).await? {
                                                 let row_params = stack_data(&data_at, row);

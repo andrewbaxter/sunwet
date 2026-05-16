@@ -109,6 +109,7 @@ use {
             WidgetNode,
             WidgetPlayButton,
             WidgetRootDataRows,
+            WidgetTable,
             WidgetText,
             WidgetTime,
         },
@@ -371,6 +372,68 @@ impl Build {
             children: children,
             gap: config_at.gap.clone(),
             con_wrap: config_at.con_wrap,
+        }).root;
+    }
+
+    async fn build_widget_table(
+        &mut self,
+        eg: &EventGraph,
+        bctx: BuildContext,
+        config_at: &WidgetTable,
+        config_query_params: &BTreeMap<String, Vec<String>>,
+        data_id: &Vec<usize>,
+        data_at: &Vec<Rc<DataStackLevel>>,
+    ) -> El {
+        let child_bctx =
+            calc_child_bctx(
+                bctx,
+                config_at.orientation,
+                config_at.con_scroll,
+                false,
+                config_at.con_size_max.is_some(),
+                config_at.trans_size_max.is_some(),
+            ).with_parent_orientation(
+                Orientation::from_components(
+                    config_at.orientation.trans(),
+                    config_at.row_trans_direction_downright,
+                ),
+                OrientationType::Grid,
+            );
+        let mut children = vec![];
+        for child_config_at in &config_at.elements {
+            children.push(
+                self
+                    .build_widget(
+                        eg,
+                        child_bctx,
+                        child_config_at,
+                        config_query_params,
+                        data_id,
+                        data_at,
+                    )
+                    .await,
+            );
+        }
+        let mut rows: Vec<Vec<El>> = vec![];
+        let mut current_row: Vec<El> = vec![];
+        for child in children {
+            current_row.push(child);
+            if current_row.len() == config_at.columns {
+                rows.push(current_row);
+                current_row = vec![];
+            }
+        }
+        if !current_row.is_empty() {
+            rows.push(current_row);
+        }
+        return style_export::cont_view_table(style_export::ContViewTableArgs {
+            parent_con_restricted: bctx.is_con_restricted(),
+            orientation: config_at.orientation,
+            con_scroll: config_at.con_scroll,
+            con_size_max: config_at.con_size_max.clone(),
+            trans_2_size_max: config_at.trans_size_max.clone(),
+            children: rows,
+            gap: config_at.gap.clone(),
         }).root;
     }
 
@@ -1103,6 +1166,10 @@ impl Build {
                 .await,
             Widget::DataRows(config_at) => return self
                 .build_widget_data_rows(eg, bctx, config_at, config_query_params, data_id, data_stack)
+                .boxed_local()
+                .await,
+            Widget::Table(config_at) => return self
+                .build_widget_table(eg, bctx, config_at, config_query_params, data_id, data_stack)
                 .boxed_local()
                 .await,
             Widget::Text(config_at) => return self

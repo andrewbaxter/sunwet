@@ -527,9 +527,38 @@ pub struct WidgetNode {
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct WidgetTable {
+    /// Number of columns. Every N elements form a row.
+    pub columns: usize,
+    /// The converse direction is the direction of rows. The transitive direction is
+    /// the direction of cells in the row.
+    pub orientation: Orientation,
+    /// To calculate the orientation of a row, the trans axis of the table orientation
+    /// becomes the con direction, combined with the row trans direction (e.g. if the
+    /// implied trans direction is vertical, and the row_trans_direction_downright is
+    /// true, then the trans direction will be down).
+    pub row_trans_direction_downright: bool,
+    pub elements: Vec<Widget>,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub gap: Option<String>,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub con_scroll: bool,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub trans_size_max: Option<String>,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub con_size_max: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Widget {
     Layout(WidgetLayout),
     DataRows(WidgetDataRows),
+    Table(WidgetTable),
     Text(WidgetText),
     Date(WidgetDate),
     Time(WidgetTime),
