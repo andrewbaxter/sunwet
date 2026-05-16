@@ -1,13 +1,12 @@
 use {
-    gloo::storage::{
-        LocalStorage,
-        Storage,
-    },
     sunwet_browser::{
+        get_setting,
+        set_setting,
         KEY_SERVER_URL,
         KEY_TOKEN,
     },
     wasm_bindgen::prelude::*,
+    wasm_bindgen_futures::spawn_local,
     web_sys::{
         HtmlButtonElement,
         HtmlInputElement,
@@ -38,39 +37,48 @@ fn main() {
         input.set_type(input_type);
         input.set_id(storage_key);
         input.set_class_name("sunwet-settings-input");
-        if let Ok(val) = LocalStorage::get::<String>(storage_key) {
-            input.set_value(&val);
-        }
         wrapper.append_child(&input).unwrap();
-        wrapper
+        (wrapper, input)
     };
-    let url_wrapper = create_field("Server URL", "text", KEY_SERVER_URL);
+    let (url_wrapper, url_input) = create_field("Server URL", "text", KEY_SERVER_URL);
     container.append_child(&url_wrapper).unwrap();
-    let token_wrapper = create_field("Access Token", "password", KEY_TOKEN);
+    let (token_wrapper, token_input) = create_field("Access Token", "password", KEY_TOKEN);
     container.append_child(&token_wrapper).unwrap();
+
+    // Load saved settings asynchronously
+    let url_input_load = url_input.clone();
+    let token_input_load = token_input.clone();
+    spawn_local(async move {
+        if let Some(val) = get_setting(KEY_SERVER_URL).await {
+            url_input_load.set_value(&val);
+        }
+        if let Some(val) = get_setting(KEY_TOKEN).await {
+            token_input_load.set_value(&val);
+        }
+    });
+
     let error_block = document.create_element("div").unwrap();
     error_block.set_class_name("sunwet-settings-error");
     container.append_child(&error_block).unwrap();
     let save_btn = document.create_element("button").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
     save_btn.set_class_name("sunwet-settings-button");
     save_btn.set_text_content(Some("Save"));
-    let error_block_closure = error_block.clone();
     let save_closure = Closure::wrap(Box::new(move |_e: MouseEvent| {
-        error_block_closure.set_text_content(None);
-        let document = web_sys::window().unwrap().document().unwrap();
-        let url_input = document.get_element_by_id(KEY_SERVER_URL).unwrap().dyn_into::<HtmlInputElement>().unwrap();
-        let token_input = document.get_element_by_id(KEY_TOKEN).unwrap().dyn_into::<HtmlInputElement>().unwrap();
         let url = url_input.value();
         let token = token_input.value();
-        if let Err(e) = LocalStorage::set(KEY_SERVER_URL, &url) {
-            error_block_closure.set_text_content(Some(&format!("Error saving server URL: {}", e)));
-            return;
-        }
-        if let Err(e) = LocalStorage::set(KEY_TOKEN, &token) {
-            error_block_closure.set_text_content(Some(&format!("Error saving token: {}", e)));
-            return;
-        }
-        error_block_closure.set_text_content(Some("Settings saved!"));
+        let error_block = error_block.clone();
+        error_block.set_text_content(None);
+        spawn_local(async move {
+            if let Err(e) = set_setting(KEY_SERVER_URL, &url).await {
+                error_block.set_text_content(Some(&format!("Error saving server URL: {:?}", e)));
+                return;
+            }
+            if let Err(e) = set_setting(KEY_TOKEN, &token).await {
+                error_block.set_text_content(Some(&format!("Error saving token: {:?}", e)));
+                return;
+            }
+            error_block.set_text_content(Some("Settings saved!"));
+        });
     }) as Box<dyn FnMut(_)>);
     save_btn.add_event_listener_with_callback("click", save_closure.as_ref().unchecked_ref()).unwrap();
     save_closure.forget();
