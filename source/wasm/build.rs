@@ -517,12 +517,16 @@ fn main() {
             name: "contViewTable",
             args: vec![
                 ("parentConRestricted", &bool_),
+                ("parentOrientation", &orientation),
+                ("parentOrientationType", &orientation_type),
                 ("orientation", &orientation),
+                ("transAlign", &transalign),
                 ("conScroll", &bool_),
                 ("trans2SizeMax", &optstring_),
                 ("conSizeMax", &optstring_),
                 ("children", &arrarrel_),
-                ("gap", &optstring_)
+                ("rowGap", &optstring_),
+                ("columnGap", &optstring_)
             ],
             returns: vec![("root", &el_)],
         },

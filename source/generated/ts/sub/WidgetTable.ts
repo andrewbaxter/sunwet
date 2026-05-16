@@ -3,7 +3,11 @@ import type { Orientation } from "./Orientation";
 import type { TransAlign } from "./TransAlign";
 import type { Widget } from "./Widget";
 
-export type DataRowsLayoutTable = { row_gap?: string | null, column_gap?: string | null, con_scroll?: boolean, trans_size_max?: string | null, con_size_max?: string | null, 
+export type WidgetTable = { 
+/**
+ * Number of columns. Every N elements form a row.
+ */
+columns: number, 
 /**
  * The converse direction is the direction of rows. The transitive direction is
  * the direction of cells in the row.
@@ -15,4 +19,4 @@ orientation: Orientation,
  * implied trans direction is vertical, and the row_trans_direction_downright is
  * true, then the trans direction will be down).
  */
-row_trans_direction_downright: boolean, trans_align?: TransAlign, elements: Array<Widget>, };
+row_trans_direction_downright: boolean, elements: Array<Widget>, row_gap?: string | null, column_gap?: string | null, con_scroll?: boolean, trans_size_max?: string | null, con_size_max?: string | null, trans_align?: TransAlign, };
