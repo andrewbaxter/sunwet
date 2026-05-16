@@ -96,6 +96,7 @@ use {
             LinkDest,
             Orientation,
             QueryOrField,
+            TrackEndMode,
             ViewId,
             Widget,
             WidgetColor,
@@ -1196,7 +1197,7 @@ fn build_widget_root_data_rows(
                         body: build.build_widget(&eg, BuildContext {
                             restrict_x: true,
                             restrict_y: config_at.element_height.is_some(),
-                            parent_orientation: Orientation::RightDown,
+                            parent_orientation: Orientation::DownRight,
                             parent_orientation_type: OrientationType::Flex,
                         }, &config_at.element_body, &config_query_params, &vec![i], &data_at).await,
                         height: config_at.element_height.clone(),
@@ -1205,8 +1206,8 @@ fn build_widget_root_data_rows(
                             Some(exp) => Some(build.build_widget(&eg, BuildContext {
                                 restrict_x: true,
                                 restrict_y: false,
-                                parent_orientation: Orientation::RightDown,
-                                parent_orientation_type: OrientationType::Grid,
+                                parent_orientation: Orientation::DownRight,
+                                parent_orientation_type: OrientationType::Flex,
                             }, &exp, &config_query_params, &vec![i], &data_at).await),
                         },
                     }).root);
@@ -1588,6 +1589,7 @@ struct BuildViewBodyCommon {
     id: ViewId,
     config_at: WidgetRootDataRows,
     shuffle: bool,
+    track_end_mode: TrackEndMode,
     config_query_params: BTreeMap<String, Vec<String>>,
     body: WeakEl,
     transport_slot: WeakEl,
@@ -1608,7 +1610,7 @@ fn build_page_view_body(
     let Some(transport_slot) = common.transport_slot.upgrade() else {
         return;
     };
-    playlist_clear(pc, &state().playlist, common.shuffle);
+    playlist_clear(pc, &state().playlist, common.shuffle, common.track_end_mode);
     body.ref_clear();
     body.ref_push(
         build_widget_root_data_rows(
@@ -1661,6 +1663,7 @@ pub fn build_page_view(
             transport_slot: transport_slot.weak(),
             config_at: view.root,
             shuffle: view.shuffle,
+            track_end_mode: view.track_end_mode,
             config_query_params: view.query_parameter_keys,
             body: body.body.weak(),
             have_media: Rc::new(Cell::new(false)),

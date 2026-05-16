@@ -2229,6 +2229,8 @@
                   s.overflowX = "hidden";
                   s.backgroundColor = varCBackground2;
                   s.padding = `${varPViewVert} ${varPElHoriz}`;
+                  s.display = "flex";
+                  s.flexDirection = "row";
                 },
               }),
             ],
@@ -2835,6 +2837,11 @@
       {
         styles_: [
           contViewListStyle,
+          viewTransStyle({
+            parentOrientationType: args.parentOrientationType,
+            parentOrientation: args.parentOrientation,
+            transAlign: args.transAlign,
+          }),
           contViewListStyleWrap(args.conWrap),
           ss(
             uniq("cont_view_list", con(args.orientation)),
@@ -3088,13 +3095,13 @@
       return { root: out };
     };
 
-  const viewLeafTransStyle =
+  const viewTransStyle =
     /** @type { (args:{parentOrientation: Orientation, parentOrientationType: OrientationType2, transAlign: TransAlign})=>string } */ (
       args,
     ) =>
       ss(
         uniq(
-          "view_leaf_trans_style",
+          "view_trans_style",
           args.parentOrientationType,
           args.parentOrientation,
           args.transAlign,
@@ -3286,7 +3293,7 @@
           },
         );
       };
-      const alignStyle = viewLeafTransStyle({
+      const alignStyle = viewTransStyle({
         parentOrientationType: args.parentOrientationType,
         parentOrientation: args.parentOrientation,
         transAlign: args.transAlign,
@@ -3457,7 +3464,7 @@
   presentation.leafViewIcon = /** @type { Presentation["leafViewIcon"] } */ (
     args,
   ) => {
-    const alignStyle = viewLeafTransStyle({
+    const alignStyle = viewTransStyle({
       parentOrientationType: args.parentOrientationType,
       parentOrientation: args.parentOrientation,
       transAlign: args.transAlign,
@@ -3546,7 +3553,7 @@
   presentation.leafViewText = /** @type { Presentation["leafViewText"] } */ (
     args,
   ) => {
-    const alignStyle = viewLeafTransStyle({
+    const alignStyle = viewTransStyle({
       parentOrientationType: args.parentOrientationType,
       parentOrientation: args.parentOrientation,
       transAlign: args.transAlign,
@@ -3636,7 +3643,7 @@
   };
   presentation.leafViewDatetime =
     /** @type { Presentation["leafViewDatetime"] } */ (args) => {
-      const alignStyle = viewLeafTransStyle({
+      const alignStyle = viewTransStyle({
         parentOrientationType: args.parentOrientationType,
         parentOrientation: args.parentOrientation,
         transAlign: args.transAlign,
@@ -3672,7 +3679,7 @@
   presentation.leafViewDate = /** @type { Presentation["leafViewDate"] } */ (
     args,
   ) => {
-    const alignStyle = viewLeafTransStyle({
+    const alignStyle = viewTransStyle({
       parentOrientationType: args.parentOrientationType,
       parentOrientation: args.parentOrientation,
       transAlign: args.transAlign,
@@ -3708,7 +3715,7 @@
   presentation.leafViewTime = /** @type { Presentation["leafViewTime"] } */ (
     args,
   ) => {
-    const alignStyle = viewLeafTransStyle({
+    const alignStyle = viewTransStyle({
       parentOrientationType: args.parentOrientationType,
       parentOrientation: args.parentOrientation,
       transAlign: args.transAlign,
@@ -3821,7 +3828,7 @@
           {
             styles_: [
               style,
-              viewLeafTransStyle({
+              viewTransStyle({
                 parentOrientationType: args.parentOrientationType,
                 parentOrientation: args.parentOrientation,
                 transAlign: args.transAlign,
@@ -3861,7 +3868,7 @@
                   s.color = varCForegroundFade;
                 },
               }),
-              viewLeafTransStyle({
+              viewTransStyle({
                 parentOrientationType: args.parentOrientationType,
                 parentOrientation: args.parentOrientation,
                 transAlign: args.transAlign,

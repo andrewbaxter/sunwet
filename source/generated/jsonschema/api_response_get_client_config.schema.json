@@ -298,6 +298,14 @@
         },
         "shuffle": {
           "type": "boolean"
+        },
+        "track_end_mode": {
+          "default": "advance",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TrackEndMode"
+            }
+          ]
         }
       },
       "additionalProperties": false
@@ -1419,6 +1427,13 @@
       "enum": [
         "wrap",
         "ellipsize"
+      ]
+    },
+    "TrackEndMode": {
+      "type": "string",
+      "enum": [
+        "advance",
+        "loop"
       ]
     },
     "TransAlign": {

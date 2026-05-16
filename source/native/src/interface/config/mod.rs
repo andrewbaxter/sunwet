@@ -13,6 +13,7 @@ use {
             },
             view::{
                 ClientViewParam,
+                TrackEndMode,
                 ViewId,
                 WidgetRootDataRows,
             },
@@ -109,6 +110,11 @@ pub struct View {
     pub queries: BTreeMap<String, Query>,
     /// How to build the view.
     pub display: WidgetRootDataRows,
+    /// What happens when a track reaches the end: advance to next track (default) or
+    /// loop.
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub track_end_mode: TrackEndMode,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, Hash, JsonSchema, TS)]

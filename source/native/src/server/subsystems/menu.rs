@@ -121,6 +121,7 @@ pub async fn handle_get_filtered_client_config(
             parameter_specs: view.item.parameters.clone(),
             query_parameter_keys: view.query_parameters.clone(),
             shuffle: view.shuffle,
+            track_end_mode: view.item.track_end_mode,
         });
     }
     return Ok(ClientConfig {
