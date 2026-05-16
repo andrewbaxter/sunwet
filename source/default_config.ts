@@ -1003,120 +1003,110 @@ export const buildGlobal = async (apiTokens: {
     },
   };
   const mediaItemMaxWidth = "min(15cm, 100%)";
+  const mediaBlockSize = "8cm";
   const displayMicroblogMedia: sunwet.WidgetRootDataRows = {
     data: { query: "root" },
+    element_width: mediaBlockSize,
+    element_height: mediaBlockSize,
     element_body: {
       media: {
         data: { field: "media" },
-        height: "30dvh",
+        trans_align: "middle",
       },
     },
     element_expansion: {
       layout: {
         orientation: "down_right",
+        con_size_max: "15cm",
         elements: [
           {
-            media: {
-              data: { field: "media" },
-              height: "30dvh",
+            layout: {
+              orientation: "right_down",
+              elements: [
+                widgetNodeLink("microblog_id", "microblog_id"),
+                {
+                  play_button: {
+                    media_file_field: "media",
+                    orientation: "right_down",
+                    name_field: "author",
+                    album_field: "url",
+                    artist_field: "author",
+                    cover_field: "media",
+                  },
+                },
+              ],
             },
           },
           {
             layout: {
-              orientation: "down_right",
-              con_size_max: mediaItemMaxWidth,
+              orientation: "right_down",
               elements: [
                 {
-                  layout: {
+                  text: {
+                    data: { literal: "Author" },
                     orientation: "right_down",
-                    elements: [
-                      widgetNodeLink("microblog_id", "microblog_id"),
-                      {
-                        play_button: {
-                          media_file_field: "media",
-                          orientation: "right_down",
-                          name_field: "author",
-                          album_field: "url",
-                          artist_field: "author",
-                          cover_field: "media",
-                        },
-                      },
-                    ],
                   },
                 },
-                {
-                  layout: {
-                    orientation: "right_down",
-                    elements: [
-                      {
-                        text: {
-                          data: { literal: "Author" },
-                          orientation: "right_down",
-                        },
-                      },
-                      "space",
-                      {
-                        text: {
-                          data: { field: "author" },
-                          orientation: "right_down",
-                        },
-                      },
-                    ],
-                  },
-                },
-                {
-                  layout: {
-                    orientation: "right_down",
-                    elements: [
-                      {
-                        text: {
-                          data: { literal: "Date" },
-                          orientation: "right_down",
-                        },
-                      },
-                      "space",
-                      {
-                        text: {
-                          data: { field: "create_timestamp" },
-                          orientation: "right_down",
-                        },
-                      },
-                    ],
-                  },
-                },
-                {
-                  layout: {
-                    orientation: "right_down",
-                    elements: [
-                      {
-                        text: {
-                          data: { literal: "URL" },
-                          orientation: "right_down",
-                        },
-                      },
-                      "space",
-                      {
-                        text: {
-                          data: { field: "url" },
-                          con_size_mode: "wrap",
-                          orientation: "right_down",
-                          link: {
-                            title: { literal: {} },
-                            dest: { plain: { field: "url" } },
-                          },
-                        },
-                      },
-                    ],
-                  },
-                },
+                "space",
                 {
                   text: {
-                    data: { field: "text" },
-                    con_size_mode: "wrap",
+                    data: { field: "author" },
                     orientation: "right_down",
                   },
                 },
               ],
+            },
+          },
+          {
+            layout: {
+              orientation: "right_down",
+              elements: [
+                {
+                  text: {
+                    data: { literal: "Date" },
+                    orientation: "right_down",
+                  },
+                },
+                "space",
+                {
+                  text: {
+                    data: { field: "create_timestamp" },
+                    orientation: "right_down",
+                  },
+                },
+              ],
+            },
+          },
+          {
+            layout: {
+              orientation: "right_down",
+              elements: [
+                {
+                  text: {
+                    data: { literal: "URL" },
+                    orientation: "right_down",
+                  },
+                },
+                "space",
+                {
+                  text: {
+                    data: { field: "url" },
+                    con_size_mode: "wrap",
+                    orientation: "right_down",
+                    link: {
+                      title: { field: "url" },
+                      dest: { plain: { field: "url" } },
+                    },
+                  },
+                },
+              ],
+            },
+          },
+          {
+            text: {
+              data: { field: "text" },
+              con_size_mode: "wrap",
+              orientation: "right_down",
             },
           },
         ],
