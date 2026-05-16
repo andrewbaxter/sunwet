@@ -14,12 +14,7 @@
   "permissions": ["activeTab", "tabs", "storage"],
   "host_permissions": ["https://*/*"],
   "content_scripts": [
-    {
-      "matches": ["https://x.com/*", "https://twitter.com/*"],
-      "js": ["site_twitter_early.js"],
-      "run_at": "document_start"
-    },
-    {
+{
       "matches": ["https://*/*"],
       "js": ["content.js"],
       "css": ["sunwet.css"]
@@ -27,7 +22,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["content2.js", "content2_bg.wasm", "site_twitter.js", "site_twitter_intercept.js", "site_booru.js"],
+      "resources": ["content2.js", "content2_bg.wasm", "site_twitter.js", "site_booru.js"],
       "matches": ["https://*/*"]
     }
   ],
