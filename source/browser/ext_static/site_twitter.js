@@ -34,6 +34,21 @@ import { create_capture_button } from "./content2.js";
 export const do_twitter = () => {
   const BUTTON_MARKER = "sunwet-capture-btn";
 
+  // Video URLs are intercepted by site_twitter_early.js (runs in MAIN world)
+  // and stored as data attributes on a hidden DOM element.
+
+  /**
+   * Look up intercepted video URL for a tweet ID
+   * @type {(tweetId: string) => string|null}
+   */
+  const getInterceptedVideoUrl = (tweetId) => {
+    const store = document.getElementById('sunwet-video-store');
+    if (store) {
+      return store.getAttribute('data-tweet-' + tweetId);
+    }
+    return null;
+  };
+
   /**
    * Convert Twitter image URL to original quality
    * @type {(url: string) => string}
@@ -51,15 +66,35 @@ export const do_twitter = () => {
   };
 
   /**
-   * Get video URL from video element
-   * @type {(videoEl: HTMLVideoElement) => string}
+   * Get video URL from video element, using intercepted API data
+   * @type {(videoEl: HTMLVideoElement, article: HTMLElement) => string}
    */
-  const getVideoUrl = (videoEl) => {
-    const sources = videoEl.querySelectorAll("source");
-    if (sources.length > 0) {
-      return sources[0].src;
+  const getVideoUrl = (videoEl, article) => {
+    // Try to find the tweet ID from the article and look up intercepted video URL
+    const timeEl = article.querySelector("time[datetime]");
+    const postLink = /** @type {HTMLAnchorElement|null} */ (
+      timeEl?.closest('a[href*="/status/"]')
+    );
+    if (postLink) {
+      const match = postLink.href.match(/\/status\/(\d+)/);
+      if (match) {
+        const intercepted = getInterceptedVideoUrl(match[1]);
+        if (intercepted) {
+          return intercepted;
+        }
+      }
     }
-    return videoEl.src;
+    // Fallback: try source elements and video src
+    const sources = videoEl.querySelectorAll("source");
+    for (const source of sources) {
+      if (source.src && !source.src.startsWith("blob:") && !source.src.startsWith("data:")) {
+        return source.src;
+      }
+    }
+    if (videoEl.src && !videoEl.src.startsWith("blob:") && !videoEl.src.startsWith("data:")) {
+      return videoEl.src;
+    }
+    return "";
   };
 
   /**
@@ -164,10 +199,16 @@ export const do_twitter = () => {
 
     const videos = article.querySelectorAll("video");
     for (const video of videos) {
-      const videoUrl = getVideoUrl(video);
-      if (videoUrl && !videoUrl.startsWith("data:")) {
+      const videoUrl = getVideoUrl(video, article);
+      if (videoUrl && !videoUrl.startsWith("data:") && !videoUrl.startsWith("blob:")) {
         const result = await downloadMedia(videoUrl);
+        if (result.error) {
+          throw new Error(`Failed to download video: ${result.error} (${videoUrl})`);
+        }
         data.media.push({ type: "video", ...result });
+      } else if (video.querySelector("source") || video.src) {
+        // A video element exists but we couldn't get a fetchable URL
+        throw new Error("Video found but no downloadable URL available (video may not have loaded via API yet)");
       }
     }
 
