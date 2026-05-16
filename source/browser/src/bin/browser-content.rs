@@ -12,10 +12,14 @@ use {
             OnliningState,
             trigger_onlining_no_lock,
         },
-        world::scan_env,
     },
     std::rc::Rc,
-    sunwet_browser::init_app_state,
+    sunwet_browser::{
+        get_setting,
+        init_app_state,
+        KEY_SERVER_URL,
+    },
+    wasm_bindgen_futures::spawn_local,
 };
 
 fn main() {
@@ -25,7 +29,17 @@ fn main() {
     });
     let log: Rc<dyn Log> = Rc::new(ConsoleLog {});
     let eg = EventGraph::new();
-    let env = scan_env(&log);
     init_app_state(state.clone(), eg.clone(), log.clone());
-    trigger_onlining_no_lock(&state, eg, &log, &env.base_url);
+    spawn_local(async move {
+        let Some(base_url) = get_setting(KEY_SERVER_URL).await else {
+            log.log("sunwet: no server URL configured, skipping onlining");
+            return;
+        };
+        let base_url = if base_url.ends_with('/') {
+            base_url
+        } else {
+            format!("{}/", base_url)
+        };
+        trigger_onlining_no_lock(&state, eg, &log, &base_url);
+    });
 }
