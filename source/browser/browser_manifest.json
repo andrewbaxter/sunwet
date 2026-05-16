@@ -15,6 +15,11 @@
   "host_permissions": ["https://*/*"],
   "content_scripts": [
     {
+      "matches": ["https://x.com/*", "https://twitter.com/*"],
+      "js": ["site_twitter_early.js"],
+      "run_at": "document_start"
+    },
+    {
       "matches": ["https://*/*"],
       "js": ["content.js"],
       "css": ["sunwet.css"]
