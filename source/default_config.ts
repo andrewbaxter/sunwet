@@ -1009,24 +1009,16 @@ export const buildGlobal = async (apiTokens: {
     element_width: mediaBlockSize,
     element_height: mediaBlockSize,
     element_body: {
-      layout: {
-        orientation: "right_down",
-        elements: [
-          "space",
-          {
-            media: {
-              data: { field: "media" },
-              trans_align: "middle",
-            },
-          },
-          "space",
-        ],
+      media: {
+        data: { field: "media" },
+        trans_align: "middle",
       },
     },
     element_expansion: {
       layout: {
         orientation: "down_right",
         trans_size_max: "20cm",
+        trans_align: "middle",
         elements: [
           {
             layout: {
@@ -2160,10 +2152,11 @@ export const buildGlobal = async (apiTokens: {
             queryMicroblogHead,
             queryMicroblogSelect,
             {
-              fields: [["desc", "create_timestamp"]],
+              fields: [["desc", "add_timestamp"]],
             },
           ),
         },
+        track_end_mode: "loop",
         display: displayMicroblogMedia,
       },
       microblog_media_by_random: {
@@ -2174,6 +2167,7 @@ export const buildGlobal = async (apiTokens: {
             "shuffle",
           ),
         },
+        track_end_mode: "loop",
         display: displayMicroblogMedia,
       },
 

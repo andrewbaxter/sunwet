@@ -553,6 +553,14 @@ pub enum ClientViewParam {
     Text,
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, JsonSchema, TS, Hash, Default)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum TrackEndMode {
+    #[default]
+    Advance,
+    Loop,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ClientView {
@@ -560,4 +568,7 @@ pub struct ClientView {
     pub parameter_specs: BTreeMap<String, ClientViewParam>,
     pub query_parameter_keys: BTreeMap<String, Vec<String>>,
     pub shuffle: bool,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub track_end_mode: TrackEndMode,
 }

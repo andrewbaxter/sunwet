@@ -20,7 +20,10 @@ use {
     futures::FutureExt,
     gloo::{
         timers::{
-            callback::Interval,
+            callback::{
+                Interval,
+                Timeout,
+            },
             future::{
                 TimeoutFuture,
                 sleep,
@@ -44,6 +47,7 @@ use {
     },
     serde::Deserialize,
     shared::interface::{
+        config::view::TrackEndMode,
         derived::ComicManifest,
         triple::FileHash,
         wire::{
@@ -170,6 +174,8 @@ pub struct PlaylistState_ {
     // Must be Some if playing, otherwise may be Some.
     pub playing_i: HistPrim<Option<PlaylistIndex>>,
     pub shuffle: Cell<bool>,
+    pub track_end_mode: Cell<TrackEndMode>,
+    pub image_advance_timeout: RefCell<Option<Timeout>>,
     pub media_time: Prim<f64>,
     pub playing_time: Prim<f64>,
     pub media_max_time: Prim<Option<f64>>,
@@ -219,7 +225,19 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
         media.ref_on("ended", {
             let eg = pc.eg();
             move |_| eg.event(|pc| {
-                playlist_next(pc, &state().playlist, None);
+                let playlist = &state().playlist;
+                match playlist.0.track_end_mode.get() {
+                    TrackEndMode::Advance => {
+                        playlist_next(pc, playlist, None);
+                    },
+                    TrackEndMode::Loop => {
+                        if let Some(i) = playlist.0.playing_i.get() {
+                            let entry = playlist.0.playlist.borrow().get(&i).cloned().unwrap();
+                            entry.media.pm_seek(pc, 0.);
+                            entry.media.pm_play(&playlist.0.log);
+                        }
+                    },
+                }
             }).unwrap()
         });
         media.ref_on("loadedmetadata", {
@@ -258,6 +276,8 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
         playing_i: HistPrim::new(pc, None),
         playing_time: Prim::new(0.),
         shuffle: Cell::new(false),
+        track_end_mode: Cell::new(TrackEndMode::default()),
+        image_advance_timeout: RefCell::new(None),
         media_time: Prim::new(0.),
         media_max_time: Prim::new(None),
         view_ministate_state: Default::default(),
@@ -376,6 +396,8 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
                         media_session.set_metadata(None);
                     },
                 }
+                // Clear image advance timer whenever play state changes
+                *playlist_state.0.image_advance_timeout.borrow_mut() = None;
                 if !*playing.borrow() {
                     // Stop previous
                     if let Some(i) = playing_i.get_old() {
@@ -408,6 +430,7 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
                         None => playlist_first_index(playlist_state).unwrap(),
                     };
                     let e = playlist_state.0.playlist.borrow().get(&i).cloned().unwrap();
+                    let entry_media_type = e.media_type;
                     if let Some((_, ws)) = &*playlist_state.0.share.borrow() {
                         bg.set(Some(spawn_rooted({
                             let ws = ws.clone();
@@ -439,6 +462,19 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
                     } else {
                         e.media.pm_preload(&playlist_state.0.log, &playlist_state.0.env);
                         e.media.pm_play(&playlist_state.0.log);
+                    }
+
+                    // Start image auto-advance timer (images have a virtual 10s duration)
+                    if matches!(entry_media_type, PlaylistEntryMediaType::Image) &&
+                        matches!(playlist_state.0.track_end_mode.get(), TrackEndMode::Advance) {
+                        *playlist_state.0.image_advance_timeout.borrow_mut() = Some(Timeout::new(10_000, {
+                            let eg = pc.eg();
+                            move || {
+                                eg.event(|pc| {
+                                    playlist_next(pc, &state().playlist, None);
+                                }).unwrap();
+                            }
+                        }));
                     }
                 }
             }
@@ -814,7 +850,7 @@ pub async fn playlist_extend(
     }
 }
 
-pub fn playlist_clear(pc: &mut ProcessingContext, state: &PlaylistState, shuffle: bool) {
+pub fn playlist_clear(pc: &mut ProcessingContext, state: &PlaylistState, shuffle: bool, track_end_mode: TrackEndMode) {
     if *state.0.playing.borrow() {
         let playing_i = state.0.playing_i.get().unwrap();
         let playlist = state.0.playlist.borrow();
@@ -827,6 +863,8 @@ pub fn playlist_clear(pc: &mut ProcessingContext, state: &PlaylistState, shuffle
     state.0.playlist.borrow_mut().clear();
     *state.0.view_ministate_state.borrow_mut() = None;
     state.0.shuffle.set(shuffle);
+    state.0.track_end_mode.set(track_end_mode);
+    *state.0.image_advance_timeout.borrow_mut() = None;
 }
 
 pub fn playlist_toggle_play(pc: &mut ProcessingContext, state: &PlaylistState, i: Option<PlaylistIndex>) {

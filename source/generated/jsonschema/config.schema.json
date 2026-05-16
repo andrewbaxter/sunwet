@@ -1647,6 +1647,13 @@
         "ellipsize"
       ]
     },
+    "TrackEndMode": {
+      "type": "string",
+      "enum": [
+        "advance",
+        "loop"
+      ]
+    },
     "TransAlign": {
       "type": "string",
       "enum": [
@@ -1745,6 +1752,15 @@
           "additionalProperties": {
             "$ref": "#/definitions/Query"
           }
+        },
+        "track_end_mode": {
+          "description": "What happens when a track reaches the end: advance to next track (default) or loop.",
+          "default": "advance",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TrackEndMode"
+            }
+          ]
         }
       },
       "additionalProperties": false
