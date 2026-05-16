@@ -3210,173 +3210,162 @@
       s.borderRadius = varRMedia;
     },
   });
-  presentation.leafViewImage = /** @type { Presentation["leafViewImage"] } */ (
-    args,
-  ) => {
-    /** @type { (s: string)=>HTMLElement} */
-    const createImg = (s) => {
-      /** @type {HTMLElement} */
-      const img0 = leafImg({
-        src: args.src,
-        lazy: true,
-        alt: args.text,
-      });
-      let img;
-      if ((args.width != null && args.height != null) || args.aspect != null) {
-        img0.classList.add(
-          ss(uniq("leaf_view_image_img"), {
+  const leafMedia =
+    /** @type { (inner: { parentOrientation: Orientation, parentOrientationType: OrientationType2, transAlign: TransAlign, core: HTMLElement, link?: string, text?: string, width?: string, height?: string, aspect?: string }) => HTMLElement } */ (
+      args,
+    ) => {
+      /** @type { (s: string)=>HTMLElement} */
+      const createMedia = (s) => {
+        const core = args.core;
+        let img;
+        if (
+          (args.width != null && args.height != null) ||
+          args.aspect != null
+        ) {
+          core.classList.add(
+            ss(uniq("leaf_view_media_core"), {
+              "": (s) => {
+                s.objectFit = "contain";
+                s.height = "100%";
+                s.width = "100%";
+              },
+            }),
+          );
+          img = e(
+            "div",
+            {},
+            {
+              styles_: [
+                contStackStyle,
+                ss(uniq("leaf_view_media_stack"), {
+                  "": (s) => {
+                    s.justifyItems = "center";
+                    s.alignItems = "center";
+                    s.backgroundColor = varCBackgroundViewImgStack;
+                    s.overflow = "clip";
+                  },
+                }),
+              ],
+              children_: [core],
+            },
+          );
+        } else {
+          img = core;
+        }
+        img.classList.add(
+          s,
+          ss(uniq("leaf_view_media"), {
             "": (s) => {
-              s.objectFit = "contain";
-              s.height = "100%";
-              s.width = "100%";
+              s.minWidth = "0";
+              s.minHeight = "0";
+              s.maxWidth = "100%";
+              s.maxHeight = "100%";
+              s.filter = "drop-shadow(0.1cm 0.1cm 0.05cm rgba(0, 0, 0, 0.1))";
             },
           }),
         );
-        img = e(
+        return e(
           "div",
           {},
           {
             styles_: [
-              contStackStyle,
-              ss(uniq("leaf_view_image_stack"), {
+              ss(uniq("leaf_view_media_wrap"), {
                 "": (s) => {
-                  s.justifyItems = "center";
-                  s.alignItems = "center";
-                  s.backgroundColor = varCBackgroundViewImgStack;
-                  s.overflow = "clip";
+                  s.display = "grid";
+                  s.gridTemplateColumns = "1fr";
+                  s.gridTemplateRows = "1fr";
+                  s.padding = "0.15cm";
+                  s.maxWidth = "100%";
+                  s.maxHeight = "100%";
                 },
               }),
             ],
-            children_: [img0],
+            children_: [img],
           },
         );
-      } else {
-        img = img0;
+      };
+      const alignStyle = viewLeafTransStyle({
+        parentOrientationType: args.parentOrientationType,
+        parentOrientation: args.parentOrientation,
+        transAlign: args.transAlign,
+      });
+      const out = (() => {
+        if (args.link != null) {
+          return e(
+            "a",
+            { href: args.link },
+            {
+              styles_: [alignStyle, viewMediaLinkStyle],
+              children_: [createMedia(viewMediaLinkMediaStyle)],
+            },
+          );
+        } else {
+          const out = createMedia(viewMediaNonlinkMediaStyle);
+          out.classList.add(alignStyle);
+          return out;
+        }
+      })();
+      if (args.width) {
+        out.style.width = args.width;
       }
-      img.classList.add(
-        s,
-        ss(uniq("leaf_view_image"), {
-          "": (s) => {
-            s.minWidth = "0";
-            s.minHeight = "0";
-            s.maxWidth = "100%";
-            s.maxHeight = "100%";
-            s.filter = "drop-shadow(0.1cm 0.1cm 0.05cm rgba(0, 0, 0, 0.1))";
-          },
-        }),
-      );
-      return e(
-        "div",
-        {},
-        {
-          styles_: [
-            ss(uniq("leaf_view_image_wrap"), {
-              "": (s) => {
-                s.display = "grid";
-                s.gridTemplateColumns = "1fr";
-                s.gridTemplateRows = "1fr";
-                s.padding = "0.15cm";
-                s.maxWidth = "100%";
-                s.maxHeight = "100%";
-              },
-            }),
-          ],
-          children_: [img],
-        },
-      );
+      if (args.height) {
+        out.style.height = args.height;
+      }
+      if (args.aspect) {
+        out.style.aspectRatio = args.aspect;
+      }
+      return out;
     };
-    const alignStyle = viewLeafTransStyle({
-      parentOrientationType: args.parentOrientationType,
-      parentOrientation: args.parentOrientation,
-      transAlign: args.transAlign,
-    });
-    const out = (() => {
-      if (args.link != null) {
-        return e(
-          "a",
-          { href: args.link },
-          {
-            styles_: [alignStyle, viewMediaLinkStyle],
-            children_: [createImg(viewMediaLinkMediaStyle)],
-          },
-        );
-      } else {
-        const out = createImg(viewMediaNonlinkMediaStyle);
-        out.classList.add(alignStyle);
-        return out;
-      }
-    })();
-    if (args.width) {
-      out.style.width = args.width;
-    }
-    if (args.height) {
-      out.style.height = args.height;
-    }
-    if (args.aspect) {
-      out.style.aspectRatio = args.aspect;
-    }
-    return { root: out };
-  };
-  const videoThumbnail = /** @type { (v: HTMLVideoElement) => void } */ (
-    video,
+  presentation.leafViewImage = /** @type { Presentation["leafViewImage"] } */ (
+    args,
   ) => {
-    video.addEventListener("loadedmetadata", () => {
-      video.currentTime = video.duration / 3;
-    });
+    return {
+      root: leafMedia({
+        parentOrientation: args.parentOrientation,
+        parentOrientationType: args.parentOrientationType,
+        transAlign: args.transAlign,
+        core: leafImg({
+          src: args.src,
+          lazy: true,
+          alt: args.text,
+        }),
+        aspect: args.aspect,
+        height: args.height,
+        link: args.link,
+        text: args.text,
+        width: args.width,
+      }),
+    };
   };
   presentation.leafViewVideo = /** @type { Presentation["leafViewVideo"] } */ (
     args,
   ) => {
-    const out = (() => {
-      if (args.link != null) {
-        const media = e(
-          "video",
-          { src: args.src, muted: true, preload: "metadata" },
-          { styles_: [viewMediaLinkMediaStyle] },
-        );
-        videoThumbnail(media);
-        const out = e(
-          "a",
-          { href: args.link },
-          {
-            styles_: [viewMediaLinkStyle],
-            children_: [media],
-          },
-        );
-        if (args.text != null) {
-          out.title = args.text;
-        }
-        return out;
-      } else {
-        const media = e(
-          "video",
-          { src: args.src, muted: true, preload: "metadata" },
-          {
-            styles_: [
-              viewMediaNonlinkMediaStyle,
-              ss(uniq("leaf_view_video"), {
-                "": (s) => {
-                  s.minWidth = "0";
-                  s.minHeight = "0";
-                },
-              }),
-            ],
-          },
-        );
-        videoThumbnail(media);
-        if (args.text != null) {
-          media.title = args.text;
-        }
-        return media;
-      }
-    })();
-    if (args.width) {
-      out.style.width = args.width;
-    }
-    if (args.height) {
-      out.style.height = args.height;
-    }
-    return { root: out };
+    const videoThumbnail = /** @type { (v: HTMLVideoElement) => void } */ (
+      video,
+    ) => {
+      video.addEventListener("loadedmetadata", () => {
+        video.currentTime = video.duration / 3;
+      });
+    };
+    const media = e(
+      "video",
+      { src: args.src, muted: true, preload: "metadata" },
+      { styles_: [viewMediaLinkMediaStyle] },
+    );
+    videoThumbnail(media);
+    return {
+      root: leafMedia({
+        parentOrientation: args.parentOrientation,
+        parentOrientationType: args.parentOrientationType,
+        transAlign: args.transAlign,
+        core: media,
+        aspect: args.aspect,
+        height: args.height,
+        link: args.link,
+        text: args.text,
+        width: args.width,
+      }),
+    };
   };
   presentation.leafViewAudio = /** @type { Presentation["leafViewAudio"] } */ (
     args,
