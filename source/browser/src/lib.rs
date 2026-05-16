@@ -37,7 +37,8 @@ use {
         commit::UploadFile,
         log::Log,
         online::{
-            ensure_commit,
+            store_commit,
+            trigger_onlining_no_lock,
             OnliningState,
         },
     },
@@ -280,13 +281,14 @@ async fn handle_click(button: &HtmlButtonElement, id: &str, callback: &Function)
             let log = app_state.log.clone();
             let button = button.clone();
             spawn_local(async move {
-                match ensure_commit(&onlining, eg, &log, &base_url, ReqCommit::Form(form), upload_files).await {
+                match store_commit(&log, ReqCommit::Form(form), upload_files).await {
                     Ok(_) => {
+                        trigger_onlining_no_lock(&onlining, eg, &log, &base_url);
                         update_button_state(&button, Existence::Exists, ErrorState::None);
                     },
                     Err(e) => {
                         web_sys::console::error_1(
-                            &JsValue::from_str(&format!("sunwet ensure_commit error: {}", e)),
+                            &JsValue::from_str(&format!("sunwet store_commit error: {}", e)),
                         );
                         update_button_state(&button, Existence::New, ErrorState::Error);
                     },

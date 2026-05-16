@@ -16,7 +16,10 @@ use {
     },
     chrono::Utc,
     flowcontrol::ta_return,
-    gloo::timers::future::TimeoutFuture,
+    gloo::{
+        timers::future::TimeoutFuture,
+        utils::window,
+    },
     js_sys::Promise,
     lunk::{
         EventGraph,
@@ -33,27 +36,21 @@ use {
     },
     std::{
         cell::RefCell,
-        rc::Rc,
-    },
-    wasm_bindgen::{
-        JsValue,
-        prelude::{
-            wasm_bindgen,
-            Closure,
+        rc::{
+            Rc,
+            Weak,
         },
     },
-    wasm_bindgen_futures::future_to_promise,
+    wasm_bindgen::{
+        JsCast,
+        JsValue,
+        prelude::Closure,
+    },
+    wasm_bindgen_futures::{
+        JsFuture,
+        future_to_promise,
+    },
 };
-
-#[wasm_bindgen(inline_js = "
-export async function request_lock(name, cb) {
-    return await globalThis.navigator.locks.request(name, cb);
-}
-")]
-extern "C" {
-    #[wasm_bindgen(catch)]
-    async fn request_lock(name: &str, cb: &JsValue) -> Result<JsValue, JsValue>;
-}
 
 pub struct OnliningState {
     pub bg: RefCell<Option<ScopeValue>>,
@@ -64,11 +61,8 @@ pub struct OnliningState {
 const OPFS_ONLINE_COMMIT_FILENAME: &str = "commit.json";
 const OPFS_ONLINE_COMMIT_ROOT: &str = "online_commits";
 
-pub async fn ensure_commit(
-    state: &Rc<OnliningState>,
-    eg: EventGraph,
+pub async fn store_commit(
     log: &Rc<dyn Log>,
-    base_url: &String,
     commit: ReqCommit,
     files: Vec<UploadFile>,
 ) -> Result<(), String> {
@@ -79,12 +73,111 @@ pub async fn ensure_commit(
     for file in files {
         commit_dir.ensure_file(vec![file.hash.to_string()]).await?.write_binary(&file.data).await?;
     }
+    return Ok(());
+}
+
+pub async fn ensure_commit(
+    state: &Rc<OnliningState>,
+    eg: EventGraph,
+    log: &Rc<dyn Log>,
+    base_url: &String,
+    commit: ReqCommit,
+    files: Vec<UploadFile>,
+) -> Result<(), String> {
+    store_commit(log, commit, files).await?;
     trigger_onlining(state, eg, log, base_url);
     return Ok(());
 }
 
 pub fn stop_onlining(state: &OnliningState) {
     *state.bg.borrow_mut() = None;
+}
+
+async fn run_onlining(state: Weak<OnliningState>, eg: EventGraph, log: Rc<dyn Log>, base_url: String) {
+    eg.event(|pc| {
+        let Some(state) = state.upgrade() else {
+            return;
+        };
+        state.running.set(pc, true);
+    }).unwrap();
+    let _cleanup = defer({
+        let eg = eg.clone();
+        let state = state.clone();
+        move || eg.event(|pc| {
+            let Some(state) = state.upgrade() else {
+                return;
+            };
+            *state.bg.borrow_mut() = None;
+            state.running.set(pc, false);
+        }).unwrap()
+    });
+    let commits_root = match opfs_root().await.ensure_dir(vec![OPFS_ONLINE_COMMIT_ROOT.to_string()]).await {
+        Ok(r) => r,
+        Err(e) => {
+            log.log(&e);
+            return;
+        },
+    };
+    let entries = match commits_root.list(&log).await {
+        Ok(v) => v,
+        Err(e) => {
+            log.log(&e);
+            return;
+        },
+    };
+    for (key, task_dir) in entries {
+        let task_dir = match task_dir.dir() {
+            Ok(d) => d,
+            Err(e) => {
+                log.log(&e);
+                continue;
+            },
+        };
+        let res = async {
+            ta_return!((), String);
+            let req: ReqCommit =
+                task_dir
+                    .get_file(vec![OPFS_ONLINE_COMMIT_FILENAME.to_string()])
+                    .await?
+                    .read_json()
+                    .await?;
+            let need_files = req_post_json(&log, &base_url, req).await?;
+            for file in need_files.incomplete {
+                let data = task_dir.get_file(vec![file.to_string()]).await?.read_binary().await?;
+                const CHUNK_SIZE: u64 = 1024 * 1024 * 8;
+                let file_size = data.len() as u64;
+                let chunks = file_size.div_ceil(CHUNK_SIZE);
+                for i in 0 .. chunks {
+                    let chunk_start = i * CHUNK_SIZE;
+                    let chunk_end = (chunk_start + CHUNK_SIZE).min(file_size);
+                    let chunk_size = chunk_end - chunk_start;
+                    file_post_json(
+                        &log,
+                        &base_url,
+                        &file,
+                        chunk_start,
+                        &data[chunk_start as usize .. (chunk_start + chunk_size) as usize],
+                    ).await?;
+                }
+                loop {
+                    let resp =
+                        req_post_json(&log, &base_url, ReqUploadFinish(file.clone())).await?;
+                    if resp.done {
+                        break;
+                    }
+                    TimeoutFuture::new(1000).await;
+                }
+            }
+            commits_root.delete(&log, &key).await;
+            return Ok(());
+        }.await;
+        match res {
+            Ok(_) => { },
+            Err(e) => {
+                log.log(&format!("Error uploading queued commit at [{}]: {}", task_dir.0, e));
+            },
+        }
+    }
 }
 
 pub fn trigger_onlining(state: &Rc<OnliningState>, eg: EventGraph, log: &Rc<dyn Log>, base_url: &String) {
@@ -97,93 +190,34 @@ pub fn trigger_onlining(state: &Rc<OnliningState>, eg: EventGraph, log: &Rc<dyn 
             let cb = Closure::<dyn Fn(JsValue) -> Promise>::new({
                 let eg = eg.clone();
                 let log = log.clone();
+                let base_url = base_url.clone();
+                let state = state.clone();
                 move |_| {
                     let eg = eg.clone();
                     let log = log.clone();
                     let base_url = base_url.clone();
                     let state = state.clone();
                     return future_to_promise(async move {
-                        eg.event(|pc| {
-                            let Some(state) = state.upgrade() else {
-                                return;
-                            };
-                            state.running.set(pc, true);
-                        }).unwrap();
-                        let _cleanup = defer({
-                            let eg = eg.clone();
-                            let state = state.clone();
-                            move || eg.event(|pc| {
-                                let Some(state) = state.upgrade() else {
-                                    return;
-                                };
-                                *state.bg.borrow_mut() = None;
-                                state.running.set(pc, false);
-                            }).unwrap()
-                        });
-                        let commits_root =
-                            opfs_root().await.ensure_dir(vec![OPFS_ONLINE_COMMIT_ROOT.to_string()]).await?;
-                        for (key, task_dir) in commits_root.list(&log).await? {
-                            let task_dir = match task_dir.dir() {
-                                Ok(d) => d,
-                                Err(e) => {
-                                    log.log(&e);
-                                    continue;
-                                },
-                            };
-                            let res = async {
-                                ta_return!((), String);
-                                let req: ReqCommit =
-                                    task_dir
-                                        .get_file(vec![OPFS_ONLINE_COMMIT_FILENAME.to_string()])
-                                        .await?
-                                        .read_json()
-                                        .await?;
-                                let need_files = req_post_json(&log, &base_url, req).await?;
-                                for file in need_files.incomplete {
-                                    let data = task_dir.get_file(vec![file.to_string()]).await?.read_binary().await?;
-                                    const CHUNK_SIZE: u64 = 1024 * 1024 * 8;
-                                    let file_size = data.len() as u64;
-                                    let chunks = file_size.div_ceil(CHUNK_SIZE);
-                                    for i in 0 .. chunks {
-                                        let chunk_start = i * CHUNK_SIZE;
-                                        let chunk_end = (chunk_start + CHUNK_SIZE).min(file_size);
-                                        let chunk_size = chunk_end - chunk_start;
-                                        file_post_json(
-                                            &log,
-                                            &base_url,
-                                            &file,
-                                            chunk_start,
-                                            &data[chunk_start as usize .. (chunk_start + chunk_size) as usize],
-                                        ).await?;
-                                    }
-                                    loop {
-                                        let resp =
-                                            req_post_json(&log, &base_url, ReqUploadFinish(file.clone())).await?;
-                                        if resp.done {
-                                            break;
-                                        }
-                                        TimeoutFuture::new(1000).await;
-                                    }
-                                }
-                                commits_root.delete(&log, &key).await;
-                                return Ok(());
-                            }.await;
-                            match res {
-                                Ok(_) => { },
-                                Err(e) => {
-                                    log.log(&format!("Error uploading queued commit at [{}]: {}", task_dir.0, e));
-                                },
-                            }
-                        }
-
-                        // Nothing left to do atm, exit
+                        run_onlining(state, eg, log, base_url).await;
                         return Ok(JsValue::null());
                     });
                 }
             });
-            request_lock("online", cb.as_ref())
+            JsFuture::from(window().navigator().locks().request_with_callback("online", cb.as_ref().unchecked_ref()))
                 .await
                 .log(&log, "Error doing work in `online` lock");
+        }));
+    }
+}
+
+pub fn trigger_onlining_no_lock(state: &Rc<OnliningState>, eg: EventGraph, log: &Rc<dyn Log>, base_url: &String) {
+    let mut bg = state.bg.borrow_mut();
+    if bg.is_none() {
+        let state = Rc::downgrade(&state);
+        let log = log.clone();
+        let base_url = base_url.clone();
+        *bg = Some(spawn_rooted(async move {
+            run_onlining(state, eg, log, base_url).await;
         }));
     }
 }

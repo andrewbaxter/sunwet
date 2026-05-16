@@ -10,7 +10,7 @@ use {
         },
         online::{
             OnliningState,
-            trigger_onlining,
+            trigger_onlining_no_lock,
         },
         world::scan_env,
     },
@@ -27,5 +27,5 @@ fn main() {
     let eg = EventGraph::new();
     let env = scan_env(&log);
     init_app_state(state.clone(), eg.clone(), log.clone());
-    trigger_onlining(&state, eg, &log, &env.base_url);
+    trigger_onlining_no_lock(&state, eg, &log, &env.base_url);
 }
