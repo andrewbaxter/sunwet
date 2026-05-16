@@ -148,6 +148,11 @@ pub fn build_global_config(log: &Log, config0: &interface::config::GlobalConfig)
                         },
                     }
                 },
+                view::Widget::Table(w) => {
+                    for e in &w.elements {
+                        recurse_build_query_parameters(queries, e, query_parameters)?;
+                    }
+                },
                 view::Widget::Text(_) => { },
                 view::Widget::Date(_) => { },
                 view::Widget::Time(_) => { },
