@@ -53,6 +53,7 @@ rooting = { version = "0.1", features = ["futures"] }
 flowcontrol = "0.2"
 lunk = { version = "0.3" }
 http = "1"
+uuid = { version = "1", features = ["v4", "js"] }
 glove = { version = "0.4" }
 reqwest = "0.12"
 

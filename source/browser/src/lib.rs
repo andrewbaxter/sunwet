@@ -149,35 +149,44 @@ async fn send_to_background(msg: &JsValue) -> Result<JsValue, String> {
     Err(last_err)
 }
 
-async fn check_existence(button: &HtmlButtonElement, id: &str, view_query: &str) {
+async fn check_existence(lookup_id: &str, view_query: &str) -> Result<Option<String>, String> {
     let msg = js_sys::Object::new();
     let _ = js_sys::Reflect::set(&msg, &JsValue::from_str("type"), &JsValue::from_str("check_existence"));
-    let _ = js_sys::Reflect::set(&msg, &JsValue::from_str("id"), &JsValue::from_str(id));
+    let _ = js_sys::Reflect::set(&msg, &JsValue::from_str("id"), &JsValue::from_str(lookup_id));
     let _ = js_sys::Reflect::set(&msg, &JsValue::from_str("view_query"), &JsValue::from_str(view_query));
-    match send_to_background(&msg.into()).await {
-        Ok(resp) => {
-            let exists =
-                js_sys::Reflect::get(&resp, &JsValue::from_str("exists"))
-                    .ok()
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false);
-            update_button_state(button, if exists {
-                Existence::Exists
-            } else {
-                Existence::New
-            }, ErrorState::None);
-        },
-        Err(e) => {
-            web_sys::console::error_1(&JsValue::from_str(&format!("sunwet existence check error: {}", e)));
-            update_button_state(button, Existence::New, ErrorState::Error);
-        },
+    let resp = send_to_background(&msg.into()).await?;
+    let exists =
+        js_sys::Reflect::get(&resp, &JsValue::from_str("exists"))
+            .map_err(|e| format!("failed to read exists field: {:?}", e))?
+            .as_bool()
+            .ok_or_else(|| "exists field is not a boolean".to_string())?;
+    if !exists {
+        return Ok(None);
+    }
+    let id_value =
+        js_sys::Reflect::get(&resp, &JsValue::from_str("existing_id"))
+            .map_err(|e| format!("failed to read existing_id field: {:?}", e))?;
+    match id_value.as_string() {
+        Some(s) => Ok(Some(s)),
+        None => Err(format!("existing_id has unexpected type: {:?}", id_value)),
     }
 }
 
-async fn handle_click(button: &HtmlButtonElement, id: &str, callback: &Function) {
+async fn handle_click(button: &HtmlButtonElement, lookup_id: &str, view_query: &str, callback: &Function) {
     update_button_state(button, Existence::New, ErrorState::None);
+
+    // Check existence first to get the entity id if it already exists
+    let id = match check_existence(lookup_id, view_query).await {
+        Ok(id) => id,
+        Err(e) => {
+            web_sys::console::error_1(&JsValue::from_str(&format!("sunwet existence check error: {}", e)));
+            update_button_state(button, Existence::New, ErrorState::Error);
+            return;
+        },
+    };
+
     let this = JsValue::null();
-    let id_js = JsValue::from_str(id);
+    let id_js = JsValue::from_str(lookup_id);
     let promise = match callback.call1(&this, &id_js) {
         Ok(v) => {
             if let Ok(p) = v.clone().dyn_into::<Promise>() {
@@ -204,6 +213,9 @@ async fn handle_click(button: &HtmlButtonElement, id: &str, callback: &Function)
     // Send the callback result to background for processing.
     // Add "type": "capture" and forward the whole object.
     let _ = js_sys::Reflect::set(&js_value, &JsValue::from_str("type"), &JsValue::from_str("capture"));
+    if let Some(eid) = &id {
+        let _ = js_sys::Reflect::set(&js_value, &JsValue::from_str("existing_id"), &JsValue::from_str(eid));
+    }
     match send_to_background(&js_value).await {
         Ok(_) => {
             update_button_state(button, Existence::Exists, ErrorState::None);
@@ -216,7 +228,7 @@ async fn handle_click(button: &HtmlButtonElement, id: &str, callback: &Function)
 }
 
 #[wasm_bindgen(skip_typescript)]
-pub fn create_capture_button(id: String, view_query: String, callback: Function) -> Result<HtmlElement, JsValue> {
+pub fn create_capture_button(lookup_id: String, view_query: String, callback: Function) -> Result<HtmlElement, JsValue> {
     let window = web_sys::window().ok_or("no window")?;
     let document = window.document().ok_or("no document")?;
     let button = document.create_element("button")?.dyn_into::<HtmlButtonElement>()?;
@@ -224,20 +236,34 @@ pub fn create_capture_button(id: String, view_query: String, callback: Function)
     button.set_class_name("sunwet-import-button");
     update_button_state(&button, Existence::New, ErrorState::None);
     let button_check = button.clone();
-    let id_check = id.clone();
+    let lookup_id_check = lookup_id.clone();
     let view_query_check = view_query.clone();
     spawn_local(async move {
-        check_existence(&button_check, &id_check, &view_query_check).await;
+        match check_existence(&lookup_id_check, &view_query_check).await {
+            Ok(id) => {
+                update_button_state(&button_check, if id.is_some() {
+                    Existence::Exists
+                } else {
+                    Existence::New
+                }, ErrorState::None);
+            },
+            Err(e) => {
+                web_sys::console::error_1(&JsValue::from_str(&format!("sunwet existence check error: {}", e)));
+                update_button_state(&button_check, Existence::New, ErrorState::Error);
+            },
+        }
     });
     let button_click = button.clone();
-    let id_click = id.clone();
+    let lookup_id_click = lookup_id.clone();
+    let view_query_click = view_query.clone();
     let callback_click = callback.clone();
     let closure = Closure::wrap(Box::new(move |_e: MouseEvent| {
         let button = button_click.clone();
-        let id = id_click.clone();
+        let lookup_id = lookup_id_click.clone();
+        let view_query = view_query_click.clone();
         let callback = callback_click.clone();
         spawn_local(async move {
-            handle_click(&button, &id, &callback).await;
+            handle_click(&button, &lookup_id, &view_query, &callback).await;
         });
     }) as Box<dyn FnMut(_)>);
     button.add_event_listener_with_callback("click", closure.as_ref().unchecked_ref())?;

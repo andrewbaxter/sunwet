@@ -1077,7 +1077,7 @@ export const buildGlobal = async (apiTokens: {
                       "space",
                       {
                         text: {
-                          data: { field: "date" },
+                          data: { field: "create_timestamp" },
                           font_size: "12pt",
                           orientation: "right_down",
                         },
@@ -1152,7 +1152,7 @@ export const buildGlobal = async (apiTokens: {
                           media_file_field: "image_hash",
                           orientation: "right_down",
                           name_field: "artist_name",
-                          album_field: "page_url",
+                          album_field: "url",
                           artist_field: "artist_name",
                           cover_field: "image_hash",
                         },
@@ -1189,7 +1189,7 @@ export const buildGlobal = async (apiTokens: {
                     elements: [
                       {
                         text: {
-                          data: { literal: "Page URL" },
+                          data: { literal: "URL" },
                           font_size: "12pt",
                           color: "rgba(78, 94, 119, 0.8)",
                           orientation: "right_down",
@@ -1198,7 +1198,7 @@ export const buildGlobal = async (apiTokens: {
                       "space",
                       {
                         text: {
-                          data: { field: "page_url" },
+                          data: { field: "url" },
                           font_size: "12pt",
                           con_size_mode: "ellipsize",
                           orientation: "right_down",
@@ -2162,7 +2162,7 @@ export const buildGlobal = async (apiTokens: {
             queryMicroblogHead,
             queryMicroblogSelect,
             {
-              fields: [["desc", "date"]],
+              fields: [["desc", "create_timestamp"]],
             },
           ),
         },
@@ -2311,10 +2311,11 @@ export const buildGlobal = async (apiTokens: {
       [BROWSEREXT_FORM_MICROBLOG]: {
         fields: [
           { id: "id", label: "", type: "id" },
+          { id: "stamp", label: "", type: "datetime_now" },
           { id: "url", label: "URL", type: { text: {} } },
           { id: "author", label: "Author", type: { text: {} } },
           { id: "text", label: "Text", type: { text: {} } },
-          { id: "date", label: "Date", type: { text: {} } },
+          { id: "create_timestamp", label: "Create timestamp", type: { text: {} } },
           { id: "media", label: "Media", type: { text: {} } },
         ],
         outputs: [
@@ -2322,6 +2323,11 @@ export const buildGlobal = async (apiTokens: {
             subject: { input: "id" },
             predicate: { inline: "sunwet/1/is" },
             object: { inline: { t: "v", v: "sunwet/1/microblog" } },
+          },
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/add_timestamp" },
+            object: { input: "stamp" },
           },
           {
             subject: { input: "id" },
@@ -2340,8 +2346,8 @@ export const buildGlobal = async (apiTokens: {
           },
           {
             subject: { input: "id" },
-            predicate: { inline: "sunwet/1/date" },
-            object: { input: "date" },
+            predicate: { inline: "sunwet/1/create_timestamp" },
+            object: { input: "create_timestamp" },
           },
           {
             subject: { input: "id" },
@@ -2353,6 +2359,7 @@ export const buildGlobal = async (apiTokens: {
       [BROWSEREXT_FORM_PROFILE]: {
         fields: [
           { id: "id", label: "", type: "id" },
+          { id: "stamp", label: "", type: "datetime_now" },
           { id: "url", label: "URL", type: { text: {} } },
           { id: "name", label: "Name", type: { text: {} } },
           { id: "handle", label: "Handle", type: { text: {} } },
@@ -2364,6 +2371,11 @@ export const buildGlobal = async (apiTokens: {
             subject: { input: "id" },
             predicate: { inline: "sunwet/1/is" },
             object: { inline: { t: "v", v: "sunwet/1/profile" } },
+          },
+          {
+            subject: { input: "id" },
+            predicate: { inline: "sunwet/1/add_timestamp" },
+            object: { input: "stamp" },
           },
           {
             subject: { input: "id" },
@@ -2396,7 +2408,7 @@ export const buildGlobal = async (apiTokens: {
         fields: [
           { id: "id", label: "", type: "id" },
           { id: "stamp", label: "", type: "datetime_now" },
-          { id: "page_url", label: "Page URL", type: { text: {} } },
+          { id: "url", label: "URL", type: { text: {} } },
           { id: "source_url", label: "Source URL", type: { text: {} } },
           { id: "artist_name", label: "Artist name", type: { text: {} } },
           { id: "artist_url", label: "Artist URL", type: { text: {} } },
@@ -2415,8 +2427,8 @@ export const buildGlobal = async (apiTokens: {
           },
           {
             subject: { input: "id" },
-            predicate: { inline: "sunwet/1/page_url" },
-            object: { input: "page_url" },
+            predicate: { inline: "sunwet/1/url" },
+            object: { input: "url" },
           },
           {
             subject: { input: "id" },
