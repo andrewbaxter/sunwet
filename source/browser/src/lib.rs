@@ -2,6 +2,7 @@ use {
     js_sys::{
         Function,
         Promise,
+        Uint8Array,
     },
     lunk::EventGraph,
     serde::Deserialize,
@@ -118,10 +119,7 @@ pub fn init_app_state(onlining: Rc<OnliningState>, eg: EventGraph, log: Rc<dyn L
     });
 }
 
-#[derive(Deserialize, Tsify)]
 pub struct CaptureFile {
-    #[serde(with = "serde_bytes")]
-    #[tsify(type = "Uint8Array")]
     pub data: Vec<u8>,
     pub mimetype: String,
     pub parameter: String,
@@ -132,7 +130,34 @@ pub struct CaptureCallbackResult {
     pub form_id: String,
     #[tsify(type = "Record<string, string>")]
     pub parameters: HashMap<String, String>,
-    pub files: Vec<CaptureFile>,
+}
+
+fn extract_callback_files(js_value: &JsValue) -> Result<Vec<CaptureFile>, String> {
+    let files_js =
+        js_sys::Reflect::get(js_value, &JsValue::from_str("files"))
+            .map_err(|e| format!("missing files: {:?}", e))?;
+    let arr = js_sys::Array::from(&files_js);
+    let mut files = vec![];
+    for i in 0 .. arr.length() {
+        let file_js = arr.get(i);
+        let data_js =
+            js_sys::Reflect::get(&file_js, &JsValue::from_str("data"))
+                .map_err(|e| format!("missing data in file {}: {:?}", i, e))?;
+        // Use Uint8Array::new to copy into the current realm (fixes cross-realm instanceof)
+        let data = Uint8Array::new(&data_js).to_vec();
+        let mimetype =
+            js_sys::Reflect::get(&file_js, &JsValue::from_str("mimetype"))
+                .ok()
+                .and_then(|v| v.as_string())
+                .unwrap_or_else(|| "application/octet-stream".to_string());
+        let parameter =
+            js_sys::Reflect::get(&file_js, &JsValue::from_str("parameter"))
+                .ok()
+                .and_then(|v| v.as_string())
+                .unwrap_or_default();
+        files.push(CaptureFile { data, mimetype, parameter });
+    }
+    Ok(files)
 }
 
 #[wasm_bindgen(typescript_custom_section)]
@@ -277,7 +302,8 @@ async fn handle_click(button: &HtmlButtonElement, id: &str, callback: &Function)
     };
     let res: Result<(), String> = async {
         let result: CaptureCallbackResult =
-            serde_wasm_bindgen::from_value(js_value).map_err(|e| format!("{}", e))?;
+            serde_wasm_bindgen::from_value(js_value.clone()).map_err(|e| format!("{}", e))?;
+        let files = extract_callback_files(&js_value)?;
         let form_id = result.form_id;
         let mut parameters: HashMap<String, TreeNode> =
             result
@@ -288,7 +314,7 @@ async fn handle_click(button: &HtmlButtonElement, id: &str, callback: &Function)
         let mut commit_files = vec![];
         let mut upload_files = vec![];
         let mut param_files: HashMap<String, Vec<TreeNode>> = HashMap::new();
-        for file in result.files {
+        for file in files {
             let hash = FileHash::from_sha256(Sha256::digest(&file.data));
             param_files
                 .entry(file.parameter)
