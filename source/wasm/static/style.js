@@ -3313,7 +3313,9 @@
     }
     return { root: out };
   };
-  const videoThumbnail = (video) => {
+  const videoThumbnail = /** @type { (v: HTMLVideoElement) => void } */ (
+    video,
+  ) => {
     video.addEventListener("loadedmetadata", () => {
       video.currentTime = video.duration / 3;
     });

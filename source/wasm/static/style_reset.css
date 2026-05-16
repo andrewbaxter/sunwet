@@ -55,6 +55,12 @@ Baseline un-styling.
   video::cue {
     font-size: max(3dvh, 12pt);
   }
+
+  img {
+    min-width: 0;
+    min-height: 0;
+    object-fit: contain;
+  }
 }
 
 .group {

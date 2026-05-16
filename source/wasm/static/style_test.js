@@ -723,6 +723,18 @@
           ]);
         }
         break;
+      case "#fullscreen_image":
+        {
+          buildRoot([
+            stagingPageView,
+            presentation.contMediaFullscreen({
+              media: presentation.leafMediaImg({
+                src: "testimage_square.svg",
+              }).root,
+            }).root,
+          ]);
+        }
+        break;
       case "#form":
         {
           const errInput = presentation.leafInputPairText({

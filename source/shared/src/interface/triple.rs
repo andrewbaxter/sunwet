@@ -368,6 +368,24 @@ impl TS for Node {
     fn inline_flattened() -> String {
         return SerdeNode::inline_flattened();
     }
+
+    fn visit_dependencies(v: &mut impl ts_rs::TypeVisitor)
+    where
+        Self: 'static,
+    {
+        SerdeNode::visit_dependencies(v);
+    }
+
+    fn visit_generics(v: &mut impl ts_rs::TypeVisitor)
+    where
+        Self: 'static,
+    {
+        SerdeNode::visit_generics(v);
+    }
+
+    fn output_path() -> Option<std::path::PathBuf> {
+        SerdeNode::output_path()
+    }
 }
 
 pub struct StrNode(pub Node);
