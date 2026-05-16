@@ -218,9 +218,12 @@
         }).root,
         expand: presentation.contViewTable({
           parentConRestricted: false,
+          parentOrientation: "down_right",
+          parentOrientationType: "grid",
+          transAlign: "middle",
           orientation: "right_down",
           conScroll: true,
-          gap: "0.2cm",
+          rowGap: "0.2cm",
           children: tracks,
         }).root,
       }).root;

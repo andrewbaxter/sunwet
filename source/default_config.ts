@@ -173,7 +173,7 @@ export const buildGlobal = async (apiTokens: {
                   orientation: "right_down",
                   row_trans_direction_downright: false,
                   con_scroll: true,
-                  gap: "0.2cm",
+                  row_gap: "0.2cm",
                   trans_size_max: albumTracksHeight,
                   elements: [
                     {
@@ -328,7 +328,7 @@ export const buildGlobal = async (apiTokens: {
                         orientation: "right_down",
                         row_trans_direction_downright: false,
                         con_scroll: true,
-                        gap: "0.2cm",
+                        row_gap: "0.2cm",
                         elements: [
                           {
                             play_button: {
@@ -579,7 +579,7 @@ export const buildGlobal = async (apiTokens: {
                         orientation: "right_down",
                         row_trans_direction_downright: false,
                         con_scroll: true,
-                        gap: "0.2cm",
+                        row_gap: "0.2cm",
                         elements: [
                           {
                             play_button: {
@@ -1019,76 +1019,71 @@ export const buildGlobal = async (apiTokens: {
         orientation: "down_right",
         trans_size_max: "20cm",
         trans_align: "middle",
+        gap: "0.3cm",
         elements: [
           {
-            layout: {
-              orientation: "right_down",
+            table: {
+              columns: 2,
+              orientation: "down_right",
+              column_gap: "0.5cm",
+              row_gap: "0.2cm",
+              row_trans_direction_downright: true,
               elements: [
-                widgetNodeLink("microblog_id", "microblog_id"),
+                // 1st
+                "space",
                 {
-                  play_button: {
-                    media_file_field: "media",
+                  layout: {
                     orientation: "right_down",
-                    name_field: "author",
-                    album_field: "url",
-                    artist_field: "author",
-                    cover_field: "media",
+                    trans_align: "end",
+                    elements: [
+                      "space",
+                      widgetNodeLink("microblog_id", "microblog_id"),
+                      {
+                        play_button: {
+                          media_file_field: "media",
+                          orientation: "right_down",
+                          name_field: "author",
+                          album_field: "url",
+                          artist_field: "author",
+                          cover_field: "media",
+                        },
+                      },
+                    ],
                   },
                 },
-              ],
-            },
-          },
-          {
-            layout: {
-              orientation: "right_down",
-              elements: [
+                // 2nd row
                 {
                   text: {
                     data: { literal: "Author" },
                     orientation: "right_down",
                   },
                 },
-                "space",
                 {
                   text: {
                     data: { field: "author" },
                     orientation: "right_down",
                   },
                 },
-              ],
-            },
-          },
-          {
-            layout: {
-              orientation: "right_down",
-              elements: [
+                // 3rd
                 {
                   text: {
                     data: { literal: "Date" },
                     orientation: "right_down",
                   },
                 },
-                "space",
                 {
                   text: {
                     data: { field: "create_timestamp" },
                     orientation: "right_down",
                   },
                 },
-              ],
-            },
-          },
-          {
-            layout: {
-              orientation: "right_down",
-              elements: [
+                // 4th
                 {
                   text: {
                     data: { literal: "URL" },
                     orientation: "right_down",
                   },
                 },
-                "space",
                 {
                   text: {
                     data: { field: "url" },
@@ -1329,7 +1324,7 @@ export const buildGlobal = async (apiTokens: {
             orientation: "right_down",
             row_trans_direction_downright: false,
             con_scroll: true,
-            gap: "0.2cm",
+            row_gap: "0.2cm",
             trans_size_max: albumTracksHeight,
             elements: [
               {

@@ -2229,8 +2229,8 @@
                   s.overflowX = "hidden";
                   s.backgroundColor = varCBackground2;
                   s.padding = `${varPViewVert} ${varPElHoriz}`;
-                  s.display = "flex";
-                  s.flexDirection = "row";
+                  s.display = "grid";
+                  s.gridTemplateColumns = "1fr";
                 },
               }),
             ],
@@ -2246,9 +2246,8 @@
               ...bodyStyles,
               ss(uniq("cont_view_element_summary"), {
                 "": (s) => {
-                  s.display = "flex";
-                  s.flexDirection = "row";
-                  // Since root view starts with right-down
+                  s.display = "grid";
+                  s.gridTemplateColumns = "1fr";
                 },
                 "::marker": (s) => {
                   s.display = "none";
@@ -3003,15 +3002,20 @@
         {},
         {
           styles_: [
+            viewTransStyle({
+              parentOrientationType: args.parentOrientationType,
+              parentOrientation: args.parentOrientation,
+              transAlign: args.transAlign,
+            }),
             ss(uniq("cont_view_table"), {
               "": (s) => {
                 s.display = "grid";
                 s.pointerEvents = "initial";
                 s.maxWidth = "100%";
               },
-              [`>.${contViewListStyle}`]: (s) => {
-                s.display = "contents";
-              },
+              //[`>.${contViewListStyle}`]: (s) => {
+              //  s.display = "contents";
+              //},
             }),
           ],
           children_: children1,
@@ -3042,15 +3046,27 @@
           out.style.gridTemplateColumns = `${conTemplate.join(" ")}`;
           break;
       }
-      if (args.gap != null) {
+      if (args.rowGap != null) {
         switch (con(args.orientation)) {
           case "up":
           case "down":
-            out.style.rowGap = args.gap;
+            out.style.rowGap = args.rowGap;
             break;
           case "left":
           case "right":
-            out.style.columnGap = args.gap;
+            out.style.columnGap = args.rowGap;
+            break;
+        }
+      }
+      if (args.columnGap != null) {
+        switch (trans(args.orientation)) {
+          case "up":
+          case "down":
+            out.style.rowGap = args.columnGap;
+            break;
+          case "left":
+          case "right":
+            out.style.columnGap = args.columnGap;
             break;
         }
       }
@@ -3286,6 +3302,8 @@
                   s.padding = "0.15cm";
                   s.maxWidth = "100%";
                   s.maxHeight = "100%";
+                  s.minWidth = "0";
+                  s.minHeight = "0";
                 },
               }),
             ],

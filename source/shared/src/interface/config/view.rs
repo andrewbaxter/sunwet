@@ -417,7 +417,10 @@ pub struct DataRowsLayoutUnaligned {
 pub struct DataRowsLayoutTable {
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
-    pub gap: Option<String>,
+    pub row_gap: Option<String>,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub column_gap: Option<String>,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
     pub con_scroll: bool,
@@ -435,6 +438,9 @@ pub struct DataRowsLayoutTable {
     /// implied trans direction is vertical, and the row_trans_direction_downright is
     /// true, then the trans direction will be down).
     pub row_trans_direction_downright: bool,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub trans_align: TransAlign,
     pub elements: Vec<Widget>,
 }
 
@@ -541,7 +547,10 @@ pub struct WidgetTable {
     pub elements: Vec<Widget>,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
-    pub gap: Option<String>,
+    pub row_gap: Option<String>,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub column_gap: Option<String>,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
     pub con_scroll: bool,
@@ -551,6 +560,9 @@ pub struct WidgetTable {
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
     pub con_size_max: Option<String>,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub trans_align: TransAlign,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS, Hash)]

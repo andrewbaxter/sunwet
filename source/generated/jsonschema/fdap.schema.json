@@ -245,6 +245,13 @@
         "row_trans_direction_downright"
       ],
       "properties": {
+        "column_gap": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "con_scroll": {
           "default": false,
           "type": "boolean"
@@ -262,13 +269,6 @@
             "$ref": "#/definitions/Widget"
           }
         },
-        "gap": {
-          "default": null,
-          "type": [
-            "string",
-            "null"
-          ]
-        },
         "orientation": {
           "description": "The converse direction is the direction of rows. The transitive direction is the direction of cells in the row.",
           "allOf": [
@@ -277,9 +277,24 @@
             }
           ]
         },
+        "row_gap": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "row_trans_direction_downright": {
           "description": "To calculate the orientation of a row, the trans axis of the table orientation becomes the con direction, combined with the row trans direction (e.g. if the implied trans direction is vertical, and the row_trans_direction_downright is true, then the trans direction will be down).",
           "type": "boolean"
+        },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
+          ]
         },
         "trans_size_max": {
           "default": null,
@@ -1615,6 +1630,18 @@
         {
           "type": "object",
           "required": [
+            "table"
+          ],
+          "properties": {
+            "table": {
+              "$ref": "#/definitions/WidgetTable"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
             "text"
           ],
           "properties": {
@@ -2244,6 +2271,82 @@
         },
         "element_width": {
           "description": "The width of the body of each element. If blank, defaults to 100%. Takes any css size value, including `calc`.",
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "WidgetTable": {
+      "type": "object",
+      "required": [
+        "columns",
+        "elements",
+        "orientation",
+        "row_trans_direction_downright"
+      ],
+      "properties": {
+        "column_gap": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "columns": {
+          "description": "Number of columns. Every N elements form a row.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "con_scroll": {
+          "default": false,
+          "type": "boolean"
+        },
+        "con_size_max": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "elements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Widget"
+          }
+        },
+        "orientation": {
+          "description": "The converse direction is the direction of rows. The transitive direction is the direction of cells in the row.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Orientation"
+            }
+          ]
+        },
+        "row_gap": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "row_trans_direction_downright": {
+          "description": "To calculate the orientation of a row, the trans axis of the table orientation becomes the con direction, combined with the row trans direction (e.g. if the implied trans direction is vertical, and the row_trans_direction_downright is true, then the trans direction will be down).",
+          "type": "boolean"
+        },
+        "trans_align": {
+          "default": "start",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransAlign"
+            }
+          ]
+        },
+        "trans_size_max": {
           "default": null,
           "type": [
             "string",

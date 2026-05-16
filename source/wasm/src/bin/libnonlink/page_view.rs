@@ -428,12 +428,16 @@ impl Build {
         }
         return style_export::cont_view_table(style_export::ContViewTableArgs {
             parent_con_restricted: bctx.is_con_restricted(),
+            parent_orientation: bctx.parent_orientation,
+            parent_orientation_type: bctx.parent_orientation_type,
             orientation: config_at.orientation,
+            trans_align: config_at.trans_align,
             con_scroll: config_at.con_scroll,
             con_size_max: config_at.con_size_max.clone(),
             trans_2_size_max: config_at.trans_size_max.clone(),
             children: rows,
-            gap: config_at.gap.clone(),
+            row_gap: config_at.row_gap.clone(),
+            column_gap: config_at.column_gap.clone(),
         }).root;
     }
 
@@ -625,12 +629,16 @@ impl Build {
                         }
                         out = style_export::cont_view_table(style_export::ContViewTableArgs {
                             parent_con_restricted: bctx.is_con_restricted(),
+                            parent_orientation: bctx.parent_orientation,
+                            parent_orientation_type: bctx.parent_orientation_type,
                             orientation: config_table.orientation,
+                            trans_align: config_at.trans_align,
                             con_scroll: config_table.con_scroll,
                             con_size_max: config_table.con_size_max.clone(),
                             trans_2_size_max: config_table.trans_size_max.clone(),
                             children: rows,
-                            gap: config_table.gap.clone(),
+                            row_gap: config_table.row_gap.clone(),
+                            column_gap: config_table.column_gap.clone(),
                         }).root;
                     },
                 }
@@ -1265,7 +1273,7 @@ fn build_widget_root_data_rows(
                             restrict_x: true,
                             restrict_y: config_at.element_height.is_some(),
                             parent_orientation: Orientation::DownRight,
-                            parent_orientation_type: OrientationType::Flex,
+                            parent_orientation_type: OrientationType::Grid,
                         }, &config_at.element_body, &config_query_params, &vec![i], &data_at).await,
                         height: config_at.element_height.clone(),
                         expand: match &config_at.element_expansion {
@@ -1274,7 +1282,7 @@ fn build_widget_root_data_rows(
                                 restrict_x: true,
                                 restrict_y: false,
                                 parent_orientation: Orientation::DownRight,
-                                parent_orientation_type: OrientationType::Flex,
+                                parent_orientation_type: OrientationType::Grid,
                             }, &exp, &config_query_params, &vec![i], &data_at).await),
                         },
                     }).root);
