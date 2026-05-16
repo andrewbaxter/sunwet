@@ -1006,6 +1006,12 @@ export const buildGlobal = async (apiTokens: {
   const displayMicroblogMedia: sunwet.WidgetRootDataRows = {
     data: { query: "root" },
     element_body: {
+      media: {
+        data: { field: "media" },
+        height: "30dvh",
+      },
+    },
+    element_expansion: {
       layout: {
         orientation: "down_right",
         elements: [
@@ -1025,7 +1031,6 @@ export const buildGlobal = async (apiTokens: {
                     orientation: "right_down",
                     elements: [
                       widgetNodeLink("microblog_id", "microblog_id"),
-                      "space",
                       {
                         play_button: {
                           media_file_field: "media",
@@ -1046,8 +1051,6 @@ export const buildGlobal = async (apiTokens: {
                       {
                         text: {
                           data: { literal: "Author" },
-                          font_size: "12pt",
-                          color: "rgba(78, 94, 119, 0.8)",
                           orientation: "right_down",
                         },
                       },
@@ -1055,7 +1058,6 @@ export const buildGlobal = async (apiTokens: {
                       {
                         text: {
                           data: { field: "author" },
-                          font_size: "12pt",
                           orientation: "right_down",
                         },
                       },
@@ -1069,8 +1071,6 @@ export const buildGlobal = async (apiTokens: {
                       {
                         text: {
                           data: { literal: "Date" },
-                          font_size: "12pt",
-                          color: "rgba(78, 94, 119, 0.8)",
                           orientation: "right_down",
                         },
                       },
@@ -1078,7 +1078,6 @@ export const buildGlobal = async (apiTokens: {
                       {
                         text: {
                           data: { field: "create_timestamp" },
-                          font_size: "12pt",
                           orientation: "right_down",
                         },
                       },
@@ -1092,8 +1091,6 @@ export const buildGlobal = async (apiTokens: {
                       {
                         text: {
                           data: { literal: "URL" },
-                          font_size: "12pt",
-                          color: "rgba(78, 94, 119, 0.8)",
                           orientation: "right_down",
                         },
                       },
@@ -1101,9 +1098,12 @@ export const buildGlobal = async (apiTokens: {
                       {
                         text: {
                           data: { field: "url" },
-                          font_size: "12pt",
-                          con_size_mode: "ellipsize",
+                          con_size_mode: "wrap",
                           orientation: "right_down",
+                          link: {
+                            title: { literal: {} },
+                            dest: { plain: { field: "url" } },
+                          },
                         },
                       },
                     ],
@@ -1112,7 +1112,6 @@ export const buildGlobal = async (apiTokens: {
                 {
                   text: {
                     data: { field: "text" },
-                    font_size: "12pt",
                     con_size_mode: "wrap",
                     orientation: "right_down",
                   },
@@ -2315,7 +2314,11 @@ export const buildGlobal = async (apiTokens: {
           { id: "url", label: "URL", type: { text: {} } },
           { id: "author", label: "Author", type: { text: {} } },
           { id: "text", label: "Text", type: { text: {} } },
-          { id: "create_timestamp", label: "Create timestamp", type: { text: {} } },
+          {
+            id: "create_timestamp",
+            label: "Create timestamp",
+            type: { text: {} },
+          },
           { id: "media", label: "Media", type: { text: {} } },
         ],
         outputs: [
