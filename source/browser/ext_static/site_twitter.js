@@ -34,22 +34,6 @@ import { create_capture_button } from "./content2.js";
 export const do_twitter = () => {
   const BUTTON_MARKER = "sunwet-capture-btn";
 
-  // Video URLs are intercepted by site_twitter_early.js (runs in MAIN world)
-  // and stored as data attributes on a hidden DOM element.
-
-  /**
-   * Look up intercepted video URL for a tweet ID
-   * @type {(tweetId: string) => string|null}
-   */
-  const getInterceptedVideoUrl = (tweetId) => {
-    const store = document.getElementById('sunwet-video-store');
-    if (!store) {
-      console.warn("[sunwet] video store element not found in DOM");
-      return null;
-    }
-    return store.getAttribute('data-tweet-' + tweetId);
-  };
-
   /**
    * Convert Twitter image URL to original quality
    * @type {(url: string) => string}
@@ -73,21 +57,6 @@ export const do_twitter = () => {
    * @type {() => Promise<{queryId: string, endpoint: string, features: string|null, fieldToggles: string|null}|null>}
    */
   const findQueryIdFromScripts = async () => {
-    // First check if the intercept already captured one
-    const store = document.getElementById('sunwet-video-store');
-    if (store) {
-      const id = store.getAttribute('data-gql-id');
-      const ep = store.getAttribute('data-gql-endpoint');
-      if (id && ep) {
-        return {
-          queryId: id,
-          endpoint: ep,
-          features: store.getAttribute('data-gql-features'),
-          fieldToggles: store.getAttribute('data-gql-field-toggles'),
-        };
-      }
-    }
-
     // Scan Twitter's loaded script bundles for query ID
     const scripts = Array.from(document.querySelectorAll('script[src*="abs.twimg.com"]'));
     for (const script of scripts) {
@@ -113,7 +82,7 @@ export const do_twitter = () => {
 
   /**
    * Fetch video URL from Twitter's GraphQL API.
-   * Uses captured query params from intercepted requests, or scans bundles for the query ID.
+   * Scans bundles for the query ID.
    * @type {(tweetId: string) => Promise<string|null>}
    */
   const fetchVideoUrlFromApi = async (tweetId) => {
@@ -188,12 +157,6 @@ export const do_twitter = () => {
         }
       };
       findVideo(json, 0);
-      if (bestUrl) {
-        const store = document.getElementById('sunwet-video-store');
-        if (store) {
-          store.setAttribute('data-tweet-' + tweetId, bestUrl);
-        }
-      }
       return bestUrl;
     } catch (err) {
       console.warn("[sunwet] fetchVideoUrlFromApi error:", err);
@@ -202,11 +165,10 @@ export const do_twitter = () => {
   };
 
   /**
-   * Get video URL from video element, using intercepted API data or direct API call
+   * Get video URL from video element, using direct API call or DOM fallback
    * @type {(videoEl: HTMLVideoElement, article: HTMLElement) => Promise<string>}
    */
   const getVideoUrl = async (videoEl, article) => {
-    // Try to find the tweet ID from the article and look up intercepted video URL
     const timeEl = article.querySelector("time[datetime]");
     const postLink = /** @type {HTMLAnchorElement|null} */ (
       timeEl?.closest('a[href*="/status/"]')
@@ -215,12 +177,6 @@ export const do_twitter = () => {
       const match = postLink.href.match(/\/status\/(\d+)/);
       if (match) {
         const tweetId = match[1];
-        const intercepted = getInterceptedVideoUrl(tweetId);
-        if (intercepted) {
-          return intercepted;
-        }
-        // Fallback: fetch directly from API
-        console.log("[sunwet] no intercepted URL for tweet", tweetId, "- fetching from API");
         const fetched = await fetchVideoUrlFromApi(tweetId);
         if (fetched) {
           return fetched;
