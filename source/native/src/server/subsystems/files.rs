@@ -238,8 +238,10 @@ pub async fn handle_form_commit(state: Arc<State>, c: ReqCommitForm) -> Result<R
 
     // Build form data
     let mut add = vec![];
-    let get_data = |field| {
-        let v = c.parameters.get(field).context(format!("Missing field [{}]", field))?;
+    let get_data = |field: &str| -> Result<Vec<Node>, loga::Error> {
+        let Some(v) = c.parameters.get(field) else {
+            return Ok(vec![]);
+        };
         match v {
             TreeNode::Scalar(v) => {
                 return Ok(vec![v.clone()]);

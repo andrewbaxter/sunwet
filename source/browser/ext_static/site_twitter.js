@@ -191,7 +191,7 @@ export const do_twitter = () => {
       parameters.text = data.text;
     }
     if (data.timestampUtc) {
-      parameters.date = data.timestampUtc;
+      parameters.create_timestamp = data.timestampUtc;
     }
     /** @type {Array<{data: Uint8Array, mimetype: string, parameter: string}>} */
     const files = [];

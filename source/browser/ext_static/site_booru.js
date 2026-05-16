@@ -367,7 +367,7 @@ export const do_booru = () => {
   const buildPostCommit = (id, data) => {
     /** @type {CaptureImageParams} */
     const parameters = {};
-    parameters.page_url = data.pageUrl;
+    parameters.url = data.pageUrl;
     if (data.sourceUrl) {
       parameters.source_url = data.sourceUrl;
     }

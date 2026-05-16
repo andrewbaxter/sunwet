@@ -3,7 +3,7 @@
     (
         -< "sunwet/1/media" first {
             => microblog_id
-            ( -> "sunwet/1/date" first { => date } )
+            ( -> "sunwet/1/create_timestamp" first { => create_timestamp } )
             ( -> "sunwet/1/url" first { => url } )
             ( -> "sunwet/1/author" first { => author } )
             ( -> "sunwet/1/text" first { => text } )

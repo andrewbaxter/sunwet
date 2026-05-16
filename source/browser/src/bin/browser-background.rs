@@ -117,7 +117,7 @@ async fn handle_check_existence(msg: &JsValue) -> Result<JsValue, String> {
     let log: Rc<dyn Log> = Rc::new(ConsoleLog {});
     let req = ReqViewQuery {
         view_id: ViewId(view_query),
-        query: "".to_string(),
+        query: "root".to_string(),
         parameters: {
             let mut map = HashMap::new();
             map.insert("id".to_string(), Node::from(id));
@@ -126,12 +126,33 @@ async fn handle_check_existence(msg: &JsValue) -> Result<JsValue, String> {
         pagination: None,
     };
     let resp = req_post_json_with_headers(&log, &base_url, &headers, req).await?;
-    let exists = match resp.rows {
-        RespQueryRows::Scalar(v) => !v.is_empty(),
-        RespQueryRows::Record(v) => !v.is_empty(),
+    let rows = match resp.rows {
+        RespQueryRows::Scalar(_) => {
+            return Err("expected record rows from existence query, got scalar".to_string());
+        },
+        RespQueryRows::Record(v) => v,
     };
     let result = js_sys::Object::new();
-    js_sys::Reflect::set(&result, &JsValue::from_str("exists"), &JsValue::from_bool(exists))
+    let Some(row) = rows.into_iter().next() else {
+        js_sys::Reflect::set(&result, &JsValue::from_str("exists"), &JsValue::from_bool(false))
+            .map_err(|e| format!("{:?}", e))?;
+        return Ok(result.into());
+    };
+    let id_node = match row.get("id") {
+        Some(TreeNode::Scalar(node)) => node.clone(),
+        Some(other) => {
+            return Err(format!("expected scalar id in existence query result, got {:?}", other));
+        },
+        None => {
+            return Err("existence query result row missing id field".to_string());
+        },
+    };
+    let Node::Value(serde_json::Value::String(id_str)) = &id_node else {
+        return Err(format!("expected string id in existence query result, got {:?}", id_node));
+    };
+    js_sys::Reflect::set(&result, &JsValue::from_str("exists"), &JsValue::from_bool(true))
+        .map_err(|e| format!("{:?}", e))?;
+    js_sys::Reflect::set(&result, &JsValue::from_str("existing_id"), &JsValue::from_str(id_str))
         .map_err(|e| format!("{:?}", e))?;
     Ok(result.into())
 }
@@ -157,6 +178,17 @@ async fn handle_capture(msg: &JsValue) -> Result<JsValue, String> {
                 .unwrap_or_default();
         parameters.insert(key, TreeNode::Scalar(Node::from(val)));
     }
+    let existing_id =
+        js_sys::Reflect::get(msg, &JsValue::from_str("existing_id"))
+            .ok()
+            .and_then(|v| v.as_string());
+    parameters.entry("id".to_string()).or_insert_with(|| {
+        let id_value = existing_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        TreeNode::Scalar(Node::Value(serde_json::Value::String(id_value)))
+    });
+    parameters.entry("stamp".to_string()).or_insert_with(|| {
+        TreeNode::Scalar(Node::Value(serde_json::Value::String(chrono::Utc::now().to_rfc3339())))
+    });
     let files_js =
         js_sys::Reflect::get(msg, &JsValue::from_str("files"))
             .map_err(|_| "missing files".to_string())?;
