@@ -57,6 +57,7 @@ in
     ${pkgs.coreutils}/bin/mkdir -p browser_wasm
     ${shared.nativeBindgen}/bin/bind_wasm --in-wasm ${wasmUnbound}/bin/browser-content.wasm --out-name content2 --out-dir browser_wasm
     ${shared.nativeBindgen}/bin/bind_wasm --in-wasm ${wasmUnbound}/bin/browser-options.wasm --out-name options2 --out-dir browser_wasm
+
     hoj_cp browser_wasm/content2.d.ts browser_src/ext_static/content2.d.ts
     hoj_cp browser_wasm/options2.d.ts browser_src/ext_static/options2.d.ts
     (cd browser_src/ext_static && ${pkgs.typescript}/bin/tsc --noEmit)
@@ -66,6 +67,7 @@ in
 
     hoj_cp browser_src/ext_static stage/browser_chrome
     hoj_cp browser_wasm/* stage/browser_chrome/
+    ${pkgs.coreutils}/bin/rm -rf stage/browser_chrome/snippets
     chrome_browser_manifest_path=stage/browser_chrome/manifest.json
     hoj_merge browser_src/browser_manifest.json ./browser_src/browser_manifest_chrome.json > $chrome_browser_manifest_path
     hoj_set $chrome_browser_manifest_path _PLACEHOLDER_BROWSERIDKEY '${extensionIdKeyChrome}'
@@ -73,6 +75,7 @@ in
 
     hoj_cp browser_src/ext_static stage/browser_firefox
     hoj_cp browser_wasm/* stage/browser_firefox/
+    ${pkgs.coreutils}/bin/rm -rf stage/browser_firefox/snippets
     firefox_browser_manifest_path=stage/browser_firefox/manifest.json
     hoj_merge browser_src/browser_manifest.json ./browser_src/browser_manifest_firefox.json > $firefox_browser_manifest_path
     hoj_set $firefox_browser_manifest_path _PLACEHOLDER_BROWSERID '${extensionIdFirefox}'
