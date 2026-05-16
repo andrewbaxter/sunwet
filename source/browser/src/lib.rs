@@ -132,6 +132,9 @@ pub struct CaptureCallbackResult {
     pub parameters: HashMap<String, String>,
 }
 
+#[wasm_bindgen(typescript_custom_section)]
+const TS_CAPTURE_FILE: &str = "export interface CaptureCallbackResult { form_id: string; parameters: Record<string, string>; files: Array<{data: Uint8Array, mimetype: string, parameter: string}>; }";
+
 fn extract_callback_files(js_value: &JsValue) -> Result<Vec<CaptureFile>, String> {
     let files_js =
         js_sys::Reflect::get(js_value, &JsValue::from_str("files"))
