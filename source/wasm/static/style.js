@@ -3339,20 +3339,41 @@
       }),
     };
   };
+  const lazyVideoObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      const video = /** @type {HTMLVideoElement} */ (entry.target);
+      if (entry.isIntersecting) {
+        video.style.width = "";
+        video.style.height = "";
+        if (video.dataset.src) {
+          video.src = video.dataset.src;
+        }
+        video.play();
+      } else {
+        video.pause();
+        if (video.videoWidth) {
+          video.style.width = video.videoWidth + "px";
+          video.style.height = video.videoHeight + "px";
+        }
+        video.removeAttribute("src");
+        video.load();
+      }
+    }
+  });
   presentation.leafViewVideo = /** @type { Presentation["leafViewVideo"] } */ (
     args,
   ) => {
     const media = e(
       "video",
       {
-        src: args.src,
-        autoplay: true,
         loop: true,
         muted: true,
-        preload: "metadata",
+        preload: "none",
       },
       { styles_: [viewMediaLinkMediaStyle] },
     );
+    media.dataset.src = args.src;
+    lazyVideoObserver.observe(media);
     return {
       root: leafMedia({
         parentOrientation: args.parentOrientation,
