@@ -333,6 +333,11 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         Func {
+            name: "leafInputTextAutocomplete",
+            args: vec![("id", &optstring_), ("title", &string_), ("value", &string_)],
+            returns: vec![("root", &el_), ("input", &el_), ("datalist", &el_)],
+        },
+        Func {
             name: "leafInputNumber",
             args: vec![("id", &optstring_), ("title", &string_), ("value", &string_)],
             returns: vec![("root", &el_)],
@@ -386,6 +391,11 @@ fn main() {
             name: "leafInputPairText",
             args: vec![("id", &string_), ("title", &string_), ("value", &string_)],
             returns: vec![("root", &el_), ("input", &el_)],
+        },
+        Func {
+            name: "leafInputPairTextAutocomplete",
+            args: vec![("id", &string_), ("title", &string_), ("value", &string_)],
+            returns: vec![("root", &el_), ("input", &el_), ("datalist", &el_)],
         },
         Func {
             name: "leafInputPairTextFixed",

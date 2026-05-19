@@ -108,13 +108,17 @@ use {
     },
     moka::future::Cache,
     shared::interface::{
-        config::view::ViewId,
+        config::{
+            form::FormId,
+            view::ViewId,
+        },
         query::Query,
         triple::{
             FileHash,
             Node,
         },
         wire::{
+            AutocompleteField,
             C2SReq,
             NodeMeta,
             Pagination,
@@ -209,6 +213,69 @@ fn gather_record_files(files: &mut Vec<FileHash>, r: &TreeNode) {
             }
         },
     }
+}
+
+/// Build an FTS5 query string from user input for autocomplete.
+/// Splits into terms, quotes each, adds prefix `*` to each term for partial matching.
+/// Returns `raw:` prefixed string for the Search AST node.
+fn build_autocomplete_fts_query(text: &str) -> String {
+    let terms: Vec<&str> = text.split_whitespace().collect();
+    if terms.is_empty() {
+        return "raw:\"\"*".to_string();
+    }
+    let fts_terms: Vec<String> =
+        terms
+            .iter()
+            .map(|t| format!("\"{}\"*", t.replace("\"", "\"\"")))
+            .collect();
+    format!("raw:{}", fts_terms.join(" AND "))
+}
+
+async fn autocomplete_values_via_query(
+    state: &Arc<State>,
+    search_text: &str,
+    predicate_context: Option<(&str, shared::interface::query::MoveDirection)>,
+) -> Result<Vec<String>, VisErr<loga::Error>> {
+    use shared::interface::query::*;
+    let fts_query = build_autocomplete_fts_query(search_text);
+    let mut steps = vec![];
+    if let Some((pred, dir)) = predicate_context {
+        steps.push(Step {
+            specific: StepSpecific::Move(StepMove {
+                dir,
+                predicate: StrValue::Literal(pred.to_string()),
+                filter: None,
+            }),
+            sort: None,
+            first: false,
+        });
+    }
+    let query = Query {
+        chain_head: ChainHead {
+            root: Some(ChainRoot::Search(StrValue::Literal(fts_query))),
+            steps,
+        },
+        suffix: None,
+    };
+    let results =
+        query::execute_query(
+            &state.db,
+            query,
+            HashMap::new(),
+            Some(Pagination { count: 20, seed: None, key: None }),
+        ).await?;
+    let mut out = vec![];
+    match results {
+        query::QueryResults::Scalar(nodes) => {
+            for node in nodes {
+                if let Node::Value(serde_json::Value::String(s)) = node {
+                    out.push(s);
+                }
+            }
+        },
+        _ => { },
+    }
+    Ok(out)
 }
 
 async fn handle_query_req(
@@ -406,6 +473,12 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                             impl ReqResp for shared::interface::wire::ReqCheckStart { }
 
                             impl ReqResp for shared::interface::wire::ReqCheckGet { }
+
+                            impl ReqResp for shared::interface::wire::ReqAutocompleteFree { }
+
+                            impl ReqResp for shared::interface::wire::ReqAutocompleteFormField { }
+
+                            impl ReqResp for shared::interface::wire::ReqAutocompleteViewParam { }
                         }
 
                         use resp::ReqResp;
@@ -866,6 +939,284 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     }
                                 });
                                 resp = req.respond()(());
+                            },
+                            C2SReq::AutocompleteFree(req) => {
+                                match check_is_admin(&state, &identity, "Autocomplete").await.err_internal()? {
+                                    AccessRes::Yes => { },
+                                    AccessRes::NoAccess => {
+                                        return Ok(response_403());
+                                    },
+                                    AccessRes::NoIdent => {
+                                        return Ok(response_401());
+                                    },
+                                }
+                                let responder = req.respond();
+                                let results = match req.field {
+                                    AutocompleteField::Predicate => {
+                                        tx(&state.db, {
+                                            move |db| -> Result<_, loga::Error> {
+                                                dbutil::autocomplete_predicates(db, &req.prefix, &req.suffix)
+                                            }
+                                        }).await.err_internal()?
+                                    },
+                                    AutocompleteField::Value => {
+                                        autocomplete_values_via_query(&state, &req.prefix, None).await?
+                                    },
+                                };
+                                resp = responder(results);
+                            },
+                            C2SReq::AutocompleteFormField(req) => {
+                                let global_config = get_global_config(&state).await.err_internal()?;
+                                let Some(form) = global_config.forms.get(&req.form_id) else {
+                                    return Err(
+                                        loga::err_with(
+                                            "No known form with id",
+                                            ea!(form = req.form_id),
+                                        ),
+                                    ).err_external();
+                                };
+                                // Check access
+                                {
+                                    let grants = get_iam_grants(&state, &identity).await.err_internal()?;
+                                    let res = shed!{
+                                        'ok _;
+                                        match &grants {
+                                            IamGrants::Admin => {
+                                                break 'ok AccessRes::Yes;
+                                            },
+                                            IamGrants::Limited(grants) => {
+                                                if grants.forms.contains(&req.form_id) {
+                                                    break 'ok AccessRes::Yes;
+                                                }
+                                            },
+                                        }
+                                        if matches!(identity, Identity::Public) {
+                                            break 'ok AccessRes::NoIdent;
+                                        } else {
+                                            break 'ok AccessRes::NoAccess;
+                                        }
+                                    };
+                                    match res {
+                                        AccessRes::Yes => { },
+                                        AccessRes::NoIdent => {
+                                            return Ok(response_401());
+                                        },
+                                        AccessRes::NoAccess => {
+                                            return Ok(response_403());
+                                        },
+                                    }
+                                }
+                                let responder = req.respond();
+                                // Analyze form outputs to find predicate context
+                                use shared::interface::config::form::{
+                                    InputOrInline,
+                                    InputOrInlineText,
+                                };
+                                use shared::interface::query::MoveDirection;
+                                let mut predicate_context: Option<(String, MoveDirection)> = None;
+                                let mut is_predicate = false;
+                                for output in &form.item.outputs {
+                                    // Check if field is used as predicate
+                                    if let InputOrInlineText::Input(id) = &output.predicate {
+                                        if *id == req.field_id {
+                                            is_predicate = true;
+                                            break;
+                                        }
+                                    }
+                                    // Check if field is used as subject
+                                    if matches!(&output.subject, InputOrInline::Input(id) if *id == req.field_id) {
+                                        if let InputOrInlineText::Inline(pred) = &output.predicate {
+                                            // Subject follows predicate forward to reach object
+                                            predicate_context = Some((pred.clone(), MoveDirection::Forward));
+                                        }
+                                        break;
+                                    }
+                                    // Check if field is used as object
+                                    if matches!(&output.object, InputOrInline::Input(id) if *id == req.field_id) {
+                                        if let InputOrInlineText::Inline(pred) = &output.predicate {
+                                            // Object follows predicate backward to reach subject
+                                            predicate_context = Some((pred.clone(), MoveDirection::Backward));
+                                        }
+                                        break;
+                                    }
+                                }
+                                let results = if is_predicate {
+                                    tx(&state.db, {
+                                        move |db| -> Result<_, loga::Error> {
+                                            dbutil::autocomplete_predicates(db, &req.prefix, &req.suffix)
+                                        }
+                                    }).await.err_internal()?
+                                } else {
+                                    autocomplete_values_via_query(
+                                        &state,
+                                        &req.prefix,
+                                        predicate_context.as_ref().map(|(p, d)| (p.as_str(), *d)),
+                                    ).await?
+                                };
+                                resp = responder(results);
+                            },
+                            C2SReq::AutocompleteViewParam(req) => {
+                                let global_config = get_global_config(&state).await.err_internal()?;
+                                let Some(view) = global_config.views.get(&req.view_id) else {
+                                    return Err(
+                                        loga::err_with(
+                                            "No known view with id",
+                                            ea!(view = req.view_id),
+                                        ),
+                                    ).err_external();
+                                };
+                                // Check access
+                                {
+                                    let grants = get_iam_grants(&state, &identity).await.err_internal()?;
+                                    let res = shed!{
+                                        'ok _;
+                                        match &grants {
+                                            IamGrants::Admin => {
+                                                break 'ok AccessRes::Yes;
+                                            },
+                                            IamGrants::Limited(grants) => {
+                                                if grants.views.contains(&req.view_id) {
+                                                    break 'ok AccessRes::Yes;
+                                                }
+                                            },
+                                        }
+                                        if matches!(identity, Identity::Public) {
+                                            break 'ok AccessRes::NoIdent;
+                                        } else {
+                                            break 'ok AccessRes::NoAccess;
+                                        }
+                                    };
+                                    match res {
+                                        AccessRes::Yes => { },
+                                        AccessRes::NoIdent => {
+                                            return Ok(response_401());
+                                        },
+                                        AccessRes::NoAccess => {
+                                            return Ok(response_403());
+                                        },
+                                    }
+                                }
+                                let responder = req.respond();
+                                // Analyze view queries to find context for this parameter
+                                use shared::interface::query::{
+                                    StrValue,
+                                    Value,
+                                    MoveDirection,
+                                    StepSpecific,
+                                    FilterExpr,
+                                    FilterSuffix,
+                                    ChainRoot,
+                                };
+                                let mut is_predicate = false;
+                                let mut predicate_context: Option<(String, MoveDirection)> = None;
+                                'outer: for query in view.item.queries.values() {
+                                    fn find_param_context(
+                                        chain: &shared::interface::query::ChainHead,
+                                        param_key: &str,
+                                        is_predicate: &mut bool,
+                                        predicate_context: &mut Option<(String, MoveDirection)>,
+                                    ) -> bool {
+                                        if let Some(root) = &chain.root {
+                                            match root {
+                                                ChainRoot::Value(Value::Parameter(k)) if k == param_key => {
+                                                    return true;
+                                                },
+                                                ChainRoot::Search(StrValue::Parameter(k)) if k == param_key => {
+                                                    return true;
+                                                },
+                                                _ => {},
+                                            }
+                                        }
+                                        for step in &chain.steps {
+                                            match &step.specific {
+                                                StepSpecific::Move(m) => {
+                                                    if let StrValue::Parameter(k) = &m.predicate {
+                                                        if k == param_key {
+                                                            *is_predicate = true;
+                                                            return true;
+                                                        }
+                                                    }
+                                                    if let Some(f) = &m.filter {
+                                                        fn check_filter(
+                                                            f: &FilterExpr,
+                                                            param_key: &str,
+                                                            step_pred: &StrValue,
+                                                            step_dir: MoveDirection,
+                                                            predicate_context: &mut Option<(String, MoveDirection)>,
+                                                        ) -> bool {
+                                                            match f {
+                                                                FilterExpr::Exists(e) => {
+                                                                    if let Some(suffix) = &e.suffix {
+                                                                        let found = match suffix {
+                                                                            FilterSuffix::Simple(s) => {
+                                                                                matches!(&s.value, Value::Parameter(k) if k == param_key)
+                                                                            },
+                                                                            FilterSuffix::Like(s) => {
+                                                                                matches!(&s.value, StrValue::Parameter(k) if k == param_key)
+                                                                            },
+                                                                        };
+                                                                        if found {
+                                                                            if let StrValue::Literal(pred) = step_pred {
+                                                                                *predicate_context = Some((pred.clone(), step_dir));
+                                                                            }
+                                                                            return true;
+                                                                        }
+                                                                    }
+                                                                    false
+                                                                },
+                                                                FilterExpr::Junction(j) => {
+                                                                    j.subexprs.iter().any(
+                                                                        |e| check_filter(e, param_key, step_pred, step_dir, predicate_context),
+                                                                    )
+                                                                },
+                                                            }
+                                                        }
+                                                        if check_filter(f, param_key, &m.predicate, m.dir, predicate_context) {
+                                                            return true;
+                                                        }
+                                                    }
+                                                },
+                                                StepSpecific::Recurse(r) => {
+                                                    if find_param_context(&r.subchain, param_key, is_predicate, predicate_context) {
+                                                        return true;
+                                                    }
+                                                },
+                                                StepSpecific::Junction(j) => {
+                                                    for c in &j.subchains {
+                                                        if find_param_context(c, param_key, is_predicate, predicate_context) {
+                                                            return true;
+                                                        }
+                                                    }
+                                                },
+                                            }
+                                        }
+                                        false
+                                    }
+                                    if find_param_context(&query.chain_head, &req.param_key, &mut is_predicate, &mut predicate_context) {
+                                        break 'outer;
+                                    }
+                                    if let Some(suffix) = &query.suffix {
+                                        for subchain in &suffix.chain_tail.subchains {
+                                            if find_param_context(&subchain.head, &req.param_key, &mut is_predicate, &mut predicate_context) {
+                                                break 'outer;
+                                            }
+                                        }
+                                    }
+                                }
+                                let results = if is_predicate {
+                                    tx(&state.db, {
+                                        move |db| -> Result<_, loga::Error> {
+                                            dbutil::autocomplete_predicates(db, &req.prefix, &req.suffix)
+                                        }
+                                    }).await.err_internal()?
+                                } else {
+                                    autocomplete_values_via_query(
+                                        &state,
+                                        &req.prefix,
+                                        predicate_context.as_ref().map(|(p, d)| (p.as_str(), *d)),
+                                    ).await?
+                                };
+                                resp = responder(results);
                             },
                             C2SReq::CheckGet(req) => shed!{
                                 'done _;

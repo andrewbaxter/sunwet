@@ -1470,6 +1470,68 @@
     };
   };
 
+  presentation.leafInputTextAutocomplete =
+    /** @type {Presentation["leafInputTextAutocomplete"]} */ (args) => {
+      const listId = `datalist_${Math.random().toString(36).slice(2)}`;
+      const datalist = e("datalist", { id: listId }, {});
+      const input = /** @type {HTMLInputElement} */ (
+        e(
+          "input",
+          {
+            type: "text",
+            title: args.title,
+            value: args.value,
+          },
+          {
+            attrs_: { list: listId },
+            styles_: [
+              leafInputStyle,
+              leafInputBorderStyle,
+              ss(uniq("leaf_input_text_autocomplete"), {
+                "": (s) => {
+                  s.background = "transparent";
+                  s.border = "none";
+                  s.borderBottom = `${varLThin} solid ${varCInputUnderline}`;
+                  s.color = "inherit";
+                  s.font = "inherit";
+                  s.width = "100%";
+                  s.boxSizing = "border-box";
+                  s.outline = "none";
+                },
+                "::placeholder": (s) => {
+                  s.opacity = varONoninteractive;
+                },
+              }),
+            ],
+          },
+        )
+      );
+      if (args.id != null) {
+        input.id = args.id;
+      }
+      input.placeholder = args.title;
+      const root = e(
+        "span",
+        {},
+        {
+          styles_: [
+            ss(uniq("leaf_input_text_autocomplete_wrap"), {
+              "": (s) => {
+                s.display = "inline-flex";
+                s.width = "100%";
+              },
+            }),
+          ],
+          children_: [input, datalist],
+        },
+      );
+      return {
+        root: root,
+        input: input,
+        datalist: datalist,
+      };
+    };
+
   presentation.leafInputNumber =
     /** @type {Presentation["leafInputNumber"]} */ (args) => {
       const out =
@@ -1755,6 +1817,23 @@
           input: input.root,
         }).root,
         input: input.root,
+      };
+    };
+  presentation.leafInputPairTextAutocomplete =
+    /** @type {Presentation["leafInputPairTextAutocomplete"]} */ (args) => {
+      const input = presentation.leafInputTextAutocomplete({
+        id: args.id,
+        title: args.title,
+        value: args.value,
+      });
+      return {
+        root: presentation.leafInputPair({
+          label: args.title,
+          inputId: args.id,
+          input: input.root,
+        }).root,
+        input: input.input,
+        datalist: input.datalist,
       };
     };
   presentation.leafInputPairTextFixed =

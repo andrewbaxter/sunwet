@@ -362,6 +362,70 @@ impl C2SReqTrait for ReqCheckGet {
     type Resp = Option<RespCheck>;
 }
 
+// # Autocomplete
+#[derive(Serialize, Deserialize, JsonSchema, Clone)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum AutocompleteField {
+    Predicate,
+    Value,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema, Clone)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct ReqAutocompleteFree {
+    pub field: AutocompleteField,
+    pub prefix: String,
+    pub suffix: String,
+}
+
+impl Into<C2SReq> for ReqAutocompleteFree {
+    fn into(self) -> C2SReq {
+        return C2SReq::AutocompleteFree(self);
+    }
+}
+
+impl C2SReqTrait for ReqAutocompleteFree {
+    type Resp = Vec<String>;
+}
+
+#[derive(Serialize, Deserialize, JsonSchema, Clone)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct ReqAutocompleteFormField {
+    pub form_id: FormId,
+    pub field_id: String,
+    pub prefix: String,
+    pub suffix: String,
+}
+
+impl Into<C2SReq> for ReqAutocompleteFormField {
+    fn into(self) -> C2SReq {
+        return C2SReq::AutocompleteFormField(self);
+    }
+}
+
+impl C2SReqTrait for ReqAutocompleteFormField {
+    type Resp = Vec<String>;
+}
+
+#[derive(Serialize, Deserialize, JsonSchema, Clone)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct ReqAutocompleteViewParam {
+    pub view_id: ViewId,
+    pub param_key: String,
+    pub prefix: String,
+    pub suffix: String,
+}
+
+impl Into<C2SReq> for ReqAutocompleteViewParam {
+    fn into(self) -> C2SReq {
+        return C2SReq::AutocompleteViewParam(self);
+    }
+}
+
+impl C2SReqTrait for ReqAutocompleteViewParam {
+    type Resp = Vec<String>;
+}
+
 // # Assemble
 #[derive(Serialize, Deserialize, JsonSchema, Clone)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
@@ -387,6 +451,12 @@ pub enum C2SReq {
     CheckStart(ReqCheckStart),
     /// Get the result of the last started check run.
     CheckGet(ReqCheckGet),
+    /// Autocomplete predicates or values (admin only)
+    AutocompleteFree(ReqAutocompleteFree),
+    /// Autocomplete for a form field, narrowed by form output context
+    AutocompleteFormField(ReqAutocompleteFormField),
+    /// Autocomplete for a view parameter, narrowed by query context
+    AutocompleteViewParam(ReqAutocompleteViewParam),
 }
 
 pub fn alphanumeric_only(s: &str) -> String {
