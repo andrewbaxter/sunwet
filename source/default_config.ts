@@ -1736,6 +1736,15 @@ export const buildGlobal = async (apiTokens: {
                 },
               },
               {
+                id: "microblog_media_by_create_date",
+                name: "media by created date",
+                detail: {
+                  page: {
+                    view: { view_id: "microblog_media_by_create_date" },
+                  },
+                },
+              },
+              {
                 id: "microblog_media_by_random",
                 name: "media random",
                 detail: {
@@ -2148,6 +2157,19 @@ export const buildGlobal = async (apiTokens: {
             queryMicroblogSelect,
             {
               fields: [["desc", "add_timestamp"]],
+            },
+          ),
+        },
+        track_end_mode: "loop",
+        display: displayMicroblogMedia,
+      },
+      microblog_media_by_create_date: {
+        queries: {
+          root: await compileQueryHeadTail(
+            queryMicroblogHead,
+            queryMicroblogSelect,
+            {
+              fields: [["desc", "create_timestamp"]],
             },
           ),
         },
