@@ -61,11 +61,7 @@ pub struct OnliningState {
 const OPFS_ONLINE_COMMIT_FILENAME: &str = "commit.json";
 const OPFS_ONLINE_COMMIT_ROOT: &str = "online_commits";
 
-pub async fn store_commit(
-    log: &Rc<dyn Log>,
-    commit: ReqCommit,
-    files: Vec<UploadFile>,
-) -> Result<(), String> {
+pub async fn store_commit(log: &Rc<dyn Log>, commit: ReqCommit, files: Vec<UploadFile>) -> Result<(), String> {
     request_persistent(&log).await;
     let key = Utc::now().to_rfc3339();
     let commit_dir = opfs_root().await.ensure_dir(vec![OPFS_ONLINE_COMMIT_ROOT.to_string(), key]).await?;
@@ -136,11 +132,7 @@ async fn run_onlining(state: Weak<OnliningState>, eg: EventGraph, log: Rc<dyn Lo
         let res = async {
             ta_return!((), String);
             let req: ReqCommit =
-                task_dir
-                    .get_file(vec![OPFS_ONLINE_COMMIT_FILENAME.to_string()])
-                    .await?
-                    .read_json()
-                    .await?;
+                task_dir.get_file(vec![OPFS_ONLINE_COMMIT_FILENAME.to_string()]).await?.read_json().await?;
             let need_files = req_post_json(&log, &base_url, req).await?;
             for file in need_files.incomplete {
                 let data = task_dir.get_file(vec![file.to_string()]).await?.read_binary().await?;
@@ -160,8 +152,7 @@ async fn run_onlining(state: Weak<OnliningState>, eg: EventGraph, log: Rc<dyn Lo
                     ).await?;
                 }
                 loop {
-                    let resp =
-                        req_post_json(&log, &base_url, ReqUploadFinish(file.clone())).await?;
+                    let resp = req_post_json(&log, &base_url, ReqUploadFinish(file.clone())).await?;
                     if resp.done {
                         break;
                     }

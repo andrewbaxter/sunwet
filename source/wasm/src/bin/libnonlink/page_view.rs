@@ -393,25 +393,13 @@ impl Build {
                 config_at.con_size_max.is_some(),
                 config_at.trans_size_max.is_some(),
             ).with_parent_orientation(
-                Orientation::from_components(
-                    config_at.orientation.trans(),
-                    config_at.row_trans_direction_downright,
-                ),
+                Orientation::from_components(config_at.orientation.trans(), config_at.row_trans_direction_downright),
                 OrientationType::Grid,
             );
         let mut children = vec![];
         for child_config_at in &config_at.elements {
             children.push(
-                self
-                    .build_widget(
-                        eg,
-                        child_bctx,
-                        child_config_at,
-                        config_query_params,
-                        data_id,
-                        data_at,
-                    )
-                    .await,
+                self.build_widget(eg, child_bctx, child_config_at, config_query_params, data_id, data_at).await,
             );
         }
         let mut rows: Vec<Vec<El>> = vec![];
