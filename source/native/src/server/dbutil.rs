@@ -922,3 +922,45 @@ pub fn snapshot_triples_around(
         })
     }).map_err(|e| loga::err(e.to_string()))?)
 }
+
+/// Escape a string for use in a SQL LIKE pattern.
+pub fn like_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '%' | '_' | '\\' => {
+                out.push('\\');
+                out.push(c);
+            },
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// Autocomplete predicates matching a pattern where cursor position is a wildcard.
+/// prefix and suffix are the text before and after the cursor.
+pub fn autocomplete_predicates(
+    db: &mut db::Db<impl SqliteConnection>,
+    prefix: &str,
+    suffix: &str,
+) -> Result<Vec<String>, loga::Error> {
+    let pattern = format!("{}%{}", like_escape(prefix), like_escape(suffix));
+    Ok(good_ormning::sqlite::good_query_many!(
+        db,
+        //# genemichaels-external: sql-formatter-sqlite
+        r#"select distinct
+             p."value"
+           from
+             "predicate" p
+             join "triple_snapshot" ts on ts."predicate" = p."id"
+           where
+             p."value" like ${string = pattern.as_str()} escape '\'
+           order by
+             p."value" asc
+           limit
+             20
+           "#;
+        db
+    ).context("Error executing autocomplete_predicates")?)
+}

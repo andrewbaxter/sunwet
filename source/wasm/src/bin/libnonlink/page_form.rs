@@ -202,26 +202,83 @@ pub fn build_page_form(
                         .entry(field.id.clone())
                         .or_insert_with(|| CommitNode::Node(Node::Value(serde_json::Value::String(format!("")))))
                         .clone();
-                let input_ret = style_export::leaf_input_pair_text(style_export::LeafInputPairTextArgs {
-                    id: field.id.clone(),
-                    title: field.label.clone(),
-                    value: match v {
-                        CommitNode::Node(Node::Value(serde_json::Value::String(v))) => v,
-                        _ => format!(""),
-                    },
-                });
-                let input = input_ret.root;
+                let value_str = match v {
+                    CommitNode::Node(Node::Value(serde_json::Value::String(v))) => v,
+                    _ => format!(""),
+                };
+                let input_ret =
+                    style_export::leaf_input_pair_text(style_export::LeafInputPairTextArgs {
+                        id: field.id.clone(),
+                        title: field.label.clone(),
+                        value: value_str,
+                    });
                 input_ret.input.ref_on("input", {
                     let id = field.id.clone();
                     let fs = fs.clone();
                     move |ev| {
                         fs.update(&id, CommitNode::Node(Node::Value(serde_json::Value::String(
-                            //. .
-                            ev.target().unwrap().dyn_into::<HtmlElement>().unwrap().text_content().unwrap_or_default(),
+                            ev
+                                .target()
+                                .unwrap()
+                                .dyn_into::<HtmlElement>()
+                                .unwrap()
+                                .text_content()
+                                .unwrap_or_default(),
                         ))));
                     }
                 });
-                out.push(input);
+                out.push(input_ret.root);
+            },
+            FormFieldType::Autocomplete(_field2) => {
+                let v =
+                    fs
+                        .0
+                        .data
+                        .borrow_mut()
+                        .entry(field.id.clone())
+                        .or_insert_with(|| CommitNode::Node(Node::Value(serde_json::Value::String(format!("")))))
+                        .clone();
+                let value_str = match v {
+                    CommitNode::Node(Node::Value(serde_json::Value::String(v))) => v,
+                    _ => format!(""),
+                };
+                let input_ret =
+                    style_export::leaf_input_pair_text_autocomplete(
+                        style_export::LeafInputPairTextAutocompleteArgs {
+                            id: field.id.clone(),
+                            title: field.label.clone(),
+                            value: value_str,
+                        },
+                    );
+                super::autocomplete::wire_autocomplete(
+                    &input_ret.input,
+                    &input_ret.datalist,
+                    {
+                        let form_id = id.clone();
+                        let field_id = field.id.clone();
+                        move |prefix, suffix| {
+                            shared::interface::wire::ReqAutocompleteFormField {
+                                form_id: form_id.clone(),
+                                field_id: field_id.clone(),
+                                prefix,
+                                suffix,
+                            }
+                        }
+                    },
+                );
+                input_ret.input.ref_on("input", {
+                    let id = field.id.clone();
+                    let fs = fs.clone();
+                    move |ev| {
+                        fs.update(
+                            &id,
+                            CommitNode::Node(Node::Value(serde_json::Value::String(
+                                ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap().value(),
+                            ))),
+                        );
+                    }
+                });
+                out.push(input_ret.root);
             },
             FormFieldType::Number(_field2) => {
                 let v =
@@ -610,6 +667,7 @@ pub fn build_page_form(
                             FormFieldType::ConstEnum(_) => true,
                             FormFieldType::QueryEnum(_) => true,
                             FormFieldType::File => true,
+                            FormFieldType::Autocomplete(_) => true,
                         } && !data.contains_key(&field.id) {
                             return Err(format!("Missing field {}", field.label));
                         }

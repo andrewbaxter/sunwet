@@ -40,6 +40,14 @@ pub struct FormFieldText {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema, TS)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct FormFieldAutocomplete {
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub placeholder: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, JsonSchema, TS)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct FormFieldNumber {
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
@@ -82,6 +90,8 @@ pub enum FormFieldType {
     /// Add text to the form, no interactive entry.
     Comment(FormFieldComment),
     Text(FormFieldText),
+    /// Text input with datalist autocomplete.
+    Autocomplete(FormFieldAutocomplete),
     Number(FormFieldNumber),
     Bool(FormFieldBool),
     Date,

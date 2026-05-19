@@ -1815,13 +1815,25 @@ pub fn build_page_view(
                             .borrow_mut()
                             .entry(k.clone())
                             .or_insert_with(|| Node::Value(serde_json::Value::String(format!(""))));
-                        let pair = style_export::leaf_input_pair_text(style_export::LeafInputPairTextArgs {
+                        let pair = style_export::leaf_input_pair_text_autocomplete(style_export::LeafInputPairTextAutocompleteArgs {
                             id: k.clone(),
                             title: k.clone(),
                             value: match param_data.borrow().get(&k) {
                                 Some(Node::Value(serde_json::Value::String(v))) => v.clone(),
                                 _ => format!(""),
                             },
+                        });
+                        super::autocomplete::wire_autocomplete(&pair.input, &pair.datalist, {
+                            let view_id = id.clone();
+                            let param_key = k.clone();
+                            move |prefix, suffix| {
+                                shared::interface::wire::ReqAutocompleteViewParam {
+                                    view_id: view_id.clone(),
+                                    param_key: param_key.clone(),
+                                    prefix,
+                                    suffix,
+                                }
+                            }
                         });
                         pair.input.ref_on("input", {
                             let id = id.clone();
@@ -1848,7 +1860,13 @@ pub fn build_page_view(
                                     };
                                     let v =
                                         Node::Value(
-                                            serde_json::Value::String(input.raw().text_content().unwrap_or_default()),
+                                            serde_json::Value::String(
+                                                input
+                                                    .raw()
+                                                    .dyn_ref::<web_sys::HtmlInputElement>()
+                                                    .map(|el| el.value())
+                                                    .unwrap_or_default(),
+                                            ),
                                         );
                                     common.view_ministate_state.set_param(k.clone(), v.clone());
                                     param_data.borrow_mut().insert(k, v);

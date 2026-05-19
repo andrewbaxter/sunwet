@@ -1190,30 +1190,40 @@ fn build_edit_rel(pc: &mut ProcessingContext, total_pivot_nodes: usize, rel: &Re
     let predicate_el = {
         let predicate_value = "".to_string();
         let predicate_res =
-            style_export::leaf_node_edit_predicate(
-                style_export::LeafNodeEditPredicateArgs { value: predicate_value.clone() },
+            style_export::leaf_input_text_autocomplete(
+                style_export::LeafInputTextAutocompleteArgs {
+                    id: None,
+                    title: "Predicate".to_string(),
+                    value: predicate_value.clone(),
+                },
             );
         let input_value = Prim::new(predicate_value);
         let out = predicate_res.root;
-        out.ref_on("input", {
+        let input_ = predicate_res.input;
+        // Wire autocomplete
+        super::autocomplete::wire_autocomplete(
+            &input_,
+            &predicate_res.datalist,
+            |prefix, suffix| shared::interface::wire::ReqAutocompleteFree {
+                field: shared::interface::wire::AutocompleteField::Predicate,
+                prefix,
+                suffix,
+            },
+        );
+        input_.ref_on("input", {
             let eg = pc.eg();
             let input_value = input_value.clone();
             move |ev| eg.event(|pc| {
-                let ele = ev.target().unwrap().dyn_into::<HtmlElement>().unwrap();
-                let new_value = ele.text_content().unwrap_or_default();
-                input_value.set(pc, new_value);
-                if ele.text_content().unwrap_or_default() == "" {
-                    // Remove `<br/>` :vomit:
-                    ele.set_inner_html("");
-                }
+                let ele = ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
+                input_value.set(pc, ele.value());
             }).unwrap()
         });
         out.ref_own(|out| (
             //. .
-            link!((pc = pc), (predicate_value = rel.0.predicate.clone()), (input_value = input_value.clone()), (out = out.weak()), {
-                let input_el = out.upgrade()?;
+            link!((pc = pc), (predicate_value = rel.0.predicate.clone()), (input_value = input_value.clone()), (input_ = input_.weak()), {
+                let input_ = input_.upgrade()?;
                 input_value.set(pc, predicate_value.borrow().clone());
-                input_el.ref_text(predicate_value.borrow().as_str());
+                input_.raw().dyn_ref::<HtmlInputElement>().unwrap().set_value(predicate_value.borrow().as_str());
             }),
             link!((pc = pc), (input_value = input_value.clone()), (predicate_value = rel.0.predicate.clone()), (), {
                 predicate_value.set(pc, input_value.borrow().clone());

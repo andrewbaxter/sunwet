@@ -16,3 +16,4 @@ pub mod offline;
 pub mod online;
 pub mod viewutil;
 pub mod api;
+pub mod autocomplete;
