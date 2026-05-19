@@ -58,6 +58,8 @@ use {
         page_view::LOCALSTORAGE_SHARE_SESSION_ID,
         playlist::{
             self,
+            playlist_next,
+            playlist_previous,
             playlist_set_link,
         },
         state::{
@@ -105,7 +107,10 @@ use {
         world::scan_env,
     },
     std::{
-        cell::RefCell,
+        cell::{
+            Cell,
+            RefCell,
+        },
         collections::BTreeMap,
         panic,
         rc::Rc,
@@ -126,6 +131,7 @@ use {
         HtmlElement,
         HtmlInputElement,
         MessageEvent,
+        TouchEvent,
     },
 };
 
@@ -721,6 +727,62 @@ pub fn main() {
                                 .log(&state().log, "Error making media display fullscreen");
                         }
                     });
+
+                    // Swipe navigation: left = previous, right = next, 4cm (~150px) threshold
+                    let touch_start_x: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
+                    modal.root.ref_on("touchstart", {
+                        let touch_start_x = touch_start_x.clone();
+                        move |ev| {
+                            let ev = ev.dyn_ref::<TouchEvent>().unwrap();
+                            if let Some(touch) = ev.touches().get(0) {
+                                touch_start_x.set(touch.client_x() as f64);
+                            }
+                        }
+                    });
+                    modal.root.ref_on("touchend", {
+                        let touch_start_x = touch_start_x.clone();
+                        let eg = pc.eg();
+                        move |ev| {
+                            let ev = ev.dyn_ref::<TouchEvent>().unwrap();
+                            if let Some(touch) = ev.changed_touches().get(0) {
+                                let dx = touch.client_x() as f64 - touch_start_x.get();
+                                if dx.abs() >= 150.0 {
+                                    if dx < 0.0 {
+                                        // Swipe left -> previous
+                                        eg.event(|pc| {
+                                            playlist_previous(pc, &state().playlist, None);
+                                        }).unwrap();
+                                    } else {
+                                        // Swipe right -> next
+                                        eg.event(|pc| {
+                                            playlist_next(pc, &state().playlist, None);
+                                        }).unwrap();
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    // Scroll wheel navigation: scroll down = next, scroll up = previous
+                    modal.root.ref_on("wheel", {
+                        let eg = pc.eg();
+                        move |ev| {
+                            let Some(dir) = wasm::media::wheel_direction(ev) else {
+                                return;
+                            };
+                            eg.event(|pc| {
+                                match dir {
+                                    wasm::media::WheelDirection::Next => {
+                                        playlist_next(pc, &state().playlist, None);
+                                    },
+                                    wasm::media::WheelDirection::Prev => {
+                                        playlist_previous(pc, &state().playlist, None);
+                                    },
+                                }
+                            }).unwrap();
+                        }
+                    });
+
                     let modal = modal.root;
                     *current.borrow_mut() = Some(modal.clone());
                     modal_stack.ref_push(modal);

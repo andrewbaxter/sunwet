@@ -62,6 +62,9 @@ web-sys = { version = "0.3", features = [
     "NodeList",
     "StorageManager",
     "SupportedType",
+    "Touch",
+    "TouchEvent",
+    "TouchList",
     "Url",
     "WheelEvent",
 ] }

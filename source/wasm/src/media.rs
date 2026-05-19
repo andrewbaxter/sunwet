@@ -96,6 +96,25 @@ use {
     },
 };
 
+pub enum WheelDirection {
+    Next,
+    Prev,
+}
+
+pub fn wheel_direction(ev: &web_sys::Event) -> Option<WheelDirection> {
+    let wev = ev.dyn_ref::<WheelEvent>()?;
+    if wev.delta_x() != 0. || wev.delta_z() != 0. {
+        return None;
+    }
+    if wev.delta_y() > 0. {
+        Some(WheelDirection::Next)
+    } else if wev.delta_y() < 0. {
+        Some(WheelDirection::Prev)
+    } else {
+        None
+    }
+}
+
 pub trait PlaylistMedia {
     /// Audio - no display, video/image show fs overlay based on element
     fn pm_display(&self) -> bool;
@@ -573,12 +592,12 @@ impl PlaylistMedia for PlaylistMediaComic {
                     }
                 }
 
-                fn seek_next(&self, pc: &mut ProcessingContext) {
+                fn seek_next(&self, pc: &mut ProcessingContext) -> bool {
                     let Some(at) = self.norm_index(*self.at.borrow()) else {
-                        return;
+                        return false;
                     };
                     let Some(entry) = self.page_lookup.get(&at) else {
-                        return;
+                        return false;
                     };
                     let group = &self.groups[entry.group_in_media];
                     let new_at;
@@ -588,20 +607,24 @@ impl PlaylistMedia for PlaylistMediaComic {
                         new_at = *self.at.borrow() + 1;
                     }
                     let Some(new_at) = self.norm_index(new_at) else {
-                        return;
+                        return false;
                     };
+                    if new_at == at {
+                        return false;
+                    }
                     self.at.set(pc, new_at);
+                    return true;
                 }
 
-                fn seek_prev(&self, pc: &mut ProcessingContext) {
+                fn seek_prev(&self, pc: &mut ProcessingContext) -> bool {
                     let Some(at) = self.norm_index(*self.at.borrow()) else {
-                        return;
+                        return false;
                     };
                     if at == 0 {
-                        return;
+                        return false;
                     }
                     let Some(entry) = self.page_lookup.get(&at) else {
-                        return;
+                        return false;
                     };
                     let group = &self.groups[entry.group_in_media];
                     let new_at;
@@ -611,6 +634,7 @@ impl PlaylistMedia for PlaylistMediaComic {
                         new_at = *self.at.borrow() - 1;
                     }
                     self.at.set(pc, new_at);
+                    return true;
                 }
             }
 
@@ -813,17 +837,20 @@ impl PlaylistMedia for PlaylistMediaComic {
                         outer.ref_on("wheel", {
                             let eg = eg.clone();
                             let state = state.clone();
-                            move |ev| eg.event(|pc| {
-                                let ev = ev.dyn_ref::<WheelEvent>().unwrap();
-                                if ev.delta_x() != 0. || ev.delta_z() != 0. {
+                            move |ev| {
+                                let Some(dir) = wheel_direction(ev) else {
                                     return;
+                                };
+                                let moved = eg.event(|pc| {
+                                    match dir {
+                                        WheelDirection::Next => state.seek_next(pc),
+                                        WheelDirection::Prev => state.seek_prev(pc),
+                                    }
+                                }).unwrap();
+                                if moved {
+                                    ev.stop_propagation();
                                 }
-                                if ev.delta_y() >= 0. {
-                                    state.seek_next(pc);
-                                } else {
-                                    state.seek_prev(pc);
-                                }
-                            }).unwrap()
+                            }
                         });
                         _ = seekable.send(true);
                     }).unwrap();
