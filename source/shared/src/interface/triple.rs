@@ -371,15 +371,13 @@ impl TS for Node {
 
     fn visit_dependencies(v: &mut impl ts_rs::TypeVisitor)
     where
-        Self: 'static,
-    {
+        Self: 'static {
         SerdeNode::visit_dependencies(v);
     }
 
     fn visit_generics(v: &mut impl ts_rs::TypeVisitor)
     where
-        Self: 'static,
-    {
+        Self: 'static {
         SerdeNode::visit_generics(v);
     }
 

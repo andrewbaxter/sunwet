@@ -396,6 +396,7 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
                         media_session.set_metadata(None);
                     },
                 }
+
                 // Clear image advance timer whenever play state changes
                 *playlist_state.0.image_advance_timeout.borrow_mut() = None;
                 if !*playing.borrow() {

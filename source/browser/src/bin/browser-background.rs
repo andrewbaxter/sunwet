@@ -70,7 +70,7 @@ extern "C" {
     fn on_message_add_listener(callback: &Function);
 }
 
-thread_local! {
+thread_local!{
     static BG_STATE: RefCell<Option<BgState>> = RefCell::new(None);
 }
 
@@ -134,8 +134,11 @@ async fn handle_check_existence(msg: &JsValue) -> Result<JsValue, String> {
     };
     let result = js_sys::Object::new();
     let Some(row) = rows.into_iter().next() else {
-        js_sys::Reflect::set(&result, &JsValue::from_str("exists"), &JsValue::from_bool(false))
-            .map_err(|e| format!("{:?}", e))?;
+        js_sys::Reflect::set(
+            &result,
+            &JsValue::from_str("exists"),
+            &JsValue::from_bool(false),
+        ).map_err(|e| format!("{:?}", e))?;
         return Ok(result.into());
     };
     let id_node = match row.get("id") {
@@ -150,10 +153,16 @@ async fn handle_check_existence(msg: &JsValue) -> Result<JsValue, String> {
     let Node::Value(serde_json::Value::String(id_str)) = &id_node else {
         return Err(format!("expected string id in existence query result, got {:?}", id_node));
     };
-    js_sys::Reflect::set(&result, &JsValue::from_str("exists"), &JsValue::from_bool(true))
-        .map_err(|e| format!("{:?}", e))?;
-    js_sys::Reflect::set(&result, &JsValue::from_str("existing_id"), &JsValue::from_str(id_str))
-        .map_err(|e| format!("{:?}", e))?;
+    js_sys::Reflect::set(
+        &result,
+        &JsValue::from_str("exists"),
+        &JsValue::from_bool(true),
+    ).map_err(|e| format!("{:?}", e))?;
+    js_sys::Reflect::set(
+        &result,
+        &JsValue::from_str("existing_id"),
+        &JsValue::from_str(id_str),
+    ).map_err(|e| format!("{:?}", e))?;
     Ok(result.into())
 }
 
@@ -164,24 +173,21 @@ async fn handle_capture(msg: &JsValue) -> Result<JsValue, String> {
             .and_then(|v| v.as_string())
             .ok_or("missing form_id")?;
     let params_js =
-        js_sys::Reflect::get(msg, &JsValue::from_str("parameters"))
-            .map_err(|_| "missing parameters".to_string())?;
+        js_sys::Reflect::get(
+            msg,
+            &JsValue::from_str("parameters"),
+        ).map_err(|_| "missing parameters".to_string())?;
     let mut parameters: HashMap<String, TreeNode> = HashMap::new();
     let params_obj = js_sys::Object::from(params_js);
     let keys = js_sys::Object::keys(&params_obj);
     for i in 0 .. keys.length() {
         let key = keys.get(i).as_string().unwrap_or_default();
         let val =
-            js_sys::Reflect::get(&params_obj, &keys.get(i))
-                .ok()
-                .and_then(|v| v.as_string())
-                .unwrap_or_default();
+            js_sys::Reflect::get(&params_obj, &keys.get(i)).ok().and_then(|v| v.as_string()).unwrap_or_default();
         parameters.insert(key, TreeNode::Scalar(Node::from(val)));
     }
     let existing_id =
-        js_sys::Reflect::get(msg, &JsValue::from_str("existing_id"))
-            .ok()
-            .and_then(|v| v.as_string());
+        js_sys::Reflect::get(msg, &JsValue::from_str("existing_id")).ok().and_then(|v| v.as_string());
     parameters.entry("id".to_string()).or_insert_with(|| {
         let id_value = existing_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
         TreeNode::Scalar(Node::Value(serde_json::Value::String(id_value)))
@@ -190,8 +196,7 @@ async fn handle_capture(msg: &JsValue) -> Result<JsValue, String> {
         TreeNode::Scalar(Node::Value(serde_json::Value::String(chrono::Utc::now().to_rfc3339())))
     });
     let files_js =
-        js_sys::Reflect::get(msg, &JsValue::from_str("files"))
-            .map_err(|_| "missing files".to_string())?;
+        js_sys::Reflect::get(msg, &JsValue::from_str("files")).map_err(|_| "missing files".to_string())?;
     let files_arr = js_sys::Array::from(&files_js);
     let mut commit_files = vec![];
     let mut upload_files = vec![];
@@ -199,8 +204,10 @@ async fn handle_capture(msg: &JsValue) -> Result<JsValue, String> {
     for i in 0 .. files_arr.length() {
         let file_js = files_arr.get(i);
         let data_js =
-            js_sys::Reflect::get(&file_js, &JsValue::from_str("data"))
-                .map_err(|e| format!("missing data in file {}: {:?}", i, e))?;
+            js_sys::Reflect::get(
+                &file_js,
+                &JsValue::from_str("data"),
+            ).map_err(|e| format!("missing data in file {}: {:?}", i, e))?;
         let data = Uint8Array::new(&data_js).to_vec();
         let mimetype =
             js_sys::Reflect::get(&file_js, &JsValue::from_str("mimetype"))
@@ -213,16 +220,16 @@ async fn handle_capture(msg: &JsValue) -> Result<JsValue, String> {
                 .and_then(|v| v.as_string())
                 .unwrap_or_default();
         let hash = FileHash::from_sha256(Sha256::digest(&data));
-        param_files
-            .entry(parameter)
-            .or_default()
-            .push(TreeNode::Scalar(Node::File(hash.clone())));
+        param_files.entry(parameter).or_default().push(TreeNode::Scalar(Node::File(hash.clone())));
         commit_files.push(CommitFile {
             hash: hash.clone(),
             size: data.len() as u64,
             mimetype,
         });
-        upload_files.push(UploadFile { data, hash });
+        upload_files.push(UploadFile {
+            data,
+            hash,
+        });
     }
     for (param_name, nodes) in param_files {
         parameters.insert(param_name, if nodes.len() == 1 {
@@ -250,8 +257,11 @@ async fn handle_capture(msg: &JsValue) -> Result<JsValue, String> {
         }
     });
     let result = js_sys::Object::new();
-    js_sys::Reflect::set(&result, &JsValue::from_str("ok"), &JsValue::from_bool(true))
-        .map_err(|e| format!("{:?}", e))?;
+    js_sys::Reflect::set(
+        &result,
+        &JsValue::from_str("ok"),
+        &JsValue::from_bool(true),
+    ).map_err(|e| format!("{:?}", e))?;
     Ok(result.into())
 }
 
@@ -270,8 +280,7 @@ async fn handle_message(msg: JsValue) -> Result<JsValue, JsValue> {
         Ok(v) => Ok(v),
         Err(e) => {
             let err_obj = js_sys::Object::new();
-            let _ =
-                js_sys::Reflect::set(&err_obj, &JsValue::from_str("error"), &JsValue::from_str(&e));
+            let _ = js_sys::Reflect::set(&err_obj, &JsValue::from_str("error"), &JsValue::from_str(&e));
             Ok(err_obj.into())
         },
     }
@@ -300,7 +309,6 @@ fn main() {
     }) as Box<dyn FnMut(JsValue) -> Promise>);
     on_message_add_listener(handler.as_ref().unchecked_ref());
     handler.forget();
-
     log.log("sunwet background script initialized");
 
     // Try to online any pending commits on startup

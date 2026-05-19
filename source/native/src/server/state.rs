@@ -105,7 +105,10 @@ pub struct GlobalConfig {
     pub api_tokens_iam_grants: HashMap<String, ConfigIamGrants>,
 }
 
-pub fn build_global_config(log: &Log, config0: &interface::config::GlobalConfig) -> Result<Arc<GlobalConfig>, loga::Error> {
+pub fn build_global_config(
+    log: &Log,
+    config0: &interface::config::GlobalConfig,
+) -> Result<Arc<GlobalConfig>, loga::Error> {
     let mut forms = HashMap::new();
     for (k, v) in &config0.forms {
         forms.insert(k.clone(), ServerForm { item: v.clone() });

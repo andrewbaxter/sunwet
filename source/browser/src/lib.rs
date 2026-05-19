@@ -25,10 +25,8 @@ pub const KEY_TOKEN: &str = "sunwet_token";
 extern "C" {
     #[wasm_bindgen(js_namespace = ["browser", "storage", "local"], js_name = "get")]
     fn browser_storage_get(keys: &JsValue) -> Promise;
-
     #[wasm_bindgen(js_namespace = ["browser", "storage", "local"], js_name = "set")]
     fn browser_storage_set(items: &JsValue) -> Promise;
-
     #[wasm_bindgen(js_namespace = ["browser", "runtime"], js_name = "sendMessage")]
     fn browser_send_message(msg: &JsValue) -> Promise;
 }
@@ -71,10 +69,11 @@ pub struct CaptureCallbackResult {
 }
 
 #[wasm_bindgen(typescript_custom_section)]
-const TS_CAPTURE_FILE: &str = "export interface CaptureCallbackResult { form_id: string; parameters: Record<string, string>; files: Array<{data: Uint8Array, mimetype: string, parameter: string}>; }";
-
+const TS_CAPTURE_FILE: &str =
+    "export interface CaptureCallbackResult { form_id: string; parameters: Record<string, string>; files: Array<{data: Uint8Array, mimetype: string, parameter: string}>; }";
 #[wasm_bindgen(typescript_custom_section)]
-const TS_CAPTURE_BUTTON: &str = "export function create_capture_button(id: string, view_query: string, callback: (id: string) => Promise<CaptureCallbackResult>): HTMLElement;";
+const TS_CAPTURE_BUTTON: &str =
+    "export function create_capture_button(id: string, view_query: string, callback: (id: string) => Promise<CaptureCallbackResult>): HTMLElement;";
 
 #[derive(Clone, Copy)]
 enum Existence {
@@ -128,7 +127,7 @@ async fn send_to_background(msg: &JsValue) -> Result<JsValue, String> {
     // Retry a few times — the background WASM may still be initializing when the
     // content script first loads, so the message listener doesn't exist yet.
     let mut last_err = String::new();
-    for attempt in 0..5u32 {
+    for attempt in 0 .. 5u32 {
         if attempt > 0 {
             gloo::timers::future::TimeoutFuture::new(500 * attempt).await;
         }
@@ -164,8 +163,10 @@ async fn check_existence(lookup_id: &str, view_query: &str) -> Result<Option<Str
         return Ok(None);
     }
     let id_value =
-        js_sys::Reflect::get(&resp, &JsValue::from_str("existing_id"))
-            .map_err(|e| format!("failed to read existing_id field: {:?}", e))?;
+        js_sys::Reflect::get(
+            &resp,
+            &JsValue::from_str("existing_id"),
+        ).map_err(|e| format!("failed to read existing_id field: {:?}", e))?;
     match id_value.as_string() {
         Some(s) => Ok(Some(s)),
         None => Err(format!("existing_id has unexpected type: {:?}", id_value)),
@@ -184,7 +185,6 @@ async fn handle_click(button: &HtmlButtonElement, lookup_id: &str, view_query: &
             return;
         },
     };
-
     let this = JsValue::null();
     let id_js = JsValue::from_str(lookup_id);
     let promise = match callback.call1(&this, &id_js) {
@@ -210,8 +210,8 @@ async fn handle_click(button: &HtmlButtonElement, lookup_id: &str, view_query: &
         },
     };
 
-    // Send the callback result to background for processing.
-    // Add "type": "capture" and forward the whole object.
+    // Send the callback result to background for processing. Add "type": "capture"
+    // and forward the whole object.
     let _ = js_sys::Reflect::set(&js_value, &JsValue::from_str("type"), &JsValue::from_str("capture"));
     if let Some(eid) = &id {
         let _ = js_sys::Reflect::set(&js_value, &JsValue::from_str("existing_id"), &JsValue::from_str(eid));
@@ -228,7 +228,11 @@ async fn handle_click(button: &HtmlButtonElement, lookup_id: &str, view_query: &
 }
 
 #[wasm_bindgen(skip_typescript)]
-pub fn create_capture_button(lookup_id: String, view_query: String, callback: Function) -> Result<HtmlElement, JsValue> {
+pub fn create_capture_button(
+    lookup_id: String,
+    view_query: String,
+    callback: Function,
+) -> Result<HtmlElement, JsValue> {
     let window = web_sys::window().ok_or("no window")?;
     let document = window.document().ok_or("no document")?;
     let button = document.create_element("button")?.dyn_into::<HtmlButtonElement>()?;

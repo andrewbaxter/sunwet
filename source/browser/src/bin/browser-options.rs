@@ -56,7 +56,6 @@ fn main() {
             token_input_load.set_value(&val);
         }
     });
-
     let error_block = document.create_element("div").unwrap();
     error_block.set_class_name("sunwet-settings-error");
     container.append_child(&error_block).unwrap();
