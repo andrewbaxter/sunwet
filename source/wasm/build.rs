@@ -476,9 +476,10 @@ fn main() {
         },
         Func {
             name: "contMediaFullscreen",
-            args: vec![("media", &el_)],
+            args: vec![],
             returns: vec![
                 ("root", &el_),
+                ("media", &el_),
                 ("buttonClose", &el_),
                 ("buttonFullscreen", &el_),
                 ("seekbar", &el_),
