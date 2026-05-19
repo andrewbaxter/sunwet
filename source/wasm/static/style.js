@@ -2293,7 +2293,7 @@
     };
 
   presentation.contMediaFullscreen =
-    /** @type {Presentation["contMediaFullscreen"]} */ (args) => {
+    /** @type {Presentation["contMediaFullscreen"]} */ () => {
       const fsButtonStyle = ss(uniq("cont_media_fullscreen_close"), {
         "": (s) => {
           const size = varSFullscreenIcon;
@@ -2352,9 +2352,38 @@
         ],
       });
       const { seekbar, seekbarFill, seekbarLabel } = leafSeekbar();
+      const media = e(
+        "div",
+        {},
+        {
+          styles_: [
+            ss(uniq("cont_media_fullscreen_media"), {
+              "": (s) => {
+                s.flexGrow = "1";
+                s.flexBasis = "0";
+                s.display = "flex";
+                s.minHeight = "0";
+                s.pointerEvents = "initial";
+              },
+              /*
+              ":fullscreen": (s) => {
+                s.width = "100dvw";
+                s.height = "100dvh";
+                s.backgroundColor = varCBackground;
+              },
+              */
+              ">*": (s) => {
+                s.flexGrow = "1";
+                s.flexBasis = "0";
+              },
+            }),
+          ],
+        },
+      );
       return {
         buttonClose: buttonClose,
         buttonFullscreen: buttonFullscreen,
+        media: media,
         root: e(
           "div",
           {},
@@ -2371,14 +2400,13 @@
                   s.width = "100dvw";
                   s.height = "100dvh";
                 },
-                ">*:nth-child(1)": (s) => {
-                  s.flexGrow = "1";
-                  s.flexBasis = "0";
+                [`.${classStateHide}`]: (s) => {
+                  s.display = "none";
                 },
               }),
             ],
             children_: [
-              args.media,
+              media,
               e(
                 "div",
                 {},

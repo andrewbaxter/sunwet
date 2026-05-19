@@ -468,16 +468,16 @@
             children.push(presentation.leafMediaComicEndPad({}).root);
           }
         }
-        buildRoot([
-          presentation.contMediaFullscreen({
-            media: presentation.contMediaComic({
-              minAspectX: minAspect.toString(),
-              minAspectY: "1",
-              children: children,
-              rtl: true,
-            }).root,
-          }).root,
-        ]);
+        {
+          const fs = presentation.contMediaFullscreen();
+          fs.media.appendChild(presentation.contMediaComic({
+            minAspectX: minAspect.toString(),
+            minAspectY: "1",
+            children: children,
+            rtl: true,
+          }).root);
+          buildRoot([fs.root]);
+        }
       };
 
     const hash = location.hash;
@@ -716,25 +716,25 @@
         break;
       case "#fullscreen":
         {
+          const fs = presentation.contMediaFullscreen();
           const media = document.createElement("div");
           media.style.border = "1px solid blue";
+          fs.media.appendChild(media);
           buildRoot([
             stagingPageView,
-            presentation.contMediaFullscreen({
-              media: media,
-            }).root,
+            fs.root,
           ]);
         }
         break;
       case "#fullscreen_image":
         {
+          const fs = presentation.contMediaFullscreen();
+          fs.media.appendChild(presentation.leafMediaImg({
+            src: "testimage_square.svg",
+          }).root);
           buildRoot([
             stagingPageView,
-            presentation.contMediaFullscreen({
-              media: presentation.leafMediaImg({
-                src: "testimage_square.svg",
-              }).root,
-            }).root,
+            fs.root,
           ]);
         }
         break;
