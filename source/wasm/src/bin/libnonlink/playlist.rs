@@ -228,7 +228,9 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
                 let playlist = &state().playlist;
                 match playlist.0.track_end_mode.get() {
                     TrackEndMode::Advance => {
-                        playlist_next(pc, playlist, None);
+                        if !playlist_next(pc, playlist, None) {
+                            playlist_stop(pc, playlist);
+                        }
                     },
                     TrackEndMode::Loop => {
                         if let Some(i) = playlist.0.playing_i.get() {
@@ -472,7 +474,10 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
                             let eg = pc.eg();
                             move || {
                                 eg.event(|pc| {
-                                    playlist_next(pc, &state().playlist, None);
+                                    let playlist = &state().playlist;
+                                    if !playlist_next(pc, playlist, None) {
+                                        playlist_stop(pc, playlist);
+                                    }
                                 }).unwrap();
                             }
                         }));
@@ -894,38 +899,39 @@ pub fn playlist_toggle_play(pc: &mut ProcessingContext, state: &PlaylistState, i
     }
 }
 
-pub fn playlist_next(pc: &mut ProcessingContext, state: &PlaylistState, basis: Option<PlaylistIndex>) {
+pub fn playlist_next(pc: &mut ProcessingContext, state: &PlaylistState, basis: Option<PlaylistIndex>) -> bool {
     let Some(i) = basis.or(state.0.playing_i.get()) else {
-        return;
+        return false;
     };
     if let Some((i, _)) = state.0.playlist.borrow().range((Bound::Excluded(i), Bound::Unbounded)).next() {
         state.0.playing.set(pc, true);
         state.0.playing_i.set(pc, Some(i.clone()));
         state.0.playing_time.set(pc, 0.);
-    } else {
-        state.0.playing_i.set(pc, None);
-        state.0.media_max_time.set(pc, None);
-        state.0.playing.set(pc, false);
-        state.0.playing_time.set(pc, 0.);
-        if let Some(vs) = state.0.view_ministate_state.borrow().as_ref() {
-            vs.set_pos(None);
-        }
+        return true;
+    }
+    return false;
+}
+
+fn playlist_stop(pc: &mut ProcessingContext, state: &PlaylistState) {
+    state.0.playing_i.set(pc, None);
+    state.0.media_max_time.set(pc, None);
+    state.0.playing.set(pc, false);
+    state.0.playing_time.set(pc, 0.);
+    if let Some(vs) = state.0.view_ministate_state.borrow().as_ref() {
+        vs.set_pos(None);
     }
 }
 
-pub fn playlist_previous(pc: &mut ProcessingContext, state: &PlaylistState, basis: Option<PlaylistIndex>) {
+pub fn playlist_previous(pc: &mut ProcessingContext, state: &PlaylistState, basis: Option<PlaylistIndex>) -> bool {
     let Some(i) = basis.or(state.0.playing_i.get()) else {
-        return;
+        return false;
     };
     if let Some((i, _)) = state.0.playlist.borrow().range((Bound::Unbounded, Bound::Excluded(i))).rev().next() {
         state.0.playing_i.set(pc, Some(i.clone()));
         state.0.playing_time.set(pc, 0.);
-    } else {
-        state.0.playing_i.set(pc, None);
-        state.0.media_max_time.set(pc, None);
-        state.0.playing.set(pc, false);
-        state.0.playing_time.set(pc, 0.);
+        return true;
     }
+    return false;
 }
 
 pub fn playlist_pause(pc: &mut ProcessingContext, state: &PlaylistState) {
