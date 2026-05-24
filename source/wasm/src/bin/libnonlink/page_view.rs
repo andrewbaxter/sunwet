@@ -31,6 +31,7 @@ use {
             retrieve_offline_query,
         },
         playlist::{
+            PlaylistIndex,
             PlaylistPushArg,
             PlaylistSourcePage,
             categorize_mime_media,
@@ -283,7 +284,6 @@ struct Build {
     view_id: ViewId,
     param_data: HashMap<String, Node>,
     restore_playlist_pos: Option<PlaylistRestorePos>,
-    playlist_add: Vec<PlaylistPushArg>,
     have_media: Rc<Cell<bool>>,
     want_media: bool,
     transport_slot: El,
@@ -513,12 +513,44 @@ impl Build {
                         node_meta = Rc::new(res.meta.into_iter().collect::<HashMap<_, _>>());
                     },
                 };
+                // Build data stack for each row
+                let row_stacks: Vec<_> = new_data_at_tops.into_iter().enumerate().map(|(i, new_data_at_top)| {
+                    let mut row_data_at = data_at.clone();
+                    row_data_at.push(Rc::new(DataStackLevel {
+                        data: new_data_at_top,
+                        node_meta: node_meta.clone(),
+                    }));
+                    let mut row_data_id = data_id.clone();
+                    row_data_id.push(i);
+                    (row_data_id, row_data_at)
+                }).collect();
+
+                // Extract playlist entries (first walk)
+                let mut playlist_add = vec![];
+                for (row_data_id, row_data_at) in &row_stacks {
+                    match &config_at.row_widget {
+                        shared::interface::config::view::DataRowsLayout::Unaligned(config_rows) => {
+                            extract_playlist_entries_from_widget(
+                                &config_rows.widget, row_data_id, row_data_at, &mut playlist_add,
+                            );
+                        },
+                        shared::interface::config::view::DataRowsLayout::Table(config_table) => {
+                            for el in &config_table.elements {
+                                extract_playlist_entries_from_widget(
+                                    el, row_data_id, row_data_at, &mut playlist_add,
+                                );
+                            }
+                        },
+                    }
+                }
+                let want_media = !playlist_add.is_empty();
+
+                // Build widgets (second walk)
                 let mut build = Build {
                     view_id: view_id.clone(),
                     vs: vs.clone(),
                     param_data: param_data.clone(),
                     restore_playlist_pos: restore_playlist_pos.clone(),
-                    playlist_add: Default::default(),
                     have_media: have_media,
                     want_media: false,
                     transport_slot: transport_slot,
@@ -539,14 +571,7 @@ impl Build {
                                 config_rows.trans_size_max.is_some(),
                             ).with_parent_orientation(orientation, OrientationType::Flex);
                         let mut children = vec![];
-                        for (i, new_data_at_top) in new_data_at_tops.into_iter().enumerate() {
-                            let mut data_at = data_at.clone();
-                            data_at.push(Rc::new(DataStackLevel {
-                                data: new_data_at_top,
-                                node_meta: node_meta.clone(),
-                            }));
-                            let mut data_id = data_id.clone();
-                            data_id.push(i);
+                        for (row_data_id, row_data_at) in &row_stacks {
                             children.push(
                                 build
                                     .build_widget(
@@ -554,8 +579,8 @@ impl Build {
                                         child_bctx,
                                         &config_rows.widget,
                                         &config_query_params,
-                                        &data_id,
-                                        &data_at,
+                                        row_data_id,
+                                        row_data_at,
                                     )
                                     .await,
                             );
@@ -591,14 +616,7 @@ impl Build {
                                 OrientationType::Grid,
                             );
                         let mut rows = vec![];
-                        for (i, new_data_at_top) in new_data_at_tops.into_iter().enumerate() {
-                            let mut data_at = data_at.clone();
-                            data_at.push(Rc::new(DataStackLevel {
-                                data: new_data_at_top,
-                                node_meta: node_meta.clone(),
-                            }));
-                            let mut data_id = data_id.clone();
-                            data_id.push(i);
+                        for (row_data_id, row_data_at) in &row_stacks {
                             let mut columns = vec![];
                             let mut columns_raw = vec![];
                             for config_at in &config_table.elements {
@@ -609,8 +627,8 @@ impl Build {
                                             child_bctx,
                                             config_at,
                                             &config_query_params,
-                                            &data_id,
-                                            &data_at,
+                                            row_data_id,
+                                            row_data_at,
                                         )
                                         .await;
                                 columns_raw.push(column.raw());
@@ -637,11 +655,12 @@ impl Build {
                     &eg,
                     &state().playlist,
                     vs.clone(),
-                    build.playlist_add,
+                    playlist_add,
                     &restore_playlist_pos,
                     offline.is_some(),
                 ).await;
-                if !build.have_media.get() && build.want_media {
+                let want_media = want_media || build.want_media;
+                if !build.have_media.get() && want_media {
                     eg.event(|pc| {
                         build.transport_slot.ref_push(build_transport(pc, offline.is_some()));
                     });
@@ -1034,74 +1053,23 @@ impl Build {
             let Some(src) = maybe_get_field(&config_at.media_file_field, data_stack) else {
                 return Ok(el("div"));
             };
-            let media_type;
             let TreeNode::Scalar(src) = &src else {
                 return Ok(el("div"));
             };
             let Some(meta) = maybe_get_meta(data_stack, src) else {
                 return Ok(el("div"));
             };
-            match categorize_mime_media(meta.mime.as_ref().map(|x| x.as_str()).unwrap_or("")) {
-                Some(m) => {
-                    media_type = m;
-                },
-                None => {
-                    return Ok(el("div"));
-                },
+            if categorize_mime_media(meta.mime.as_ref().map(|x| x.as_str()).unwrap_or("")).is_none() {
+                return Ok(el("div"));
             }
             self.want_media = true;
-            let src_url = unwrap_value_media_hash(&src)?;
-            let cover_source_url = shed!{
-                let Some(config_at) = &config_at.cover_field else {
-                    break None;
-                };
-                let Some(d) = maybe_get_field(config_at, data_stack) else {
-                    break None;
-                };
-                let TreeNode::Scalar(d) = d else {
-                    break None;
-                };
-                break Some(unwrap_value_media_hash(&d).map_err(|e| format!("Building cover url: {}", e))?);
-            };
             let out = style_export::leaf_view_play_button(style_export::LeafViewPlayButtonArgs {
                 parent_orientation: bctx.parent_orientation,
                 parent_orientation_type: bctx.parent_orientation_type,
                 trans_align: config_at.trans_align,
                 orientation: config_at.orientation.unwrap_or_default(),
             }).root;
-            self.playlist_add.push(PlaylistPushArg {
-                index: data_id.clone(),
-                name: shed!{
-                    let Some(config_at) = &config_at.name_field else {
-                        break None;
-                    };
-                    let Some(d) = maybe_get_field(config_at, data_stack) else {
-                        break None;
-                    };
-                    break Some(tree_node_to_text(&d));
-                },
-                album: shed!{
-                    let Some(config_at) = &config_at.album_field else {
-                        break None;
-                    };
-                    let Some(d) = maybe_get_field(config_at, data_stack) else {
-                        break None;
-                    };
-                    break Some(tree_node_to_text(&d));
-                },
-                artist: shed!{
-                    let Some(config_at) = &config_at.artist_field else {
-                        break None;
-                    };
-                    let Some(d) = maybe_get_field(config_at, data_stack) else {
-                        break None;
-                    };
-                    break Some(tree_node_to_text(&d));
-                },
-                cover_source_url: cover_source_url,
-                source_file: src_url,
-                media_type: media_type,
-            });
+            state().playlist.0.play_buttons.borrow_mut().insert(data_id.clone(), out.weak());
             out.ref_on("click", {
                 let data_id = data_id.clone();
                 let eg = eg.clone();
@@ -1215,6 +1183,65 @@ impl Build {
     }
 }
 
+fn extract_play_button_entry(
+    config_at: &WidgetPlayButton,
+    data_id: &Vec<usize>,
+    data_stack: &Vec<Rc<DataStackLevel>>,
+) -> Option<PlaylistPushArg> {
+    let src = maybe_get_field(&config_at.media_file_field, data_stack)?;
+    let TreeNode::Scalar(src) = &src else {
+        return None;
+    };
+    let meta = maybe_get_meta(data_stack, src)?;
+    let media_type = categorize_mime_media(meta.mime.as_ref().map(|x| x.as_str()).unwrap_or(""))?;
+    let src_url = unwrap_value_media_hash(&src).ok()?;
+    let cover_source_url = shed!{
+        let Some(config_at) = &config_at.cover_field else {
+            break None;
+        };
+        let Some(d) = maybe_get_field(config_at, data_stack) else {
+            break None;
+        };
+        let TreeNode::Scalar(d) = d else {
+            break None;
+        };
+        break unwrap_value_media_hash(&d).ok();
+    };
+    Some(PlaylistPushArg {
+        index: data_id.clone(),
+        name: shed!{
+            let Some(config_at) = &config_at.name_field else {
+                break None;
+            };
+            let Some(d) = maybe_get_field(config_at, data_stack) else {
+                break None;
+            };
+            break Some(tree_node_to_text(&d));
+        },
+        album: shed!{
+            let Some(config_at) = &config_at.album_field else {
+                break None;
+            };
+            let Some(d) = maybe_get_field(config_at, data_stack) else {
+                break None;
+            };
+            break Some(tree_node_to_text(&d));
+        },
+        artist: shed!{
+            let Some(config_at) = &config_at.artist_field else {
+                break None;
+            };
+            let Some(d) = maybe_get_field(config_at, data_stack) else {
+                break None;
+            };
+            break Some(tree_node_to_text(&d));
+        },
+        cover_source_url: cover_source_url,
+        source_file: src_url,
+        media_type: media_type,
+    })
+}
+
 fn extract_playlist_entries_from_widget(
     config_at: &Widget,
     data_id: &Vec<usize>,
@@ -1223,67 +1250,9 @@ fn extract_playlist_entries_from_widget(
 ) {
     match config_at {
         Widget::PlayButton(config_at) => {
-            let Some(src) = maybe_get_field(&config_at.media_file_field, data_stack) else {
-                return;
-            };
-            let TreeNode::Scalar(src) = &src else {
-                return;
-            };
-            let Some(meta) = maybe_get_meta(data_stack, src) else {
-                return;
-            };
-            let Some(media_type) =
-                categorize_mime_media(meta.mime.as_ref().map(|x| x.as_str()).unwrap_or("")) else {
-                    return;
-                };
-            let Ok(src_url) = unwrap_value_media_hash(&src) else {
-                return;
-            };
-            let cover_source_url = shed!{
-                let Some(config_at) = &config_at.cover_field else {
-                    break None;
-                };
-                let Some(d) = maybe_get_field(config_at, data_stack) else {
-                    break None;
-                };
-                let TreeNode::Scalar(d) = d else {
-                    break None;
-                };
-                break unwrap_value_media_hash(&d).ok();
-            };
-            out.push(PlaylistPushArg {
-                index: data_id.clone(),
-                name: shed!{
-                    let Some(config_at) = &config_at.name_field else {
-                        break None;
-                    };
-                    let Some(d) = maybe_get_field(config_at, data_stack) else {
-                        break None;
-                    };
-                    break Some(tree_node_to_text(&d));
-                },
-                album: shed!{
-                    let Some(config_at) = &config_at.album_field else {
-                        break None;
-                    };
-                    let Some(d) = maybe_get_field(config_at, data_stack) else {
-                        break None;
-                    };
-                    break Some(tree_node_to_text(&d));
-                },
-                artist: shed!{
-                    let Some(config_at) = &config_at.artist_field else {
-                        break None;
-                    };
-                    let Some(d) = maybe_get_field(config_at, data_stack) else {
-                        break None;
-                    };
-                    break Some(tree_node_to_text(&d));
-                },
-                cover_source_url: cover_source_url,
-                source_file: src_url,
-                media_type: media_type,
-            });
+            if let Some(entry) = extract_play_button_entry(config_at, data_id, data_stack) {
+                out.push(entry);
+            }
         },
         Widget::Layout(config_at) => {
             for child in &config_at.elements {
@@ -1345,11 +1314,30 @@ fn build_widget_root_data_rows(
         let offline = offline.clone();
         move |chunk: Vec<(usize, TreeNode)>, node_meta: Rc<HashMap<Node, NodeMeta>>| -> LocalBoxFuture<Vec<El>> {
             async move {
+                // Build data stack for each row
+                let row_stacks: Vec<_> = chunk.into_iter().map(|(i, new_data_at_top)| {
+                    let mut row_data_at = data_at.clone();
+                    row_data_at.push(Rc::new(DataStackLevel {
+                        data: new_data_at_top,
+                        node_meta: node_meta.clone(),
+                    }));
+                    (i, row_data_at)
+                }).collect();
+
+                // Extract playlist entries (first walk)
+                let mut playlist_add = vec![];
+                for (i, row_data_at) in &row_stacks {
+                    extract_playlist_entries_from_widget(
+                        &config_at.element_body, &vec![*i], row_data_at, &mut playlist_add,
+                    );
+                }
+                let want_media = !playlist_add.is_empty();
+
+                // Build widgets (second walk)
                 let mut build = Build {
                     view_id: view_id.clone(),
                     param_data: param_data.clone(),
                     restore_playlist_pos: restore_playlist_pos.clone(),
-                    playlist_add: Default::default(),
                     want_media: false,
                     have_media: have_media.clone(),
                     transport_slot: transport_slot.clone(),
@@ -1358,19 +1346,14 @@ fn build_widget_root_data_rows(
                     offline: offline.clone(),
                 };
                 let mut children = vec![];
-                for (i, new_data_at_top) in chunk {
-                    let mut data_at = data_at.clone();
-                    data_at.push(Rc::new(DataStackLevel {
-                        data: new_data_at_top,
-                        node_meta: node_meta.clone(),
-                    }));
+                for (i, data_at) in &row_stacks {
                     children.push(style_export::cont_view_element(style_export::ContViewElementArgs {
                         body: build.build_widget(&eg, BuildContext {
                             restrict_x: true,
                             restrict_y: config_at.element_height.is_some(),
                             parent_orientation: Orientation::DownRight,
                             parent_orientation_type: OrientationType::Grid,
-                        }, &config_at.element_body, &config_query_params, &vec![i], &data_at).await,
+                        }, &config_at.element_body, &config_query_params, &vec![*i], data_at).await,
                         height: config_at.element_height.clone(),
                         expand: match &config_at.element_expansion {
                             None => None,
@@ -1379,7 +1362,7 @@ fn build_widget_root_data_rows(
                                 restrict_y: false,
                                 parent_orientation: Orientation::DownRight,
                                 parent_orientation_type: OrientationType::Grid,
-                            }, &exp, &config_query_params, &vec![i], &data_at).await),
+                            }, &exp, &config_query_params, &vec![*i], data_at).await),
                         },
                     }).root);
                 }
@@ -1387,11 +1370,12 @@ fn build_widget_root_data_rows(
                     &eg,
                     &state().playlist,
                     vs.clone(),
-                    build.playlist_add,
+                    playlist_add,
                     &restore_playlist_pos,
                     offline.is_some(),
                 ).await;
-                if !build.have_media.get() && build.want_media {
+                let want_media = want_media || build.want_media;
+                if !build.have_media.get() && want_media {
                     eg.event(|pc| {
                         build.transport_slot.ref_push(build_transport(pc, offline.is_some()));
                     }).unwrap();
@@ -1650,34 +1634,40 @@ fn center_to_playing() {
         }
     }
 
-    fn find_playing_element() -> Option<HtmlElement> {
-        let class = style_export::class_state_element_selected().value;
-        let els = gloo::utils::document().get_elements_by_class_name(&class);
-        els.item(0)?.dyn_into::<HtmlElement>().ok()
+    fn find_playing_element(playing_i: &PlaylistIndex) -> Option<HtmlElement> {
+        let state = state();
+        let buttons = state.playlist.0.play_buttons.borrow();
+        let weak = buttons.get(playing_i)?;
+        let el = weak.upgrade()?;
+        el.raw().dyn_into::<HtmlElement>().ok()
     }
 
-    if let Some(play_button) = find_playing_element() {
+    if let Some(play_button) = find_playing_element(&playing_i) {
         scroll_to_play_button(&play_button);
         return;
     }
-    wasm_bindgen_futures::spawn_local(async move {
-        for _ in 0 .. 100 {
-            // Send force-advance signal to the infinite scroll
+    *state().playlist.0.center_to_playing_bg.borrow_mut() = Some(rooting::spawn_rooted(async move {
+        loop {
+            // Send force-advance signal to the infinite scroll with a loaded signal
             let tx = state().advance_infinite_tx.borrow().clone();
             match tx {
                 Some(tx) => {
-                    if tx.send(true).is_err() {
-                        // Receiver dropped — between pages (loading) or stale; wait and retry
+                    let (loaded_tx, loaded_rx) = tokio::sync::oneshot::channel();
+                    if tx.send(crate::libnonlink::infinite::InfAdvanceMsg {
+                        force: true,
+                        loaded: Some(loaded_tx),
+                    }).is_err() {
+                        // Receiver dropped — between pages; wait briefly and retry
                         gloo::timers::future::TimeoutFuture::new(100).await;
-                    } else {
-                        // Signal sent, wait for the page to load
-                        gloo::timers::future::TimeoutFuture::new(100).await;
+                        continue;
                     }
+                    // Wait for the page to actually load
+                    _ = loaded_rx.await;
                 },
                 // No infinite scroll active or no more pages
                 None => return,
             }
-            if let Some(play_button) = find_playing_element() {
+            if let Some(play_button) = find_playing_element(&playing_i) {
                 scroll_to_play_button(&play_button);
                 return;
             }
@@ -1688,7 +1678,7 @@ fn center_to_playing() {
                 return;
             }
         }
-    });
+    }));
 }
 
 fn build_transport(pc: &mut ProcessingContext, offline: bool) -> El {
