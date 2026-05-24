@@ -673,15 +673,10 @@ pub fn main() {
                             return None;
                         }
                         let e = state().playlist.0.playlist.borrow().get(&playing_i.get().unwrap()).cloned().unwrap();
-                        let media_ref = e.media.borrow();
-                        let Some(media) = media_ref.as_ref() else {
-                            return None;
-                        };
-                        if !media.pm_display() {
+                        if !e.media.pm_display() {
                             return None;
                         }
-                        let media_display = media.pm_el(&state().log, pc);
-                        drop(media_ref);
+                        let media_display = e.media.pm_el(&state().log, pc);
                         if let Some((ref _root, ref media_slot)) = *modal_state.borrow() {
                             media_slot.ref_clear();
                             media_slot.ref_push(media_display);
