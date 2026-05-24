@@ -165,15 +165,10 @@ pub struct PlaylistEntry {
     pub media: RefCell<Option<Box<dyn PlaylistMedia>>>,
 }
 
-/// Result from a playlist source callback: new entries + whether more pages exist.
-pub struct PlaylistSourcePage {
-    pub entries: Vec<PlaylistPushArg>,
-    pub has_more: bool,
-}
-
-/// Callback type for pulling more playlist entries. Returns None on error.
+/// Callback type for pulling more playlist entries. Returns Some(entries) for a
+/// page of results, or None when exhausted or on error (clears the source).
 pub type PlaylistSourceFn =
-    Rc<dyn Fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<PlaylistSourcePage>>>>>;
+    Rc<dyn Fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<Vec<PlaylistPushArg>>>>>>;
 
 pub struct PlaylistState_ {
     pub view_ministate_state: RefCell<Option<MinistateViewState>>,
@@ -953,11 +948,8 @@ pub fn playlist_next(pc: &mut ProcessingContext, state: &PlaylistState, basis: O
         async move {
             while let Some(source) = state.0.source.borrow().clone() {
                 match source().await {
-                    Some(page) => {
-                        if !page.has_more {
-                            *state.0.source.borrow_mut() = None;
-                        }
-                        for entry in page.entries {
+                    Some(entries) => {
+                        for entry in entries {
                             state.0.playlist.borrow_mut().insert(entry.index.clone(), Rc::new(PlaylistEntry {
                                 name: entry.name,
                                 album: entry.album,

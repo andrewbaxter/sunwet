@@ -33,7 +33,6 @@ use {
         playlist::{
             PlaylistIndex,
             PlaylistPushArg,
-            PlaylistSourcePage,
             categorize_mime_media,
             playlist_extend,
             playlist_len,
@@ -513,6 +512,7 @@ impl Build {
                         node_meta = Rc::new(res.meta.into_iter().collect::<HashMap<_, _>>());
                     },
                 };
+
                 // Build data stack for each row
                 let row_stacks: Vec<_> = new_data_at_tops.into_iter().enumerate().map(|(i, new_data_at_top)| {
                     let mut row_data_at = data_at.clone();
@@ -530,15 +530,16 @@ impl Build {
                 for (row_data_id, row_data_at) in &row_stacks {
                     match &config_at.row_widget {
                         shared::interface::config::view::DataRowsLayout::Unaligned(config_rows) => {
-                            extract_playlist_entries_from_widget(
-                                &config_rows.widget, row_data_id, row_data_at, &mut playlist_add,
+                            extract_playlist_entries_from_page(
+                                &config_rows.widget,
+                                row_data_id,
+                                row_data_at,
+                                &mut playlist_add,
                             );
                         },
                         shared::interface::config::view::DataRowsLayout::Table(config_table) => {
                             for el in &config_table.elements {
-                                extract_playlist_entries_from_widget(
-                                    el, row_data_id, row_data_at, &mut playlist_add,
-                                );
+                                extract_playlist_entries_from_page(el, row_data_id, row_data_at, &mut playlist_add);
                             }
                         },
                     }
@@ -1183,107 +1184,87 @@ impl Build {
     }
 }
 
-fn extract_play_button_entry(
-    config_at: &WidgetPlayButton,
-    data_id: &Vec<usize>,
-    data_stack: &Vec<Rc<DataStackLevel>>,
-) -> Option<PlaylistPushArg> {
-    let src = maybe_get_field(&config_at.media_file_field, data_stack)?;
-    let TreeNode::Scalar(src) = &src else {
-        return None;
-    };
-    let meta = maybe_get_meta(data_stack, src)?;
-    let media_type = categorize_mime_media(meta.mime.as_ref().map(|x| x.as_str()).unwrap_or(""))?;
-    let src_url = unwrap_value_media_hash(&src).ok()?;
-    let cover_source_url = shed!{
-        let Some(config_at) = &config_at.cover_field else {
-            break None;
-        };
-        let Some(d) = maybe_get_field(config_at, data_stack) else {
-            break None;
-        };
-        let TreeNode::Scalar(d) = d else {
-            break None;
-        };
-        break unwrap_value_media_hash(&d).ok();
-    };
-    Some(PlaylistPushArg {
-        index: data_id.clone(),
-        name: shed!{
-            let Some(config_at) = &config_at.name_field else {
-                break None;
-            };
-            let Some(d) = maybe_get_field(config_at, data_stack) else {
-                break None;
-            };
-            break Some(tree_node_to_text(&d));
-        },
-        album: shed!{
-            let Some(config_at) = &config_at.album_field else {
-                break None;
-            };
-            let Some(d) = maybe_get_field(config_at, data_stack) else {
-                break None;
-            };
-            break Some(tree_node_to_text(&d));
-        },
-        artist: shed!{
-            let Some(config_at) = &config_at.artist_field else {
-                break None;
-            };
-            let Some(d) = maybe_get_field(config_at, data_stack) else {
-                break None;
-            };
-            break Some(tree_node_to_text(&d));
-        },
-        cover_source_url: cover_source_url,
-        source_file: src_url,
-        media_type: media_type,
-    })
-}
-
-fn extract_playlist_entries_from_widget(
+fn extract_playlist_entries_from_page(
     config_at: &Widget,
     data_id: &Vec<usize>,
     data_stack: &Vec<Rc<DataStackLevel>>,
     out: &mut Vec<PlaylistPushArg>,
 ) {
     match config_at {
-        Widget::PlayButton(config_at) => {
-            if let Some(entry) = extract_play_button_entry(config_at, data_id, data_stack) {
-                out.push(entry);
-            }
+        Widget::PlayButton(config_at) => shed!{
+            let Some(src) = maybe_get_field(&config_at.media_file_field, data_stack) else {
+                break;
+            };
+            let TreeNode::Scalar(src) = &src else {
+                break;
+            };
+            let Some(meta) = maybe_get_meta(data_stack, src) else {
+                break;
+            };
+            let Some(media_type) = categorize_mime_media(meta.mime.as_ref().map(|x| x.as_str()).unwrap_or("")) else {
+                break;
+            };
+            let Some(src_url) = unwrap_value_media_hash(&src).ok() else {
+                break;
+            };
+            let cover_source_url = shed!{
+                let Some(config_at) = &config_at.cover_field else {
+                    break None;
+                };
+                let Some(d) = maybe_get_field(config_at, data_stack) else {
+                    break None;
+                };
+                let TreeNode::Scalar(d) = d else {
+                    break None;
+                };
+                break unwrap_value_media_hash(&d).ok();
+            };
+            out.push(PlaylistPushArg {
+                index: data_id.clone(),
+                name: shed!{
+                    let Some(config_at) = &config_at.name_field else {
+                        break None;
+                    };
+                    let Some(d) = maybe_get_field(config_at, data_stack) else {
+                        break None;
+                    };
+                    break Some(tree_node_to_text(&d));
+                },
+                album: shed!{
+                    let Some(config_at) = &config_at.album_field else {
+                        break None;
+                    };
+                    let Some(d) = maybe_get_field(config_at, data_stack) else {
+                        break None;
+                    };
+                    break Some(tree_node_to_text(&d));
+                },
+                artist: shed!{
+                    let Some(config_at) = &config_at.artist_field else {
+                        break None;
+                    };
+                    let Some(d) = maybe_get_field(config_at, data_stack) else {
+                        break None;
+                    };
+                    break Some(tree_node_to_text(&d));
+                },
+                cover_source_url: cover_source_url,
+                source_file: src_url,
+                media_type: media_type,
+            });
         },
         Widget::Layout(config_at) => {
             for child in &config_at.elements {
-                extract_playlist_entries_from_widget(child, data_id, data_stack, out);
+                extract_playlist_entries_from_page(child, data_id, data_stack, out);
             }
         },
         Widget::Table(config_at) => {
             for child in &config_at.elements {
-                extract_playlist_entries_from_widget(child, data_id, data_stack, out);
+                extract_playlist_entries_from_page(child, data_id, data_stack, out);
             }
         },
         _ => { },
     }
-}
-
-fn extract_playlist_entries_from_page(
-    config_at: &WidgetRootDataRows,
-    node_meta: &Rc<HashMap<Node, NodeMeta>>,
-    base_data_stack: &Vec<Rc<DataStackLevel>>,
-    rows: Vec<(usize, TreeNode)>,
-) -> Vec<PlaylistPushArg> {
-    let mut out = vec![];
-    for (i, row_data) in rows {
-        let mut data_stack = base_data_stack.clone();
-        data_stack.push(Rc::new(DataStackLevel {
-            data: row_data,
-            node_meta: node_meta.clone(),
-        }));
-        extract_playlist_entries_from_widget(&config_at.element_body, &vec![i], &data_stack, &mut out);
-    }
-    out
 }
 
 fn build_widget_root_data_rows(
@@ -1327,8 +1308,11 @@ fn build_widget_root_data_rows(
                 // Extract playlist entries (first walk)
                 let mut playlist_add = vec![];
                 for (i, row_data_at) in &row_stacks {
-                    extract_playlist_entries_from_widget(
-                        &config_at.element_body, &vec![*i], row_data_at, &mut playlist_add,
+                    extract_playlist_entries_from_page(
+                        &config_at.element_body,
+                        &vec![*i],
+                        row_data_at,
+                        &mut playlist_add,
                     );
                 }
                 let want_media = !playlist_add.is_empty();
@@ -1505,8 +1489,9 @@ fn build_widget_root_data_rows(
                                 let source_page_key = source_page_key.clone();
                                 let source_started = source_started.clone();
                                 Box::pin(async move {
-                                    // Skip first call if infinite scroll hasn't started yet (it will handle the
-                                    // initial pages)
+                                    if source_started.get() && source_page_key.borrow().is_none() {
+                                        return None;
+                                    }
                                     if !source_started.get() {
                                         // Sync count with current playlist length
                                         source_count.set(playlist_len(&state().playlist));
@@ -1540,15 +1525,23 @@ fn build_widget_root_data_rows(
                                             }
                                         },
                                     }
-                                    let has_more = res.next_page_key.is_some();
                                     *source_page_key.borrow_mut() = res.next_page_key;
                                     let node_meta = Rc::new(res.meta.into_iter().collect::<HashMap<_, _>>());
-                                    let entries =
-                                        extract_playlist_entries_from_page(&config_at, &node_meta, &data_at, chunk);
-                                    Some(PlaylistSourcePage {
-                                        entries,
-                                        has_more,
-                                    })
+                                    let mut entries = vec![];
+                                    for (i, row_data) in chunk {
+                                        let mut data_stack = data_at.clone();
+                                        data_stack.push(Rc::new(DataStackLevel {
+                                            data: row_data,
+                                            node_meta: node_meta.clone(),
+                                        }));
+                                        extract_playlist_entries_from_page(
+                                            &config_at.element_body,
+                                            &vec![i],
+                                            &data_stack,
+                                            &mut entries,
+                                        );
+                                    }
+                                    Some(entries)
                                 })
                             }
                         }));
@@ -1661,6 +1654,7 @@ fn center_to_playing() {
                         gloo::timers::future::TimeoutFuture::new(100).await;
                         continue;
                     }
+
                     // Wait for the page to actually load
                     _ = loaded_rx.await;
                 },
