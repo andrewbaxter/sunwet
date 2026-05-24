@@ -1314,6 +1314,14 @@ fn build_widget_root_data_rows(
                         row_data_at,
                         &mut playlist_add,
                     );
+                    if let Some(exp) = &config_at.element_expansion {
+                        extract_playlist_entries_from_page(
+                            exp,
+                            &vec![*i],
+                            row_data_at,
+                            &mut playlist_add,
+                        );
+                    }
                 }
                 let want_media = !playlist_add.is_empty();
 
@@ -1540,6 +1548,14 @@ fn build_widget_root_data_rows(
                                             &data_stack,
                                             &mut entries,
                                         );
+                                        if let Some(exp) = &config_at.element_expansion {
+                                            extract_playlist_entries_from_page(
+                                                exp,
+                                                &vec![i],
+                                                &data_stack,
+                                                &mut entries,
+                                            );
+                                        }
                                     }
                                     Some(entries)
                                 })
