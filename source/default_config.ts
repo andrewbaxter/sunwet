@@ -1076,7 +1076,7 @@ export const buildGlobal = async (apiTokens: {
                         },
                       },
                       {
-                        text: {
+                        date: {
                           data: { field: "create_timestamp" },
                           orientation: "right_down",
                         },
