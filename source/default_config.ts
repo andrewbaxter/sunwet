@@ -1002,7 +1002,6 @@ export const buildGlobal = async (apiTokens: {
       },
     },
   };
-  const mediaItemMaxWidth = "min(15cm, 100%)";
   const mediaBlockSize = "8cm";
   const displayMicroblogMedia: sunwet.WidgetRootDataRows = {
     data: { query: "root" },
@@ -1016,95 +1015,104 @@ export const buildGlobal = async (apiTokens: {
     },
     element_expansion: {
       layout: {
-        orientation: "down_right",
-        trans_size_max: "20cm",
-        trans_align: "middle",
-        gap: "0.3cm",
+        orientation: "right_down",
         elements: [
+          "space",
           {
-            table: {
-              columns: 2,
+            layout: {
               orientation: "down_right",
-              column_gap: "0.5cm",
-              row_gap: "0.2cm",
-              row_trans_direction_downright: true,
+              trans_size_max: "20cm",
+              trans_align: "middle",
+              gap: "0.3cm",
               elements: [
-                // 1st
-                "space",
                 {
-                  layout: {
-                    orientation: "right_down",
-                    trans_align: "end",
+                  table: {
+                    columns: 2,
+                    orientation: "down_right",
+                    column_gap: "0.5cm",
+                    row_gap: "0.2cm",
+                    row_trans_direction_downright: true,
                     elements: [
+                      // 1st
                       "space",
-                      widgetNodeLink("microblog_id", "microblog_id"),
                       {
-                        play_button: {
-                          media_file_field: "media",
+                        layout: {
                           orientation: "right_down",
-                          name_field: "author",
-                          album_field: "url",
-                          artist_field: "author",
-                          cover_field: "media",
+                          trans_align: "end",
+                          elements: [
+                            "space",
+                            widgetNodeLink("microblog_id", "microblog_id"),
+                            {
+                              play_button: {
+                                media_file_field: "media",
+                                orientation: "right_down",
+                                name_field: "author",
+                                album_field: "url",
+                                artist_field: "author",
+                                cover_field: "media",
+                              },
+                            },
+                          ],
+                        },
+                      },
+                      // 2nd row
+                      {
+                        text: {
+                          data: { literal: "Author" },
+                          orientation: "right_down",
+                        },
+                      },
+                      {
+                        text: {
+                          data: { field: "author" },
+                          orientation: "right_down",
+                        },
+                      },
+                      // 3rd
+                      {
+                        text: {
+                          data: { literal: "Date" },
+                          orientation: "right_down",
+                        },
+                      },
+                      {
+                        text: {
+                          data: { field: "create_timestamp" },
+                          orientation: "right_down",
+                        },
+                      },
+                      // 4th
+                      {
+                        text: {
+                          data: { literal: "URL" },
+                          orientation: "right_down",
+                        },
+                      },
+                      {
+                        text: {
+                          data: { field: "url" },
+                          con_size_mode: "wrap",
+                          orientation: "right_down",
+                          link: {
+                            title: { field: "url" },
+                            dest: { plain: { field: "url" } },
+                          },
                         },
                       },
                     ],
                   },
                 },
-                // 2nd row
                 {
                   text: {
-                    data: { literal: "Author" },
-                    orientation: "right_down",
-                  },
-                },
-                {
-                  text: {
-                    data: { field: "author" },
-                    orientation: "right_down",
-                  },
-                },
-                // 3rd
-                {
-                  text: {
-                    data: { literal: "Date" },
-                    orientation: "right_down",
-                  },
-                },
-                {
-                  text: {
-                    data: { field: "create_timestamp" },
-                    orientation: "right_down",
-                  },
-                },
-                // 4th
-                {
-                  text: {
-                    data: { literal: "URL" },
-                    orientation: "right_down",
-                  },
-                },
-                {
-                  text: {
-                    data: { field: "url" },
+                    data: { field: "text" },
                     con_size_mode: "wrap",
                     orientation: "right_down",
-                    link: {
-                      title: { field: "url" },
-                      dest: { plain: { field: "url" } },
-                    },
                   },
                 },
               ],
             },
           },
-          {
-            text: {
-              data: { field: "text" },
-              con_size_mode: "wrap",
-              orientation: "right_down",
-            },
-          },
+          "space",
         ],
       },
     },
@@ -1121,111 +1129,120 @@ export const buildGlobal = async (apiTokens: {
     },
     element_expansion: {
       layout: {
-        orientation: "down_right",
-        trans_size_max: "20cm",
-        trans_align: "middle",
-        gap: "0.3cm",
+        orientation: "right_down",
         elements: [
+          "space",
           {
-            table: {
-              columns: 2,
+            layout: {
               orientation: "down_right",
-              column_gap: "0.5cm",
-              row_gap: "0.2cm",
-              row_trans_direction_downright: true,
+              trans_size_max: "20cm",
+              trans_align: "middle",
+              gap: "0.3cm",
               elements: [
-                // 1st
-                "space",
                 {
-                  layout: {
-                    orientation: "right_down",
-                    trans_align: "end",
+                  table: {
+                    columns: 2,
+                    orientation: "down_right",
+                    column_gap: "0.5cm",
+                    row_gap: "0.2cm",
+                    row_trans_direction_downright: true,
                     elements: [
+                      // 1st
                       "space",
-                      widgetNodeLink("image_id", "image_id"),
                       {
-                        play_button: {
-                          media_file_field: "image_hash",
+                        layout: {
                           orientation: "right_down",
-                          name_field: "artist_name",
-                          album_field: "url",
-                          artist_field: "artist_name",
-                          cover_field: "image_hash",
+                          trans_align: "end",
+                          elements: [
+                            "space",
+                            widgetNodeLink("image_id", "image_id"),
+                            {
+                              play_button: {
+                                media_file_field: "image_hash",
+                                orientation: "right_down",
+                                name_field: "artist_name",
+                                album_field: "url",
+                                artist_field: "artist_name",
+                                cover_field: "image_hash",
+                              },
+                            },
+                          ],
+                        },
+                      },
+                      // 2nd row
+                      {
+                        text: {
+                          data: { literal: "Artist" },
+                          orientation: "right_down",
+                        },
+                      },
+                      {
+                        text: {
+                          data: { field: "artist_name" },
+                          orientation: "right_down",
+                        },
+                      },
+                      // 3rd
+                      {
+                        text: {
+                          data: { literal: "URL" },
+                          orientation: "right_down",
+                        },
+                      },
+                      {
+                        text: {
+                          data: { field: "url" },
+                          con_size_mode: "wrap",
+                          orientation: "right_down",
+                          link: {
+                            title: { field: "url" },
+                            dest: { plain: { field: "url" } },
+                          },
+                        },
+                      },
+                      // 4th
+                      {
+                        text: {
+                          data: { literal: "Source URL" },
+                          orientation: "right_down",
+                        },
+                      },
+                      {
+                        text: {
+                          data: { field: "source_url" },
+                          con_size_mode: "wrap",
+                          orientation: "right_down",
+                          link: {
+                            title: { field: "source_url" },
+                            dest: { plain: { field: "source_url" } },
+                          },
+                        },
+                      },
+                      // 5th
+                      {
+                        text: {
+                          data: { literal: "Artist URL" },
+                          orientation: "right_down",
+                        },
+                      },
+                      {
+                        text: {
+                          data: { field: "artist_url" },
+                          con_size_mode: "wrap",
+                          orientation: "right_down",
+                          link: {
+                            title: { field: "artist_url" },
+                            dest: { plain: { field: "artist_url" } },
+                          },
                         },
                       },
                     ],
                   },
                 },
-                // 2nd row
-                {
-                  text: {
-                    data: { literal: "Artist" },
-                    orientation: "right_down",
-                  },
-                },
-                {
-                  text: {
-                    data: { field: "artist_name" },
-                    orientation: "right_down",
-                  },
-                },
-                // 3rd
-                {
-                  text: {
-                    data: { literal: "URL" },
-                    orientation: "right_down",
-                  },
-                },
-                {
-                  text: {
-                    data: { field: "url" },
-                    con_size_mode: "wrap",
-                    orientation: "right_down",
-                    link: {
-                      title: { field: "url" },
-                      dest: { plain: { field: "url" } },
-                    },
-                  },
-                },
-                // 4th
-                {
-                  text: {
-                    data: { literal: "Source URL" },
-                    orientation: "right_down",
-                  },
-                },
-                {
-                  text: {
-                    data: { field: "source_url" },
-                    con_size_mode: "wrap",
-                    orientation: "right_down",
-                    link: {
-                      title: { field: "source_url" },
-                      dest: { plain: { field: "source_url" } },
-                    },
-                  },
-                },
-                // 5th
-                {
-                  text: {
-                    data: { literal: "Artist URL" },
-                    orientation: "right_down",
-                  },
-                },
-                {
-                  text: {
-                    data: { field: "artist_url" },
-                    con_size_mode: "wrap",
-                    orientation: "right_down",
-                    link: {
-                      title: { field: "artist_url" },
-                      dest: { plain: { field: "artist_url" } },
-                    },
-                  },
-                },
               ],
             },
           },
+          "space",
         ],
       },
     },

@@ -2942,11 +2942,6 @@
       {
         styles_: [
           contViewListStyle,
-          viewTransStyle({
-            parentOrientationType: args.parentOrientationType,
-            parentOrientation: args.parentOrientation,
-            transAlign: args.transAlign,
-          }),
           contViewListStyleWrap(args.conWrap),
           ss(
             uniq("cont_view_list", con(args.orientation)),
@@ -3108,20 +3103,12 @@
         {},
         {
           styles_: [
-            viewTransStyle({
-              parentOrientationType: args.parentOrientationType,
-              parentOrientation: args.parentOrientation,
-              transAlign: args.transAlign,
-            }),
             ss(uniq("cont_view_table"), {
               "": (s) => {
                 s.display = "grid";
                 s.pointerEvents = "initial";
                 s.maxWidth = "100%";
               },
-              //[`>.${contViewListStyle}`]: (s) => {
-              //  s.display = "contents";
-              //},
             }),
           ],
           children_: children1,
