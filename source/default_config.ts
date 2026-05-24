@@ -1111,27 +1111,38 @@ export const buildGlobal = async (apiTokens: {
   };
   const displayImages: sunwet.WidgetRootDataRows = {
     data: { query: "root" },
+    element_width: mediaBlockSize,
+    element_height: mediaBlockSize,
     element_body: {
+      media: {
+        data: { field: "image_hash" },
+        trans_align: "middle",
+      },
+    },
+    element_expansion: {
       layout: {
         orientation: "down_right",
+        trans_size_max: "20cm",
+        trans_align: "middle",
+        gap: "0.3cm",
         elements: [
           {
-            media: {
-              data: { field: "image_hash" },
-              height: "30dvh",
-            },
-          },
-          {
-            layout: {
+            table: {
+              columns: 2,
               orientation: "down_right",
-              con_size_max: mediaItemMaxWidth,
+              column_gap: "0.5cm",
+              row_gap: "0.2cm",
+              row_trans_direction_downright: true,
               elements: [
+                // 1st
+                "space",
                 {
                   layout: {
                     orientation: "right_down",
+                    trans_align: "end",
                     elements: [
-                      widgetNodeLink("image_id", "image_id"),
                       "space",
+                      widgetNodeLink("image_id", "image_id"),
                       {
                         play_button: {
                           media_file_field: "image_hash",
@@ -1145,99 +1156,71 @@ export const buildGlobal = async (apiTokens: {
                     ],
                   },
                 },
+                // 2nd row
                 {
-                  layout: {
+                  text: {
+                    data: { literal: "Artist" },
                     orientation: "right_down",
-                    elements: [
-                      {
-                        text: {
-                          data: { literal: "Artist" },
-                          font_size: "12pt",
-                          color: "rgba(78, 94, 119, 0.8)",
-                          orientation: "right_down",
-                        },
-                      },
-                      "space",
-                      {
-                        text: {
-                          data: { field: "artist_name" },
-                          font_size: "12pt",
-                          orientation: "right_down",
-                        },
-                      },
-                    ],
                   },
                 },
                 {
-                  layout: {
+                  text: {
+                    data: { field: "artist_name" },
                     orientation: "right_down",
-                    elements: [
-                      {
-                        text: {
-                          data: { literal: "URL" },
-                          font_size: "12pt",
-                          color: "rgba(78, 94, 119, 0.8)",
-                          orientation: "right_down",
-                        },
-                      },
-                      "space",
-                      {
-                        text: {
-                          data: { field: "url" },
-                          font_size: "12pt",
-                          con_size_mode: "ellipsize",
-                          orientation: "right_down",
-                        },
-                      },
-                    ],
+                  },
+                },
+                // 3rd
+                {
+                  text: {
+                    data: { literal: "URL" },
+                    orientation: "right_down",
                   },
                 },
                 {
-                  layout: {
+                  text: {
+                    data: { field: "url" },
+                    con_size_mode: "wrap",
                     orientation: "right_down",
-                    elements: [
-                      {
-                        text: {
-                          data: { literal: "Source URL" },
-                          font_size: "12pt",
-                          color: "rgba(78, 94, 119, 0.8)",
-                          orientation: "right_down",
-                        },
-                      },
-                      "space",
-                      {
-                        text: {
-                          data: { field: "source_url" },
-                          font_size: "12pt",
-                          con_size_mode: "ellipsize",
-                          orientation: "right_down",
-                        },
-                      },
-                    ],
+                    link: {
+                      title: { field: "url" },
+                      dest: { plain: { field: "url" } },
+                    },
+                  },
+                },
+                // 4th
+                {
+                  text: {
+                    data: { literal: "Source URL" },
+                    orientation: "right_down",
                   },
                 },
                 {
-                  layout: {
+                  text: {
+                    data: { field: "source_url" },
+                    con_size_mode: "wrap",
                     orientation: "right_down",
-                    elements: [
-                      {
-                        text: {
-                          data: { literal: "Artist URL" },
-                          font_size: "12pt",
-                          color: "rgba(78, 94, 119, 0.8)",
-                          orientation: "right_down",
-                        },
-                      },
-                      "space",
-                      {
-                        text: {
-                          data: { field: "artist_url" },
-                          font_size: "12pt",
-                          con_size_mode: "ellipsize",
-                          orientation: "right_down",
-                        },
-                      },
-                    ],
+                    link: {
+                      title: { field: "source_url" },
+                      dest: { plain: { field: "source_url" } },
+                    },
+                  },
+                },
+                // 5th
+                {
+                  text: {
+                    data: { literal: "Artist URL" },
+                    orientation: "right_down",
+                  },
+                },
+                {
+                  text: {
+                    data: { field: "artist_url" },
+                    con_size_mode: "wrap",
+                    orientation: "right_down",
+                    link: {
+                      title: { field: "artist_url" },
+                      dest: { plain: { field: "artist_url" } },
+                    },
                   },
                 },
               ],
@@ -1746,7 +1729,7 @@ export const buildGlobal = async (apiTokens: {
               },
               {
                 id: "microblog_media_by_random",
-                name: "media random",
+                name: "media by random",
                 detail: {
                   page: {
                     view: { view_id: "microblog_media_by_random" },
@@ -1774,7 +1757,7 @@ export const buildGlobal = async (apiTokens: {
               },
               {
                 id: "images_by_random",
-                name: "random",
+                name: "by random",
                 detail: {
                   page: {
                     view: { view_id: "images_by_random" },
