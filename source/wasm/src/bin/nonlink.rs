@@ -677,7 +677,8 @@ pub fn main() {
                             return None;
                         }
                         let media_display = e.media.pm_el(&state().log, pc);
-                        if let Some((ref _root, ref media_slot)) = *modal_state.borrow() {
+                        let existing_media_slot = modal_state.borrow().as_ref().map(|(_r, m)| m.clone());
+                        if let Some(media_slot) = existing_media_slot {
                             media_slot.ref_clear();
                             media_slot.ref_push(media_display);
                             return None;
