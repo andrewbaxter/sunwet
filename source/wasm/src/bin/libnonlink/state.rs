@@ -102,6 +102,7 @@ pub struct State_ {
     pub log1: Rc<VecLog>,
     pub current_list: Prim<Option<CurrentList>>,
     pub follow_playing: Prim<bool>,
+    pub advance_infinite_tx: crate::libnonlink::infinite::InfAdvanceSlot,
 }
 
 thread_local!{

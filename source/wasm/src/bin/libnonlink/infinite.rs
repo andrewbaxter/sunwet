@@ -35,11 +35,21 @@ pub struct InfPageRes<K> {
     pub immediate_advance: bool,
 }
 
+// Message: false = based on scroll position, true = force
+pub type InfAdvanceSlot = Rc<RefCell<Option<mpsc::UnboundedSender<bool>>>>;
+
 fn build_infinite_<
     K: 'static,
     T: Future<Output = Result<InfPageRes<K>, String>>,
     F: 'static + FnMut(K) -> T,
->(log: &Rc<dyn Log>, out: El, bg: Rc<RefCell<Option<ScopeValue>>>, initial_key: K, mut cb: F) {
+>(
+    log: &Rc<dyn Log>,
+    out: El,
+    bg: Rc<RefCell<Option<ScopeValue>>>,
+    initial_key: K,
+    advance_tx_slot: Option<InfAdvanceSlot>,
+    mut cb: F,
+) {
     out.ref_push(el_async({
         let out = out.weak();
         let log = log.clone();
@@ -50,12 +60,16 @@ fn build_infinite_<
                 let immediate_advance = page_res.immediate_advance;
                 *bg.borrow_mut() = Some(spawn_rooted({
                     let bg = bg.clone();
+                    let advance_tx_slot = advance_tx_slot.clone();
                     async move {
                         if immediate_advance {
                             // nop
                         } else {
-                            let (tx, mut rx) = mpsc::unbounded_channel();
-                            _ = tx.send(());
+                            let (tx, mut rx) = mpsc::unbounded_channel::<bool>();
+                            _ = tx.send(false);
+                            if let Some(slot) = &advance_tx_slot {
+                                *slot.borrow_mut() = Some(tx.clone());
+                            }
                             TimeoutFuture::new(500).await;
                             let scroll_parent = {
                                 let Some(at) = out.upgrade() else {
@@ -81,12 +95,18 @@ fn build_infinite_<
                                 }
                                 at
                             };
-                            let listener = EventListener::new(&scroll_parent, "scroll", move |_| {
-                                _ = tx.send(());
+                            let listener = EventListener::new(&scroll_parent, "scroll", {
+                                let tx = tx.clone();
+                                move |_| {
+                                    _ = tx.send(false);
+                                }
                             });
                             shed!{
                                 'trigger _;
-                                while let Some(_) = rx.recv().await {
+                                while let Some(force) = rx.recv().await {
+                                    if force {
+                                        break 'trigger;
+                                    }
                                     let scroll = scroll_parent.scroll_top();
                                     let view_height = scroll_parent.client_height();
                                     let full_height = scroll_parent.scroll_height();
@@ -99,10 +119,15 @@ fn build_infinite_<
                             drop(listener);
                         }
                         if let Some(out) = out.upgrade() {
-                            build_infinite_(&log, out, bg, next_key, cb);
+                            build_infinite_(&log, out, bg, next_key, advance_tx_slot, cb);
                         }
                     }
                 }));
+            } else {
+                // No more pages — clear the advance slot
+                if let Some(slot) = &advance_tx_slot {
+                    *slot.borrow_mut() = None;
+                }
             }
             return Ok(page_res.page_els);
         }
@@ -113,10 +138,10 @@ pub fn build_infinite<
     K: 'static,
     T: Future<Output = Result<InfPageRes<K>, String>>,
     F: 'static + FnMut(K) -> T,
->(log: &Rc<dyn Log>, initial_key: K, cb: F) -> El {
+>(log: &Rc<dyn Log>, initial_key: K, advance_tx_slot: Option<InfAdvanceSlot>, cb: F) -> El {
     let out = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
     let bg = Rc::new(RefCell::new(None));
     out.ref_own(|_| bg.clone());
-    build_infinite_(log, out.clone(), bg, initial_key, cb);
+    build_infinite_(log, out.clone(), bg, initial_key, advance_tx_slot, cb);
     return out;
 }

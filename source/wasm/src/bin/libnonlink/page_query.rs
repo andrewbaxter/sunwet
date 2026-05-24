@@ -183,7 +183,7 @@ fn refresh_query(eg: EventGraph, qstate: QueryState, text: &str) {
         },
     };
     if let Some(pretty_results_group) = qstate.pretty_results_group.upgrade() {
-        pretty_results_group.ref_push(build_infinite(&state().log, None, {
+        pretty_results_group.ref_push(build_infinite(&state().log, None, None, {
             let seed = (Math::random() * u64::MAX as f64) as u64;
             let query = query.clone();
             move |key| {

@@ -228,6 +228,7 @@ pub fn main() {
                 break None;
             }),
             follow_playing: Prim::new(LocalStorage::get::<bool>(LOCALSTORAGE_FOLLOW_PLAYING).unwrap_or(false)),
+            advance_infinite_tx: Default::default(),
         })));
         spawn_local({
             let eg = pc.eg();
@@ -654,30 +655,6 @@ pub fn main() {
                     },
                 }
             }),
-            link!((_pc = pc), (playing_i = state().playlist.0.playing_i.clone()), (), () {
-                let class = style_export::class_state_element_selected().value;
-                {
-                    let old_focused = document().get_elements_by_class_name(&class);
-                    let mut old_focused1 = vec![];
-                    for i in 0 .. old_focused.length() {
-                        old_focused1.push(old_focused.item(i).unwrap());
-                    }
-                    for o in old_focused1 {
-                        o
-                            .class_list()
-                            .remove_1(&class)
-                            .log(&state().log, "Error removing selected class from play button");
-                    }
-                }
-                if let Some(e_i) = playing_i.get() {
-                    let e = state().playlist.0.playlist.borrow().get(&e_i).cloned().unwrap();
-                    e
-                        .play_button
-                        .class_list()
-                        .add_1(&class)
-                        .log(&state().log, "Error setting selected class from play button");
-                }
-            }),
             {
                 let modal_state: Rc<RefCell<Option<(El, El)>>> = Rc::new(RefCell::new(None));
                 link!(
@@ -696,97 +673,102 @@ pub fn main() {
                             return None;
                         }
                         let e = state().playlist.0.playlist.borrow().get(&playing_i.get().unwrap()).cloned().unwrap();
-                        if !e.media.pm_display() {
+                        let media_ref = e.media.borrow();
+                        let Some(media) = media_ref.as_ref() else {
+                            return None;
+                        };
+                        if !media.pm_display() {
                             return None;
                         }
-                        let media_display = e.media.pm_el(&state().log, pc);
-                        // If modal already exists, just swap the media content
+                        let media_display = media.pm_el(&state().log, pc);
+                        drop(media_ref);
                         if let Some((ref _root, ref media_slot)) = *modal_state.borrow() {
                             media_slot.ref_clear();
                             media_slot.ref_push(media_display);
                             return None;
-                        }
-                        let modal = style_export::cont_media_fullscreen();
-                        setup_seekbar(pc, modal.seekbar, modal.seekbar_fill, modal.seekbar_label);
-                        modal.button_close.on("click", {
-                            let modal_state = modal_state.clone();
-                            let eg = pc.eg();
-                            move |_| eg.event(|pc| {
-                                if let Some((root, _media)) = modal_state.borrow_mut().take() {
-                                    root.ref_replace(vec![]);
-                                }
-                                document().exit_fullscreen();
-                                state().playlist.0.playing.set(pc, false);
-                            }).unwrap()
-                        });
-                        modal.button_fullscreen.on("click", {
-                            let media_slot_raw = modal.media.raw();
-                            move |_| {
-                                media_slot_raw
-                                    .request_fullscreen()
-                                    .log(&state().log, "Error making media fullscreen");
-                            }
-                        });
-                        for target in [&modal.root, &modal.media] {
-                            let touch_start_x: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
-                            let touch_start_y: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
-                            target.ref_on("touchstart", {
-                                let touch_start_x = touch_start_x.clone();
-                                let touch_start_y = touch_start_y.clone();
-                                move |ev| {
-                                    let ev = ev.dyn_ref::<TouchEvent>().unwrap();
-                                    if let Some(touch) = ev.touches().get(0) {
-                                        touch_start_x.set(touch.client_x() as f64);
-                                        touch_start_y.set(touch.client_y() as f64);
+                        } else {
+                            let modal = style_export::cont_media_fullscreen();
+                            setup_seekbar(pc, modal.seekbar, modal.seekbar_fill, modal.seekbar_label);
+                            modal.button_close.on("click", {
+                                let modal_state = modal_state.clone();
+                                let eg = pc.eg();
+                                move |_| eg.event(|pc| {
+                                    if let Some((root, _media)) = modal_state.borrow_mut().take() {
+                                        root.ref_replace(vec![]);
                                     }
+                                    document().exit_fullscreen();
+                                    state().playlist.0.playing.set(pc, false);
+                                }).unwrap()
+                            });
+                            modal.button_fullscreen.on("click", {
+                                let media_slot_raw = modal.media.raw();
+                                move |_| {
+                                    media_slot_raw
+                                        .request_fullscreen()
+                                        .log(&state().log, "Error making media fullscreen");
                                 }
                             });
-                            target.ref_on("touchend", {
-                                let touch_start_x = touch_start_x.clone();
-                                let touch_start_y = touch_start_y.clone();
-                                let eg = pc.eg();
-                                move |ev| {
-                                    let ev = ev.dyn_ref::<TouchEvent>().unwrap();
-                                    if let Some(touch) = ev.changed_touches().get(0) {
-                                        let dx = touch.client_x() as f64 - touch_start_x.get();
-                                        let dy = touch.client_y() as f64 - touch_start_y.get();
-                                        if dx.abs() >= 150.0 && dy.abs() < dx.abs() * 0.2 {
-                                            if dx < 0.0 {
-                                                eg.event(|pc| {
-                                                    playlist_previous(pc, &state().playlist, None);
-                                                }).unwrap();
-                                            } else {
-                                                eg.event(|pc| {
-                                                    playlist_next(pc, &state().playlist, None);
-                                                }).unwrap();
+                            for target in [&modal.root, &modal.media] {
+                                let touch_start_x: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
+                                let touch_start_y: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
+                                target.ref_on("touchstart", {
+                                    let touch_start_x = touch_start_x.clone();
+                                    let touch_start_y = touch_start_y.clone();
+                                    move |ev| {
+                                        let ev = ev.dyn_ref::<TouchEvent>().unwrap();
+                                        if let Some(touch) = ev.touches().get(0) {
+                                            touch_start_x.set(touch.client_x() as f64);
+                                            touch_start_y.set(touch.client_y() as f64);
+                                        }
+                                    }
+                                });
+                                target.ref_on("touchend", {
+                                    let touch_start_x = touch_start_x.clone();
+                                    let touch_start_y = touch_start_y.clone();
+                                    let eg = pc.eg();
+                                    move |ev| {
+                                        let ev = ev.dyn_ref::<TouchEvent>().unwrap();
+                                        if let Some(touch) = ev.changed_touches().get(0) {
+                                            let dx = touch.client_x() as f64 - touch_start_x.get();
+                                            let dy = touch.client_y() as f64 - touch_start_y.get();
+                                            if dx.abs() >= 150.0 && dy.abs() < dx.abs() * 0.2 {
+                                                if dx < 0.0 {
+                                                    eg.event(|pc| {
+                                                        playlist_previous(pc, &state().playlist, None);
+                                                    }).unwrap();
+                                                } else {
+                                                    eg.event(|pc| {
+                                                        playlist_next(pc, &state().playlist, None);
+                                                    }).unwrap();
+                                                }
                                             }
                                         }
                                     }
-                                }
-                            });
-                            target.ref_on("wheel", {
-                                let eg = pc.eg();
-                                move |ev| {
-                                    let Some(dir) = wasm::media::wheel_direction(ev) else {
-                                        return;
-                                    };
-                                    eg.event(|pc| {
-                                        match dir {
-                                            wasm::media::WheelDirection::Next => {
-                                                playlist_next(pc, &state().playlist, None);
-                                            },
-                                            wasm::media::WheelDirection::Prev => {
-                                                playlist_previous(pc, &state().playlist, None);
-                                            },
-                                        }
-                                    }).unwrap();
-                                }
-                            });
+                                });
+                                target.ref_on("wheel", {
+                                    let eg = pc.eg();
+                                    move |ev| {
+                                        let Some(dir) = wasm::media::wheel_direction(ev) else {
+                                            return;
+                                        };
+                                        eg.event(|pc| {
+                                            match dir {
+                                                wasm::media::WheelDirection::Next => {
+                                                    playlist_next(pc, &state().playlist, None);
+                                                },
+                                                wasm::media::WheelDirection::Prev => {
+                                                    playlist_previous(pc, &state().playlist, None);
+                                                },
+                                            }
+                                        }).unwrap();
+                                    }
+                                });
+                            }
+                            modal.media.ref_push(media_display);
+                            modal_stack.ref_push(modal.root.clone());
+                            modal.media.raw().request_fullscreen().log(&state().log, "Error making media fullscreen");
+                            *modal_state.borrow_mut() = Some((modal.root, modal.media));
                         }
-                        modal.media.ref_push(media_display);
-                        modal_stack.ref_push(modal.root.clone());
-                        modal.media.raw().request_fullscreen().log(&state().log, "Error making media fullscreen");
-                        *modal_state.borrow_mut() = Some((modal.root, modal.media));
                     }
                 )
             },
