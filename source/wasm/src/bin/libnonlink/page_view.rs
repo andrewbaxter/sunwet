@@ -32,11 +32,14 @@ use {
         },
         playlist::{
             PlaylistPushArg,
+            PlaylistSourcePage,
             categorize_mime_media,
             playlist_extend,
+            playlist_len,
             playlist_next,
             playlist_previous,
             playlist_set_link,
+            playlist_set_source,
             playlist_toggle_play,
         },
         seekbar::setup_seekbar,
@@ -1098,7 +1101,6 @@ impl Build {
                 cover_source_url: cover_source_url,
                 source_file: src_url,
                 media_type: media_type,
-                play_button: out.raw().dyn_into().unwrap(),
             });
             out.ref_on("click", {
                 let data_id = data_id.clone();
@@ -1118,7 +1120,8 @@ impl Build {
                         (),
                         (index = data_id.clone(), out = out.weak()) {
                             let out = out.upgrade()?;
-                            if playing.get() && playing_i.get().as_ref() == Some(index) {
+                            let is_current = playing.get() && playing_i.get().as_ref() == Some(index);
+                            if is_current {
                                 out.ref_attr(
                                     &style_export::attr_state().value,
                                     &style_export::attr_state_playing().value,
@@ -1132,6 +1135,9 @@ impl Build {
                             } else {
                                 out.ref_attr(&style_export::attr_state().value, "");
                             }
+                            out.ref_modify_classes(
+                                &[(&style_export::class_state_element_selected().value, is_current)]
+                            );
                         }
                     ),
                 );
@@ -1207,6 +1213,108 @@ impl Build {
                 .await,
         }
     }
+}
+
+fn extract_playlist_entries_from_widget(
+    config_at: &Widget,
+    data_id: &Vec<usize>,
+    data_stack: &Vec<Rc<DataStackLevel>>,
+    out: &mut Vec<PlaylistPushArg>,
+) {
+    match config_at {
+        Widget::PlayButton(config_at) => {
+            let Some(src) = maybe_get_field(&config_at.media_file_field, data_stack) else {
+                return;
+            };
+            let TreeNode::Scalar(src) = &src else {
+                return;
+            };
+            let Some(meta) = maybe_get_meta(data_stack, src) else {
+                return;
+            };
+            let Some(media_type) =
+                categorize_mime_media(meta.mime.as_ref().map(|x| x.as_str()).unwrap_or("")) else {
+                    return;
+                };
+            let Ok(src_url) = unwrap_value_media_hash(&src) else {
+                return;
+            };
+            let cover_source_url = shed!{
+                let Some(config_at) = &config_at.cover_field else {
+                    break None;
+                };
+                let Some(d) = maybe_get_field(config_at, data_stack) else {
+                    break None;
+                };
+                let TreeNode::Scalar(d) = d else {
+                    break None;
+                };
+                break unwrap_value_media_hash(&d).ok();
+            };
+            out.push(PlaylistPushArg {
+                index: data_id.clone(),
+                name: shed!{
+                    let Some(config_at) = &config_at.name_field else {
+                        break None;
+                    };
+                    let Some(d) = maybe_get_field(config_at, data_stack) else {
+                        break None;
+                    };
+                    break Some(tree_node_to_text(&d));
+                },
+                album: shed!{
+                    let Some(config_at) = &config_at.album_field else {
+                        break None;
+                    };
+                    let Some(d) = maybe_get_field(config_at, data_stack) else {
+                        break None;
+                    };
+                    break Some(tree_node_to_text(&d));
+                },
+                artist: shed!{
+                    let Some(config_at) = &config_at.artist_field else {
+                        break None;
+                    };
+                    let Some(d) = maybe_get_field(config_at, data_stack) else {
+                        break None;
+                    };
+                    break Some(tree_node_to_text(&d));
+                },
+                cover_source_url: cover_source_url,
+                source_file: src_url,
+                media_type: media_type,
+            });
+        },
+        Widget::Layout(config_at) => {
+            for child in &config_at.elements {
+                extract_playlist_entries_from_widget(child, data_id, data_stack, out);
+            }
+        },
+        Widget::Table(config_at) => {
+            for child in &config_at.elements {
+                extract_playlist_entries_from_widget(child, data_id, data_stack, out);
+            }
+        },
+        _ => { },
+    }
+}
+
+fn extract_playlist_entries_from_page(
+    config_at: &WidgetRootDataRows,
+    node_meta: &Rc<HashMap<Node, NodeMeta>>,
+    base_data_stack: &Vec<Rc<DataStackLevel>>,
+    rows: Vec<(usize, TreeNode)>,
+) -> Vec<PlaylistPushArg> {
+    let mut out = vec![];
+    for (i, row_data) in rows {
+        let mut data_stack = base_data_stack.clone();
+        data_stack.push(Rc::new(DataStackLevel {
+            data: row_data,
+            node_meta: node_meta.clone(),
+        }));
+        extract_playlist_entries_from_widget(&config_at.element_body, &vec![i], &data_stack, &mut out);
+    }
+    out
 }
 
 fn build_widget_root_data_rows(
@@ -1328,7 +1436,7 @@ fn build_widget_root_data_rows(
                         chunked_data.push(Default::default());
                     }
                     let mut chunked_data = chunked_data.into_iter();
-                    body.ref_push(build_infinite(&state().log, chunked_data.next().unwrap(), {
+                    body.ref_push(build_infinite(&state().log, chunked_data.next().unwrap(), None, {
                         let build_infinite_page = build_infinite_page.clone();
                         let chunked_data = Rc::new(RefCell::new(chunked_data));
                         move |chunk| {
@@ -1350,9 +1458,9 @@ fn build_widget_root_data_rows(
                         }
                     }));
                 },
-                QueryOrField::Query(query_id) => {
+                QueryOrField::Query(ref query_id) => {
                     let mut params = HashMap::new();
-                    if let Some(query_params) = config_query_params.get(&query_id) {
+                    if let Some(query_params) = config_query_params.get(query_id) {
                         for k in query_params {
                             let Some(TreeNode::Scalar(v)) = maybe_get_field(k, &data_at) else {
                                 return Err(
@@ -1394,7 +1502,73 @@ fn build_widget_root_data_rows(
                             ).root,
                         );
                     } else {
-                        body.ref_push(build_infinite(&state().log, None, {
+                        playlist_set_source(&state().playlist, Rc::new({
+                            let view_id = view_id.clone();
+                            let query_id = query_id.clone();
+                            let params = params.clone();
+                            let config_at = config_at.clone();
+                            let data_at = data_at.clone();
+                            let source_count = Rc::new(Cell::new(0usize));
+                            let source_page_key: Rc<RefCell<Option<Node>>> = Rc::new(RefCell::new(None));
+                            let source_started = Rc::new(Cell::new(false));
+                            move || {
+                                let view_id = view_id.clone();
+                                let query_id = query_id.clone();
+                                let params = params.clone();
+                                let config_at = config_at.clone();
+                                let data_at = data_at.clone();
+                                let source_count = source_count.clone();
+                                let source_page_key = source_page_key.clone();
+                                let source_started = source_started.clone();
+                                Box::pin(async move {
+                                    // Skip first call if infinite scroll hasn't started yet (it will handle the
+                                    // initial pages)
+                                    if !source_started.get() {
+                                        // Sync count with current playlist length
+                                        source_count.set(playlist_len(&state().playlist));
+                                        source_started.set(true);
+                                    }
+                                    let res = match req_post_json(ReqViewQuery {
+                                        view_id: view_id.clone(),
+                                        query: query_id.clone(),
+                                        parameters: params.clone(),
+                                        pagination: Some(Pagination {
+                                            count: 10,
+                                            seed: Some(seed),
+                                            key: source_page_key.borrow().clone(),
+                                        }),
+                                    }).await {
+                                        Ok(r) => r,
+                                        Err(_) => return None,
+                                    };
+                                    let mut chunk = vec![];
+                                    match res.rows {
+                                        RespQueryRows::Scalar(rows) => {
+                                            for v in rows {
+                                                chunk.push((source_count.get(), TreeNode::Scalar(v)));
+                                                source_count.set(source_count.get() + 1);
+                                            }
+                                        },
+                                        RespQueryRows::Record(rows) => {
+                                            for v in rows {
+                                                chunk.push((source_count.get(), TreeNode::Record(v)));
+                                                source_count.set(source_count.get() + 1);
+                                            }
+                                        },
+                                    }
+                                    let has_more = res.next_page_key.is_some();
+                                    *source_page_key.borrow_mut() = res.next_page_key;
+                                    let node_meta = Rc::new(res.meta.into_iter().collect::<HashMap<_, _>>());
+                                    let entries =
+                                        extract_playlist_entries_from_page(&config_at, &node_meta, &data_at, chunk);
+                                    Some(PlaylistSourcePage {
+                                        entries,
+                                        has_more,
+                                    })
+                                })
+                            }
+                        }));
+                        body.ref_push(build_infinite(&state().log, None, Some(state().advance_infinite_tx.clone()), {
                             let view_id = view_id.clone();
                             let query_id = query_id.clone();
                             let count = Rc::new(Cell::new(0usize));
@@ -1456,25 +1630,65 @@ fn center_to_playing() {
     let Some(playing_i) = state().playlist.0.playing_i.get() else {
         return;
     };
-    let Some(entry) = state().playlist.0.playlist.borrow().get(&playing_i).cloned() else {
-        return;
-    };
-    let mut parent: Option<web_sys::Element> = entry.play_button.parent_element();
-    while let Some(p) = parent {
-        if p.tag_name().eq_ignore_ascii_case("details") && !p.has_attribute("open") {
-            p.set_attribute("open", "").log(&state().log, "Error opening details element");
+
+    fn scroll_to_play_button(play_button: &HtmlElement) {
+        let mut parent: Option<web_sys::Element> = play_button.parent_element();
+        while let Some(p) = parent {
+            if p.tag_name().eq_ignore_ascii_case("details") && !p.has_attribute("open") {
+                p.set_attribute("open", "").log(&state().log, "Error opening details element");
+            }
+            parent = p.parent_element();
         }
-        parent = p.parent_element();
+        let rect = play_button.get_bounding_client_rect();
+        let inner_height = window().inner_height().ok().and_then(|v| v.as_f64()).unwrap_or(f64::MAX);
+        let inner_width = window().inner_width().ok().and_then(|v| v.as_f64()).unwrap_or(f64::MAX);
+        if rect.top() < 0. || rect.bottom() > inner_height || rect.left() < 0. || rect.right() > inner_width {
+            let options = ScrollIntoViewOptions::new();
+            options.set_block(ScrollLogicalPosition::Center);
+            options.set_inline(ScrollLogicalPosition::Center);
+            play_button.scroll_into_view_with_scroll_into_view_options(&options);
+        }
     }
-    let rect = entry.play_button.get_bounding_client_rect();
-    let inner_height = window().inner_height().ok().and_then(|v| v.as_f64()).unwrap_or(f64::MAX);
-    let inner_width = window().inner_width().ok().and_then(|v| v.as_f64()).unwrap_or(f64::MAX);
-    if rect.top() < 0. || rect.bottom() > inner_height || rect.left() < 0. || rect.right() > inner_width {
-        let mut options = ScrollIntoViewOptions::new();
-        options.set_block(ScrollLogicalPosition::Center);
-        options.set_inline(ScrollLogicalPosition::Center);
-        entry.play_button.scroll_into_view_with_scroll_into_view_options(&options);
+
+    fn find_playing_element() -> Option<HtmlElement> {
+        let class = style_export::class_state_element_selected().value;
+        let els = gloo::utils::document().get_elements_by_class_name(&class);
+        els.item(0)?.dyn_into::<HtmlElement>().ok()
     }
+
+    if let Some(play_button) = find_playing_element() {
+        scroll_to_play_button(&play_button);
+        return;
+    }
+    wasm_bindgen_futures::spawn_local(async move {
+        for _ in 0 .. 100 {
+            // Send force-advance signal to the infinite scroll
+            let tx = state().advance_infinite_tx.borrow().clone();
+            match tx {
+                Some(tx) => {
+                    if tx.send(true).is_err() {
+                        // Receiver dropped — between pages (loading) or stale; wait and retry
+                        gloo::timers::future::TimeoutFuture::new(100).await;
+                    } else {
+                        // Signal sent, wait for the page to load
+                        gloo::timers::future::TimeoutFuture::new(100).await;
+                    }
+                },
+                // No infinite scroll active or no more pages
+                None => return,
+            }
+            if let Some(play_button) = find_playing_element() {
+                scroll_to_play_button(&play_button);
+                return;
+            }
+            if !*state().follow_playing.borrow() {
+                return;
+            }
+            if state().playlist.0.playing_i.get().as_ref() != Some(&playing_i) {
+                return;
+            }
+        }
+    });
 }
 
 fn build_transport(pc: &mut ProcessingContext, offline: bool) -> El {
@@ -1815,14 +2029,17 @@ pub fn build_page_view(
                             .borrow_mut()
                             .entry(k.clone())
                             .or_insert_with(|| Node::Value(serde_json::Value::String(format!(""))));
-                        let pair = style_export::leaf_input_pair_text_autocomplete(style_export::LeafInputPairTextAutocompleteArgs {
-                            id: k.clone(),
-                            title: k.clone(),
-                            value: match param_data.borrow().get(&k) {
-                                Some(Node::Value(serde_json::Value::String(v))) => v.clone(),
-                                _ => format!(""),
-                            },
-                        });
+                        let pair =
+                            style_export::leaf_input_pair_text_autocomplete(
+                                style_export::LeafInputPairTextAutocompleteArgs {
+                                    id: k.clone(),
+                                    title: k.clone(),
+                                    value: match param_data.borrow().get(&k) {
+                                        Some(Node::Value(serde_json::Value::String(v))) => v.clone(),
+                                        _ => format!(""),
+                                    },
+                                },
+                            );
                         super::autocomplete::wire_autocomplete(&pair.input, &pair.datalist, {
                             let view_id = id.clone();
                             let param_key = k.clone();

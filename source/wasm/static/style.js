@@ -1483,7 +1483,6 @@
             value: args.value,
           },
           {
-            attrs_: { list: listId },
             styles_: [
               leafInputStyle,
               leafInputBorderStyle,
