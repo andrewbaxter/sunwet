@@ -16,10 +16,7 @@ use {
         offline_video_url,
     },
     chrono::Utc,
-    flowcontrol::{
-        shed,
-        ta_return,
-    },
+    flowcontrol::ta_return,
     futures::FutureExt,
     gloo::{
         timers::{
@@ -44,6 +41,7 @@ use {
     },
     rooting::{
         El,
+        WeakEl,
         el,
         scope_any,
         spawn_rooted,
@@ -196,7 +194,9 @@ pub struct PlaylistState_ {
     pub media_el_image: El,
     pub log: Rc<dyn Log>,
     pub source: RefCell<Option<PlaylistSourceFn>>,
-    pub source_exhausted: Cell<bool>,
+    pub play_buttons: RefCell<BTreeMap<PlaylistIndex, WeakEl>>,
+    pub center_to_playing_bg: RefCell<Option<rooting::ScopeValue>>,
+    pub next_pull_bg: RefCell<Option<rooting::ScopeValue>>,
 }
 
 #[derive(Clone)]
@@ -245,7 +245,7 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
                 let playlist = &state().playlist;
                 match playlist.0.track_end_mode.get() {
                     TrackEndMode::Advance => {
-                        playlist_next_or_stop(pc, playlist);
+                        playlist_next(pc, playlist, None);
                     },
                     TrackEndMode::Loop => {
                         if let Some(i) = playlist.0.playing_i.get() {
@@ -307,7 +307,9 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
         media_el_image: media_el_image,
         log: log.clone(),
         source: RefCell::new(None),
-        source_exhausted: Cell::new(true),
+        play_buttons: RefCell::new(Default::default()),
+        center_to_playing_bg: RefCell::new(None),
+        next_pull_bg: RefCell::new(None),
     }));
     let media_session = window().navigator().media_session();
 
@@ -517,7 +519,7 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
                             move || {
                                 eg.event(|pc| {
                                     let playlist = &state().playlist;
-                                    playlist_next_or_stop(pc, playlist);
+                                    playlist_next(pc, playlist, None);
                                 }).unwrap();
                             }
                         }));
@@ -881,7 +883,6 @@ pub async fn playlist_extend(
 
 pub fn playlist_set_source(state: &PlaylistState, source: PlaylistSourceFn) {
     *state.0.source.borrow_mut() = Some(source);
-    state.0.source_exhausted.set(false);
 }
 
 pub fn playlist_clear(pc: &mut ProcessingContext, state: &PlaylistState, shuffle: bool, track_end_mode: TrackEndMode) {
@@ -902,7 +903,7 @@ pub fn playlist_clear(pc: &mut ProcessingContext, state: &PlaylistState, shuffle
     state.0.track_end_mode.set(track_end_mode);
     *state.0.image_advance_timeout.borrow_mut() = None;
     *state.0.source.borrow_mut() = None;
-    state.0.source_exhausted.set(true);
+    state.0.play_buttons.borrow_mut().clear();
 }
 
 pub fn playlist_toggle_play(pc: &mut ProcessingContext, state: &PlaylistState, i: Option<PlaylistIndex>) {
@@ -931,77 +932,64 @@ pub fn playlist_toggle_play(pc: &mut ProcessingContext, state: &PlaylistState, i
     }
 }
 
-pub fn playlist_next(pc: &mut ProcessingContext, state: &PlaylistState, basis: Option<PlaylistIndex>) -> bool {
+pub fn playlist_next(pc: &mut ProcessingContext, state: &PlaylistState, basis: Option<PlaylistIndex>) {
     let Some(i) = basis.or(state.0.playing_i.get()) else {
-        return false;
+        return;
     };
     if let Some((i, _)) = state.0.playlist.borrow().range((Bound::Excluded(i), Bound::Unbounded)).next() {
         state.0.playing.set(pc, true);
         state.0.playing_i.set(pc, Some(i.clone()));
         state.0.playing_time.set(pc, 0.);
-        return true;
-    }
-    return false;
-}
-
-/// Try to advance to the next track. If no next track exists in the BTreeMap,
-/// attempt to pull more from the source. If still nothing, stop.
-fn playlist_next_or_stop(pc: &mut ProcessingContext, state: &PlaylistState) {
-    if playlist_next(pc, state, None) {
         return;
     }
-    if state.0.source_exhausted.get() {
+    if state.0.source.borrow().is_none() {
         playlist_stop(pc, state);
         return;
     }
-
-    // Need to pull more entries asynchronously, then try again
     let eg = pc.eg();
     let state = state.clone();
-    wasm_bindgen_futures::spawn_local(async move {
-        let got_more = shed!{
-            'got_more _;
-            if state.0.source_exhausted.get() {
-                break 'got_more false;
+    *state.0.next_pull_bg.borrow_mut() = Some(spawn_rooted({
+        let state = state.clone();
+        async move {
+            while let Some(source) = state.0.source.borrow().clone() {
+                match source().await {
+                    Some(page) => {
+                        if !page.has_more {
+                            *state.0.source.borrow_mut() = None;
+                        }
+                        for entry in page.entries {
+                            state.0.playlist.borrow_mut().insert(entry.index.clone(), Rc::new(PlaylistEntry {
+                                name: entry.name,
+                                album: entry.album,
+                                artist: entry.artist,
+                                cover_source_url: entry.cover_source_url,
+                                source_file: entry.source_file,
+                                media_type: entry.media_type,
+                                media: RefCell::new(None),
+                            }));
+                        }
+                        if let Some(i) = state.0.playing_i.get() {
+                            if let Some((next_i, _)) =
+                                state.0.playlist.borrow().range((Bound::Excluded(i), Bound::Unbounded)).next() {
+                                eg.event(|pc| {
+                                    state.0.playing.set(pc, true);
+                                    state.0.playing_i.set(pc, Some(next_i.clone()));
+                                    state.0.playing_time.set(pc, 0.);
+                                }).unwrap();
+                                return;
+                            };
+                        }
+                    },
+                    None => {
+                        *state.0.source.borrow_mut() = None;
+                    },
+                }
             }
-            let source = state.0.source.borrow().clone();
-            let Some(source) = source else {
-                break 'got_more false;
-            };
-            match source().await {
-                Some(page) => {
-                    if !page.has_more {
-                        state.0.source_exhausted.set(true);
-                    }
-                    if page.entries.is_empty() {
-                        break 'got_more false;
-                    }
-                    for entry in page.entries {
-                        state.0.playlist.borrow_mut().insert(entry.index.clone(), Rc::new(PlaylistEntry {
-                            name: entry.name,
-                            album: entry.album,
-                            artist: entry.artist,
-                            cover_source_url: entry.cover_source_url,
-                            source_file: entry.source_file,
-                            media_type: entry.media_type,
-                            media: RefCell::new(None),
-                        }));
-                    }
-                    break 'got_more true;
-                },
-                None => {
-                    state.0.source_exhausted.set(true);
-                    break 'got_more false;
-                },
-            }
-        };
-        eg.event(|pc| {
-            if got_more && playlist_next(pc, &state, None) {
-                return;
-            }
-            playlist_stop(pc, &state);
-        }).unwrap();
-    });
+            eg.event(|pc| {
+                playlist_stop(pc, &state);
+            }).unwrap();
+        }
+    }));
 }
 
 fn playlist_stop(pc: &mut ProcessingContext, state: &PlaylistState) {

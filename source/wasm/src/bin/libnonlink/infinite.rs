@@ -19,7 +19,10 @@ use {
         future::Future,
         rc::Rc,
     },
-    tokio::sync::mpsc,
+    tokio::sync::{
+        mpsc,
+        oneshot,
+    },
     wasm::js::{
         ElExt,
         el_async,
@@ -35,8 +38,14 @@ pub struct InfPageRes<K> {
     pub immediate_advance: bool,
 }
 
-// Message: false = based on scroll position, true = force
-pub type InfAdvanceSlot = Rc<RefCell<Option<mpsc::UnboundedSender<bool>>>>;
+pub struct InfAdvanceMsg {
+    /// false = check scroll position, true = force advance
+    pub force: bool,
+    /// If provided, signaled after the next page has loaded
+    pub loaded: Option<oneshot::Sender<()>>,
+}
+
+pub type InfAdvanceSlot = Rc<RefCell<Option<mpsc::UnboundedSender<InfAdvanceMsg>>>>;
 
 fn build_infinite_<
     K: 'static,
@@ -48,6 +57,7 @@ fn build_infinite_<
     bg: Rc<RefCell<Option<ScopeValue>>>,
     initial_key: K,
     advance_tx_slot: Option<InfAdvanceSlot>,
+    loaded_signal: Option<oneshot::Sender<()>>,
     mut cb: F,
 ) {
     out.ref_push(el_async({
@@ -56,17 +66,21 @@ fn build_infinite_<
         async move {
             ta_return!(Vec < El >, String);
             let page_res = cb(initial_key).await?;
+            if let Some(loaded_signal) = loaded_signal {
+                _ = loaded_signal.send(());
+            }
             if let Some(next_key) = page_res.next_key {
                 let immediate_advance = page_res.immediate_advance;
                 *bg.borrow_mut() = Some(spawn_rooted({
                     let bg = bg.clone();
                     let advance_tx_slot = advance_tx_slot.clone();
                     async move {
+                        let loaded_signal;
                         if immediate_advance {
-                            // nop
+                            loaded_signal = None;
                         } else {
-                            let (tx, mut rx) = mpsc::unbounded_channel::<bool>();
-                            _ = tx.send(false);
+                            let (tx, mut rx) = mpsc::unbounded_channel::<InfAdvanceMsg>();
+                            _ = tx.send(InfAdvanceMsg { force: false, loaded: None });
                             if let Some(slot) = &advance_tx_slot {
                                 *slot.borrow_mut() = Some(tx.clone());
                             }
@@ -98,28 +112,28 @@ fn build_infinite_<
                             let listener = EventListener::new(&scroll_parent, "scroll", {
                                 let tx = tx.clone();
                                 move |_| {
-                                    _ = tx.send(false);
+                                    _ = tx.send(InfAdvanceMsg { force: false, loaded: None });
                                 }
                             });
-                            shed!{
+                            loaded_signal = shed!{
                                 'trigger _;
-                                while let Some(force) = rx.recv().await {
-                                    if force {
-                                        break 'trigger;
+                                while let Some(msg) = rx.recv().await {
+                                    if msg.force {
+                                        break 'trigger msg.loaded;
                                     }
                                     let scroll = scroll_parent.scroll_top();
                                     let view_height = scroll_parent.client_height();
                                     let full_height = scroll_parent.scroll_height();
                                     if scroll + view_height * 3 / 2 > full_height {
-                                        break 'trigger;
+                                        break 'trigger msg.loaded;
                                     }
                                 }
                                 return;
-                            }
+                            };
                             drop(listener);
                         }
                         if let Some(out) = out.upgrade() {
-                            build_infinite_(&log, out, bg, next_key, advance_tx_slot, cb);
+                            build_infinite_(&log, out, bg, next_key, advance_tx_slot, loaded_signal, cb);
                         }
                     }
                 }));
@@ -142,6 +156,6 @@ pub fn build_infinite<
     let out = style_export::cont_group(style_export::ContGroupArgs { children: vec![] }).root;
     let bg = Rc::new(RefCell::new(None));
     out.ref_own(|_| bg.clone());
-    build_infinite_(log, out.clone(), bg, initial_key, advance_tx_slot, cb);
+    build_infinite_(log, out.clone(), bg, initial_key, advance_tx_slot, None, cb);
     return out;
 }
