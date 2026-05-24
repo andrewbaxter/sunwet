@@ -39,6 +39,7 @@ const siteConfigs = [
     tagListSelectors: ["ul#tag-list"],
     sourceSelectors: ["[data-source]"],
     originalImageSelectors: [
+      'a[href*="/images/"]',
       'meta[property="og:image"]',
       'meta[name="twitter:image"]',
     ],
@@ -132,6 +133,7 @@ export const do_booru = () => {
       const buffer = await response.arrayBuffer();
       return { url, data: new Uint8Array(buffer), mimeType };
     } catch (err) {
+      console.error("[sunwet] downloadMedia failed:", url, /** @type {Error} */ (err).message);
       return { url, error: /** @type {Error} */ (err).message };
     }
   };
@@ -349,6 +351,8 @@ export const do_booru = () => {
 
     if (originalImageUrl) {
       image = await downloadMedia(originalImageUrl);
+    } else {
+      console.warn("[sunwet] no original image URL found");
     }
 
     return {
