@@ -61,6 +61,7 @@ use {
     wasm_bindgen_futures::{
         future_to_promise,
         spawn_local,
+        JsFuture,
     },
 };
 
@@ -68,6 +69,8 @@ use {
 extern "C" {
     #[wasm_bindgen::prelude::wasm_bindgen(js_namespace = ["browser", "runtime", "onMessage"], js_name = "addListener")]
     fn on_message_add_listener(callback: &Function);
+    #[wasm_bindgen::prelude::wasm_bindgen(js_name = "sunwetFetchWithReferer")]
+    fn sunwet_fetch_with_referer(url: &str, referer: &str) -> Promise;
 }
 
 thread_local!{
@@ -265,6 +268,24 @@ async fn handle_capture(msg: &JsValue) -> Result<JsValue, String> {
     Ok(result.into())
 }
 
+async fn handle_fetch_media(msg: &JsValue) -> Result<JsValue, String> {
+    let url =
+        js_sys::Reflect::get(msg, &JsValue::from_str("url"))
+            .ok()
+            .and_then(|v| v.as_string())
+            .ok_or("missing url")?;
+    let referer =
+        js_sys::Reflect::get(msg, &JsValue::from_str("referer"))
+            .ok()
+            .and_then(|v| v.as_string())
+            .unwrap_or_default();
+    let result =
+        JsFuture::from(sunwet_fetch_with_referer(&url, &referer))
+            .await
+            .map_err(|e| format!("fetch error: {:?}", e))?;
+    Ok(result)
+}
+
 async fn handle_message(msg: JsValue) -> Result<JsValue, JsValue> {
     let msg_type =
         js_sys::Reflect::get(&msg, &JsValue::from_str("type"))
@@ -274,6 +295,7 @@ async fn handle_message(msg: JsValue) -> Result<JsValue, JsValue> {
     let result = match msg_type.as_str() {
         "check_existence" => handle_check_existence(&msg).await,
         "capture" => handle_capture(&msg).await,
+        "fetch_media" => handle_fetch_media(&msg).await,
         other => Err(format!("unknown message type: {}", other)),
     };
     match result {

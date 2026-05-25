@@ -25,6 +25,7 @@
  * @property {string[]} originalImageSelectors
  * @property {string|null} sourceDataAttribute
  * @property {string|null} sourceTextPattern
+ * @property {"direct"|"background"} fetchMethod
  */
 
 import { create_capture_button } from "./content2.js";
@@ -45,6 +46,7 @@ const siteConfigs = [
     ],
     sourceDataAttribute: "data-source",
     sourceTextPattern: null,
+    fetchMethod: "background",
   },
   {
     name: "safebooru",
@@ -55,6 +57,7 @@ const siteConfigs = [
     originalImageSelectors: ['a[href*="/images/"]'],
     sourceDataAttribute: null,
     sourceTextPattern: "Source:",
+    fetchMethod: "direct",
   },
   {
     name: "danbooru",
@@ -65,6 +68,7 @@ const siteConfigs = [
     originalImageSelectors: ['a[href*="/original/"]', 'a.image-view-original-link'],
     sourceDataAttribute: "data-source",
     sourceTextPattern: "Source:",
+    fetchMethod: "direct",
   },
   {
     name: "rule34",
@@ -78,6 +82,7 @@ const siteConfigs = [
     ],
     sourceDataAttribute: "data-source",
     sourceTextPattern: "Source:",
+    fetchMethod: "direct",
   },
   {
     name: "generic",
@@ -92,6 +97,7 @@ const siteConfigs = [
     ],
     sourceDataAttribute: "data-source",
     sourceTextPattern: "Source:",
+    fetchMethod: "direct",
   },
 ];
 
@@ -122,16 +128,39 @@ export const do_booru = () => {
   console.log(`Booru: Using config for ${siteConfig.name}`);
 
   /**
-   * Download media and return blob data
+   * Download media via direct fetch
+   * @type {(url: string) => Promise<MediaResult>}
+   */
+  const downloadMediaDirect = async (url) => {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const mimeType = response.headers.get("Content-Type");
+    const buffer = await response.arrayBuffer();
+    return { url, data: new Uint8Array(buffer), mimeType };
+  };
+
+  /**
+   * Download media via background script (bypasses CORS)
+   * @type {(url: string) => Promise<MediaResult>}
+   */
+  const downloadMediaBackground = async (url) => {
+    /** @type {{runtime: {sendMessage: (msg: any) => Promise<any>}}} */
+    const browser = /** @type {any} */ (globalThis).browser;
+    const resp = await browser.runtime.sendMessage({ type: "fetch_media", url, referer: window.location.href });
+    if (resp.error) throw new Error(resp.error);
+    return { url, data: new Uint8Array(resp.data), mimeType: resp.mimeType };
+  };
+
+  /**
+   * Download media using the site-configured method
    * @type {(url: string) => Promise<MediaResult>}
    */
   const downloadMedia = async (url) => {
     try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const mimeType = response.headers.get("Content-Type");
-      const buffer = await response.arrayBuffer();
-      return { url, data: new Uint8Array(buffer), mimeType };
+      if (siteConfig.fetchMethod === "background") {
+        return await downloadMediaBackground(url);
+      }
+      return await downloadMediaDirect(url);
     } catch (err) {
       console.error("[sunwet] downloadMedia failed:", url, /** @type {Error} */ (err).message);
       return { url, error: /** @type {Error} */ (err).message };
