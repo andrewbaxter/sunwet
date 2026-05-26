@@ -143,9 +143,55 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "Autocomplete predicates or values (admin only)",
+      "type": "object",
+      "required": [
+        "autocomplete_free"
+      ],
+      "properties": {
+        "autocomplete_free": {
+          "$ref": "#/definitions/ReqAutocompleteFree"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Autocomplete for a form field, narrowed by form output context",
+      "type": "object",
+      "required": [
+        "autocomplete_form_field"
+      ],
+      "properties": {
+        "autocomplete_form_field": {
+          "$ref": "#/definitions/ReqAutocompleteFormField"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Autocomplete for a view parameter, narrowed by query context",
+      "type": "object",
+      "required": [
+        "autocomplete_view_param"
+      ],
+      "properties": {
+        "autocomplete_view_param": {
+          "$ref": "#/definitions/ReqAutocompleteViewParam"
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
+    "AutocompleteField": {
+      "type": "string",
+      "enum": [
+        "predicate",
+        "value"
+      ]
+    },
     "Chain": {
       "type": "object",
       "required": [
@@ -520,6 +566,74 @@
               "type": "null"
             }
           ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReqAutocompleteFormField": {
+      "type": "object",
+      "required": [
+        "field_id",
+        "form_id",
+        "prefix",
+        "suffix"
+      ],
+      "properties": {
+        "field_id": {
+          "type": "string"
+        },
+        "form_id": {
+          "$ref": "#/definitions/FormId"
+        },
+        "prefix": {
+          "type": "string"
+        },
+        "suffix": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReqAutocompleteFree": {
+      "type": "object",
+      "required": [
+        "field",
+        "prefix",
+        "suffix"
+      ],
+      "properties": {
+        "field": {
+          "$ref": "#/definitions/AutocompleteField"
+        },
+        "prefix": {
+          "type": "string"
+        },
+        "suffix": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReqAutocompleteViewParam": {
+      "type": "object",
+      "required": [
+        "param_key",
+        "prefix",
+        "suffix",
+        "view_id"
+      ],
+      "properties": {
+        "param_key": {
+          "type": "string"
+        },
+        "prefix": {
+          "type": "string"
+        },
+        "suffix": {
+          "type": "string"
+        },
+        "view_id": {
+          "$ref": "#/definitions/ViewId"
         }
       },
       "additionalProperties": false

@@ -337,7 +337,7 @@ export const do_twitter = () => {
     const files = [];
     for (const m of data.media) {
       if (!m.error && m.data) {
-        files.push({ data: m.data, mimetype: m.mimeType || "application/octet-stream", parameter: "media" });
+        files.push({ data: m.data, mimetype: m.mimeType || "application/octet-stream", parameter: "file" });
       }
     }
 

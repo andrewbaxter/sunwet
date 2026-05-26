@@ -1505,6 +1505,7 @@
           },
         )
       );
+      input.setAttribute("list", listId);
       if (args.id != null) {
         input.id = args.id;
       }

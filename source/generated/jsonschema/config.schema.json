@@ -660,6 +660,19 @@
       },
       "additionalProperties": false
     },
+    "FormFieldAutocomplete": {
+      "type": "object",
+      "properties": {
+        "placeholder": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "FormFieldBool": {
       "type": "object",
       "properties": {
@@ -798,6 +811,19 @@
           "properties": {
             "text": {
               "$ref": "#/definitions/FormFieldText"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "Text input with datalist autocomplete.",
+          "type": "object",
+          "required": [
+            "autocomplete"
+          ],
+          "properties": {
+            "autocomplete": {
+              "$ref": "#/definitions/FormFieldAutocomplete"
             }
           },
           "additionalProperties": false
