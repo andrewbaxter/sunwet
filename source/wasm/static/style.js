@@ -476,6 +476,11 @@
     /** @type { Presentation["classStateDeleted"]} */ () => ({
       value: classStateDeleted,
     });
+  const classStateExpanded = "expanded";
+  presentation.classStateExpanded =
+    /** @type { Presentation["classStateExpanded"]} */ () => ({
+      value: classStateExpanded,
+    });
   const classStateSharing = "sharing";
   presentation.classStateSharing =
     /** @type { Presentation["classStateSharing"]} */ () => ({
@@ -4811,6 +4816,123 @@
         download: false,
         url: args.link,
       });
+    };
+
+  presentation.contNodeEditDrawer =
+    /** @type {Presentation["contNodeEditDrawer"]} */ (args) => {
+      const predicateRes = presentation.leafInputTextAutocomplete({
+        id: undefined,
+        title: "Predicate",
+        value: "",
+      });
+      const iconClosed = leafIcon({
+        text: textIconFoldClosed,
+        extraStyles: [leafIconStyle],
+      });
+      const iconOpened = leafIcon({
+        text: textIconFoldOpened,
+        extraStyles: [leafIconStyle],
+      });
+      const expandToggleStyle = ss(uniq("leaf_node_edit_drawer_expand"), {
+        [` .${leafIconStyle}:nth-child(2)`]: (s) => {
+          s.display = "none";
+        },
+        [`.${classStateExpanded} .${leafIconStyle}:nth-child(1)`]: (s) => {
+          s.display = "none";
+        },
+        [`.${classStateExpanded} .${leafIconStyle}:nth-child(2)`]: (s) => {
+          s.display = "";
+        },
+      });
+      const expandToggle = {
+        root: buildLeafButton({
+          parent: e(
+            "button",
+            { title: "Expand" },
+            { styles_: [leafButtonFreeStyle, expandToggleStyle] },
+          ),
+          innerStyles: [leafButtonFreeInnerStyle],
+          children: [iconClosed, iconOpened],
+        }),
+      };
+      const countText = e(
+        "div",
+        {},
+        {
+          styles_: [
+            ss(uniq("leaf_node_edit_drawer_count"), {
+              "": (s) => {
+                s.opacity = varONoninteractive;
+              },
+            }),
+          ],
+        },
+      );
+      const revertButton = leafButtonFree({
+        icon: textIconRevert,
+        hint: "Revert predicate",
+      });
+      const deleteToggle = leafButtonFree({
+        icon: textIconDelete,
+        hint: "Delete all",
+      });
+      const childrenSlot = e(
+        "div",
+        {},
+        {
+          styles_: [
+            contVboxStyle,
+            ss(uniq("cont_node_edit_drawer_children"), {
+              "": (s) => {
+                s.gap = varSNodeGap;
+              },
+            }),
+          ],
+        },
+      );
+      return {
+        root: e(
+          "div",
+          {},
+          {
+            styles_: [
+              contVboxStyle,
+              ss(uniq("cont_node_edit_drawer"), {
+                "": (s) => {
+                  s.gap = varSNodeGap;
+                },
+              }),
+            ],
+            children_: [
+              predicateRes.root,
+              e(
+                "div",
+                {},
+                {
+                  styles_: [contHboxStyle, contNodeToolboxStyle],
+                  children_: [
+                    expandToggle.root,
+                    countText,
+                    presentation.leafSpace({}).root,
+                    revertButton.root,
+                    deleteToggle.root,
+                  ],
+                },
+              ),
+              childrenSlot,
+              ...args.children,
+            ],
+          },
+        ),
+        predicate: predicateRes.root,
+        predicateInput: predicateRes.input,
+        predicateDatalist: predicateRes.datalist,
+        expandToggle: expandToggle.root,
+        countText: countText,
+        revertButton: revertButton.root,
+        deleteToggle: deleteToggle.root,
+        childrenSlot: childrenSlot,
+      };
     };
 
   // /////////////////////////////////////////////////////////////////////////////

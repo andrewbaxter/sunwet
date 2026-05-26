@@ -188,6 +188,11 @@ fn main() {
             returns: vec![("value", &string_)],
         },
         Func {
+            name: "classStateExpanded",
+            args: vec![],
+            returns: vec![("value", &string_)],
+        },
+        Func {
             name: "classStateSharing",
             args: vec![],
             returns: vec![("value", &string_)],
@@ -850,6 +855,11 @@ fn main() {
             name: "leafNodeEditToolbarCountText",
             args: vec![],
             returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "contNodeEditDrawer",
+            args: vec![("children", &arrel_)],
+            returns: vec![("root", &el_), ("predicate", &el_), ("predicateInput", &el_), ("predicateDatalist", &el_), ("expandToggle", &el_), ("countText", &el_), ("revertButton", &el_), ("deleteToggle", &el_), ("childrenSlot", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: page, history
