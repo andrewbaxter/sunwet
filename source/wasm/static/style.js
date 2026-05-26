@@ -4281,83 +4281,85 @@
         },
       ),
     });
-  presentation.contNodeRowIncoming =
-    /** @type {Presentation["contNodeRowIncoming"]} */ (args) => {
-      const contentStyles = [
-        contVboxStyle,
-        contNodeContentStyle,
-        contNodeContentRelStyle,
-      ];
-      if (args.new) {
-        contentStyles.push(leafNodeContentNewStyle);
-      }
-      return {
-        root: e(
-          "div",
-          {},
-          {
-            styles_: [contHboxStyle, contNodeStyle],
-            children_: [
-              e(
-                "div",
-                {},
-                {
-                  styles_: contentStyles,
-                  children_: args.children,
-                },
-              ),
-              leafIcon({
-                text: textIconRelIn,
-                extraStyles: [
-                  leafIconStyle,
-                  leafNodeRelStyle,
-                  leafNodeRelIncomingStyle,
-                ],
-              }),
+  const buildNodeRowIncoming = (contentStyles, children) => ({
+    root: e(
+      "div",
+      {},
+      {
+        styles_: [contHboxStyle, contNodeStyle],
+        children_: [
+          e("div", {}, { styles_: contentStyles, children_: children }),
+          leafIcon({
+            text: textIconRelIn,
+            extraStyles: [
+              leafIconStyle,
+              leafNodeRelStyle,
+              leafNodeRelIncomingStyle,
             ],
-          },
-        ),
-      };
-    };
+          }),
+        ],
+      },
+    ),
+  });
+  const buildNodeRowOutgoing = (contentStyles, children) => ({
+    root: e(
+      "div",
+      {},
+      {
+        styles_: [contHboxStyle, contNodeStyle],
+        children_: [
+          leafIcon({
+            text: textIconRelOut,
+            extraStyles: [
+              leafIconStyle,
+              leafNodeRelStyle,
+              leafNodeRelOutgoingStyle,
+            ],
+          }),
+          e("div", {}, { styles_: contentStyles, children_: children }),
+        ],
+      },
+    ),
+  });
+  const nodeRowContentStyles = (isNew) => {
+    const s = [contVboxStyle, contNodeContentStyle, contNodeContentRelStyle];
+    if (isNew) s.push(leafNodeContentNewStyle);
+    return s;
+  };
+
+  presentation.contNodeRowIncoming =
+    /** @type {Presentation["contNodeRowIncoming"]} */ (args) =>
+      buildNodeRowIncoming(nodeRowContentStyles(args.new), args.children);
 
   presentation.contNodeRowOutgoing =
-    /** @type {Presentation["contNodeRowOutgoing"]} */ (args) => {
-      const vboxStyles = [
-        contVboxStyle,
-        contNodeContentStyle,
-        contNodeContentRelStyle,
-      ];
-      if (args.new) {
-        vboxStyles.push(leafNodeContentNewStyle);
-      }
-      return {
-        root: e(
-          "div",
-          {},
-          {
-            styles_: [contHboxStyle, contNodeStyle],
-            children_: [
-              leafIcon({
-                text: textIconRelOut,
-                extraStyles: [
-                  leafIconStyle,
-                  leafNodeRelStyle,
-                  leafNodeRelOutgoingStyle,
-                ],
-              }),
-              e(
-                "div",
-                {},
-                {
-                  styles_: vboxStyles,
-                  children_: args.children,
-                },
-              ),
-            ],
-          },
-        ),
-      };
-    };
+    /** @type {Presentation["contNodeRowOutgoing"]} */ (args) =>
+      buildNodeRowOutgoing(nodeRowContentStyles(args.new), args.children);
+
+  presentation.contNodeDrawerIncoming =
+    /** @type {Presentation["contNodeDrawerIncoming"]} */ (args) =>
+      buildNodeRowIncoming(
+        [contVboxStyle, contNodeContentStyle, contNodeContentRelStyle],
+        args.children,
+      );
+
+  presentation.contNodeDrawerOutgoing =
+    /** @type {Presentation["contNodeDrawerOutgoing"]} */ (args) =>
+      buildNodeRowOutgoing(
+        [contVboxStyle, contNodeContentStyle, contNodeContentRelStyle],
+        args.children,
+      );
+
+  presentation.contNodeRelInner =
+    /** @type {Presentation["contNodeRelInner"]} */ (args) => ({
+      root: e(
+        "div",
+        {},
+        {
+          styles_: nodeRowContentStyles(args.new),
+          children_: args.children,
+        },
+      ),
+    });
 
   presentation.contNodeSectionCenter =
     /** @type {Presentation["contNodeSectionCenter"]} */ (args) => ({

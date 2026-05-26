@@ -1095,7 +1095,7 @@ fn build_edit_node(
     return out;
 }
 
-fn build_edit_rel(pc: &mut ProcessingContext, total_pivot_nodes: usize, rel: &RelState, new: bool) -> El {
+fn build_edit_rel(pc: &mut ProcessingContext, total_pivot_nodes: usize, rel: &RelState, new: bool, in_drawer: bool) -> El {
     let buttons_el = {
         let mut left = vec![];
         let mut right = vec![];
@@ -1262,7 +1262,17 @@ fn build_edit_rel(pc: &mut ProcessingContext, total_pivot_nodes: usize, rel: &Re
         ));
         out
     };
-    if rel.0.incoming {
+    if in_drawer {
+        let children = if rel.0.incoming {
+            vec![node_el, predicate_el, buttons_el]
+        } else {
+            vec![predicate_el, node_el, buttons_el]
+        };
+        return style_export::cont_node_rel_inner(style_export::ContNodeRelInnerArgs {
+            children: children,
+            new: new,
+        }).root;
+    } else if rel.0.incoming {
         return style_export::cont_node_row_incoming(style_export::ContNodeRowIncomingArgs {
             children: vec![node_el, predicate_el, buttons_el],
             new: new,
@@ -1337,6 +1347,7 @@ fn build_edit_drawer(
     drawer_res.count_text.ref_text(&format!("({} rels)", count));
 
     // Expand toggle
+    let children_slot = drawer_res.children_slot.clone();
     drawer_res.expand_toggle.ref_on("click", {
         let eg = pc.eg();
         let expanded = drawer.0.expanded.clone();
@@ -1355,7 +1366,6 @@ fn build_edit_drawer(
     ));
 
     // Build/destroy children on expand
-    let children_slot = drawer_res.children_slot.clone();
     children_slot.ref_own(|_| {
         let built = Rc::new(Cell::new(false));
         link!(
@@ -1366,7 +1376,6 @@ fn build_edit_drawer(
                 children_slot = children_slot.weak(),
                 drawer = drawer.clone(),
                 total_pivot_nodes = total_pivot_nodes,
-                _incoming = incoming,
                 built = built
             ) {
                 let children_slot = children_slot.upgrade()?;
@@ -1374,7 +1383,8 @@ fn build_edit_drawer(
                     if !built.get() {
                         built.set(true);
                         for rel in &drawer.0.rels {
-                            children_slot.ref_push(build_edit_rel(_pc, *total_pivot_nodes, rel, rel.0.initial_pred_node.borrow().is_none()));
+                            let is_new = rel.0.initial_pred_node.borrow().is_none();
+                            children_slot.ref_push(build_edit_rel(_pc, *total_pivot_nodes, rel, is_new, true));
                         }
                     }
                 } else {
@@ -1414,14 +1424,12 @@ fn build_edit_drawer(
     }));
 
     if incoming {
-        style_export::cont_node_row_incoming(style_export::ContNodeRowIncomingArgs {
+        style_export::cont_node_drawer_incoming(style_export::ContNodeDrawerIncomingArgs {
             children: vec![drawer_res.root],
-            new: false,
         }).root
     } else {
-        style_export::cont_node_row_outgoing(style_export::ContNodeRowOutgoingArgs {
+        style_export::cont_node_drawer_outgoing(style_export::ContNodeDrawerOutgoingArgs {
             children: vec![drawer_res.root],
-            new: false,
         }).root
     }
 }
@@ -1537,7 +1545,7 @@ pub async fn build_node_edit_contents(
                         initial_pred_node: None,
                         incoming: true,
                     });
-                    rels_box.ref_push(build_edit_rel(pc, nodes.len(), &rel_state, true));
+                    rels_box.ref_push(build_edit_rel(pc, nodes.len(), &rel_state, true, false));
                     rel_states.borrow_mut().push(rel_state);
                 }
             }
@@ -1570,7 +1578,7 @@ pub async fn build_node_edit_contents(
                         initial_pred_node: None,
                         incoming: true,
                     });
-                    incoming_rels_box.ref_splice(0, 0, vec![build_edit_rel(pc, nodes.len(), &rel, true)]);
+                    incoming_rels_box.ref_splice(0, 0, vec![build_edit_rel(pc, nodes.len(), &rel, true, false)]);
                     rel_states.borrow_mut().push(rel);
                 }).unwrap()
             });
@@ -1716,7 +1724,7 @@ pub async fn build_node_edit_contents(
                         initial_pred_node: None,
                         incoming: false,
                     });
-                    rels_box.ref_push(build_edit_rel(pc, nodes.len(), &rel_state, true));
+                    rels_box.ref_push(build_edit_rel(pc, nodes.len(), &rel_state, true, false));
                     rel_states.borrow_mut().push(rel_state);
                 }
             }
@@ -1750,7 +1758,7 @@ pub async fn build_node_edit_contents(
                         initial_pred_node: None,
                         incoming: false,
                     });
-                    outgoing_rels_box.ref_push(build_edit_rel(pc, total_nodes, &rel, true));
+                    outgoing_rels_box.ref_push(build_edit_rel(pc, total_nodes, &rel, true, false));
                     rel_states.borrow_mut().push(rel);
                 }).unwrap()
             });
