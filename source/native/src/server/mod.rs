@@ -215,19 +215,15 @@ fn gather_record_files(files: &mut Vec<FileHash>, r: &TreeNode) {
     }
 }
 
-/// Build an FTS5 query string from user input for autocomplete.
-/// Splits into terms, quotes each, adds prefix `*` to each term for partial matching.
-/// Returns `raw:` prefixed string for the Search AST node.
+/// Build an FTS5 query string from user input for autocomplete. Splits into terms,
+/// quotes each, adds prefix `*` to each term for partial matching. Returns `raw:`
+/// prefixed string for the Search AST node.
 fn build_autocomplete_fts_query(text: &str) -> String {
     let terms: Vec<&str> = text.split_whitespace().collect();
     if terms.is_empty() {
         return "raw:\"\"*".to_string();
     }
-    let fts_terms: Vec<String> =
-        terms
-            .iter()
-            .map(|t| format!("\"{}\"*", t.replace("\"", "\"\"")))
-            .collect();
+    let fts_terms: Vec<String> = terms.iter().map(|t| format!("\"{}\"*", t.replace("\"", "\"\""))).collect();
     format!("raw:{}", fts_terms.join(" AND "))
 }
 
@@ -237,6 +233,7 @@ async fn autocomplete_values_via_query(
     predicate_context: Option<(&str, shared::interface::query::MoveDirection)>,
 ) -> Result<Vec<String>, VisErr<loga::Error>> {
     use shared::interface::query::*;
+
     let fts_query = build_autocomplete_fts_query(search_text);
     let mut steps = vec![];
     if let Some((pred, dir)) = predicate_context {
@@ -257,13 +254,11 @@ async fn autocomplete_values_via_query(
         },
         suffix: None,
     };
-    let results =
-        query::execute_query(
-            &state.db,
-            query,
-            HashMap::new(),
-            Some(Pagination { count: 20, seed: None, key: None }),
-        ).await?;
+    let results = query::execute_query(&state.db, query, HashMap::new(), Some(Pagination {
+        count: 20,
+        seed: None,
+        key: None,
+    })).await?;
     let mut out = vec![];
     match results {
         query::QueryResults::Scalar(nodes) => {
@@ -969,12 +964,10 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 let global_config = get_global_config(&state).await.err_internal()?;
                                 let Some(form) = global_config.forms.get(&req.form_id) else {
                                     return Err(
-                                        loga::err_with(
-                                            "No known form with id",
-                                            ea!(form = req.form_id),
-                                        ),
+                                        loga::err_with("No known form with id", ea!(form = req.form_id)),
                                     ).err_external();
                                 };
+
                                 // Check access
                                 {
                                     let grants = get_iam_grants(&state, &identity).await.err_internal()?;
@@ -992,7 +985,8 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                         }
                                         if matches!(identity, Identity::Public) {
                                             break 'ok AccessRes::NoIdent;
-                                        } else {
+                                        }
+                                        else {
                                             break 'ok AccessRes::NoAccess;
                                         }
                                     };
@@ -1007,12 +1001,14 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     }
                                 }
                                 let responder = req.respond();
+
                                 // Analyze form outputs to find predicate context
                                 use shared::interface::config::form::{
                                     InputOrInline,
                                     InputOrInlineText,
                                 };
                                 use shared::interface::query::MoveDirection;
+
                                 let mut predicate_context: Option<(String, MoveDirection)> = None;
                                 let mut is_predicate = false;
                                 for output in &form.item.outputs {
@@ -1023,16 +1019,18 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                             break;
                                         }
                                     }
+
                                     // Check if field is used as subject
-                                    if matches!(&output.subject, InputOrInline::Input(id) if *id == req.field_id) {
+                                    if matches!(&output.subject, InputOrInline:: Input(id) if * id == req.field_id) {
                                         if let InputOrInlineText::Inline(pred) = &output.predicate {
                                             // Subject follows predicate forward to reach object
                                             predicate_context = Some((pred.clone(), MoveDirection::Forward));
                                         }
                                         break;
                                     }
+
                                     // Check if field is used as object
-                                    if matches!(&output.object, InputOrInline::Input(id) if *id == req.field_id) {
+                                    if matches!(&output.object, InputOrInline:: Input(id) if * id == req.field_id) {
                                         if let InputOrInlineText::Inline(pred) = &output.predicate {
                                             // Object follows predicate backward to reach subject
                                             predicate_context = Some((pred.clone(), MoveDirection::Backward));
@@ -1059,12 +1057,10 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 let global_config = get_global_config(&state).await.err_internal()?;
                                 let Some(view) = global_config.views.get(&req.view_id) else {
                                     return Err(
-                                        loga::err_with(
-                                            "No known view with id",
-                                            ea!(view = req.view_id),
-                                        ),
+                                        loga::err_with("No known view with id", ea!(view = req.view_id)),
                                     ).err_external();
                                 };
+
                                 // Check access
                                 {
                                     let grants = get_iam_grants(&state, &identity).await.err_internal()?;
@@ -1082,7 +1078,8 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                         }
                                         if matches!(identity, Identity::Public) {
                                             break 'ok AccessRes::NoIdent;
-                                        } else {
+                                        }
+                                        else {
                                             break 'ok AccessRes::NoAccess;
                                         }
                                     };
@@ -1097,6 +1094,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     }
                                 }
                                 let responder = req.respond();
+
                                 // Analyze view queries to find context for this parameter
                                 use shared::interface::query::{
                                     StrValue,
@@ -1107,6 +1105,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     FilterSuffix,
                                     ChainRoot,
                                 };
+
                                 let mut is_predicate = false;
                                 let mut predicate_context: Option<(String, MoveDirection)> = None;
                                 'outer: for query in view.item.queries.values() {
@@ -1124,7 +1123,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                 ChainRoot::Search(StrValue::Parameter(k)) if k == param_key => {
                                                     return true;
                                                 },
-                                                _ => {},
+                                                _ => { },
                                             }
                                         }
                                         for step in &chain.steps {
@@ -1149,15 +1148,27 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                                     if let Some(suffix) = &e.suffix {
                                                                         let found = match suffix {
                                                                             FilterSuffix::Simple(s) => {
-                                                                                matches!(&s.value, Value::Parameter(k) if k == param_key)
+                                                                                matches!(
+                                                                                    &s.value,
+                                                                                    Value:: Parameter(
+                                                                                        k
+                                                                                    ) if k == param_key
+                                                                                )
                                                                             },
                                                                             FilterSuffix::Like(s) => {
-                                                                                matches!(&s.value, StrValue::Parameter(k) if k == param_key)
+                                                                                matches!(
+                                                                                    &s.value,
+                                                                                    StrValue:: Parameter(
+                                                                                        k
+                                                                                    ) if k == param_key
+                                                                                )
                                                                             },
                                                                         };
                                                                         if found {
-                                                                            if let StrValue::Literal(pred) = step_pred {
-                                                                                *predicate_context = Some((pred.clone(), step_dir));
+                                                                            if let StrValue::Literal(pred) =
+                                                                                step_pred {
+                                                                                *predicate_context =
+                                                                                    Some((pred.clone(), step_dir));
                                                                             }
                                                                             return true;
                                                                         }
@@ -1165,25 +1176,51 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                                     false
                                                                 },
                                                                 FilterExpr::Junction(j) => {
-                                                                    j.subexprs.iter().any(
-                                                                        |e| check_filter(e, param_key, step_pred, step_dir, predicate_context),
-                                                                    )
+                                                                    j
+                                                                        .subexprs
+                                                                        .iter()
+                                                                        .any(
+                                                                            |e| check_filter(
+                                                                                e,
+                                                                                param_key,
+                                                                                step_pred,
+                                                                                step_dir,
+                                                                                predicate_context,
+                                                                            ),
+                                                                        )
                                                                 },
                                                             }
                                                         }
-                                                        if check_filter(f, param_key, &m.predicate, m.dir, predicate_context) {
+
+                                                        if check_filter(
+                                                            f,
+                                                            param_key,
+                                                            &m.predicate,
+                                                            m.dir,
+                                                            predicate_context,
+                                                        ) {
                                                             return true;
                                                         }
                                                     }
                                                 },
                                                 StepSpecific::Recurse(r) => {
-                                                    if find_param_context(&r.subchain, param_key, is_predicate, predicate_context) {
+                                                    if find_param_context(
+                                                        &r.subchain,
+                                                        param_key,
+                                                        is_predicate,
+                                                        predicate_context,
+                                                    ) {
                                                         return true;
                                                     }
                                                 },
                                                 StepSpecific::Junction(j) => {
                                                     for c in &j.subchains {
-                                                        if find_param_context(c, param_key, is_predicate, predicate_context) {
+                                                        if find_param_context(
+                                                            c,
+                                                            param_key,
+                                                            is_predicate,
+                                                            predicate_context,
+                                                        ) {
                                                             return true;
                                                         }
                                                     }
@@ -1192,12 +1229,23 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                         }
                                         false
                                     }
-                                    if find_param_context(&query.chain_head, &req.param_key, &mut is_predicate, &mut predicate_context) {
+
+                                    if find_param_context(
+                                        &query.chain_head,
+                                        &req.param_key,
+                                        &mut is_predicate,
+                                        &mut predicate_context,
+                                    ) {
                                         break 'outer;
                                     }
                                     if let Some(suffix) = &query.suffix {
                                         for subchain in &suffix.chain_tail.subchains {
-                                            if find_param_context(&subchain.head, &req.param_key, &mut is_predicate, &mut predicate_context) {
+                                            if find_param_context(
+                                                &subchain.head,
+                                                &req.param_key,
+                                                &mut is_predicate,
+                                                &mut predicate_context,
+                                            ) {
                                                 break 'outer;
                                             }
                                         }

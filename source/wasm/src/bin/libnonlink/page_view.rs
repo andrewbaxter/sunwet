@@ -1315,12 +1315,7 @@ fn build_widget_root_data_rows(
                         &mut playlist_add,
                     );
                     if let Some(exp) = &config_at.element_expansion {
-                        extract_playlist_entries_from_page(
-                            exp,
-                            &vec![*i],
-                            row_data_at,
-                            &mut playlist_add,
-                        );
+                        extract_playlist_entries_from_page(exp, &vec![*i], row_data_at, &mut playlist_add);
                     }
                 }
                 let want_media = !playlist_add.is_empty();

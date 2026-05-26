@@ -206,25 +206,31 @@ pub fn build_page_form(
                     CommitNode::Node(Node::Value(serde_json::Value::String(v))) => v,
                     _ => format!(""),
                 };
-                let input_ret =
-                    style_export::leaf_input_pair_text(style_export::LeafInputPairTextArgs {
-                        id: field.id.clone(),
-                        title: field.label.clone(),
-                        value: value_str,
-                    });
+                let input_ret = style_export::leaf_input_pair_text(style_export::LeafInputPairTextArgs {
+                    id: field.id.clone(),
+                    title: field.label.clone(),
+                    value: value_str,
+                });
                 input_ret.input.ref_on("input", {
                     let id = field.id.clone();
                     let fs = fs.clone();
                     move |ev| {
-                        fs.update(&id, CommitNode::Node(Node::Value(serde_json::Value::String(
-                            ev
-                                .target()
-                                .unwrap()
-                                .dyn_into::<HtmlElement>()
-                                .unwrap()
-                                .text_content()
-                                .unwrap_or_default(),
-                        ))));
+                        fs.update(
+                            &id,
+                            CommitNode::Node(
+                                Node::Value(
+                                    serde_json::Value::String(
+                                        ev
+                                            .target()
+                                            .unwrap()
+                                            .dyn_into::<HtmlElement>()
+                                            .unwrap()
+                                            .text_content()
+                                            .unwrap_or_default(),
+                                    ),
+                                ),
+                            ),
+                        );
                     }
                 });
                 out.push(input_ret.root);
@@ -243,38 +249,36 @@ pub fn build_page_form(
                     _ => format!(""),
                 };
                 let input_ret =
-                    style_export::leaf_input_pair_text_autocomplete(
-                        style_export::LeafInputPairTextAutocompleteArgs {
-                            id: field.id.clone(),
-                            title: field.label.clone(),
-                            value: value_str,
-                        },
-                    );
-                super::autocomplete::wire_autocomplete(
-                    &input_ret.input,
-                    &input_ret.datalist,
-                    {
-                        let form_id = id.clone();
-                        let field_id = field.id.clone();
-                        move |prefix, suffix| {
-                            shared::interface::wire::ReqAutocompleteFormField {
-                                form_id: form_id.clone(),
-                                field_id: field_id.clone(),
-                                prefix,
-                                suffix,
-                            }
+                    style_export::leaf_input_pair_text_autocomplete(style_export::LeafInputPairTextAutocompleteArgs {
+                        id: field.id.clone(),
+                        title: field.label.clone(),
+                        value: value_str,
+                    });
+                super::autocomplete::wire_autocomplete(&input_ret.input, &input_ret.datalist, {
+                    let form_id = id.clone();
+                    let field_id = field.id.clone();
+                    move |prefix, suffix| {
+                        shared::interface::wire::ReqAutocompleteFormField {
+                            form_id: form_id.clone(),
+                            field_id: field_id.clone(),
+                            prefix,
+                            suffix,
                         }
-                    },
-                );
+                    }
+                });
                 input_ret.input.ref_on("input", {
                     let id = field.id.clone();
                     let fs = fs.clone();
                     move |ev| {
                         fs.update(
                             &id,
-                            CommitNode::Node(Node::Value(serde_json::Value::String(
-                                ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap().value(),
-                            ))),
+                            CommitNode::Node(
+                                Node::Value(
+                                    serde_json::Value::String(
+                                        ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap().value(),
+                                    ),
+                                ),
+                            ),
                         );
                     }
                 });

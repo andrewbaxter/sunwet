@@ -47,19 +47,9 @@ pub fn wire_autocomplete<
                             datalist.ref_clear();
                             for s in suggestions {
                                 let option =
-                                    web_sys::window()
-                                        .unwrap()
-                                        .document()
-                                        .unwrap()
-                                        .create_element("option")
-                                        .unwrap();
+                                    web_sys::window().unwrap().document().unwrap().create_element("option").unwrap();
                                 option.set_attribute("value", &s).unwrap();
-                                datalist
-                                    .raw()
-                                    .dyn_ref::<web_sys::Element>()
-                                    .unwrap()
-                                    .append_child(&option)
-                                    .unwrap();
+                                datalist.raw().dyn_ref::<web_sys::Element>().unwrap().append_child(&option).unwrap();
                             }
                         },
                         Err(_) => {

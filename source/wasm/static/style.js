@@ -4504,11 +4504,11 @@
     [`.${classStatePressed}`]: (s) => {
       s.color = varCModified;
     },
-    [`.${classStateHide}`]: (s) => {
-      s.display = "none";
-    },
     [`.${classInputStateModified}`]: (s) => {
       s.color = varCModified;
+    },
+    [`.${classStateHide}`]: (s) => {
+      s.display = "none";
     },
   });
   const leafButtonFreeInnerStyle = ss(uniq("leaf_button_free_inner"), {
@@ -4836,14 +4836,11 @@
         extraStyles: [leafIconStyle],
       });
       const expandToggleStyle = ss(uniq("leaf_node_edit_drawer_expand"), {
-        [` .${leafIconStyle}:nth-child(2)`]: (s) => {
+        [`:not(.${classStateExpanded}) .${leafIconStyle}:nth-child(2)`]: (s) => {
           s.display = "none";
         },
         [`.${classStateExpanded} .${leafIconStyle}:nth-child(1)`]: (s) => {
           s.display = "none";
-        },
-        [`.${classStateExpanded} .${leafIconStyle}:nth-child(2)`]: (s) => {
-          s.display = "";
         },
       });
       const expandToggle = {
@@ -4870,14 +4867,8 @@
           ],
         },
       );
-      const revertButton = leafButtonFree({
-        icon: textIconRevert,
-        hint: "Revert predicate",
-      });
-      const deleteToggle = leafButtonFree({
-        icon: textIconDelete,
-        hint: "Delete all",
-      });
+      const revertButton = presentation.leafNodeEditToolbarRevertButton({});
+      const deleteToggle = presentation.leafNodeEditToolbarDeleteToggle({});
       const childrenSlot = e(
         "div",
         {},
