@@ -1009,7 +1009,7 @@ export const buildGlobal = async (apiTokens: {
     element_height: mediaBlockSize,
     element_body: {
       media: {
-        data: { field: "media" },
+        data: { field: "file" },
         trans_align: "middle",
       },
     },
@@ -1044,12 +1044,12 @@ export const buildGlobal = async (apiTokens: {
                             widgetNodeLink("microblog_id", "microblog_id"),
                             {
                               play_button: {
-                                media_file_field: "media",
+                                media_file_field: "file",
                                 orientation: "right_down",
                                 name_field: "author",
                                 album_field: "url",
                                 artist_field: "author",
-                                cover_field: "media",
+                                cover_field: "file",
                               },
                             },
                           ],
@@ -1123,7 +1123,7 @@ export const buildGlobal = async (apiTokens: {
     element_height: mediaBlockSize,
     element_body: {
       media: {
-        data: { field: "image_hash" },
+        data: { field: "file" },
         trans_align: "middle",
       },
     },
@@ -1158,12 +1158,12 @@ export const buildGlobal = async (apiTokens: {
                             widgetNodeLink("image_id", "image_id"),
                             {
                               play_button: {
-                                media_file_field: "image_hash",
+                                media_file_field: "file",
                                 orientation: "right_down",
                                 name_field: "artist_name",
                                 album_field: "url",
                                 artist_field: "artist_name",
-                                cover_field: "image_hash",
+                                cover_field: "file",
                               },
                             },
                           ],
@@ -2329,7 +2329,7 @@ export const buildGlobal = async (apiTokens: {
             label: "Create timestamp",
             type: { text: {} },
           },
-          { id: "media", label: "Media", type: { text: {} } },
+          { id: "file", label: "File", type: { text: {} } },
         ],
         outputs: [
           {
@@ -2364,8 +2364,8 @@ export const buildGlobal = async (apiTokens: {
           },
           {
             subject: { input: "id" },
-            predicate: { inline: "sunwet/1/media" },
-            object: { input: "media" },
+            predicate: { inline: "sunwet/1/file" },
+            object: { input: "file" },
           },
         ],
       },
@@ -2425,7 +2425,7 @@ export const buildGlobal = async (apiTokens: {
           { id: "source_url", label: "Source URL", type: { text: {} } },
           { id: "artist_name", label: "Artist name", type: { text: {} } },
           { id: "artist_url", label: "Artist URL", type: { text: {} } },
-          { id: "image_hash", label: "Image hash", type: { text: {} } },
+          { id: "file", label: "File", type: { text: {} } },
         ],
         outputs: [
           {
@@ -2460,8 +2460,8 @@ export const buildGlobal = async (apiTokens: {
           },
           {
             subject: { input: "id" },
-            predicate: { inline: "sunwet/1/image_hash" },
-            object: { input: "image_hash" },
+            predicate: { inline: "sunwet/1/file" },
+            object: { input: "file" },
           },
         ],
       },

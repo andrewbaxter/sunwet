@@ -413,7 +413,7 @@ export const do_booru = () => {
     /** @type {Array<{data: Uint8Array, mimetype: string, parameter: string}>} */
     const files = [];
     if (data.image && !data.image.error && data.image.data) {
-      files.push({ data: data.image.data, mimetype: data.image.mimeType || "application/octet-stream", parameter: "image_hash" });
+      files.push({ data: data.image.data, mimetype: data.image.mimeType || "application/octet-stream", parameter: "file" });
     }
 
     return {

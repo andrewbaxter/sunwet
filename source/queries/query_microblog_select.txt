@@ -1,7 +1,7 @@
 {
-    => media
+    => file
     (
-        -< "sunwet/1/media" first {
+        -< "sunwet/1/file" first {
             => microblog_id
             ( -> "sunwet/1/add_timestamp" first { => add_timestamp } )
             ( -> "sunwet/1/create_timestamp" first { => create_timestamp } )
