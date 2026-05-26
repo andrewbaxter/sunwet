@@ -346,10 +346,30 @@
           }).root,
           presentation.contPageNodeSectionRel({
             children: [
-              makeIncomingDrawer("sunwet/1/is", [
-                makeRelRow("sunwet/1/is", "ABCD-1234", true),
-                makeRelRow("sunwet/1/is", "EFGH-5678", false),
-              ]),
+              (() => {
+                const drawer = presentation.contNodeEditDrawer({
+                  children: [
+                    makeRelRow("sunwet/1/is", "ABCD-1234", true),
+                    makeRelRow("sunwet/1/is", "EFGH-5678", false),
+                  ].map((r) =>
+                    presentation.contNodeRelInner({
+                      children: [r.node, r.predicate, r.toolbar],
+                      new: r.isNew,
+                    }).root,
+                  ),
+                });
+                drawer.predicateInput.value = "sunwet/1/is";
+                drawer.countText.textContent = "(2 rels)";
+                drawer.predicateInput.classList.add(
+                  presentation.classStateModified({}).value,
+                );
+                drawer.deleteToggle.classList.add(
+                  presentation.classStatePressed({}).value,
+                );
+                return presentation.contNodeDrawerIncoming({
+                  children: [drawer.root],
+                }).root;
+              })(),
               makeIncomingDrawer("sunwet/1/has", [
                 makeRelRow("sunwet/1/has", "IJKL-9012", false),
               ]),

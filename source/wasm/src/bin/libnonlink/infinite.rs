@@ -80,7 +80,10 @@ fn build_infinite_<
                             loaded_signal = None;
                         } else {
                             let (tx, mut rx) = mpsc::unbounded_channel::<InfAdvanceMsg>();
-                            _ = tx.send(InfAdvanceMsg { force: false, loaded: None });
+                            _ = tx.send(InfAdvanceMsg {
+                                force: false,
+                                loaded: None,
+                            });
                             if let Some(slot) = &advance_tx_slot {
                                 *slot.borrow_mut() = Some(tx.clone());
                             }
@@ -112,7 +115,10 @@ fn build_infinite_<
                             let listener = EventListener::new(&scroll_parent, "scroll", {
                                 let tx = tx.clone();
                                 move |_| {
-                                    _ = tx.send(InfAdvanceMsg { force: false, loaded: None });
+                                    _ = tx.send(InfAdvanceMsg {
+                                        force: false,
+                                        loaded: None,
+                                    });
                                 }
                             });
                             loaded_signal = shed!{

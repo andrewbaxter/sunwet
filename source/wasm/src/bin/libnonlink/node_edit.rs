@@ -1095,7 +1095,13 @@ fn build_edit_node(
     return out;
 }
 
-fn build_edit_rel(pc: &mut ProcessingContext, total_pivot_nodes: usize, rel: &RelState, new: bool, in_drawer: bool) -> El {
+fn build_edit_rel(
+    pc: &mut ProcessingContext,
+    total_pivot_nodes: usize,
+    rel: &RelState,
+    new: bool,
+    in_drawer: bool,
+) -> El {
     let buttons_el = {
         let mut left = vec![];
         let mut right = vec![];
@@ -1200,17 +1206,15 @@ fn build_edit_rel(pc: &mut ProcessingContext, total_pivot_nodes: usize, rel: &Re
         );
     let predicate_el = {
         let predicate_value = "".to_string();
-        let predicate_res =
-            style_export::leaf_input_text_autocomplete(
-                style_export::LeafInputTextAutocompleteArgs {
-                    id: None,
-                    title: "Predicate".to_string(),
-                    value: predicate_value.clone(),
-                },
-            );
+        let predicate_res = style_export::leaf_input_text_autocomplete(style_export::LeafInputTextAutocompleteArgs {
+            id: None,
+            title: "Predicate".to_string(),
+            value: predicate_value.clone(),
+        });
         let input_value = Prim::new(predicate_value);
         let out = predicate_res.root;
         let input_ = predicate_res.input;
+
         // Wire autocomplete
         super::autocomplete::wire_autocomplete(
             &input_,
@@ -1231,11 +1235,17 @@ fn build_edit_rel(pc: &mut ProcessingContext, total_pivot_nodes: usize, rel: &Re
         });
         out.ref_own(|out| (
             //. .
-            link!((pc = pc), (predicate_value = rel.0.predicate.clone()), (input_value = input_value.clone()), (input_ = input_.weak()), {
-                let input_ = input_.upgrade()?;
-                input_value.set(pc, predicate_value.borrow().clone());
-                input_.raw().dyn_ref::<HtmlInputElement>().unwrap().set_value(predicate_value.borrow().as_str());
-            }),
+            link!(
+                (pc = pc),
+                (predicate_value = rel.0.predicate.clone()),
+                (input_value = input_value.clone()),
+                (input_ = input_.weak()),
+                {
+                    let input_ = input_.upgrade()?;
+                    input_value.set(pc, predicate_value.borrow().clone());
+                    input_.raw().dyn_ref::<HtmlInputElement>().unwrap().set_value(predicate_value.borrow().as_str());
+                }
+            ),
             link!((pc = pc), (input_value = input_value.clone()), (predicate_value = rel.0.predicate.clone()), (), {
                 predicate_value.set(pc, input_value.borrow().clone());
             }),
@@ -1243,9 +1253,9 @@ fn build_edit_rel(pc: &mut ProcessingContext, total_pivot_nodes: usize, rel: &Re
                 (_pc = pc),
                 (pred = rel.0.predicate.clone(), initial_pred_node = rel.0.initial_pred_node.clone()),
                 (),
-                (out = out.weak()) {
-                    let out = out.upgrade()?;
-                    out.ref_modify_classes(
+                (input_ = input_.weak()) {
+                    let input_ = input_.upgrade()?;
+                    input_.ref_modify_classes(
                         &[
                             (
                                 &style_export::class_state_modified().value,
@@ -1291,8 +1301,7 @@ fn build_edit_drawer(
     drawer: &DrawerState,
     incoming: bool,
 ) -> El {
-    let drawer_res =
-        style_export::cont_node_edit_drawer(style_export::ContNodeEditDrawerArgs { children: vec![] });
+    let drawer_res = style_export::cont_node_edit_drawer(style_export::ContNodeEditDrawerArgs { children: vec![] });
 
     // Wire predicate autocomplete
     super::autocomplete::wire_autocomplete(
@@ -1315,32 +1324,52 @@ fn build_edit_drawer(
             input_value.set(pc, ele.value());
         }).unwrap()
     });
-    drawer_res.predicate.ref_own(|out| (
-        link!((pc = pc), (predicate_value = drawer.0.predicate.clone()), (input_value = input_value.clone()), (input_ = drawer_res.predicate_input.weak()), {
-            let input_ = input_.upgrade()?;
-            input_value.set(pc, predicate_value.borrow().clone());
-            input_.raw().dyn_ref::<HtmlInputElement>().unwrap().set_value(predicate_value.borrow().as_str());
-        }),
-        link!((pc = pc), (input_value = input_value.clone()), (predicate_value = drawer.0.predicate.clone()), (), {
-            predicate_value.set(pc, input_value.borrow().clone());
-        }),
-        link!(
-            (_pc = pc),
-            (pred = drawer.0.predicate.clone(), initial_pred = drawer.0.initial_predicate.clone()),
-            (),
-            (out = out.weak()) {
-                let out = out.upgrade()?;
-                out.ref_modify_classes(
-                    &[
-                        (
-                            &style_export::class_state_modified().value,
-                            *pred.borrow() != *initial_pred.borrow(),
-                        ),
-                    ],
-                );
-            }
-        ),
-    ));
+    drawer_res
+        .predicate
+        .ref_own(
+            |out| (
+                link!(
+                    (pc = pc),
+                    (predicate_value = drawer.0.predicate.clone()),
+                    (input_value = input_value.clone()),
+                    (input_ = drawer_res.predicate_input.weak()),
+                    {
+                        let input_ = input_.upgrade()?;
+                        input_value.set(pc, predicate_value.borrow().clone());
+                        input_
+                            .raw()
+                            .dyn_ref::<HtmlInputElement>()
+                            .unwrap()
+                            .set_value(predicate_value.borrow().as_str());
+                    }
+                ),
+                link!(
+                    (pc = pc),
+                    (input_value = input_value.clone()),
+                    (predicate_value = drawer.0.predicate.clone()),
+                    (),
+                    {
+                        predicate_value.set(pc, input_value.borrow().clone());
+                    }
+                ),
+                link!(
+                    (_pc = pc),
+                    (pred = drawer.0.predicate.clone(), initial_pred = drawer.0.initial_predicate.clone()),
+                    (),
+                    (input_ = drawer_res.predicate_input.weak()) {
+                        let input_ = input_.upgrade()?;
+                        input_.ref_modify_classes(
+                            &[
+                                (
+                                    &style_export::class_state_modified().value,
+                                    *pred.borrow() != *initial_pred.borrow(),
+                                ),
+                            ],
+                        );
+                    }
+                ),
+            ),
+        );
 
     // Count text
     let count = drawer.0.rels.len();
@@ -1355,15 +1384,12 @@ fn build_edit_drawer(
             expanded.set(pc, !expanded.get());
         }).unwrap()
     });
-    drawer_res.expand_toggle.ref_own(|out| link!(
-        (_pc = pc),
-        (expanded = drawer.0.expanded.clone()),
-        (),
-        (out = out.weak()) {
+    drawer_res
+        .expand_toggle
+        .ref_own(|out| link!((_pc = pc), (expanded = drawer.0.expanded.clone()), (), (out = out.weak()) {
             let out = out.upgrade()?;
             out.ref_modify_classes(&[(&style_export::class_state_expanded().value, expanded.get())]);
-        }
-    ));
+        }));
 
     // Build/destroy children on expand
     children_slot.ref_own(|_| {
@@ -1418,19 +1444,20 @@ fn build_edit_drawer(
             }
         }).unwrap()
     });
-    drawer_res.delete_toggle.ref_own(|out| link!((_pc = pc), (deleted = drawer.0.delete.clone()), (), (out = out.weak()), {
-        let out = out.upgrade()?;
-        out.ref_modify_classes(&[(&style_export::class_state_pressed().value, deleted.get())]);
-    }));
-
+    drawer_res
+        .delete_toggle
+        .ref_own(|out| link!((_pc = pc), (deleted = drawer.0.delete.clone()), (), (out = out.weak()), {
+            let out = out.upgrade()?;
+            out.ref_modify_classes(&[(&style_export::class_state_pressed().value, deleted.get())]);
+        }));
     if incoming {
-        style_export::cont_node_drawer_incoming(style_export::ContNodeDrawerIncomingArgs {
-            children: vec![drawer_res.root],
-        }).root
+        style_export::cont_node_drawer_incoming(
+            style_export::ContNodeDrawerIncomingArgs { children: vec![drawer_res.root] },
+        ).root
     } else {
-        style_export::cont_node_drawer_outgoing(style_export::ContNodeDrawerOutgoingArgs {
-            children: vec![drawer_res.root],
-        }).root
+        style_export::cont_node_drawer_outgoing(
+            style_export::ContNodeDrawerOutgoingArgs { children: vec![drawer_res.root] },
+        ).root
     }
 }
 
@@ -1492,7 +1519,6 @@ pub async fn build_node_edit_contents(
                     pred_groups.push((item.0.0.clone(), vec![item]));
                 }
             }
-
             for (pred, group) in pred_groups {
                 let mut drawer_rels = vec![];
                 for ((pred, subj), objs) in group {
@@ -1671,7 +1697,6 @@ pub async fn build_node_edit_contents(
                     pred_groups.push((item.0.0.clone(), vec![item]));
                 }
             }
-
             for (pred, group) in pred_groups {
                 let mut drawer_rels = vec![];
                 for ((pred, obj), subjs) in group {
@@ -1836,8 +1861,8 @@ pub async fn build_node_edit_contents(
                         let mut add = vec![];
                         let mut remove = vec![];
                         let delete_all = delete_all.get();
-                        // Build a lookup: for each rel in a drawer, find the drawer's
-                        // predicate fallback
+
+                        // Build a lookup: for each rel in a drawer, find the drawer's predicate fallback
                         let drawer_lookup = {
                             let mut map = HashMap::<*const RelState_, (Prim<String>, Prim<String>)>::new();
                             for drawer in &*RefCell::borrow(&drawer_states) {
@@ -1857,12 +1882,12 @@ pub async fn build_node_edit_contents(
                                 file_unique
                             }, &*rel.0.node_type.borrow(), &*rel.0.node_value.borrow());
 
-                            // Apply drawer predicate fallback: if the rel's own
-                            // predicate wasn't individually modified but the drawer's
-                            // was, use the drawer predicate.
+                            // Apply drawer predicate fallback: if the rel's own predicate wasn't individually
+                            // modified but the drawer's was, use the drawer predicate.
                             let rel_pred = {
                                 let rel_own_pred = rel.0.predicate.borrow().clone();
-                                if let Some((drawer_pred, drawer_initial_pred)) = drawer_lookup.get(&Rc::as_ptr(&rel.0)) {
+                                if let Some((drawer_pred, drawer_initial_pred)) =
+                                    drawer_lookup.get(&Rc::as_ptr(&rel.0)) {
                                     let rel_pred_individually_modified =
                                         if let Some(initial) = &*rel.0.initial_pred_node.borrow() {
                                             rel_own_pred != initial.predicate
