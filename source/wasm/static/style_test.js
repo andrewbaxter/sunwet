@@ -293,52 +293,68 @@
               presentation.leafNodeEditToolbarDeleteToggle({}).root,
             ],
           }).root;
+        const makeRelRow = (predValue, nodeValue, isNew) => ({
+          node: presentation.leafNodeEditNode({
+            inputType: nodeTypeSel({
+              hint: "Subject",
+              value: "file",
+            }),
+            inputValue: presentation.leafInputText({
+              title: "Subject",
+              value: nodeValue,
+            }).root,
+          }).root,
+          predicate: presentation.leafNodeEditPredicate({
+            value: predValue,
+          }).root,
+          toolbar: makeToolbar(),
+          isNew: isNew,
+        });
+        const makeIncomingDrawer = (pred, relRows) => {
+          const drawer = presentation.contNodeEditDrawer({
+            children: relRows.map((r) =>
+              presentation.contNodeRowIncoming({
+                children: [r.node, r.predicate, r.toolbar],
+                new: r.isNew,
+              }).root,
+            ),
+          });
+          drawer.predicateInput.value = pred;
+          drawer.countText.textContent = `(${relRows.length} rels)`;
+          return presentation.contNodeRowIncoming({
+            children: [drawer.root],
+            new: false,
+          }).root;
+        };
+        const makeOutgoingDrawer = (pred, relRows) => {
+          const drawer = presentation.contNodeEditDrawer({
+            children: relRows.map((r) =>
+              presentation.contNodeRowOutgoing({
+                children: [r.predicate, r.node, r.toolbar],
+                new: r.isNew,
+              }).root,
+            ),
+          });
+          drawer.predicateInput.value = pred;
+          drawer.countText.textContent = `(${relRows.length} rels)`;
+          return presentation.contNodeRowOutgoing({
+            children: [drawer.root],
+            new: false,
+          }).root;
+        };
         return [
           presentation.contNodeRowIncomingAdd({
             hint: "Add incoming triple",
           }).root,
           presentation.contPageNodeSectionRel({
             children: [
-              presentation.contNodeRowIncoming({
-                children: [
-                  presentation.leafNodeEditNode({
-                    inputType: nodeTypeSel({
-                      hint: "Subject",
-                      value: "file",
-                    }),
-                    inputValue: presentation.leafInputText({
-                      title: "Subject",
-                      value: "ABCD-1234",
-                    }).root,
-                  }).root,
-                  presentation.leafNodeEditPredicate({
-                    value: "sunwet/1/is",
-                  }).root,
-                  presentation.leafMediaImg({ src: "testimage_square.svg" })
-                    .root,
-                  makeToolbar(),
-                ],
-                new: true,
-              }).root,
-              presentation.contNodeRowIncoming({
-                children: [
-                  presentation.leafNodeEditNode({
-                    inputType: nodeTypeSel({
-                      hint: "Subject",
-                      value: "file",
-                    }),
-                    inputValue: presentation.leafInputText({
-                      title: "Subject",
-                      value: "ABCD-1234",
-                    }).root,
-                  }).root,
-                  presentation.leafNodeEditPredicate({
-                    value: "sunwet/1/has",
-                  }).root,
-                  makeToolbar(),
-                ],
-                new: false,
-              }).root,
+              makeIncomingDrawer("sunwet/1/is", [
+                makeRelRow("sunwet/1/is", "ABCD-1234", true),
+                makeRelRow("sunwet/1/is", "EFGH-5678", false),
+              ]),
+              makeIncomingDrawer("sunwet/1/has", [
+                makeRelRow("sunwet/1/has", "IJKL-9012", false),
+              ]),
             ],
           }).root,
           presentation.contNodeSectionCenter({
@@ -368,44 +384,13 @@
           }).root,
           presentation.contPageNodeSectionRel({
             children: [
-              presentation.contNodeRowOutgoing({
-                children: [
-                  presentation.leafNodeEditPredicate({
-                    value: "sunwet/1/is",
-                  }).root,
-                  presentation.leafNodeEditNode({
-                    inputType: nodeTypeSel({
-                      hint: "Subject",
-                      value: "file",
-                    }),
-                    inputValue: presentation.leafInputText({
-                      title: "Subject",
-                      value: "ABCD-1234",
-                    }).root,
-                  }).root,
-                  makeToolbar(),
-                ],
-                new: false,
-              }).root,
-              presentation.contNodeRowOutgoing({
-                children: [
-                  presentation.leafNodeEditPredicate({
-                    value: "sunwet/1/has",
-                  }).root,
-                  presentation.leafNodeEditNode({
-                    inputType: nodeTypeSel({
-                      hint: "Subject",
-                      value: "file",
-                    }),
-                    inputValue: presentation.leafInputText({
-                      title: "Subject",
-                      value: "ABCD-1234",
-                    }).root,
-                  }).root,
-                  makeToolbar(),
-                ],
-                new: true,
-              }).root,
+              makeOutgoingDrawer("sunwet/1/is", [
+                makeRelRow("sunwet/1/is", "ABCD-1234", false),
+              ]),
+              makeOutgoingDrawer("sunwet/1/has", [
+                makeRelRow("sunwet/1/has", "ABCD-1234", false),
+                makeRelRow("sunwet/1/has", "MNOP-3456", true),
+              ]),
             ],
           }).root,
           presentation.contNodeRowOutgoingAdd({
@@ -470,12 +455,14 @@
         }
         {
           const fs = presentation.contMediaFullscreen();
-          fs.media.appendChild(presentation.contMediaComic({
-            minAspectX: minAspect.toString(),
-            minAspectY: "1",
-            children: children,
-            rtl: true,
-          }).root);
+          fs.media.appendChild(
+            presentation.contMediaComic({
+              minAspectX: minAspect.toString(),
+              minAspectY: "1",
+              children: children,
+              rtl: true,
+            }).root,
+          );
           buildRoot([fs.root]);
         }
       };
@@ -716,26 +703,22 @@
         break;
       case "#fullscreen":
         {
-          const fs = presentation.contMediaFullscreen();
+          const fs = presentation.contMediaFullscreen({});
           const media = document.createElement("div");
           media.style.border = "1px solid blue";
           fs.media.appendChild(media);
-          buildRoot([
-            stagingPageView,
-            fs.root,
-          ]);
+          buildRoot([stagingPageView, fs.root]);
         }
         break;
       case "#fullscreen_image":
         {
-          const fs = presentation.contMediaFullscreen();
-          fs.media.appendChild(presentation.leafMediaImg({
-            src: "testimage_square.svg",
-          }).root);
-          buildRoot([
-            stagingPageView,
-            fs.root,
-          ]);
+          const fs = presentation.contMediaFullscreen({});
+          fs.media.appendChild(
+            presentation.leafMediaImg({
+              src: "testimage_square.svg",
+            }).root,
+          );
+          buildRoot([stagingPageView, fs.root]);
         }
         break;
       case "#form":

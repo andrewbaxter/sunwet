@@ -419,6 +419,17 @@ struct RelState_ {
 #[derive(Clone)]
 struct RelState(Rc<RelState_>);
 
+struct DrawerState_ {
+    predicate: Prim<String>,
+    initial_predicate: Prim<String>,
+    delete: HistPrim<bool>,
+    expanded: HistPrim<bool>,
+    rels: Vec<RelState>,
+}
+
+#[derive(Clone)]
+struct DrawerState(Rc<DrawerState_>);
+
 struct RelStateArgs<'a> {
     draft_data: Option<&'a DraftData>,
     draft_entry: Option<MutDraftRel>,
@@ -1264,6 +1275,157 @@ fn build_edit_rel(pc: &mut ProcessingContext, total_pivot_nodes: usize, rel: &Re
     }
 }
 
+fn build_edit_drawer(
+    pc: &mut ProcessingContext,
+    total_pivot_nodes: usize,
+    drawer: &DrawerState,
+    incoming: bool,
+) -> El {
+    let drawer_res =
+        style_export::cont_node_edit_drawer(style_export::ContNodeEditDrawerArgs { children: vec![] });
+
+    // Wire predicate autocomplete
+    super::autocomplete::wire_autocomplete(
+        &drawer_res.predicate_input,
+        &drawer_res.predicate_datalist,
+        |prefix, suffix| shared::interface::wire::ReqAutocompleteFree {
+            field: shared::interface::wire::AutocompleteField::Predicate,
+            prefix,
+            suffix,
+        },
+    );
+
+    // Predicate input <-> drawer predicate prim
+    let input_value = Prim::new(drawer.0.predicate.borrow().clone());
+    drawer_res.predicate_input.ref_on("input", {
+        let eg = pc.eg();
+        let input_value = input_value.clone();
+        move |ev| eg.event(|pc| {
+            let ele = ev.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
+            input_value.set(pc, ele.value());
+        }).unwrap()
+    });
+    drawer_res.predicate.ref_own(|out| (
+        link!((pc = pc), (predicate_value = drawer.0.predicate.clone()), (input_value = input_value.clone()), (input_ = drawer_res.predicate_input.weak()), {
+            let input_ = input_.upgrade()?;
+            input_value.set(pc, predicate_value.borrow().clone());
+            input_.raw().dyn_ref::<HtmlInputElement>().unwrap().set_value(predicate_value.borrow().as_str());
+        }),
+        link!((pc = pc), (input_value = input_value.clone()), (predicate_value = drawer.0.predicate.clone()), (), {
+            predicate_value.set(pc, input_value.borrow().clone());
+        }),
+        link!(
+            (_pc = pc),
+            (pred = drawer.0.predicate.clone(), initial_pred = drawer.0.initial_predicate.clone()),
+            (),
+            (out = out.weak()) {
+                let out = out.upgrade()?;
+                out.ref_modify_classes(
+                    &[
+                        (
+                            &style_export::class_state_modified().value,
+                            *pred.borrow() != *initial_pred.borrow(),
+                        ),
+                    ],
+                );
+            }
+        ),
+    ));
+
+    // Count text
+    let count = drawer.0.rels.len();
+    drawer_res.count_text.ref_text(&format!("({} rels)", count));
+
+    // Expand toggle
+    drawer_res.expand_toggle.ref_on("click", {
+        let eg = pc.eg();
+        let expanded = drawer.0.expanded.clone();
+        move |_| eg.event(|pc| {
+            expanded.set(pc, !expanded.get());
+        }).unwrap()
+    });
+    drawer_res.expand_toggle.ref_own(|out| link!(
+        (_pc = pc),
+        (expanded = drawer.0.expanded.clone()),
+        (),
+        (out = out.weak()) {
+            let out = out.upgrade()?;
+            out.ref_modify_classes(&[(&style_export::class_state_expanded().value, expanded.get())]);
+        }
+    ));
+
+    // Build/destroy children on expand
+    let children_slot = drawer_res.children_slot.clone();
+    children_slot.ref_own(|_| {
+        let built = Rc::new(Cell::new(false));
+        link!(
+            (_pc = pc),
+            (expanded = drawer.0.expanded.clone()),
+            (),
+            (
+                children_slot = children_slot.weak(),
+                drawer = drawer.clone(),
+                total_pivot_nodes = total_pivot_nodes,
+                _incoming = incoming,
+                built = built
+            ) {
+                let children_slot = children_slot.upgrade()?;
+                if expanded.get() {
+                    if !built.get() {
+                        built.set(true);
+                        for rel in &drawer.0.rels {
+                            children_slot.ref_push(build_edit_rel(_pc, *total_pivot_nodes, rel, rel.0.initial_pred_node.borrow().is_none()));
+                        }
+                    }
+                } else {
+                    if built.get() {
+                        built.set(false);
+                        children_slot.ref_clear();
+                    }
+                }
+            }
+        )
+    });
+
+    // Revert button - reverts drawer predicate
+    drawer_res.revert_button.ref_on("click", {
+        let eg = pc.eg();
+        let drawer = drawer.clone();
+        move |_| eg.event(|pc| {
+            drawer.0.predicate.set(pc, drawer.0.initial_predicate.borrow().clone());
+        }).unwrap()
+    });
+
+    // Delete toggle - marks all rels for deletion
+    drawer_res.delete_toggle.ref_on("click", {
+        let eg = pc.eg();
+        let drawer = drawer.clone();
+        move |_| eg.event(|pc| {
+            let new_val = !drawer.0.delete.get();
+            drawer.0.delete.set(pc, new_val);
+            for rel in &drawer.0.rels {
+                rel.0.delete.set(pc, new_val);
+            }
+        }).unwrap()
+    });
+    drawer_res.delete_toggle.ref_own(|out| link!((_pc = pc), (deleted = drawer.0.delete.clone()), (), (out = out.weak()), {
+        let out = out.upgrade()?;
+        out.ref_modify_classes(&[(&style_export::class_state_pressed().value, deleted.get())]);
+    }));
+
+    if incoming {
+        style_export::cont_node_row_incoming(style_export::ContNodeRowIncomingArgs {
+            children: vec![drawer_res.root],
+            new: false,
+        }).root
+    } else {
+        style_export::cont_node_row_outgoing(style_export::ContNodeRowOutgoingArgs {
+            children: vec![drawer_res.root],
+            new: false,
+        }).root
+    }
+}
+
 pub struct BuildNodeEditContentsRes {
     pub children: Vec<El>,
     pub bar_children: Vec<El>,
@@ -1298,6 +1460,7 @@ pub async fn build_node_edit_contents(
         let mut bar_out = vec![];
         let pivot_lookup = nodes.iter().collect::<HashSet<_>>();
         let rel_states = Rc::new(RefCell::new(vec![] as Vec<RelState>));
+        let drawer_states = Rc::new(RefCell::new(vec![] as Vec<DrawerState>));
 
         // Incoming relations
         {
@@ -1311,34 +1474,57 @@ pub async fn build_node_edit_contents(
             }
             let mut incoming_rels = incoming_rels.into_iter().collect::<Vec<_>>();
             incoming_rels.sort_by_cached_key(|r| (r.0.0.clone(), r.0.1.clone()));
-            for ((pred, subj), objs) in incoming_rels {
-                let full_pivot = objs.len() == pivot_lookup.len();
-                let rel = new_rel_state(pc, RelStateArgs {
-                    draft_data: draft_data.as_ref(),
-                    draft_entry: if let Some(draft_data) = &draft_data {
-                        Some(
-                            draft_data
-                                .0
-                                .incoming
-                                .borrow_mut()
-                                .entry((pred.clone(), subj.clone()))
-                                .or_insert(Default::default())
-                                .clone(),
-                        )
-                    } else {
-                        None
-                    },
-                    initial_fill: full_pivot,
-                    initial_pivot: if nodes.len() == 1 {
-                        RelInitialPivot::Single
-                    } else {
-                        RelInitialPivot::Multi(Prim::new(objs))
-                    },
-                    initial_pred_node: Some((pred.clone(), subj)),
-                    incoming: true,
-                });
-                rels_box.ref_push(build_edit_rel(pc, nodes.len(), &rel, false));
-                rel_states.borrow_mut().push(rel);
+
+            // Group by predicate for drawers
+            let mut pred_groups: Vec<(String, Vec<((String, Node), Vec<Node>)>)> = vec![];
+            for item in incoming_rels {
+                if pred_groups.last().map(|g| g.0.as_str()) == Some(item.0.0.as_str()) {
+                    pred_groups.last_mut().unwrap().1.push(item);
+                } else {
+                    pred_groups.push((item.0.0.clone(), vec![item]));
+                }
+            }
+
+            for (pred, group) in pred_groups {
+                let mut drawer_rels = vec![];
+                for ((pred, subj), objs) in group {
+                    let full_pivot = objs.len() == pivot_lookup.len();
+                    let rel = new_rel_state(pc, RelStateArgs {
+                        draft_data: draft_data.as_ref(),
+                        draft_entry: if let Some(draft_data) = &draft_data {
+                            Some(
+                                draft_data
+                                    .0
+                                    .incoming
+                                    .borrow_mut()
+                                    .entry((pred.clone(), subj.clone()))
+                                    .or_insert(Default::default())
+                                    .clone(),
+                            )
+                        } else {
+                            None
+                        },
+                        initial_fill: full_pivot,
+                        initial_pivot: if nodes.len() == 1 {
+                            RelInitialPivot::Single
+                        } else {
+                            RelInitialPivot::Multi(Prim::new(objs))
+                        },
+                        initial_pred_node: Some((pred.clone(), subj)),
+                        incoming: true,
+                    });
+                    rel_states.borrow_mut().push(rel.clone());
+                    drawer_rels.push(rel);
+                }
+                let drawer = DrawerState(Rc::new(DrawerState_ {
+                    predicate: Prim::new(pred.clone()),
+                    initial_predicate: Prim::new(pred),
+                    delete: HistPrim::new(pc, false),
+                    expanded: HistPrim::new(pc, false),
+                    rels: drawer_rels,
+                }));
+                rels_box.ref_push(build_edit_drawer(pc, nodes.len(), &drawer, true));
+                drawer_states.borrow_mut().push(drawer);
             }
             if let Some(draft_data) = draft_data.as_ref() {
                 let draft_new = draft_data.0.new_incoming.borrow().clone();
@@ -1467,34 +1653,57 @@ pub async fn build_node_edit_contents(
             }
             let mut outgoing_rels = outgoing_rels.into_iter().collect::<Vec<_>>();
             outgoing_rels.sort_by_cached_key(|r| (r.0.0.clone(), r.0.1.clone()));
-            for ((pred, obj), subjs) in outgoing_rels {
-                let full_pivot = subjs.len() == pivot_lookup.len();
-                let rel = new_rel_state(pc, RelStateArgs {
-                    draft_data: draft_data.as_ref(),
-                    draft_entry: if let Some(draft_data) = &draft_data {
-                        Some(
-                            draft_data
-                                .0
-                                .outgoing
-                                .borrow_mut()
-                                .entry((pred.clone(), obj.clone()))
-                                .or_insert(Default::default())
-                                .clone(),
-                        )
-                    } else {
-                        None
-                    },
-                    initial_fill: full_pivot,
-                    initial_pivot: if nodes.len() == 1 {
-                        RelInitialPivot::Single
-                    } else {
-                        RelInitialPivot::Multi(Prim::new(subjs))
-                    },
-                    initial_pred_node: Some((pred.clone(), obj)),
-                    incoming: false,
-                });
-                rels_box.ref_push(build_edit_rel(pc, nodes.len(), &rel, false));
-                rel_states.borrow_mut().push(rel);
+
+            // Group by predicate for drawers
+            let mut pred_groups: Vec<(String, Vec<((String, Node), Vec<Node>)>)> = vec![];
+            for item in outgoing_rels {
+                if pred_groups.last().map(|g| g.0.as_str()) == Some(item.0.0.as_str()) {
+                    pred_groups.last_mut().unwrap().1.push(item);
+                } else {
+                    pred_groups.push((item.0.0.clone(), vec![item]));
+                }
+            }
+
+            for (pred, group) in pred_groups {
+                let mut drawer_rels = vec![];
+                for ((pred, obj), subjs) in group {
+                    let full_pivot = subjs.len() == pivot_lookup.len();
+                    let rel = new_rel_state(pc, RelStateArgs {
+                        draft_data: draft_data.as_ref(),
+                        draft_entry: if let Some(draft_data) = &draft_data {
+                            Some(
+                                draft_data
+                                    .0
+                                    .outgoing
+                                    .borrow_mut()
+                                    .entry((pred.clone(), obj.clone()))
+                                    .or_insert(Default::default())
+                                    .clone(),
+                            )
+                        } else {
+                            None
+                        },
+                        initial_fill: full_pivot,
+                        initial_pivot: if nodes.len() == 1 {
+                            RelInitialPivot::Single
+                        } else {
+                            RelInitialPivot::Multi(Prim::new(subjs))
+                        },
+                        initial_pred_node: Some((pred.clone(), obj)),
+                        incoming: false,
+                    });
+                    rel_states.borrow_mut().push(rel.clone());
+                    drawer_rels.push(rel);
+                }
+                let drawer = DrawerState(Rc::new(DrawerState_ {
+                    predicate: Prim::new(pred.clone()),
+                    initial_predicate: Prim::new(pred),
+                    delete: HistPrim::new(pc, false),
+                    expanded: HistPrim::new(pc, false),
+                    rels: drawer_rels,
+                }));
+                rels_box.ref_push(build_edit_drawer(pc, nodes.len(), &drawer, false));
+                drawer_states.borrow_mut().push(drawer);
             }
             if let Some(draft_data) = draft_data.as_ref() {
                 let draft_new = draft_data.0.new_outgoing.borrow().clone();
@@ -1565,6 +1774,7 @@ pub async fn build_node_edit_contents(
         let button_commit = style_export::leaf_button_big_commit().root;
         on_thinking(&button_commit, {
             let rel_states = rel_states.clone();
+            let drawer_states = drawer_states.clone();
             let pivot_state = pivot_state.clone();
             let error_slot = error_slot.weak();
             let draft_data = draft_data.clone();
@@ -1573,6 +1783,7 @@ pub async fn build_node_edit_contents(
             let title = title.clone();
             move || {
                 let rel_states = rel_states.clone();
+                let drawer_states = drawer_states.clone();
                 let pivot_state = pivot_state.clone();
                 let error_slot = error_slot.clone();
                 let draft_data = draft_data.clone();
@@ -1617,13 +1828,49 @@ pub async fn build_node_edit_contents(
                         let mut add = vec![];
                         let mut remove = vec![];
                         let delete_all = delete_all.get();
+                        // Build a lookup: for each rel in a drawer, find the drawer's
+                        // predicate fallback
+                        let drawer_lookup = {
+                            let mut map = HashMap::<*const RelState_, (Prim<String>, Prim<String>)>::new();
+                            for drawer in &*RefCell::borrow(&drawer_states) {
+                                for rel in &drawer.0.rels {
+                                    map.insert(
+                                        Rc::as_ptr(&rel.0),
+                                        (drawer.0.predicate.clone(), drawer.0.initial_predicate.clone()),
+                                    );
+                                }
+                            }
+                            map
+                        };
                         for rel in &*RefCell::borrow(&rel_states) {
                             // Get current values
                             let rel_node = type_value_to_node({
                                 file_unique += 1;
                                 file_unique
                             }, &*rel.0.node_type.borrow(), &*rel.0.node_value.borrow());
-                            let rel_pred = rel.0.predicate.borrow().clone();
+
+                            // Apply drawer predicate fallback: if the rel's own
+                            // predicate wasn't individually modified but the drawer's
+                            // was, use the drawer predicate.
+                            let rel_pred = {
+                                let rel_own_pred = rel.0.predicate.borrow().clone();
+                                if let Some((drawer_pred, drawer_initial_pred)) = drawer_lookup.get(&Rc::as_ptr(&rel.0)) {
+                                    let rel_pred_individually_modified =
+                                        if let Some(initial) = &*rel.0.initial_pred_node.borrow() {
+                                            rel_own_pred != initial.predicate
+                                        } else {
+                                            true
+                                        };
+                                    let drawer_pred_modified = *drawer_pred.borrow() != *drawer_initial_pred.borrow();
+                                    if !rel_pred_individually_modified && drawer_pred_modified {
+                                        drawer_pred.borrow().clone()
+                                    } else {
+                                        rel_own_pred
+                                    }
+                                } else {
+                                    rel_own_pred
+                                }
+                            };
                             rel_nodes_predicates.push((rel_pred.clone(), rel_node.clone()));
 
                             // Get original values for comparison
@@ -1664,7 +1911,7 @@ pub async fn build_node_edit_contents(
                                 changed =
                                     pivot_changed ||
                                         exenum!(&rel_node, CommitNode:: Node(x) => x) != Some(rel_node_initial) ||
-                                        rel.0.predicate.borrow().as_str() != rel_predicate_initial.as_str();
+                                        rel_pred.as_str() != rel_predicate_initial.as_str();
                             } else {
                                 new = true;
                                 changed = false;
@@ -1706,7 +1953,7 @@ pub async fn build_node_edit_contents(
                                     }
                                     add.push(CommitTriple {
                                         subject: subject,
-                                        predicate: rel.0.predicate.borrow().clone(),
+                                        predicate: rel_pred.clone(),
                                         object: object,
                                     });
                                 }
@@ -1815,8 +2062,9 @@ pub async fn build_node_edit_contents(
                                         CommitNode::DatetimeNow => unreachable!(),
                                     });
 
-                                    // Sync initial
+                                    // Sync initial + current predicate to what was sent
                                     rel.0.initial_fill.set(pc, rel.0.fill.get());
+                                    rel.0.predicate.set(pc, sent_pred.clone());
                                     rel.0.initial_pred_node.set(pc, Some(RelInitialPredNode {
                                         predicate: sent_pred,
                                         node_type_: t.clone(),
@@ -1826,6 +2074,13 @@ pub async fn build_node_edit_contents(
                                     // (in case file, change current value to "file" and not "new file" too)
                                     rel.0.node_type.set(pc, t);
                                     rel.0.node_value.set(pc, v);
+                                }
+
+                                // Sync drawer initial predicates
+                                for drawer in &*RefCell::borrow(&drawer_states) {
+                                    let current = drawer.0.predicate.borrow().clone();
+                                    drawer.0.initial_predicate.set(pc, current);
+                                    drawer.0.delete.set(pc, false);
                                 }
                             }).unwrap();
                         },
