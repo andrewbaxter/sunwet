@@ -1373,7 +1373,7 @@ fn build_edit_drawer(
 
     // Count text
     let count = drawer.0.rels.len();
-    drawer_res.count_text.ref_text(&format!("({} rels)", count));
+    drawer_res.count_text.ref_text(&format!("({} relations)", count));
 
     // Expand toggle
     let children_slot = drawer_res.children_slot.clone();
