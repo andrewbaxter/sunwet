@@ -744,6 +744,21 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         Func {
+            name: "contNodeDrawerIncoming",
+            args: vec![("children", &arrel_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "contNodeDrawerOutgoing",
+            args: vec![("children", &arrel_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "contNodeRelInner",
+            args: vec![("children", &arrel_), ("new", &bool_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
             name: "contNodeSectionCenter",
             args: vec![("children", &arrel_)],
             returns: vec![("root", &el_)],

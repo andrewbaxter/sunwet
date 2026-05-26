@@ -313,7 +313,7 @@
         const makeIncomingDrawer = (pred, relRows) => {
           const drawer = presentation.contNodeEditDrawer({
             children: relRows.map((r) =>
-              presentation.contNodeRowIncoming({
+              presentation.contNodeRelInner({
                 children: [r.node, r.predicate, r.toolbar],
                 new: r.isNew,
               }).root,
@@ -321,15 +321,14 @@
           });
           drawer.predicateInput.value = pred;
           drawer.countText.textContent = `(${relRows.length} rels)`;
-          return presentation.contNodeRowIncoming({
+          return presentation.contNodeDrawerIncoming({
             children: [drawer.root],
-            new: false,
           }).root;
         };
         const makeOutgoingDrawer = (pred, relRows) => {
           const drawer = presentation.contNodeEditDrawer({
             children: relRows.map((r) =>
-              presentation.contNodeRowOutgoing({
+              presentation.contNodeRelInner({
                 children: [r.predicate, r.node, r.toolbar],
                 new: r.isNew,
               }).root,
@@ -337,9 +336,8 @@
           });
           drawer.predicateInput.value = pred;
           drawer.countText.textContent = `(${relRows.length} rels)`;
-          return presentation.contNodeRowOutgoing({
+          return presentation.contNodeDrawerOutgoing({
             children: [drawer.root],
-            new: false,
           }).root;
         };
         return [
