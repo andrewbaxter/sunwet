@@ -747,6 +747,7 @@ pub fn main() {
                                         let Some(dir) = wasm::media::wheel_direction(ev) else {
                                             return;
                                         };
+                                        ev.stop_propagation();
                                         eg.event(|pc| {
                                             match dir {
                                                 wasm::media::WheelDirection::Next => {
