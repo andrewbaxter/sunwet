@@ -900,7 +900,10 @@ pub fn playlist_next(pc: &mut ProcessingContext, state: &PlaylistState, basis: O
                 }).unwrap();
                 return;
             }
-            while let Some(source) = state.0.source.borrow().clone() {
+            loop {
+                let Some(source) = state.0.source.borrow().clone() else {
+                    break;
+                };
                 match source().await {
                     Some(entries) => {
                         let offline =
