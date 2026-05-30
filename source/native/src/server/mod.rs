@@ -219,7 +219,9 @@ fn gather_record_files(files: &mut Vec<FileHash>, r: &TreeNode) {
 /// quotes each, adds prefix `*` to each term for partial matching. Returns `raw:`
 /// prefixed string for the Search AST node.
 fn build_autocomplete_fts_query(text: &str) -> String {
-    let terms: Vec<&str> = text.split_whitespace().collect();
+    // Trigram tokenizer requires terms to be at least 3 chars; shorter terms
+    // can't match any trigram and would cause the AND query to return nothing.
+    let terms: Vec<&str> = text.split_whitespace().filter(|t| t.len() >= 3).collect();
     if terms.is_empty() {
         return "raw:\"\"*".to_string();
     }

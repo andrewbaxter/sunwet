@@ -705,57 +705,67 @@ fn build_chain_head(
                     let node_expr = Expr::col(colref(ident_meta.clone(), ident_node.clone()));
                     sql_sel.expr(node_expr.clone());
                     sql_sel.expr(node_expr.clone());
-                    sql_sel.and_where(Expr::col(colref(ident_meta.clone(), ident_rowid.clone())).in_subquery({
-                        let mut sql_sel = sea_query::Query::select();
-                        sql_sel.from(tableref(ident_meta_fts.clone()));
-                        sql_sel.column(ident_rowid.clone());
-                        let raw = build_value_str(query_state, &root)?;
-                        let match_str;
-                        if let Some(raw) = raw.strip_prefix("raw:") {
-                            match_str = raw.to_string();
-                        } else {
-                            let mut match_terms = vec![];
-                            let mut quoted = false;
-                            let mut escaped = false;
-                            let mut buf = vec![];
-                            for c in raw.chars() {
-                                let mut flush = false;
-                                if escaped {
-                                    escaped = false;
-                                    buf.push(c);
-                                } else {
-                                    match c {
-                                        '\\' => {
-                                            escaped = true;
-                                        },
-                                        '"' => {
-                                            flush = true;
-                                            quoted = !quoted;
-                                        },
-                                        ' ' | '\t' | '\n' | '\r' if !quoted => {
-                                            flush = true;
-                                        },
-                                        c => {
-                                            buf.push(c);
-                                        },
-                                    }
-                                }
-                                if flush && !buf.is_empty() {
-                                    match_terms.push(buf.split_off(0));
+                    let raw = build_value_str(query_state, &root)?;
+                    let match_str;
+                    if let Some(raw) = raw.strip_prefix("raw:") {
+                        match_str = Some(raw.to_string());
+                    } else {
+                        let mut match_terms = vec![];
+                        let mut quoted = false;
+                        let mut escaped = false;
+                        let mut buf = vec![];
+                        for c in raw.chars() {
+                            let mut flush = false;
+                            if escaped {
+                                escaped = false;
+                                buf.push(c);
+                            } else {
+                                match c {
+                                    '\\' => {
+                                        escaped = true;
+                                    },
+                                    '"' => {
+                                        flush = true;
+                                        quoted = !quoted;
+                                    },
+                                    ' ' | '\t' | '\n' | '\r' if !quoted => {
+                                        flush = true;
+                                    },
+                                    c => {
+                                        buf.push(c);
+                                    },
                                 }
                             }
-                            if !buf.is_empty() || match_terms.is_empty() {
-                                match_terms.push(buf);
+                            if flush && !buf.is_empty() {
+                                match_terms.push(buf.split_off(0));
                             }
-                            match_str = match_terms.into_iter().map(|x| {
-                                format!("\"{}\"", x.into_iter().collect::<String>().replace("\"", "\"\""))
-                            }).collect::<Vec<_>>().join(" AND ");
                         }
-                        sql_sel.and_where(
-                            Expr::col(colref(ident_meta_fts.clone(), ident_fulltext.clone())).matches(match_str),
-                        );
-                        sql_sel
-                    }));
+                        if !buf.is_empty() || match_terms.is_empty() {
+                            match_terms.push(buf);
+                        }
+                        // Trigram tokenizer requires terms to be at least 3 chars
+                        let match_terms: Vec<String> = match_terms.into_iter().map(|x| {
+                            x.into_iter().collect::<String>()
+                        }).filter(|s| s.len() >= 3).collect();
+                        if match_terms.is_empty() {
+                            match_str = None;
+                        } else {
+                            match_str = Some(match_terms.into_iter().map(|x| {
+                                format!("\"{}\"", x.replace("\"", "\"\""))
+                            }).collect::<Vec<_>>().join(" AND "));
+                        }
+                    }
+                    if let Some(match_str) = match_str {
+                        sql_sel.and_where(Expr::col(colref(ident_meta.clone(), ident_rowid.clone())).in_subquery({
+                            let mut sql_sel = sea_query::Query::select();
+                            sql_sel.from(tableref(ident_meta_fts.clone()));
+                            sql_sel.column(ident_rowid.clone());
+                            sql_sel.and_where(
+                                Expr::col(colref(ident_meta_fts.clone(), ident_fulltext.clone())).matches(match_str),
+                            );
+                            sql_sel
+                        }));
+                    }
                     sql_sel
                 });
                 sql_cte.column(query_state.ident_col_start.clone());
