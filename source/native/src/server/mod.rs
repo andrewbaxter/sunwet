@@ -230,27 +230,43 @@ fn build_autocomplete_fts_query(text: &str) -> String {
 async fn autocomplete_values_via_query(
     state: &Arc<State>,
     search_text: &str,
-    predicate_context: Option<(&str, shared::interface::query::MoveDirection)>,
+    predicate_contexts: &[(String, shared::interface::query::MoveDirection)],
 ) -> Result<Vec<String>, VisErr<loga::Error>> {
     use shared::interface::query::*;
 
     let fts_query = build_autocomplete_fts_query(search_text);
-    let mut steps = vec![];
-    if let Some((pred, dir)) = predicate_context {
-        steps.push(Step {
-            specific: StepSpecific::Move(StepMove {
-                dir,
-                predicate: StrValue::Literal(pred.to_string()),
+    let mut filter: Option<FilterExpr> = None;
+    for (pred, dir) in predicate_contexts {
+        let exists = FilterExpr::Exists(FilterExprExistance {
+            type_: FilterExprExistsType::Exists,
+            subchain: ChainHead {
+                root: None,
                 filter: None,
+                steps: vec![Step {
+                    specific: StepSpecific::Move(StepMove {
+                        dir: *dir,
+                        predicate: StrValue::Literal(pred.clone()),
+                        filter: None,
+                    }),
+                    sort: None,
+                    first: false,
+                }],
+            },
+            suffix: None,
+        });
+        filter = Some(match filter {
+            None => exists,
+            Some(prev) => FilterExpr::Junction(FilterExprJunction {
+                type_: JunctionType::Or,
+                subexprs: vec![prev, exists],
             }),
-            sort: None,
-            first: false,
         });
     }
     let query = Query {
         chain_head: ChainHead {
             root: Some(ChainRoot::Search(StrValue::Literal(fts_query))),
-            steps,
+            filter: filter.map(Box::new),
+            steps: vec![],
         },
         suffix: None,
     };
@@ -955,7 +971,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                         }).await.err_internal()?
                                     },
                                     AutocompleteField::Value => {
-                                        autocomplete_values_via_query(&state, &req.prefix, None).await?
+                                        autocomplete_values_via_query(&state, &req.prefix, &[]).await?
                                     },
                                 };
                                 resp = responder(results);
@@ -1048,7 +1064,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     autocomplete_values_via_query(
                                         &state,
                                         &req.prefix,
-                                        predicate_context.as_ref().map(|(p, d)| (p.as_str(), *d)),
+                                        &predicate_context.into_iter().collect::<Vec<_>>(),
                                     ).await?
                                 };
                                 resp = responder(results);
@@ -1107,24 +1123,43 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 };
 
                                 let mut is_predicate = false;
-                                let mut predicate_context: Option<(String, MoveDirection)> = None;
-                                'outer: for query in view.item.queries.values() {
+                                let mut predicate_contexts: Vec<(String, MoveDirection)> = Vec::new();
+                                for query in view.item.queries.values() {
                                     fn find_param_context(
                                         chain: &shared::interface::query::ChainHead,
                                         param_key: &str,
                                         is_predicate: &mut bool,
-                                        predicate_context: &mut Option<(String, MoveDirection)>,
-                                    ) -> bool {
+                                        predicate_contexts: &mut Vec<(String, MoveDirection)>,
+                                    ) {
+                                        if *is_predicate {
+                                            return;
+                                        }
+                                        let mut found_at_root = false;
                                         if let Some(root) = &chain.root {
                                             match root {
                                                 ChainRoot::Value(Value::Parameter(k)) if k == param_key => {
-                                                    return true;
+                                                    found_at_root = true;
                                                 },
                                                 ChainRoot::Search(StrValue::Parameter(k)) if k == param_key => {
-                                                    return true;
+                                                    found_at_root = true;
                                                 },
                                                 _ => { },
                                             }
+                                        }
+                                        if found_at_root {
+                                            // Param is at root - collect predicates from
+                                            // subsequent Move steps as existence filters.
+                                            for step in &chain.steps {
+                                                if let StepSpecific::Move(m) = &step.specific {
+                                                    if let StrValue::Literal(pred) = &m.predicate {
+                                                        predicate_contexts.push((pred.clone(), m.dir));
+                                                    }
+                                                }
+                                                // Only the first step directly constrains the
+                                                // root value.
+                                                break;
+                                            }
+                                            return;
                                         }
                                         for step in &chain.steps {
                                             match &step.specific {
@@ -1132,7 +1167,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                     if let StrValue::Parameter(k) = &m.predicate {
                                                         if k == param_key {
                                                             *is_predicate = true;
-                                                            return true;
+                                                            return;
                                                         }
                                                     }
                                                     if let Some(f) = &m.filter {
@@ -1141,7 +1176,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                             param_key: &str,
                                                             step_pred: &StrValue,
                                                             step_dir: MoveDirection,
-                                                            predicate_context: &mut Option<(String, MoveDirection)>,
+                                                            predicate_contexts: &mut Vec<(String, MoveDirection)>,
                                                         ) -> bool {
                                                             match f {
                                                                 FilterExpr::Exists(e) => {
@@ -1167,8 +1202,19 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                                         if found {
                                                                             if let StrValue::Literal(pred) =
                                                                                 step_pred {
-                                                                                *predicate_context =
-                                                                                    Some((pred.clone(), step_dir));
+                                                                                // Invert direction: param is at the
+                                                                                // end of the move, so to filter
+                                                                                // for nodes at that position we
+                                                                                // need the opposite direction.
+                                                                                let inv_dir = match step_dir {
+                                                                                    MoveDirection::Forward =>
+                                                                                        MoveDirection::Backward,
+                                                                                    MoveDirection::Backward =>
+                                                                                        MoveDirection::Forward,
+                                                                                };
+                                                                                predicate_contexts.push(
+                                                                                    (pred.clone(), inv_dir),
+                                                                                );
                                                                             }
                                                                             return true;
                                                                         }
@@ -1185,72 +1231,64 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                                                 param_key,
                                                                                 step_pred,
                                                                                 step_dir,
-                                                                                predicate_context,
+                                                                                predicate_contexts,
                                                                             ),
                                                                         )
                                                                 },
                                                             }
                                                         }
 
-                                                        if check_filter(
+                                                        check_filter(
                                                             f,
                                                             param_key,
                                                             &m.predicate,
                                                             m.dir,
-                                                            predicate_context,
-                                                        ) {
-                                                            return true;
-                                                        }
+                                                            predicate_contexts,
+                                                        );
                                                     }
                                                 },
                                                 StepSpecific::Recurse(r) => {
-                                                    if find_param_context(
+                                                    find_param_context(
                                                         &r.subchain,
                                                         param_key,
                                                         is_predicate,
-                                                        predicate_context,
-                                                    ) {
-                                                        return true;
-                                                    }
+                                                        predicate_contexts,
+                                                    );
                                                 },
                                                 StepSpecific::Junction(j) => {
                                                     for c in &j.subchains {
-                                                        if find_param_context(
+                                                        find_param_context(
                                                             c,
                                                             param_key,
                                                             is_predicate,
-                                                            predicate_context,
-                                                        ) {
-                                                            return true;
-                                                        }
+                                                            predicate_contexts,
+                                                        );
                                                     }
                                                 },
                                             }
                                         }
-                                        false
                                     }
 
-                                    if find_param_context(
+                                    find_param_context(
                                         &query.chain_head,
                                         &req.param_key,
                                         &mut is_predicate,
-                                        &mut predicate_context,
-                                    ) {
-                                        break 'outer;
-                                    }
-                                    if let Some(suffix) = &query.suffix {
-                                        for subchain in &suffix.chain_tail.subchains {
-                                            if find_param_context(
-                                                &subchain.head,
-                                                &req.param_key,
-                                                &mut is_predicate,
-                                                &mut predicate_context,
-                                            ) {
-                                                break 'outer;
+                                        &mut predicate_contexts,
+                                    );
+                                    if !is_predicate {
+                                        if let Some(suffix) = &query.suffix {
+                                            for subchain in &suffix.chain_tail.subchains {
+                                                find_param_context(
+                                                    &subchain.head,
+                                                    &req.param_key,
+                                                    &mut is_predicate,
+                                                    &mut predicate_contexts,
+                                                );
                                             }
                                         }
                                     }
                                 }
+                                predicate_contexts.dedup();
                                 let results = if is_predicate {
                                     tx(&state.db, {
                                         move |db| -> Result<_, loga::Error> {
@@ -1261,7 +1299,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                     autocomplete_values_via_query(
                                         &state,
                                         &req.prefix,
-                                        predicate_context.as_ref().map(|(p, d)| (p.as_str(), *d)),
+                                        &predicate_contexts,
                                     ).await?
                                 };
                                 resp = responder(results);

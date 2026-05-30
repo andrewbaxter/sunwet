@@ -348,6 +348,7 @@ fn test_recurse() {
         Query {
             chain_head: ChainHead {
                 root: Some(ChainRoot::Value(Value::Literal(node_is_album()))),
+                filter: None,
                 steps: vec![
                     //. .
                     Step {
@@ -362,6 +363,7 @@ fn test_recurse() {
                     Step {
                         specific: StepSpecific::Recurse(StepRecurse { subchain: ChainHead {
                             root: None,
+                            filter: None,
                             steps: vec![Step {
                                 specific: StepSpecific::Move(StepMove {
                                     dir: MoveDirection::Backward,
@@ -410,6 +412,7 @@ fn test_filter_eq() {
         Query {
             chain_head: ChainHead {
                 root: Some(ChainRoot::Value(Value::Literal(node_is_album()))),
+                filter: None,
                 steps: vec![
                     //. .
                     Step {
@@ -420,6 +423,7 @@ fn test_filter_eq() {
                                 type_: FilterExprExistsType::Exists,
                                 subchain: ChainHead {
                                     root: None,
+                                    filter: None,
                                     steps: vec![Step {
                                         specific: StepSpecific::Move(StepMove {
                                             dir: MoveDirection::Forward,
@@ -465,6 +469,7 @@ fn test_filter_lt() {
         Query {
             chain_head: ChainHead {
                 root: Some(ChainRoot::Value(Value::Literal(node_is_album()))),
+                filter: None,
                 steps: vec![
                     //. .
                     Step {
@@ -475,6 +480,7 @@ fn test_filter_lt() {
                                 type_: FilterExprExistsType::Exists,
                                 subchain: ChainHead {
                                     root: None,
+                                    filter: None,
                                     steps: vec![Step {
                                         specific: StepSpecific::Move(StepMove {
                                             dir: MoveDirection::Forward,
@@ -523,6 +529,7 @@ fn test_chain_union() {
         Query {
             chain_head: ChainHead {
                 root: None,
+                filter: None,
                 steps: vec![
                     //. .
                     Step {
@@ -532,6 +539,7 @@ fn test_chain_union() {
                                 //. .
                                 ChainHead {
                                     root: Some(ChainRoot::Value(Value::Literal(s("sunwet/1/dog")))),
+                                    filter: None,
                                     steps: vec![Step {
                                         specific: StepSpecific::Move(StepMove {
                                             dir: MoveDirection::Backward,
@@ -544,6 +552,7 @@ fn test_chain_union() {
                                 },
                                 ChainHead {
                                     root: Some(ChainRoot::Value(Value::Literal(s("sunwet/1/what",)))),
+                                    filter: None,
                                     steps: vec![Step {
                                         specific: StepSpecific::Move(StepMove {
                                             dir: MoveDirection::Backward,

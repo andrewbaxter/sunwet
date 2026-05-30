@@ -131,7 +131,7 @@ fn compile_filter(filter: query_parser_actions::FILTER) -> Result<FilterExpr, St
         query_parser_actions::FILTER::FILTER_EXISTS(f) => {
             return Ok(FilterExpr::Exists(FilterExprExistance {
                 type_: FilterExprExistsType::Exists,
-                subchain: compile_chain_head(None, *f.step0)?,
+                subchain: compile_chain_head(None, None, f.step0)?,
                 suffix: if let Some(parsed_suffix) = f.filter_suffixopt {
                     Some(compile_filter_suffix(parsed_suffix)?)
                 } else {
@@ -142,7 +142,7 @@ fn compile_filter(filter: query_parser_actions::FILTER) -> Result<FilterExpr, St
         query_parser_actions::FILTER::FILTER_NOT_EXISTS(f) => {
             return Ok(FilterExpr::Exists(FilterExprExistance {
                 type_: FilterExprExistsType::DoesntExist,
-                subchain: compile_chain_head(None, *f.step0)?,
+                subchain: compile_chain_head(None, None, f.step0)?,
                 suffix: if let Some(parsed_suffix) = f.filter_suffixopt {
                     Some(compile_filter_suffix(parsed_suffix)?)
                 } else {
@@ -173,7 +173,11 @@ fn compile_filter(filter: query_parser_actions::FILTER) -> Result<FilterExpr, St
     }
 }
 
-fn compile_chain_head(body_root: Option<ROOT>, body_steps: Option<Vec<STEP>>) -> Result<ChainHead, String> {
+fn compile_chain_head(
+    body_root: Option<ROOT>,
+    body_filter: Option<query_parser_actions::FILTER>,
+    body_steps: Option<Vec<STEP>>,
+) -> Result<ChainHead, String> {
     let body_steps = body_steps.unwrap_or_default();
     let root;
     match body_root {
@@ -189,13 +193,18 @@ fn compile_chain_head(body_root: Option<ROOT>, body_steps: Option<Vec<STEP>>) ->
             root = None;
         },
     }
+    let filter = if let Some(f) = body_filter {
+        Some(Box::new(compile_filter(f)?))
+    } else {
+        None
+    };
     let mut steps = vec![];
     for step in body_steps {
         let specific;
         match step.step_specific {
             query_parser_actions::STEP_SPECIFIC::STEP_MOVE_UP(step) => {
                 let filter;
-                if let Some(parsed_filter) = step.filteropt {
+                if let Some(parsed_filter) = *step.filteropt {
                     filter = Some(compile_filter(parsed_filter)?);
                 } else {
                     filter = None;
@@ -208,7 +217,7 @@ fn compile_chain_head(body_root: Option<ROOT>, body_steps: Option<Vec<STEP>>) ->
             },
             query_parser_actions::STEP_SPECIFIC::STEP_MOVE_DOWN(step) => {
                 let filter;
-                if let Some(parsed_filter) = step.filteropt {
+                if let Some(parsed_filter) = *step.filteropt {
                     filter = Some(compile_filter(parsed_filter)?);
                 } else {
                     filter = None;
@@ -220,12 +229,12 @@ fn compile_chain_head(body_root: Option<ROOT>, body_steps: Option<Vec<STEP>>) ->
                 });
             },
             query_parser_actions::STEP_SPECIFIC::STEP_RECURSE(step) => {
-                specific = StepSpecific::Recurse(StepRecurse { subchain: compile_chain_head(None, *step)? });
+                specific = StepSpecific::Recurse(StepRecurse { subchain: compile_chain_head(None, None, *step)? });
             },
             query_parser_actions::STEP_SPECIFIC::STEP_JUNCT_AND(step) => {
                 let mut subchains = vec![];
                 for parsed_subchain in step {
-                    subchains.push(compile_chain_head(parsed_subchain.rootopt, parsed_subchain.step0)?);
+                    subchains.push(compile_chain_head(parsed_subchain.rootopt, parsed_subchain.filteropt, parsed_subchain.step0)?);
                 }
                 specific = StepSpecific::Junction(StepJunction {
                     type_: JunctionType::And,
@@ -235,7 +244,7 @@ fn compile_chain_head(body_root: Option<ROOT>, body_steps: Option<Vec<STEP>>) ->
             query_parser_actions::STEP_SPECIFIC::STEP_JUNCT_OR(step) => {
                 let mut subchains = vec![];
                 for parsed_subchain in step {
-                    subchains.push(compile_chain_head(parsed_subchain.rootopt, parsed_subchain.step0)?);
+                    subchains.push(compile_chain_head(parsed_subchain.rootopt, parsed_subchain.filteropt, parsed_subchain.step0)?);
                 }
                 specific = StepSpecific::Junction(StepJunction {
                     type_: JunctionType::Or,
@@ -257,6 +266,7 @@ fn compile_chain_head(body_root: Option<ROOT>, body_steps: Option<Vec<STEP>>) ->
     }
     return Ok(ChainHead {
         root: root,
+        filter: filter,
         steps: steps,
     })
 }
@@ -274,7 +284,7 @@ fn compile_chain_tail(chain_tail: query_parser_actions::CHAIN_TAIL) -> Result<Ch
             },
             query_parser_actions::CHAIN_BIND::CHAIN_BIND_SUBCHAIN(action) => {
                 children.push(Chain {
-                    head: compile_chain_head(action.chain_head.rootopt, action.chain_head.step0)?,
+                    head: compile_chain_head(action.chain_head.rootopt, action.chain_head.filteropt, action.chain_head.step0)?,
                     tail: compile_chain_tail(*action.chain_tail)?,
                 });
             },
@@ -291,7 +301,7 @@ pub fn compile_query(query: &str) -> Result<Query, String> {
         rustemo::Parser::parse(&query_parser::QueryParserParser::new(), query)
             .map_err(|e| e.to_string())
             .map_err(|e| format!("Error parsing query: {}", e))?;
-    let chain_head = compile_chain_head(parse.chain_head.rootopt, parse.chain_head.step0)?;
+    let chain_head = compile_chain_head(parse.chain_head.rootopt, parse.chain_head.filteropt, parse.chain_head.step0)?;
     let query_suffix;
     if let Some(suffix) = parse.query_suffixopt {
         query_suffix = Some(QuerySuffix {

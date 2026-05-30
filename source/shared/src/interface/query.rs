@@ -180,6 +180,10 @@ pub struct ChainHead {
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
     pub root: Option<ChainRoot>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
+    pub filter: Option<Box<FilterExpr>>,
     pub steps: Vec<Step>,
 }
 

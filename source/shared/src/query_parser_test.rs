@@ -33,6 +33,7 @@ fn test_rt_move() {
     assert_eq!(compile_query(r#""xyz" -> "owner" -> "name" { => a }"#).unwrap(), Query {
         chain_head: ChainHead {
             root: Some(ChainRoot::Value(Value::Literal(Node::Value(serde_json::Value::String("xyz".to_string())))),),
+            filter: None,
             steps: vec![
                 //. .
                 Step {
