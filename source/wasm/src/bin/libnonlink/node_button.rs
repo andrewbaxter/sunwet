@@ -83,6 +83,7 @@ pub async fn req_list(node: &Node) -> Result<Vec<ReqListResEntry>, String> {
         query: Query {
             chain_head: ChainHead {
                 root: Some(ChainRoot::Value(shared::interface::query::Value::Literal(node.clone()))),
+                filter: None,
                 steps: vec![Step {
                     specific: StepSpecific::Move(StepMove {
                         dir: MoveDirection::Forward,
@@ -101,6 +102,7 @@ pub async fn req_list(node: &Node) -> Result<Vec<ReqListResEntry>, String> {
                         Chain {
                             head: ChainHead {
                                 root: None,
+                                filter: None,
                                 steps: vec![Step {
                                     specific: StepSpecific::Move(StepMove {
                                         dir: MoveDirection::Forward,
@@ -119,11 +121,13 @@ pub async fn req_list(node: &Node) -> Result<Vec<ReqListResEntry>, String> {
                         Chain {
                             head: ChainHead {
                                 root: None,
+                                filter: None,
                                 steps: vec![
                                     //. .
                                     Step {
                                         specific: StepSpecific::Recurse(StepRecurse { subchain: ChainHead {
                                             root: None,
+                                            filter: None,
                                             steps: vec![Step {
                                                 specific: StepSpecific::Move(StepMove {
                                                     dir: MoveDirection::Forward,

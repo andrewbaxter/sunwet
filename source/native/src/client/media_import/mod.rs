@@ -302,6 +302,7 @@ fn query_album_track(album: Node, superindex: Option<f64>, index: Option<f64>, n
     {
         let subchain = ChainHead {
             root: None,
+            filter: None,
             steps: vec![Step {
                 specific: StepSpecific::Move(StepMove {
                     dir: MoveDirection::Forward,
@@ -334,6 +335,7 @@ fn query_album_track(album: Node, superindex: Option<f64>, index: Option<f64>, n
     {
         let subchain = ChainHead {
             root: None,
+            filter: None,
             steps: vec![Step {
                 specific: StepSpecific::Move(StepMove {
                     dir: MoveDirection::Forward,
@@ -368,6 +370,7 @@ fn query_album_track(album: Node, superindex: Option<f64>, index: Option<f64>, n
             type_: FilterExprExistsType::Exists,
             subchain: ChainHead {
                 root: None,
+                filter: None,
                 steps: vec![Step {
                     specific: StepSpecific::Move(StepMove {
                         dir: MoveDirection::Forward,
@@ -387,6 +390,7 @@ fn query_album_track(album: Node, superindex: Option<f64>, index: Option<f64>, n
     return Query {
         chain_head: ChainHead {
             root: Some(ChainRoot::Value(Value::Literal(album))),
+            filter: None,
             steps: vec![Step {
                 specific: StepSpecific::Move(StepMove {
                     dir: MoveDirection::Forward,

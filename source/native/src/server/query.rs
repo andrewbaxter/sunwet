@@ -772,6 +772,43 @@ fn build_chain_head(
         }
         prev_subchain_seg = Some(new_root_seg);
     }
+    if let Some(filter) = &chain_head.filter {
+        if let Some(out) = prev_subchain_seg.take() {
+            let seg_name = format!("seg{}_rootfilter", query_state.global_unique);
+            query_state.global_unique += 1;
+            let ident_cte = SeaRc::new(Alias::new(&seg_name));
+            let mut sql_cte = sea_query::CommonTableExpression::new();
+            sql_cte.table_name(ident_cte.clone());
+
+            let mut sql_sel = sea_query::Query::select();
+            let primary_table = query_state.ident_table_primary.clone();
+            let primary_col_start = colref(primary_table.clone(), out.col_start.clone());
+            let primary_col_end = colref(primary_table.clone(), out.col_end.clone());
+            sql_sel.from_as(out.ident_table.clone(), primary_table.clone());
+
+            sql_sel.and_where(build_filter(query_state, &primary_col_end, BuildStepRes {
+                ident_table: out.ident_table,
+                col_start: out.col_end.clone(),
+                col_end: out.col_end,
+                plural: out.plural,
+            }, filter)?);
+
+            sql_cte.column(query_state.ident_col_start.clone());
+            sql_sel.column(primary_col_start.clone());
+
+            sql_cte.column(query_state.ident_col_end.clone());
+            sql_sel.column(primary_col_end.clone());
+
+            sql_cte.query(sql_sel);
+            query_state.ctes.push(sql_cte);
+            prev_subchain_seg = Some(BuildStepRes {
+                ident_table: ident_cte.clone(),
+                col_start: query_state.ident_col_start.clone(),
+                col_end: query_state.ident_col_end.clone(),
+                plural: out.plural,
+            });
+        }
+    }
     for step in &chain_head.steps {
         prev_subchain_seg = Some(build_step(query_state, prev_subchain_seg, step)?);
     }
