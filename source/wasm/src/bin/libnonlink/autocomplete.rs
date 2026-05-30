@@ -36,7 +36,7 @@ pub fn wire_autocomplete<
             let suffix = value[cursor_pos..].to_string();
             let datalist = datalist.clone();
             let build_req = build_req.clone();
-            *debounce.borrow_mut() = Some(Timeout::new(1_000, move || {
+            *debounce.borrow_mut() = Some(Timeout::new(100, move || {
                 let Some(datalist) = datalist.upgrade() else {
                     return;
                 };
