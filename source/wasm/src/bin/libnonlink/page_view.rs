@@ -1089,8 +1089,9 @@ impl Build {
                         (),
                         (index = data_id.clone(), out = out.weak()) {
                             let out = out.upgrade()?;
-                            let is_current = playing.get() && playing_i.get().as_ref() == Some(index);
-                            if is_current {
+                            let is_selected = playing_i.get().as_ref() == Some(index);
+                            let is_playing = is_selected && playing.get();
+                            if is_playing {
                                 out.ref_attr(
                                     &style_export::attr_state().value,
                                     &style_export::attr_state_playing().value,
@@ -1105,7 +1106,7 @@ impl Build {
                                 out.ref_attr(&style_export::attr_state().value, "");
                             }
                             out.ref_modify_classes(
-                                &[(&style_export::class_state_element_selected().value, is_current)]
+                                &[(&style_export::class_state_element_selected().value, is_selected)]
                             );
                         }
                     ),
