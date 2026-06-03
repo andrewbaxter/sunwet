@@ -2195,6 +2195,7 @@ export const buildGlobal = async (apiTokens: {
             fields: [["desc", "add_timestamp"]],
           }),
         },
+        track_end_mode: "loop",
         display: displayImages,
       },
       images_by_random: {
@@ -2205,6 +2206,7 @@ export const buildGlobal = async (apiTokens: {
             "shuffle",
           ),
         },
+        track_end_mode: "loop",
         display: displayImages,
       },
 
