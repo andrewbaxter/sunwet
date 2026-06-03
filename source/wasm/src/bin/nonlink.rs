@@ -704,37 +704,46 @@ pub fn main() {
                                         .log(&state().log, "Error making media fullscreen");
                                 }
                             });
-                            for target in [&modal.root, &modal.media] {
+                            {
+                                let target = &modal.root;
                                 let touch_start_x: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
                                 let touch_start_y: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
+                                let touch_handled: Rc<Cell<bool>> = Rc::new(Cell::new(false));
                                 target.ref_on("touchstart", {
                                     let touch_start_x = touch_start_x.clone();
                                     let touch_start_y = touch_start_y.clone();
+                                    let touch_handled = touch_handled.clone();
                                     move |ev| {
                                         let ev = ev.dyn_ref::<TouchEvent>().unwrap();
                                         if let Some(touch) = ev.touches().get(0) {
                                             touch_start_x.set(touch.client_x() as f64);
                                             touch_start_y.set(touch.client_y() as f64);
+                                            touch_handled.set(false);
                                         }
                                     }
                                 });
-                                target.ref_on("touchend", {
+                                target.ref_on("touchmove", {
                                     let touch_start_x = touch_start_x.clone();
                                     let touch_start_y = touch_start_y.clone();
+                                    let touch_handled = touch_handled.clone();
                                     let eg = pc.eg();
                                     move |ev| {
+                                        if touch_handled.get() {
+                                            return;
+                                        }
                                         let ev = ev.dyn_ref::<TouchEvent>().unwrap();
-                                        if let Some(touch) = ev.changed_touches().get(0) {
+                                        if let Some(touch) = ev.touches().get(0) {
                                             let dx = touch.client_x() as f64 - touch_start_x.get();
                                             let dy = touch.client_y() as f64 - touch_start_y.get();
                                             if dx.abs() >= 150.0 && dy.abs() < dx.abs() * 0.2 {
+                                                touch_handled.set(true);
                                                 if dx < 0.0 {
                                                     eg.event(|pc| {
-                                                        playlist_previous(pc, &state().playlist, None);
+                                                        playlist_next(pc, &state().playlist, None);
                                                     }).unwrap();
                                                 } else {
                                                     eg.event(|pc| {
-                                                        playlist_next(pc, &state().playlist, None);
+                                                        playlist_previous(pc, &state().playlist, None);
                                                     }).unwrap();
                                                 }
                                             }

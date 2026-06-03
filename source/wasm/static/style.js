@@ -2483,6 +2483,10 @@
                   s.justifyContent = "stretch";
                   s.width = "100dvw";
                   s.height = "100dvh";
+                  // Prevent iOS Safari from intercepting horizontal swipes
+                  // for back/forward navigation; we handle touch gestures in JS
+                  s.touchAction = "none";
+                  s.overscrollBehavior = "none";
                 },
                 [`.${classStateHide}`]: (s) => {
                   s.display = "none";
