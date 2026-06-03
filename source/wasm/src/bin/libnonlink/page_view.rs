@@ -1644,7 +1644,11 @@ fn center_to_playing() {
         let buttons = state.playlist.0.play_buttons.borrow();
         let weak = buttons.get(playing_i)?;
         let el = weak.upgrade()?;
-        el.raw().dyn_into::<HtmlElement>().ok()
+        let html_el = el.raw().dyn_into::<HtmlElement>().ok()?;
+        if !html_el.is_connected() {
+            return None;
+        }
+        Some(html_el)
     }
 
     if let Some(play_button) = find_playing_element(&playing_i) {
@@ -1652,6 +1656,20 @@ fn center_to_playing() {
         return;
     }
     *state().playlist.0.center_to_playing_bg.borrow_mut() = Some(rooting::spawn_rooted(async move {
+        // Wait briefly for the element to appear (it may exist but not be mounted in the DOM yet)
+        for _ in 0..10 {
+            gloo::timers::future::TimeoutFuture::new(100).await;
+            if let Some(play_button) = find_playing_element(&playing_i) {
+                scroll_to_play_button(&play_button);
+                return;
+            }
+            if !*state().follow_playing.borrow() {
+                return;
+            }
+            if state().playlist.0.playing_i.get().as_ref() != Some(&playing_i) {
+                return;
+            }
+        }
         loop {
             // Send force-advance signal to the infinite scroll with a loaded signal
             let tx = state().advance_infinite_tx.borrow().clone();
