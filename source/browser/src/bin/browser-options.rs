@@ -1,9 +1,9 @@
 use {
     sunwet_browser::{
-        get_setting,
-        set_setting,
         KEY_SERVER_URL,
         KEY_TOKEN,
+        get_setting,
+        set_setting,
     },
     wasm_bindgen::prelude::*,
     wasm_bindgen_futures::spawn_local,

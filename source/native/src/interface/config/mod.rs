@@ -6,6 +6,7 @@ use {
     },
     shared::interface::{
         config::{
+            MenuItemId,
             form::{
                 FormField,
                 FormId,
@@ -17,7 +18,6 @@ use {
                 ViewId,
                 WidgetRootDataRows,
             },
-            MenuItemId,
         },
         iam::UserIdentityId,
         query::Query,
@@ -75,6 +75,10 @@ pub enum MenuItemPage {
     History,
     /// Take the user to the free query page.
     Query,
+    /// Take the user to the logs page.
+    Logs,
+    /// Take the user to the OPFS browser page.
+    Opfs,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS)]

@@ -1,20 +1,20 @@
 use {
     loga::{
-        ea,
         DebugDisplay,
         ErrContext,
         Log,
         ResultContext,
+        ea,
     },
     std::{
         future::Future,
         path::Path,
     },
     tokio::fs::{
+        DirEntry,
         create_dir_all,
         read_dir,
         remove_dir_all,
-        DirEntry,
     },
 };
 

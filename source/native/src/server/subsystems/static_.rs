@@ -1,12 +1,12 @@
 use {
     crate::server::state::State,
     http::{
+        HeaderMap,
+        Response,
         header::{
             ETAG,
             IF_NONE_MATCH,
         },
-        HeaderMap,
-        Response,
     },
     http_body_util::combinators::BoxBody,
     htwrap::htserve::{

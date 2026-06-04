@@ -65,6 +65,8 @@ pub enum ClientPage {
     Form(ClientFormLink),
     History,
     Query,
+    Logs,
+    Opfs,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS)]

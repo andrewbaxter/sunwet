@@ -9,6 +9,7 @@ pub mod page_list_edit;
 pub mod page_history;
 pub mod infinite;
 pub mod page_query;
+pub mod page_opfs;
 pub mod seekbar;
 pub mod node_edit;
 pub mod node_button;

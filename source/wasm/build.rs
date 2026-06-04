@@ -331,6 +331,43 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         // /////////////////////////////////////////////////////////////////////////////
+        // xx Components, styles: opfs
+        Func {
+            name: "contPageOpfs",
+            args: vec![("barChildren", &arrel_), ("children", &arrel_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "contOpfsDir",
+            args: vec![("depth", &int), ("name", &string_)],
+            returns: vec![("root", &el_), ("body", &el_)],
+        },
+        Func {
+            name: "contOpfsFile",
+            args: vec![("name", &string_)],
+            returns: vec![("root", &el_), ("body", &el_), ("summary", &el_)],
+        },
+        Func {
+            name: "contOpfsChildren",
+            args: vec![("children", &arrel_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafOpfsDeleteToggle",
+            args: vec![],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafOpfsFilePreview",
+            args: vec![("text", &string_)],
+            returns: vec![("root", &el_)],
+        },
+        Func {
+            name: "leafOpfsEmpty",
+            args: vec![],
+            returns: vec![("root", &el_)],
+        },
+        // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: page, form + edit, also view parameters
         Func {
             name: "leafInputText",

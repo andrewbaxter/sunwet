@@ -1,5 +1,4 @@
 use {
-    super::playlist::PlaylistIndex,
     gloo::{
         storage::{
             LocalStorage,
@@ -27,6 +26,7 @@ use {
         collections::HashMap,
         rc::Rc,
     },
+    super::playlist::PlaylistIndex,
     wasm::js::get_dom_octothorpe,
     wasm_bindgen::JsValue,
 };
@@ -135,6 +135,7 @@ pub enum Ministate {
     History(MinistateHistory),
     Query(MinistateQuery),
     Logs,
+    Opfs,
 }
 
 pub fn ministate_octothorpe(s: &Ministate) -> String {
@@ -153,6 +154,7 @@ pub fn ministate_title(s: &Ministate) -> String {
         Ministate::History(_) => return format!("History"),
         Ministate::Query(_) => return format!("Query"),
         Ministate::Logs => return format!("Logs"),
+        Ministate::Opfs => return format!("OPFS"),
     }
 }
 

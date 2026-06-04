@@ -12,6 +12,8 @@
 //! in the generated files dir. If the subpath is empty then the file server will
 //! do the fallback.
 use {
+    async_walkdir::WalkDir,
+    chrono::Utc,
     crate::{
         interface::triple::DbNode,
         server::{
@@ -35,8 +37,6 @@ use {
             },
         },
     },
-    async_walkdir::WalkDir,
-    chrono::Utc,
     deadpool_sqlite::Pool,
     enclose::enclose,
     flowcontrol::{
@@ -45,11 +45,11 @@ use {
     },
     image::ImageReader,
     loga::{
-        ea,
         DebugDisplay,
         ErrContext,
         Log,
         ResultContext,
+        ea,
     },
     regex::Regex,
     serde::Deserialize,
@@ -64,14 +64,14 @@ use {
                 Node,
             },
             wire::{
-                gentype_transcode,
-                gentype_vtt_subpath,
                 GENTYPE_CBZDIR,
                 GENTYPE_EPUBHTML,
                 GENTYPE_VTT,
                 GEN_FILENAME_COMICMANIFEST,
                 TRANSCODE_MIME_AAC,
                 TRANSCODE_MIME_WEBM,
+                gentype_transcode,
+                gentype_vtt_subpath,
             },
         },
         steal,
@@ -107,8 +107,8 @@ use {
         sync::mpsc::UnboundedReceiver,
     },
     tokio_stream::{
-        wrappers::UnboundedReceiverStream,
         StreamExt,
+        wrappers::UnboundedReceiverStream,
     },
 };
 

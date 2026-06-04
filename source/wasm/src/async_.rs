@@ -1,9 +1,7 @@
 use {
-    std::{
-        sync::{
-            Arc,
-            Mutex,
-        },
+    std::sync::{
+        Arc,
+        Mutex,
     },
     tokio::sync::Semaphore,
 };

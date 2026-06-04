@@ -1,7 +1,7 @@
 use {
-    super::{
-        config::ClientConfig,
-        query::Query,
+    chrono::{
+        DateTime,
+        Utc,
     },
     crate::interface::{
         config::{
@@ -13,10 +13,6 @@ use {
             Node,
         },
     },
-    chrono::{
-        DateTime,
-        Utc,
-    },
     schemars::JsonSchema,
     serde::{
         Deserialize,
@@ -26,6 +22,10 @@ use {
     std::collections::{
         BTreeMap,
         HashMap,
+    },
+    super::{
+        config::ClientConfig,
+        query::Query,
     },
 };
 

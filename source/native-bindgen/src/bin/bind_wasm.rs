@@ -1,7 +1,7 @@
 use {
     aargvark::{
-        vark,
         Aargvark,
+        vark,
     },
     std::path::PathBuf,
     wasm_bindgen_cli_support::Bindgen,

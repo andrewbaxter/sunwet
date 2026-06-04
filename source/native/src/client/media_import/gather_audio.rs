@@ -1,20 +1,20 @@
 use {
-    super::gather::{
-        prep_cover,
-        Gather,
-        GatherMedia,
-    },
     flowcontrol::shed,
     loga::{
-        ea,
         ErrContext,
         ResultContext,
+        ea,
     },
     std::{
         ffi::OsStr,
         fs::File,
         path::Path,
         str::FromStr,
+    },
+    super::gather::{
+        Gather,
+        GatherMedia,
+        prep_cover,
     },
 };
 

@@ -1,11 +1,5 @@
 use {
-    super::{
-        ministate::PlaylistRestorePos,
-        state::{
-            MinistateViewState,
-            state,
-        },
-    },
+    chrono::Utc,
     crate::libnonlink::offline::{
         OPFS_OFFLINE_FILES_COMIC_PAGES_DIR,
         get_opfs_url_with_colocated_mime,
@@ -15,7 +9,6 @@ use {
         offline_gen_url,
         offline_video_url,
     },
-    chrono::Utc,
     flowcontrol::ta_return,
     futures::FutureExt,
     gloo::{
@@ -83,6 +76,13 @@ use {
             Weak,
         },
         time::Duration,
+    },
+    super::{
+        ministate::PlaylistRestorePos,
+        state::{
+            MinistateViewState,
+            state,
+        },
     },
     wasm::{
         js::{

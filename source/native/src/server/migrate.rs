@@ -1,7 +1,7 @@
 use {
     crate::server::db::{
-        self,
         DbVersions,
+        self,
     },
     good_ormning::runtime::sqlite::SqliteConnection,
 };

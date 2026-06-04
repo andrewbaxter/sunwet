@@ -14,6 +14,15 @@ pub mod state;
 pub mod subsystems;
 
 use {
+    aargvark::{
+        Aargvark,
+        traits_impls::AargvarkJson,
+    },
+    access::{
+        check_is_admin,
+        identify_requester,
+    },
+    chrono::Utc,
     crate::{
         cap_fn,
         interface::{
@@ -28,11 +37,11 @@ use {
         },
         server::{
             access::{
-                can_access_file,
                 AccessRes,
                 AccessSourceId,
                 DbAccessSourceId,
                 Identity,
+                can_access_file,
             },
             filesutil::{
                 file_path,
@@ -45,15 +54,6 @@ use {
             },
         },
     },
-    aargvark::{
-        traits_impls::AargvarkJson,
-        Aargvark,
-    },
-    access::{
-        check_is_admin,
-        identify_requester,
-    },
-    chrono::Utc,
     dbutil::tx,
     deadpool_sqlite::{
         Hook,
@@ -66,15 +66,15 @@ use {
     fsutil::create_dirs,
     good_ormning::runtime::GoodError,
     http::{
-        status,
         HeaderMap,
         HeaderName,
         HeaderValue,
         Uri,
+        status,
     },
     http_body_util::{
-        combinators::BoxBody,
         BodyExt,
+        combinators::BoxBody,
     },
     htwrap::htserve::{
         responses::{
@@ -88,23 +88,23 @@ use {
         },
     },
     hyper::{
+        Method,
+        Request,
+        Response,
         body::{
             Bytes,
             Incoming,
         },
         server::conn::http1,
         service::service_fn,
-        Method,
-        Request,
-        Response,
     },
     hyper_util::rt::TokioIo,
     loga::{
-        ea,
         DebugDisplay,
         ErrContext,
         Log,
         ResultContext,
+        ea,
     },
     moka::future::Cache,
     shared::interface::{
@@ -135,9 +135,6 @@ use {
         },
     },
     state::{
-        build_global_config,
-        get_global_config,
-        get_iam_grants,
         FdapGlobalState,
         FdapState,
         FdapUsersState,
@@ -145,6 +142,9 @@ use {
         LocalUsersState,
         State,
         UsersState,
+        build_global_config,
+        get_global_config,
+        get_iam_grants,
     },
     std::{
         collections::{
@@ -219,8 +219,8 @@ fn gather_record_files(files: &mut Vec<FileHash>, r: &TreeNode) {
 /// quotes each, adds prefix `*` to each term for partial matching. Returns `raw:`
 /// prefixed string for the Search AST node.
 fn build_autocomplete_fts_query(text: &str) -> String {
-    // Trigram tokenizer requires terms to be at least 3 chars; shorter terms
-    // can't match any trigram and would cause the AND query to return nothing.
+    // Trigram tokenizer requires terms to be at least 3 chars; shorter terms can't
+    // match any trigram and would cause the AND query to return nothing.
     let terms: Vec<&str> = text.split_whitespace().filter(|t| t.len() >= 3).collect();
     if terms.is_empty() {
         return "raw:\"\"*".to_string();
@@ -445,9 +445,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                 htwrap::htserve::responses::response_200_json,
                                 hyper::body::Bytes,
                                 serde::Serialize,
-                                shared::interface::{
-                                    wire::C2SReqTrait,
-                                },
+                                shared::interface::wire::C2SReqTrait,
                             };
 
                             // Private constructor
@@ -1149,16 +1147,16 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                             }
                                         }
                                         if found_at_root {
-                                            // Param is at root - collect predicates from
-                                            // subsequent Move steps as existence filters.
+                                            // Param is at root - collect predicates from subsequent Move steps as existence
+                                            // filters.
                                             for step in &chain.steps {
                                                 if let StepSpecific::Move(m) = &step.specific {
                                                     if let StrValue::Literal(pred) = &m.predicate {
                                                         predicate_contexts.push((pred.clone(), m.dir));
                                                     }
                                                 }
-                                                // Only the first step directly constrains the
-                                                // root value.
+
+                                                // Only the first step directly constrains the root value.
                                                 break;
                                             }
                                             return;
@@ -1204,15 +1202,15 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                                                         if found {
                                                                             if let StrValue::Literal(pred) =
                                                                                 step_pred {
-                                                                                // Invert direction: param is at the
-                                                                                // end of the move, so to filter
-                                                                                // for nodes at that position we
-                                                                                // need the opposite direction.
+                                                                                // Invert direction: param is at the end of the move, so to filter for nodes at
+                                                                                // that position we need the opposite direction.
                                                                                 let inv_dir = match step_dir {
-                                                                                    MoveDirection::Forward =>
-                                                                                        MoveDirection::Backward,
-                                                                                    MoveDirection::Backward =>
-                                                                                        MoveDirection::Forward,
+                                                                                    MoveDirection
+                                                                                    ::Forward => MoveDirection
+                                                                                    ::Backward,
+                                                                                    MoveDirection
+                                                                                    ::Backward => MoveDirection
+                                                                                    ::Forward,
                                                                                 };
                                                                                 predicate_contexts.push(
                                                                                     (pred.clone(), inv_dir),
@@ -1298,11 +1296,7 @@ async fn handle_req(state: Arc<State>, mut req: Request<Incoming>) -> Response<B
                                         }
                                     }).await.err_internal()?
                                 } else {
-                                    autocomplete_values_via_query(
-                                        &state,
-                                        &req.prefix,
-                                        &predicate_contexts,
-                                    ).await?
+                                    autocomplete_values_via_query(&state, &req.prefix, &predicate_contexts).await?
                                 };
                                 resp = responder(results);
                             },

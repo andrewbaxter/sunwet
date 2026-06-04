@@ -57,10 +57,10 @@ use {
         },
         page_view::LOCALSTORAGE_SHARE_SESSION_ID,
         playlist::{
-            self,
             playlist_next,
             playlist_previous,
             playlist_set_link,
+            self,
         },
         state::{
             STATE,
@@ -120,9 +120,7 @@ use {
         js::{
             el_async,
             el_async_,
-            style_export::{
-                self,
-            },
+            style_export::self,
         },
     },
     wasm_bindgen::JsCast,
@@ -436,6 +434,22 @@ pub fn main() {
                                                                 }
                                                             ).root;
                                                         },
+                                                        ClientPage::Logs => {
+                                                            return style_export::leaf_menu_link(
+                                                                style_export::LeafMenuLinkArgs {
+                                                                    title: "Logs".to_string(),
+                                                                    href: ministate_octothorpe(&Ministate::Logs,),
+                                                                }
+                                                            ).root;
+                                                        },
+                                                        ClientPage::Opfs => {
+                                                            return style_export::leaf_menu_link(
+                                                                style_export::LeafMenuLinkArgs {
+                                                                    title: "OPFS".to_string(),
+                                                                    href: ministate_octothorpe(&Ministate::Opfs,),
+                                                                }
+                                                            ).root;
+                                                        },
                                                     }
                                                 },
                                             }
@@ -505,12 +519,16 @@ pub fn main() {
                             );
                         group.root
                     });
-                    root.push({
-                        style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
+                    root.push(style_export::cont_menu_group(style_export::ContMenuGroupArgs {
+                        title: "System".to_string(),
+                        children: vec![style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
+                            title: "OPFS".to_string(),
+                            href: ministate_octothorpe(&Ministate::Opfs),
+                        }).root, style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
                             title: "Logs".to_string(),
                             href: ministate_octothorpe(&Ministate::Logs),
-                        }).root
-                    });
+                        }).root,],
+                    }).root,);
                     let mut bar_children = vec![];
                     bar_children.push(
                         style_export::cont_group(style_export::ContGroupArgs { children: vec![] })

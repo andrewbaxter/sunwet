@@ -1,5 +1,5 @@
 use {
-    super::api::req_post_json,
+    by_address::ByAddress,
     crate::libnonlink::{
         ministate::{
             MinistateNodeView,
@@ -12,7 +12,6 @@ use {
         },
         state::state,
     },
-    by_address::ByAddress,
     flowcontrol::{
         exenum,
         shed,
@@ -57,9 +56,9 @@ use {
         },
     },
     shared_wasm::commit::{
-        self,
         CommitNode,
         CommitTriple,
+        self,
     },
     std::{
         cell::{
@@ -73,6 +72,7 @@ use {
         rc::Rc,
         str::FromStr,
     },
+    super::api::req_post_json,
     wasm::{
         js::{
             el_async,

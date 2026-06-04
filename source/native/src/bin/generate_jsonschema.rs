@@ -1,7 +1,5 @@
 use {
-    native::interface::{
-        self,
-    },
+    native::interface::self,
     schemars::schema_for,
     std::{
         env,

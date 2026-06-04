@@ -20,8 +20,8 @@ use {
     },
     shared_wasm::{
         api::{
-            self,
             ON_401,
+            self,
         },
         log::LogJsErr,
     },

@@ -1,13 +1,8 @@
 use {
-    super::gather::{
-        prep_cover,
-        Gather,
-        GatherMedia,
-    },
     loga::{
-        ea,
         DebugDisplay,
         ResultContext,
+        ea,
     },
     mime_guess::Mime,
     regex::Regex,
@@ -15,6 +10,11 @@ use {
         path::Path,
         process::Command,
         str::FromStr,
+    },
+    super::gather::{
+        Gather,
+        GatherMedia,
+        prep_cover,
     },
 };
 

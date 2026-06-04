@@ -1,18 +1,18 @@
 use {
-    super::gather::{
-        Gather,
-        GatherMedia,
-    },
     image::EncodableLayout,
     loga::{
-        ea,
         DebugDisplay,
         ResultContext,
+        ea,
     },
     std::{
         path::Path,
         process::Command,
         str::FromStr,
+    },
+    super::gather::{
+        Gather,
+        GatherMedia,
     },
 };
 

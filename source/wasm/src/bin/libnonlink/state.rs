@@ -1,20 +1,4 @@
 use {
-    super::{
-        ministate::{
-            Ministate,
-            PlaylistRestorePos,
-            record_replace_ministate,
-        },
-        page_form::build_page_form,
-        page_history::build_page_history,
-        page_node_edit::build_page_node_edit,
-        page_node_view::build_page_node_view,
-        page_view::build_page_view,
-        playlist::{
-            PlaylistState,
-            playlist_clear,
-        },
-    },
     crate::libnonlink::{
         ministate::{
             MinistateOfflineView,
@@ -64,6 +48,23 @@ use {
         cell::RefCell,
         collections::HashMap,
         rc::Rc,
+    },
+    super::{
+        ministate::{
+            Ministate,
+            PlaylistRestorePos,
+            record_replace_ministate,
+        },
+        page_form::build_page_form,
+        page_history::build_page_history,
+        page_node_edit::build_page_node_edit,
+        page_node_view::build_page_node_view,
+        page_opfs::build_page_opfs,
+        page_view::build_page_view,
+        playlist::{
+            PlaylistState,
+            playlist_clear,
+        },
     },
     wasm::{
         async_::WaitVal,
@@ -239,6 +240,10 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
                     },
                 ).root,
             );
+        },
+        Ministate::Opfs => {
+            playlist_clear(pc, &state().playlist, false, Default::default());
+            build_page_opfs(pc);
         },
     }
 }

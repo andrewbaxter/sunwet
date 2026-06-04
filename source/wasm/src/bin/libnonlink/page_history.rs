@@ -1,9 +1,4 @@
 use {
-    super::{
-        infinite::build_infinite,
-        page_node_view::build_node_el,
-        state::set_page,
-    },
     crate::libnonlink::{
         api::req_post_json,
         infinite::InfPageRes,
@@ -33,6 +28,11 @@ use {
         },
         collections::HashSet,
         rc::Rc,
+    },
+    super::{
+        infinite::build_infinite,
+        page_node_view::build_node_el,
+        state::set_page,
     },
     wasm::js::{
         on_thinking,
