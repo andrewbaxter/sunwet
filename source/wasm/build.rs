@@ -450,6 +450,11 @@ fn main() {
             returns: vec![("root", &el_), ("input", &el_)],
         },
         Func {
+            name: "leafInputPairRange",
+            args: vec![("id", &string_), ("title", &string_), ("value", &string_), ("min", &string_), ("max", &string_), ("preview", &string_)],
+            returns: vec![("root", &el_), ("input", &el_), ("preview", &el_)],
+        },
+        Func {
             name: "leafInputPairBool",
             args: vec![("id", &string_), ("title", &string_), ("value", &bool_)],
             returns: vec![("root", &el_), ("input", &el_)],

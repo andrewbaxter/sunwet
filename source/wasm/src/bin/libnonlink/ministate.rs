@@ -161,6 +161,9 @@ pub fn ministate_title(s: &Ministate) -> String {
 }
 
 pub fn save_pwa_ministate(log: &Rc<dyn Log>, s: &Ministate) {
+    if matches!(s, Ministate::Settings) {
+        return;
+    }
     LocalStorage::set(LOCALSTORAGE_PWA_MINISTATE, s).log(log, &"Error storing PWA ministate");
 }
 

@@ -23,6 +23,10 @@ use {
             EventListener,
             EventListenerOptions,
         },
+        storage::{
+            LocalStorage,
+            Storage,
+        },
         timers::{
             callback::Timeout,
             future::{
@@ -925,9 +929,12 @@ fn setup_book_idoc(
     seekable: watch::Sender<bool>,
 ) {
     if let Some(body) = idoc.body() {
+        let font_size = LocalStorage::get::<String>("book_font_size")
+            .map(|s| format!("{}pt", s))
+            .unwrap_or_else(|_| style_export::book_base_font_size().value);
         body
             .style()
-            .set_property("font-size", &style_export::book_base_font_size().value)
+            .set_property("font-size", &font_size)
             .log(log, "Error setting base font size in iframe");
     }
 
