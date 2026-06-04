@@ -2091,15 +2091,15 @@
         "div",
         {},
         {
-          children_: [
-            input,
-            preview,
+          styles_: [
+            contVboxStyle,
             ss(uniq("leaf_input_pair_range_right"), {
               "": (s) => {
                 s.overflowX = "hidden";
               },
             }),
           ],
+          children_: [input, preview],
         },
       );
       return {
@@ -4439,11 +4439,9 @@
               },
             }),
           ],
-          attrs_: {
-            autocomplete: "off",
-          },
         },
       );
+      input.setAttribute("autocomplete", "off");
       const buttonOk = presentation.leafButtonBig({
         title: "OK",
         icon: textIconConfirm,
@@ -4572,47 +4570,57 @@
         },
       ),
     });
-  const buildNodeRowIncoming = (contentStyles, children) => ({
-    root: e(
-      "div",
-      {},
-      {
-        styles_: [contHboxStyle, contNodeStyle],
-        children_: [
-          e("div", {}, { styles_: contentStyles, children_: children }),
-          leafIcon({
-            text: textIconRelIn,
-            extraStyles: [
-              leafIconStyle,
-              leafNodeRelStyle,
-              leafNodeRelIncomingStyle,
-            ],
-          }),
-        ],
-      },
-    ),
-  });
-  const buildNodeRowOutgoing = (contentStyles, children) => ({
-    root: e(
-      "div",
-      {},
-      {
-        styles_: [contHboxStyle, contNodeStyle],
-        children_: [
-          leafIcon({
-            text: textIconRelOut,
-            extraStyles: [
-              leafIconStyle,
-              leafNodeRelStyle,
-              leafNodeRelOutgoingStyle,
-            ],
-          }),
-          e("div", {}, { styles_: contentStyles, children_: children }),
-        ],
-      },
-    ),
-  });
-  const nodeRowContentStyles = (isNew) => {
+  const buildNodeRowIncoming =
+    /** @type { (contentStyles: string[], children: HTMLElement[] ) => {root: HTMLElement}} */ (
+      contentStyles,
+      children,
+    ) => ({
+      root: e(
+        "div",
+        {},
+        {
+          styles_: [contHboxStyle, contNodeStyle],
+          children_: [
+            e("div", {}, { styles_: contentStyles, children_: children }),
+            leafIcon({
+              text: textIconRelIn,
+              extraStyles: [
+                leafIconStyle,
+                leafNodeRelStyle,
+                leafNodeRelIncomingStyle,
+              ],
+            }),
+          ],
+        },
+      ),
+    });
+  const buildNodeRowOutgoing =
+    /** @type { (contentStyles: string[], children: HTMLElement[] ) => {root: HTMLElement}} */ (
+      contentStyles,
+      children,
+    ) => ({
+      root: e(
+        "div",
+        {},
+        {
+          styles_: [contHboxStyle, contNodeStyle],
+          children_: [
+            leafIcon({
+              text: textIconRelOut,
+              extraStyles: [
+                leafIconStyle,
+                leafNodeRelStyle,
+                leafNodeRelOutgoingStyle,
+              ],
+            }),
+            e("div", {}, { styles_: contentStyles, children_: children }),
+          ],
+        },
+      ),
+    });
+  const nodeRowContentStyles = /** @type { (isNew: boolean) => string[] } */ (
+    isNew,
+  ) => {
     const s = [contVboxStyle, contNodeContentStyle, contNodeContentRelStyle];
     if (isNew) s.push(leafNodeContentNewStyle);
     return s;
