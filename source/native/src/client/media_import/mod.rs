@@ -5,21 +5,21 @@ pub mod gather_epub;
 pub mod gather_video;
 
 use {
-    crate::client::req::{
-        self,
-        ENV_SUNWET,
-    },
     aargvark::Aargvark,
     by_address::ByAddress,
     chrono::Utc,
+    crate::client::req::{
+        ENV_SUNWET,
+        self,
+    },
     flowcontrol::shed,
     gather::GatherMedia,
     loga::{
-        ea,
         DebugDisplay,
         ErrContext,
         Log,
         ResultContext,
+        ea,
     },
     shared::{
         interface::{
@@ -83,17 +83,17 @@ use {
     std::{
         cell::RefCell,
         collections::{
-            hash_map::Entry,
             BTreeMap,
             BTreeSet,
             HashMap,
             HashSet,
+            hash_map::Entry,
         },
         env,
         fs::{
+            File,
             create_dir_all,
             write,
-            File,
         },
         io,
         os::unix::ffi::OsStrExt,

@@ -1,14 +1,9 @@
 use {
-    super::{
-        dbutil,
-        dbutil::tx,
-        state::State,
-    },
     crate::interface::triple::DbNode,
     loga::{
-        ea,
         Log,
         ResultContext,
+        ea,
     },
     sha2::{
         Digest,
@@ -32,11 +27,16 @@ use {
         sync::Arc,
         task::Poll,
     },
+    super::{
+        dbutil,
+        dbutil::tx,
+        state::State,
+    },
     tokio::{
         fs::File,
         io::{
-            copy,
             AsyncWrite,
+            copy,
         },
     },
 };

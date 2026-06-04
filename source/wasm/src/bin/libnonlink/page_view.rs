@@ -1,17 +1,4 @@
 use {
-    super::{
-        infinite::build_infinite,
-        ministate::{
-            MinistateNodeView,
-            PlaylistRestorePos,
-        },
-        playlist::playlist_clear,
-        state::{
-            MinistateViewState,
-            MinistateViewState_,
-            state,
-        },
-    },
     crate::libnonlink::{
         api::req_post_json,
         infinite::InfPageRes,
@@ -68,9 +55,7 @@ use {
             Storage,
         },
         timers::callback::Timeout,
-        utils::{
-            window,
-        },
+        utils::window,
     },
     js_sys::Math::random,
     lunk::{
@@ -138,6 +123,19 @@ use {
         rc::Rc,
         u64,
     },
+    super::{
+        infinite::build_infinite,
+        ministate::{
+            MinistateNodeView,
+            PlaylistRestorePos,
+        },
+        playlist::playlist_clear,
+        state::{
+            MinistateViewState,
+            MinistateViewState_,
+            state,
+        },
+    },
     uuid::Uuid,
     wasm::{
         constants::LINK_HASH_PREFIX,
@@ -147,8 +145,8 @@ use {
             env_preferred_video_url,
             on_thinking,
             style_export::{
-                self,
                 OrientationType,
+                self,
             },
         },
         world::file_url,
@@ -1656,8 +1654,9 @@ fn center_to_playing() {
         return;
     }
     *state().playlist.0.center_to_playing_bg.borrow_mut() = Some(rooting::spawn_rooted(async move {
-        // Wait briefly for the element to appear (it may exist but not be mounted in the DOM yet)
-        for _ in 0..10 {
+        // Wait briefly for the element to appear (it may exist but not be mounted in the
+        // DOM yet)
+        for _ in 0 .. 10 {
             gloo::timers::future::TimeoutFuture::new(100).await;
             if let Some(play_button) = find_playing_element(&playing_i) {
                 scroll_to_play_button(&play_button);

@@ -1,20 +1,20 @@
 use {
     http::{
-        header::AUTHORIZATION,
         Uri,
+        header::AUTHORIZATION,
     },
     htwrap::{
         constants::HEADER_BEARER_PREFIX,
         htreq::{
-            self,
             Conn,
+            self,
         },
         url::UriJoin,
     },
     loga::{
-        ea,
         Log,
         ResultContext,
+        ea,
     },
     shared::interface::wire::C2SReqTrait,
     std::{

@@ -1,4 +1,13 @@
 use {
+    crate::interface::query::{
+        ChainTail,
+        QuerySuffix,
+        StepSpecific,
+    },
+    query_parser_actions::{
+        ROOT,
+        STEP,
+    },
     super::interface::{
         query::{
             Chain,
@@ -25,15 +34,6 @@ use {
             Value,
         },
         triple::Node,
-    },
-    crate::interface::query::{
-        ChainTail,
-        QuerySuffix,
-        StepSpecific,
-    },
-    query_parser_actions::{
-        ROOT,
-        STEP,
     },
 };
 
@@ -234,7 +234,9 @@ fn compile_chain_head(
             query_parser_actions::STEP_SPECIFIC::STEP_JUNCT_AND(step) => {
                 let mut subchains = vec![];
                 for parsed_subchain in step {
-                    subchains.push(compile_chain_head(parsed_subchain.rootopt, parsed_subchain.filteropt, parsed_subchain.step0)?);
+                    subchains.push(
+                        compile_chain_head(parsed_subchain.rootopt, parsed_subchain.filteropt, parsed_subchain.step0)?,
+                    );
                 }
                 specific = StepSpecific::Junction(StepJunction {
                     type_: JunctionType::And,
@@ -244,7 +246,9 @@ fn compile_chain_head(
             query_parser_actions::STEP_SPECIFIC::STEP_JUNCT_OR(step) => {
                 let mut subchains = vec![];
                 for parsed_subchain in step {
-                    subchains.push(compile_chain_head(parsed_subchain.rootopt, parsed_subchain.filteropt, parsed_subchain.step0)?);
+                    subchains.push(
+                        compile_chain_head(parsed_subchain.rootopt, parsed_subchain.filteropt, parsed_subchain.step0)?,
+                    );
                 }
                 specific = StepSpecific::Junction(StepJunction {
                     type_: JunctionType::Or,
@@ -284,7 +288,11 @@ fn compile_chain_tail(chain_tail: query_parser_actions::CHAIN_TAIL) -> Result<Ch
             },
             query_parser_actions::CHAIN_BIND::CHAIN_BIND_SUBCHAIN(action) => {
                 children.push(Chain {
-                    head: compile_chain_head(action.chain_head.rootopt, action.chain_head.filteropt, action.chain_head.step0)?,
+                    head: compile_chain_head(
+                        action.chain_head.rootopt,
+                        action.chain_head.filteropt,
+                        action.chain_head.step0,
+                    )?,
                     tail: compile_chain_tail(*action.chain_tail)?,
                 });
             },
@@ -301,7 +309,8 @@ pub fn compile_query(query: &str) -> Result<Query, String> {
         rustemo::Parser::parse(&query_parser::QueryParserParser::new(), query)
             .map_err(|e| e.to_string())
             .map_err(|e| format!("Error parsing query: {}", e))?;
-    let chain_head = compile_chain_head(parse.chain_head.rootopt, parse.chain_head.filteropt, parse.chain_head.step0)?;
+    let chain_head =
+        compile_chain_head(parse.chain_head.rootopt, parse.chain_head.filteropt, parse.chain_head.step0)?;
     let query_suffix;
     if let Some(suffix) = parse.query_suffixopt {
         query_suffix = Some(QuerySuffix {

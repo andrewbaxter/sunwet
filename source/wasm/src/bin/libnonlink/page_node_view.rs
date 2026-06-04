@@ -1,9 +1,4 @@
 use {
-    super::{
-        api::req_post_json,
-        ministate::MinistateNodeView,
-        state::set_page,
-    },
     crate::libnonlink::{
         ministate::{
             Ministate,
@@ -40,6 +35,11 @@ use {
             },
         },
         stringpattern::node_to_text,
+    },
+    super::{
+        api::req_post_json,
+        ministate::MinistateNodeView,
+        state::set_page,
     },
     wasm::{
         js::{

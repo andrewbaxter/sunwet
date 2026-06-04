@@ -4,9 +4,9 @@ use {
         state::state,
     },
     lunk::{
-        link,
         Prim,
         ProcessingContext,
+        link,
     },
     rooting::El,
     wasm_bindgen::JsCast,

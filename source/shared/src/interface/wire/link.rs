@@ -1,9 +1,9 @@
 use {
-    crate::interface::triple::FileHash,
     chrono::{
         DateTime,
         Utc,
     },
+    crate::interface::triple::FileHash,
     serde::{
         Deserialize,
         Serialize,

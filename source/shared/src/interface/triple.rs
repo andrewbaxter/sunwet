@@ -1,16 +1,16 @@
 use {
     schemars::JsonSchema,
     serde::{
-        de,
         Deserialize,
         Serialize,
+        de,
     },
     sha2::{
-        digest::{
-            generic_array::GenericArray,
-            OutputSizeUser,
-        },
         Sha256,
+        digest::{
+            OutputSizeUser,
+            generic_array::GenericArray,
+        },
     },
     std::{
         hash::Hash,

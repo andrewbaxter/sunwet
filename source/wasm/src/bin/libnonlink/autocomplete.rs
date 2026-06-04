@@ -1,5 +1,4 @@
 use {
-    super::api::req_post_json,
     gloo::timers::callback::Timeout,
     rooting::El,
     shared::interface::wire::C2SReqTrait,
@@ -7,6 +6,7 @@ use {
         cell::RefCell,
         rc::Rc,
     },
+    super::api::req_post_json,
     wasm_bindgen::JsCast,
     web_sys::HtmlInputElement,
 };

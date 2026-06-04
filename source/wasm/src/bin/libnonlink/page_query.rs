@@ -1,8 +1,4 @@
 use {
-    super::{
-        infinite::build_infinite,
-        state::state,
-    },
     crate::libnonlink::{
         api::req_post_json,
         infinite::InfPageRes,
@@ -61,14 +57,16 @@ use {
         rc::Rc,
         u64,
     },
+    super::{
+        infinite::build_infinite,
+        state::state,
+    },
     wasm::{
         js::{
             copy,
             download,
             lazy_el_async,
-            style_export::{
-                self,
-            },
+            style_export::self,
         },
         world::file_url,
     },

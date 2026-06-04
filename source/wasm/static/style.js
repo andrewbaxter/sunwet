@@ -1365,6 +1365,185 @@
   });
 
   ///////////////////////////////////////////////////////////////////////////////
+  // xx Components, styles: opfs
+  presentation.contPageOpfs = /** @type {Presentation["contPageOpfs"]} */ (
+    args,
+  ) => ({
+    root: presentation.contGroup({
+      children: [
+        presentation.contBarMain({
+          leftChildren: [],
+          leftMidChildren: [],
+          midChildren: [],
+          rightMidChildren: [],
+          rightChildren: args.barChildren,
+        }).root,
+        e(
+          "div",
+          {},
+          {
+            styles_: [
+              classMenuWantStateOpen,
+              contBodyStyle,
+              contVboxStyle,
+              ss(uniq("cont_page_opfs_body"), {
+                "": (s) => {
+                  s.padding = `0 ${varPViewHoriz}`;
+                },
+              }),
+            ],
+            children_: [...args.children, leafSpace({}).root],
+          },
+        ),
+      ],
+    }).root,
+  });
+
+  presentation.contOpfsDir = /** @type {Presentation["contOpfsDir"]} */ (
+    args,
+  ) => {
+    const body = e("div", {}, { children_: [] });
+    const root = e(
+      "details",
+      {},
+      {
+        styles_: [
+          ss(uniq("cont_opfs_dir"), {
+            "": (s) => {
+              s.padding = `${varPSmall} 0`;
+            },
+            ">summary": (s) => {
+              s.cursor = "pointer";
+              s.padding = `${varPSmall} 0`;
+              s.fontWeight = "bold";
+              s.listStyle = "none";
+            },
+            ">summary::marker": (s) => {
+              s.display = "none";
+            },
+            ">summary::-webkit-details-marker": (s) => {
+              s.display = "none";
+            },
+          }),
+        ],
+        children_: [
+          e(
+            "summary",
+            { textContent: `${args.depth}> ${args.name}` },
+            {},
+          ),
+          body,
+        ],
+      },
+    );
+    return { root, body };
+  };
+
+  presentation.contOpfsFile = /** @type {Presentation["contOpfsFile"]} */ (
+    args,
+  ) => {
+    const summary = e(
+      "summary",
+      { textContent: args.name },
+      {},
+    );
+    const body = e("div", {}, { children_: [] });
+    const root = e(
+      "details",
+      {},
+      {
+        styles_: [
+          ss(uniq("cont_opfs_file"), {
+            "": (s) => {
+              s.padding = `${varPSmall} 0`;
+            },
+            ">summary": (s) => {
+              s.cursor = "pointer";
+              s.padding = `${varPSmall} 0`;
+              s.listStyle = "none";
+            },
+            ">summary::marker": (s) => {
+              s.display = "none";
+            },
+            ">summary::-webkit-details-marker": (s) => {
+              s.display = "none";
+            },
+          }),
+        ],
+        children_: [summary, body],
+      },
+    );
+    return { root, body, summary };
+  };
+
+  presentation.contOpfsChildren = /** @type {Presentation["contOpfsChildren"]} */ (
+    args,
+  ) => ({
+    root: e(
+      "div",
+      {},
+      {
+        children_: args.children,
+      },
+    ),
+  });
+
+  presentation.leafOpfsDeleteToggle = /** @type {Presentation["leafOpfsDeleteToggle"]} */ (
+    args,
+  ) => {
+    return leafButtonFree({
+      icon: textIconDelete,
+      hint: "Delete",
+    });
+  };
+
+  presentation.leafOpfsFilePreview = /** @type {Presentation["leafOpfsFilePreview"]} */ (
+    args,
+  ) => ({
+    root: e(
+      "pre",
+      { textContent: args.text },
+      {
+        styles_: [
+          ss(uniq("leaf_opfs_file_preview"), {
+            "": (s) => {
+              s.whiteSpace = "pre-wrap";
+              s.wordBreak = "break-all";
+              s.maxHeight = "300px";
+              s.overflow = "auto";
+              s.backgroundColor = varCBackground2;
+              s.padding = varPSmall;
+              s.margin = `${varPSmall} 0`;
+              s.fontSize = "12px";
+              s.borderRadius = varRMedia;
+            },
+          }),
+        ],
+      },
+    ),
+  });
+
+  presentation.leafOpfsEmpty = /** @type {Presentation["leafOpfsEmpty"]} */ (
+    args,
+  ) => ({
+    root: e(
+      "div",
+      { textContent: "(empty)" },
+      {
+        styles_: [
+          ss(uniq("leaf_opfs_empty"), {
+            "": (s) => {
+              s.opacity = varONoninteractive;
+              s.fontStyle = "italic";
+              s.padding = varPSmall;
+            },
+          }),
+        ],
+      },
+    ),
+  });
+
+  ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: page, form + edit
   const leafInputPairStyle = ss(uniq("leaf_form_input_pair"), {
     "": (s) => {

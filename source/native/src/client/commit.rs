@@ -1,4 +1,8 @@
 use {
+    aargvark::{
+        Aargvark,
+        traits_impls::AargvarkJson,
+    },
     crate::{
         client::req::{
             http_limits,
@@ -8,22 +12,18 @@ use {
         },
         server::filesutil::hash_file_sha256,
     },
-    aargvark::{
-        traits_impls::AargvarkJson,
-        Aargvark,
-    },
     http::Uri,
     htwrap::{
         htreq::{
-            self,
             Conn,
+            self,
         },
         url::UriJoin,
     },
     loga::{
-        ea,
         Log,
         ResultContext,
+        ea,
     },
     mime_guess::MimeGuess,
     shared::interface::{
@@ -34,18 +34,18 @@ use {
         triple::Node,
         wire::{
             CommitFile,
+            HEADER_OFFSET,
             ReqCommit,
             ReqCommitFree,
             ReqUploadFinish,
             Triple,
-            HEADER_OFFSET,
         },
     },
     std::{
         collections::{
-            hash_map::Entry,
             HashMap,
             HashSet,
+            hash_map::Entry,
         },
         env::current_dir,
         io::SeekFrom,

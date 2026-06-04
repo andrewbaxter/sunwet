@@ -1,14 +1,14 @@
 use {
-    super::gather::{
-        prep_cover,
-        Gather,
-        GatherMedia,
-    },
     epub::doc::EpubDoc,
     loga::ResultContext,
     std::{
         path::Path,
         str::FromStr,
+    },
+    super::gather::{
+        Gather,
+        GatherMedia,
+        prep_cover,
     },
 };
 

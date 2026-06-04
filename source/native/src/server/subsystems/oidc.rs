@@ -1,26 +1,26 @@
 use {
+    cookie::CookieBuilder,
     crate::{
         cap_fn,
         interface::config::OidcConfig,
     },
-    cookie::CookieBuilder,
     flowcontrol::shed,
     http::{
-        header::HOST,
-        request::Parts,
         HeaderMap,
         Request,
         Response,
         Uri,
+        header::HOST,
+        request::Parts,
     },
     htwrap::{
         htreq,
         htserve::{
             responses::{
+                Body,
                 body_empty,
                 body_full,
                 response_400,
-                Body,
             },
             viserr::{
                 ResultVisErr,
@@ -30,33 +30,20 @@ use {
         url::UriJoin,
     },
     loga::{
-        ea,
         ErrContext,
         Log,
         ResultContext,
+        ea,
     },
     moka::future::Cache,
     oauth2::{
+        StandardRevocableToken,
         basic::{
             BasicErrorResponseType,
             BasicTokenType,
         },
-        StandardRevocableToken,
     },
     openidconnect::{
-        core::{
-            CoreAuthDisplay,
-            CoreAuthPrompt,
-            CoreAuthenticationFlow,
-            CoreClient,
-            CoreGenderClaim,
-            CoreJsonWebKey,
-            CoreJsonWebKeyType,
-            CoreJsonWebKeyUse,
-            CoreJweContentEncryptionAlgorithm,
-            CoreJwsSigningAlgorithm,
-            CoreProviderMetadata,
-        },
         AccessTokenHash,
         AuthorizationCode,
         ClientId,
@@ -76,6 +63,19 @@ use {
         StandardTokenIntrospectionResponse,
         StandardTokenResponse,
         TokenResponse,
+        core::{
+            CoreAuthDisplay,
+            CoreAuthPrompt,
+            CoreAuthenticationFlow,
+            CoreClient,
+            CoreGenderClaim,
+            CoreJsonWebKey,
+            CoreJsonWebKeyType,
+            CoreJsonWebKeyUse,
+            CoreJweContentEncryptionAlgorithm,
+            CoreJwsSigningAlgorithm,
+            CoreProviderMetadata,
+        },
     },
     rand::distributions::{
         Alphanumeric,

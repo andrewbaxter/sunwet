@@ -1,9 +1,4 @@
 use {
-    super::{
-        api::req_post_json,
-        ministate::MinistateNodeView,
-        state::set_page,
-    },
     crate::libnonlink::{
         ministate::{
             Ministate,
@@ -36,6 +31,11 @@ use {
     std::{
         cell::RefCell,
         rc::Rc,
+    },
+    super::{
+        api::req_post_json,
+        ministate::MinistateNodeView,
+        state::set_page,
     },
     wasm::js::{
         el_async_,

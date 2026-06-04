@@ -1,11 +1,9 @@
 use {
-    super::{
-        access::Identity,
-        subsystems::oidc,
-    },
+    by_address::ByAddress,
+    cookie::time::ext::InstantExt,
     crate::{
+        ScopeValue,
         interface::{
-            self,
             config::{
                 ConfigIamGrants,
                 ConfigIamGrantsLimited,
@@ -14,38 +12,36 @@ use {
                 ServerConfigMenuItemDetail,
                 UserConfig,
             },
+            self,
         },
         server::access::AccessSourceId,
-        ScopeValue,
     },
-    by_address::ByAddress,
-    cookie::time::ext::InstantExt,
     deadpool_sqlite::Pool,
     flowcontrol::shed,
     http::HeaderMap,
     loga::{
-        ea,
         DebugDisplay,
         Log,
         ResultContext,
+        ea,
     },
     moka::future::Cache,
     shared::{
         interface::{
             config::{
+                MenuItemId,
                 form::FormId,
                 view::{
-                    self,
                     ViewId,
+                    self,
                 },
-                MenuItemId,
             },
             iam::UserIdentityId,
             query,
             triple::FileHash,
             wire::{
-                link::WsS2L,
                 RespCheck,
+                link::WsS2L,
             },
         },
         query_analysis::analyze_query,
@@ -66,11 +62,15 @@ use {
             Instant,
         },
     },
+    super::{
+        access::Identity,
+        subsystems::oidc,
+    },
     taskmanager::TaskManager,
     tokio::sync::{
         mpsc::{
-            self,
             UnboundedSender,
+            self,
         },
         oneshot,
     },
@@ -254,6 +254,8 @@ pub fn build_global_config(
                 },
                 MenuItemPage::History => { },
                 MenuItemPage::Query => { },
+                MenuItemPage::Logs => { },
+                MenuItemPage::Opfs => { },
             },
         }
         menu_item_access_out.insert(at.id.clone(), access.clone());

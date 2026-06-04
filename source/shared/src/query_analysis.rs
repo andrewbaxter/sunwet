@@ -1,7 +1,5 @@
 use {
-    crate::interface::query::{
-        self,
-    },
+    crate::interface::query::self,
     schemars::JsonSchema,
     serde::{
         Deserialize,

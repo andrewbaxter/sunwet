@@ -1,11 +1,11 @@
 use {
-    super::triple::FileHash,
     schemars::JsonSchema,
     serde::{
         Deserialize,
         Serialize,
     },
     std::path::PathBuf,
+    super::triple::FileHash,
 };
 
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]

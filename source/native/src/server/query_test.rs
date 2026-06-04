@@ -1,7 +1,12 @@
 #![cfg(test)]
 
 use {
-    super::defaultviews::node_is_album,
+    chrono::{
+        DateTime,
+        Duration,
+        TimeZone,
+        Utc,
+    },
     crate::{
         interface::triple::DbNode,
         server::{
@@ -16,13 +21,8 @@ use {
             },
         },
     },
-    chrono::{
-        DateTime,
-        Duration,
-        TimeZone,
-        Utc,
-    },
     htwrap::htserve::viserr::VisErr,
+    rusqlite::OptionalExtension,
     shared::{
         interface::{
             ont::{
@@ -59,7 +59,6 @@ use {
         },
         query_parser::compile_query,
     },
-    rusqlite::OptionalExtension,
     std::{
         collections::{
             BTreeMap,
@@ -69,6 +68,7 @@ use {
         fs::read_to_string,
         path::PathBuf,
     },
+    super::defaultviews::node_is_album,
 };
 
 fn s(value: impl AsRef<str>) -> Node {

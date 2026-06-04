@@ -18,9 +18,7 @@ use {
             },
             triple::Node,
         },
-        query_parser::{
-            compile_query,
-        },
+        query_parser::compile_query,
     },
     std::{
         fs::read_to_string,

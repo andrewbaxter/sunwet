@@ -8,18 +8,16 @@ use {
         server::{
             access::Identity,
             state::{
-                get_global_config,
-                get_iam_grants,
                 GlobalConfig,
                 IamGrants,
                 State,
+                get_global_config,
+                get_iam_grants,
             },
         },
     },
     loga::Log,
     shared::interface::config::{
-        form::ClientForm,
-        view::ClientView,
         ClientConfig,
         ClientFormLink,
         ClientMenuItem,
@@ -27,6 +25,8 @@ use {
         ClientMenuSection,
         ClientPage,
         ClientViewLink,
+        form::ClientForm,
+        view::ClientView,
     },
     std::{
         collections::HashMap,
@@ -88,6 +88,8 @@ pub async fn handle_get_filtered_client_config(
                     },
                     MenuItemPage::History => ClientMenuItemDetail::Page(ClientPage::History),
                     MenuItemPage::Query => ClientMenuItemDetail::Page(ClientPage::Query),
+                    MenuItemPage::Logs => ClientMenuItemDetail::Page(ClientPage::Logs),
+                    MenuItemPage::Opfs => ClientMenuItemDetail::Page(ClientPage::Opfs),
                 }
             },
         };

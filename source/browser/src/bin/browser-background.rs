@@ -49,9 +49,9 @@ use {
         rc::Rc,
     },
     sunwet_browser::{
-        get_setting,
         KEY_SERVER_URL,
         KEY_TOKEN,
+        get_setting,
     },
     wasm_bindgen::{
         JsCast,
@@ -59,9 +59,9 @@ use {
         prelude::Closure,
     },
     wasm_bindgen_futures::{
+        JsFuture,
         future_to_promise,
         spawn_local,
-        JsFuture,
     },
 };
 

@@ -1,5 +1,4 @@
 use {
-    super::dbutil::tx,
     deadpool_sqlite::Pool,
     flowcontrol::{
         exenum,
@@ -10,17 +9,16 @@ use {
         VisErr,
     },
     loga::{
-        ea,
         ResultContext,
+        ea,
     },
     rand::{
-        seq::SliceRandom,
-        thread_rng,
         Rng,
         SeedableRng,
+        seq::SliceRandom,
+        thread_rng,
     },
     sea_query::{
-        extension::sqlite::SqliteExpr,
         Alias,
         ColumnRef,
         DynIden,
@@ -30,6 +28,7 @@ use {
         SeaRc,
         SimpleExpr,
         WindowStatement,
+        extension::sqlite::SqliteExpr,
     },
     sea_query_rusqlite::RusqliteBinder,
     shared::interface::{
@@ -64,6 +63,7 @@ use {
             HashMap,
         },
     },
+    super::dbutil::tx,
 };
 
 fn sql_fn(name: &str, args: Vec<SimpleExpr>) -> SimpleExpr {
@@ -743,6 +743,7 @@ fn build_chain_head(
                         if !buf.is_empty() || match_terms.is_empty() {
                             match_terms.push(buf);
                         }
+
                         // Trigram tokenizer requires terms to be at least 3 chars
                         let match_terms: Vec<String> = match_terms.into_iter().map(|x| {
                             x.into_iter().collect::<String>()
@@ -789,26 +790,21 @@ fn build_chain_head(
             let ident_cte = SeaRc::new(Alias::new(&seg_name));
             let mut sql_cte = sea_query::CommonTableExpression::new();
             sql_cte.table_name(ident_cte.clone());
-
             let mut sql_sel = sea_query::Query::select();
             let primary_table = query_state.ident_table_primary.clone();
             let primary_col_start = colref(primary_table.clone(), out.col_start.clone());
             let primary_col_end = colref(primary_table.clone(), out.col_end.clone());
             sql_sel.from_as(out.ident_table.clone(), primary_table.clone());
-
             sql_sel.and_where(build_filter(query_state, &primary_col_end, BuildStepRes {
                 ident_table: out.ident_table,
                 col_start: out.col_end.clone(),
                 col_end: out.col_end,
                 plural: out.plural,
             }, filter)?);
-
             sql_cte.column(query_state.ident_col_start.clone());
             sql_sel.column(primary_col_start.clone());
-
             sql_cte.column(query_state.ident_col_end.clone());
             sql_sel.column(primary_col_end.clone());
-
             sql_cte.query(sql_sel);
             query_state.ctes.push(sql_cte);
             prev_subchain_seg = Some(BuildStepRes {

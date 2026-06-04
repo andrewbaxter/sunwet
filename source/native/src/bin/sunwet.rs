@@ -1,13 +1,11 @@
 use {
     aargvark::{
-        vark,
         Aargvark,
+        vark,
     },
     loga::fatal,
     native::{
-        client::{
-            self,
-        },
+        client::self,
         server,
     },
 };

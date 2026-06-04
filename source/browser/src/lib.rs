@@ -8,8 +8,8 @@ use {
     tsify_next::Tsify,
     wasm_bindgen::prelude::*,
     wasm_bindgen_futures::{
-        spawn_local,
         JsFuture,
+        spawn_local,
     },
     web_sys::{
         HtmlButtonElement,

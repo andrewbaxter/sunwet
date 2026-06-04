@@ -215,6 +215,34 @@ impl OpfsDir {
 pub struct OpfsFile(pub DebugPath, pub FileSystemFileHandle);
 
 impl OpfsFile {
+    pub async fn size(&self) -> Result<f64, String> {
+        let js_file =
+            JsFuture::from(self.1.get_file())
+                .await
+                .map_err(|e| format!("Error getting file from file handle at [{}]: {}", self.0, jsstr(e)))?;
+        let blob = js_file.dyn_ref::<Blob>().ok_or_else(|| format!("File at [{}] is not a Blob", self.0))?;
+        Ok(blob.size())
+    }
+
+    pub async fn read_binary_prefix(&self, max_len: usize) -> Result<Vec<u8>, String> {
+        let js_file =
+            JsFuture::from(self.1.get_file())
+                .await
+                .map_err(|e| format!("Error getting file from file handle at [{}]: {}", self.0, jsstr(e)))?;
+        let blob = js_file.dyn_ref::<Blob>().ok_or_else(|| format!("File at [{}] is not a Blob", self.0))?;
+        let slice =
+            blob
+                .slice_with_f64_and_f64(0., max_len as f64)
+                .map_err(|e| format!("Error slicing blob at [{}]: {}", self.0, jsstr(e)))?;
+        return Ok(
+            Uint8Array::new(
+                &JsFuture::from(slice.array_buffer())
+                    .await
+                    .map_err(|e| format!("Error getting array buffer of slice at [{}]: {}", self.0, jsstr(e)))?,
+            ).to_vec(),
+        );
+    }
+
     pub async fn read_binary(&self) -> Result<Vec<u8>, String> {
         return Ok(
             Uint8Array::new(

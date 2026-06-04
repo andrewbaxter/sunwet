@@ -1,8 +1,6 @@
-use {
-    serde::{
-        Deserialize,
-        Serialize,
-    },
+use serde::{
+    Deserialize,
+    Serialize,
 };
 
 pub const COMIC_MANIFEST_FILENAME: &str = "sunwet.json";
