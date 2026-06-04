@@ -55,6 +55,7 @@ use {
             read_ministate,
             record_replace_ministate,
         },
+        page_settings::LOCALSTORAGE_OFFLINE_ENABLED,
         page_view::LOCALSTORAGE_SHARE_SESSION_ID,
         playlist::{
             playlist_next,
@@ -318,6 +319,7 @@ pub fn main() {
                 build_ministate(pc, &ministate);
             }).unwrap()
         }).forget();
+        let offline_enabled = LocalStorage::get::<bool>(LOCALSTORAGE_OFFLINE_ENABLED).unwrap_or(false);
         const LOCALSTORAGE_ENABLE_ONLINING: &str = "enable_onlining";
         let enable_onlining = Prim::new(LocalStorage::get::<bool>(LOCALSTORAGE_ENABLE_ONLINING).unwrap_or(true));
         const LOCALSTORAGE_ENABLE_OFFLINING: &str = "enable_offlining";
@@ -467,67 +469,76 @@ pub fn main() {
                             }).unwrap());
                         }
                     }));
-                    root.push({
-                        let group = style_export::cont_menu_group(style_export::ContMenuGroupArgs {
-                            title: format!("Offline"),
-                            children: vec![]
+                    if offline_enabled {
+                        root.push({
+                            let group = style_export::cont_menu_group(style_export::ContMenuGroupArgs {
+                                title: format!("Offline"),
+                                children: vec![]
+                            });
+                            group
+                                .body
+                                .ref_own(
+                                    |b| link!((_pc = pc), (offline = state().offline_list.clone()), (), (b = b.weak(),) {
+                                        let b = b.upgrade()?;
+
+                                        fn build(key: &String, view: &MinistateView) -> El {
+                                            let sorted_params = view.params.iter().collect::<BTreeMap<_, _>>();
+                                            return style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
+                                                title: format!(
+                                                    "{}: {}",
+                                                    view.title,
+                                                    sorted_params
+                                                        .iter()
+                                                        .map(|(k, v)| format!("{}={}", k, node_to_text(&v)))
+                                                        .collect::<Vec<_>>()
+                                                        .join(", ")
+                                                ),
+                                                href: ministate_octothorpe(&Ministate::OfflineView(MinistateOfflineView {
+                                                    id: view.id.clone(),
+                                                    pos: view.pos.clone(),
+                                                    key: key.clone(),
+                                                    title: view.title.clone(),
+                                                    params: view.params.clone(),
+                                                }))
+                                            }).root;
+                                        }
+
+                                        if b.raw().children().length() == 0 {
+                                            let mut add = vec![];
+                                            for (key, view) in offline.borrow_values().iter() {
+                                                add.push(build(key, view));
+                                            }
+                                            b.ref_extend(add);
+                                        } else {
+                                            for change in offline.borrow_changes().iter() {
+                                                b.ref_splice(
+                                                    change.offset,
+                                                    change.remove,
+                                                    change.add.iter().map(|(k, v)| build(k, v)).collect()
+                                                );
+                                            }
+                                        }
+                                    })
+                                );
+                            group.root
                         });
-                        group
-                            .body
-                            .ref_own(
-                                |b| link!((_pc = pc), (offline = state().offline_list.clone()), (), (b = b.weak(),) {
-                                    let b = b.upgrade()?;
-
-                                    fn build(key: &String, view: &MinistateView) -> El {
-                                        let sorted_params = view.params.iter().collect::<BTreeMap<_, _>>();
-                                        return style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
-                                            title: format!(
-                                                "{}: {}",
-                                                view.title,
-                                                sorted_params
-                                                    .iter()
-                                                    .map(|(k, v)| format!("{}={}", k, node_to_text(&v)))
-                                                    .collect::<Vec<_>>()
-                                                    .join(", ")
-                                            ),
-                                            href: ministate_octothorpe(&Ministate::OfflineView(MinistateOfflineView {
-                                                id: view.id.clone(),
-                                                pos: view.pos.clone(),
-                                                key: key.clone(),
-                                                title: view.title.clone(),
-                                                params: view.params.clone(),
-                                            }))
-                                        }).root;
-                                    }
-
-                                    if b.raw().children().length() == 0 {
-                                        let mut add = vec![];
-                                        for (key, view) in offline.borrow_values().iter() {
-                                            add.push(build(key, view));
-                                        }
-                                        b.ref_extend(add);
-                                    } else {
-                                        for change in offline.borrow_changes().iter() {
-                                            b.ref_splice(
-                                                change.offset,
-                                                change.remove,
-                                                change.add.iter().map(|(k, v)| build(k, v)).collect()
-                                            );
-                                        }
-                                    }
-                                })
-                            );
-                        group.root
-                    });
+                    }
                     root.push(style_export::cont_menu_group(style_export::ContMenuGroupArgs {
                         title: "System".to_string(),
-                        children: vec![style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
-                            title: "OPFS".to_string(),
-                            href: ministate_octothorpe(&Ministate::Opfs),
-                        }).root, style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
-                            title: "Logs".to_string(),
-                            href: ministate_octothorpe(&Ministate::Logs),
-                        }).root,],
+                        children: vec![
+                            style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
+                                title: "Settings".to_string(),
+                                href: ministate_octothorpe(&Ministate::Settings),
+                            }).root,
+                            style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
+                                title: "OPFS".to_string(),
+                                href: ministate_octothorpe(&Ministate::Opfs),
+                            }).root,
+                            style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
+                                title: "Logs".to_string(),
+                                href: ministate_octothorpe(&Ministate::Logs),
+                            }).root,
+                        ],
                     }).root,);
                     let mut bar_children = vec![];
                     bar_children.push(
@@ -589,46 +600,51 @@ pub fn main() {
                             RespWhoAmI::Token => "Token".to_string(),
                         });
                     }));
-                    for (
-                        root,
-                        checkbox,
-                        enable,
-                        thinking,
-                    ) in [
-                        (
-                            menu_body.onlining,
-                            menu_body.onlining_checkbox,
-                            enable_onlining.clone(),
-                            state().onlining_state.running.clone(),
-                        ),
-                        (
-                            menu_body.offlining,
-                            menu_body.offlining_checkbox,
-                            enable_offlining.clone(),
-                            state().offlining.clone(),
-                        ),
-                    ] {
-                        checkbox.raw().dyn_ref::<HtmlInputElement>().unwrap().set_checked(*enable.borrow());
-                        checkbox.ref_on("change", {
-                            let b = checkbox.weak();
-                            let enable = enable.clone();
-                            let eg = pc.eg();
-                            move |_| {
-                                let Some(b) = b.upgrade() else {
-                                    return;
-                                };
-                                let b = b.raw().dyn_into::<HtmlInputElement>().unwrap();
-                                eg.event(|pc| {
-                                    enable.set(pc, b.checked());
-                                }).unwrap();
-                            }
-                        });
-                        root.own(|e_| link!((_pc = pc), (thinking = thinking), (), (e_ = e_.weak()) {
-                            let e_ = e_.upgrade()?;
-                            e_.ref_modify_classes(
-                                &[(&style_export::class_state_thinking().value, *thinking.borrow())]
-                            )
-                        }));
+                    if offline_enabled {
+                        for (
+                            root,
+                            checkbox,
+                            enable,
+                            thinking,
+                        ) in [
+                            (
+                                menu_body.onlining,
+                                menu_body.onlining_checkbox,
+                                enable_onlining.clone(),
+                                state().onlining_state.running.clone(),
+                            ),
+                            (
+                                menu_body.offlining,
+                                menu_body.offlining_checkbox,
+                                enable_offlining.clone(),
+                                state().offlining.clone(),
+                            ),
+                        ] {
+                            checkbox.raw().dyn_ref::<HtmlInputElement>().unwrap().set_checked(*enable.borrow());
+                            checkbox.ref_on("change", {
+                                let b = checkbox.weak();
+                                let enable = enable.clone();
+                                let eg = pc.eg();
+                                move |_| {
+                                    let Some(b) = b.upgrade() else {
+                                        return;
+                                    };
+                                    let b = b.raw().dyn_into::<HtmlInputElement>().unwrap();
+                                    eg.event(|pc| {
+                                        enable.set(pc, b.checked());
+                                    }).unwrap();
+                                }
+                            });
+                            root.own(|e_| link!((_pc = pc), (thinking = thinking), (), (e_ = e_.weak()) {
+                                let e_ = e_.upgrade()?;
+                                e_.ref_modify_classes(
+                                    &[(&style_export::class_state_thinking().value, *thinking.borrow())]
+                                )
+                            }));
+                        }
+                    } else {
+                        menu_body.onlining.ref_replace(vec![]);
+                        menu_body.offlining.ref_replace(vec![]);
                     }
                     menu_body.root
                 }

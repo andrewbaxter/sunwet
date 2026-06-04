@@ -60,6 +60,7 @@ use {
         page_node_edit::build_page_node_edit,
         page_node_view::build_page_node_view,
         page_opfs::build_page_opfs,
+        page_settings::build_page_settings,
         page_view::build_page_view,
         playlist::{
             PlaylistState,
@@ -244,6 +245,10 @@ pub fn build_ministate(pc: &mut ProcessingContext, s: &Ministate) {
         Ministate::Opfs => {
             playlist_clear(pc, &state().playlist, false, Default::default());
             build_page_opfs(pc);
+        },
+        Ministate::Settings => {
+            playlist_clear(pc, &state().playlist, false, Default::default());
+            build_page_settings(pc);
         },
     }
 }

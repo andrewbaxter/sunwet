@@ -136,6 +136,7 @@ pub enum Ministate {
     Query(MinistateQuery),
     Logs,
     Opfs,
+    Settings,
 }
 
 pub fn ministate_octothorpe(s: &Ministate) -> String {
@@ -155,6 +156,7 @@ pub fn ministate_title(s: &Ministate) -> String {
         Ministate::Query(_) => return format!("Query"),
         Ministate::Logs => return format!("Logs"),
         Ministate::Opfs => return format!("OPFS"),
+        Ministate::Settings => return format!("Settings"),
     }
 }
 
