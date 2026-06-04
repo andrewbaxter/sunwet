@@ -1427,11 +1427,7 @@
           }),
         ],
         children_: [
-          e(
-            "summary",
-            { textContent: `${args.depth}> ${args.name}` },
-            {},
-          ),
+          e("summary", { textContent: `${args.depth}> ${args.name}` }, {}),
           body,
         ],
       },
@@ -1442,11 +1438,7 @@
   presentation.contOpfsFile = /** @type {Presentation["contOpfsFile"]} */ (
     args,
   ) => {
-    const summary = e(
-      "summary",
-      { textContent: args.name },
-      {},
-    );
+    const summary = e("summary", { textContent: args.name }, {});
     const body = e("div", {}, { children_: [] });
     const root = e(
       "details",
@@ -1476,52 +1468,49 @@
     return { root, body, summary };
   };
 
-  presentation.contOpfsChildren = /** @type {Presentation["contOpfsChildren"]} */ (
-    args,
-  ) => ({
-    root: e(
-      "div",
-      {},
-      {
-        children_: args.children,
-      },
-    ),
-  });
-
-  presentation.leafOpfsDeleteToggle = /** @type {Presentation["leafOpfsDeleteToggle"]} */ (
-    args,
-  ) => {
-    return leafButtonFree({
-      icon: textIconDelete,
-      hint: "Delete",
+  presentation.contOpfsChildren =
+    /** @type {Presentation["contOpfsChildren"]} */ (args) => ({
+      root: e(
+        "div",
+        {},
+        {
+          children_: args.children,
+        },
+      ),
     });
-  };
 
-  presentation.leafOpfsFilePreview = /** @type {Presentation["leafOpfsFilePreview"]} */ (
-    args,
-  ) => ({
-    root: e(
-      "pre",
-      { textContent: args.text },
-      {
-        styles_: [
-          ss(uniq("leaf_opfs_file_preview"), {
-            "": (s) => {
-              s.whiteSpace = "pre-wrap";
-              s.wordBreak = "break-all";
-              s.maxHeight = "300px";
-              s.overflow = "auto";
-              s.backgroundColor = varCBackground2;
-              s.padding = varPSmall;
-              s.margin = `${varPSmall} 0`;
-              s.fontSize = "12px";
-              s.borderRadius = varRMedia;
-            },
-          }),
-        ],
-      },
-    ),
-  });
+  presentation.leafOpfsDeleteToggle =
+    /** @type {Presentation["leafOpfsDeleteToggle"]} */ (args) => {
+      return leafButtonFree({
+        icon: textIconDelete,
+        hint: "Delete",
+      });
+    };
+
+  presentation.leafOpfsFilePreview =
+    /** @type {Presentation["leafOpfsFilePreview"]} */ (args) => ({
+      root: e(
+        "pre",
+        { textContent: args.text },
+        {
+          styles_: [
+            ss(uniq("leaf_opfs_file_preview"), {
+              "": (s) => {
+                s.whiteSpace = "pre-wrap";
+                s.wordBreak = "break-all";
+                s.maxHeight = "300px";
+                s.overflow = "auto";
+                s.backgroundColor = varCBackground2;
+                s.padding = varPSmall;
+                s.margin = `${varPSmall} 0`;
+                s.fontSize = "12px";
+                s.borderRadius = varRMedia;
+              },
+            }),
+          ],
+        },
+      ),
+    });
 
   presentation.leafOpfsEmpty = /** @type {Presentation["leafOpfsEmpty"]} */ (
     args,
@@ -2060,6 +2049,67 @@
           input: input.root,
         }).root,
         input: input.root,
+      };
+    };
+  presentation.leafInputPairRange =
+    /** @type {Presentation["leafInputPairRange"]} */ (args) => {
+      const input = /** @type {HTMLInputElement} */ (
+        e(
+          "input",
+          {
+            type: "range",
+            name: args.id,
+            min: args.min,
+            max: args.max,
+            value: args.value,
+            step: "1",
+          },
+          {
+            styles_: [leafInputStyle],
+          },
+        )
+      );
+      const preview = e(
+        "div",
+        {
+          textContent: args.preview,
+        },
+        {
+          styles_: [
+            ss(uniq("leaf_range_preview"), {
+              "": (s) => {
+                s.overflow = "hidden";
+                s.textOverflow = "ellipsis";
+                s.whiteSpace = "nowrap";
+                s.padding = varSInputPad;
+              },
+            }),
+          ],
+        },
+      );
+      const wrapper = e(
+        "div",
+        {},
+        {
+          children_: [
+            input,
+            preview,
+            ss(uniq("leaf_input_pair_range_right"), {
+              "": (s) => {
+                s.overflowX = "hidden";
+              },
+            }),
+          ],
+        },
+      );
+      return {
+        root: presentation.leafInputPair({
+          label: args.title,
+          inputId: args.id,
+          input: wrapper,
+        }).root,
+        input: input,
+        preview: preview,
       };
     };
   presentation.leafInputPairDate =
@@ -4417,10 +4467,7 @@
                 },
               }),
             ],
-            children_: [
-              input,
-              buttonOk.root,
-            ],
+            children_: [input, buttonOk.root],
           },
         ),
       });
@@ -5080,7 +5127,9 @@
         extraStyles: [leafIconStyle],
       });
       const expandToggleStyle = ss(uniq("leaf_node_edit_drawer_expand"), {
-        [`:not(.${classStateExpanded}) .${leafIconStyle}:nth-child(2)`]: (s) => {
+        [`:not(.${classStateExpanded}) .${leafIconStyle}:nth-child(2)`]: (
+          s,
+        ) => {
           s.display = "none";
         },
         [`.${classStateExpanded} .${leafIconStyle}:nth-child(1)`]: (s) => {
