@@ -4370,6 +4370,67 @@
       ],
     }).root,
   });
+  presentation.contViewModalOfflineName =
+    /** @type {Presentation["contViewModalOfflineName"]} */ (args) => {
+      const input = e(
+        "input",
+        {
+          type: "text",
+          value: args.defaultName,
+        },
+        {
+          styles_: [
+            leafInputStyle,
+            leafInputBorderStyle,
+            ss(uniq("cont_modal_offline_name_input"), {
+              "": (s) => {
+                s.width = "100%";
+                s.boxSizing = "border-box";
+              },
+            }),
+          ],
+          attrs_: {
+            autocomplete: "off",
+          },
+        },
+      );
+      const buttonOk = presentation.leafButtonBig({
+        title: "OK",
+        icon: textIconConfirm,
+        text: "OK",
+        extraStyles: [],
+      });
+      const out = newContModal({
+        title: "Offline view name",
+        minimal: true,
+        child: e(
+          "div",
+          {},
+          {
+            styles_: [
+              contVboxStyle,
+              ss(uniq("cont_modal_offline_name_vbox"), {
+                "": (s) => {
+                  s.flexGrow = "1";
+                  s.padding = varP05;
+                  s.gap = varPSmall;
+                },
+              }),
+            ],
+            children_: [
+              input,
+              buttonOk.root,
+            ],
+          },
+        ),
+      });
+      return {
+        root: out.root,
+        buttonClose: out.buttonClose,
+        buttonOk: buttonOk.root,
+        input: input,
+      };
+    };
   presentation.leafFormComment =
     /** @type {Presentation["leafFormComment"]} */ (args) => ({
       root: e(

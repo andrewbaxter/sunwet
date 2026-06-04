@@ -759,6 +759,11 @@ fn main() {
             returns: vec![("root", &el_)],
         },
         Func {
+            name: "contViewModalOfflineName",
+            args: vec![("defaultName", &string_)],
+            returns: vec![("root", &el_), ("buttonClose", &el_), ("buttonOk", &el_), ("input", &el_)],
+        },
+        Func {
             name: "leafFormComment",
             args: vec![("text", &string_)],
             returns: vec![("root", &el_)],

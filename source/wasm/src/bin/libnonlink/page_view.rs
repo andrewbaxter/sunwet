@@ -9,6 +9,7 @@ use {
             ministate_octothorpe,
         },
         node_button::setup_node_button,
+        page_settings::LOCALSTORAGE_OFFLINE_ENABLED,
         offline::{
             ensure_offline,
             offline_audio_url,
@@ -155,6 +156,7 @@ use {
     web_sys::{
         DomParser,
         HtmlElement,
+        HtmlInputElement,
         ScrollIntoViewOptions,
         ScrollLogicalPosition,
     },
@@ -2116,40 +2118,92 @@ pub fn build_page_view(
                     },
                 }
             }
-            let offline_button = style_export::leaf_menu_page_button_offline().root;
-            on_thinking(&offline_button, {
-                let view = offline_view.clone();
-                let eg = pc.eg();
-                move || {
-                    let view = view.clone();
-                    let eg = eg.clone();
-                    async move {
-                        if let Err(e) = ensure_offline(eg.clone(), view.borrow().clone()).await {
-                            state().log.log(&format!("Error triggering offline for view: {}", e));
-                        }
-                    }
-                }
-            });
-            offline_button.ref_own(
-                |b: &El| link!(
-                    (_pc = pc),
-                    (offline_view = offline_view.clone(), offline_views_list = state().offline_list.clone()),
-                    (),
-                    (b = b.weak()) {
-                        let b = b.upgrade()?;
-                        let offline_view = offline_view.borrow();
-                        b.ref_modify_classes(
-                            &[
-                                (
-                                    &style_export::class_state_disabled().value,
-                                    offline_views_list.borrow_values().iter().any(|(_, v1)| v1 == &*offline_view),
-                                )
-                            ]
+            if LocalStorage::get::<bool>(LOCALSTORAGE_OFFLINE_ENABLED).unwrap_or(false) {
+                let offline_button = style_export::leaf_menu_page_button_offline().root;
+                offline_button.ref_on("click", {
+                    let offline_view = offline_view.clone();
+                    let eg = pc.eg();
+                    let title = title.clone();
+                    move |_| {
+                        let modal_res = style_export::cont_view_modal_offline_name(
+                            style_export::ContViewModalOfflineNameArgs {
+                                default_name: title.clone(),
+                            },
                         );
+                        modal_res.button_close.ref_on("click", {
+                            let modal_el = modal_res.root.weak();
+                            let eg = eg.clone();
+                            move |_| eg.event(|_pc| {
+                                let Some(modal_el) = modal_el.upgrade() else {
+                                    return;
+                                };
+                                modal_el.ref_replace(vec![]);
+                            }).unwrap()
+                        });
+                        modal_res.root.ref_on("click", {
+                            let modal_el = modal_res.root.weak();
+                            let eg = eg.clone();
+                            move |_| eg.event(|_pc| {
+                                let Some(modal_el) = modal_el.upgrade() else {
+                                    return;
+                                };
+                                modal_el.ref_replace(vec![]);
+                            }).unwrap()
+                        });
+                        on_thinking(&modal_res.button_ok, {
+                            let offline_view = offline_view.clone();
+                            let eg = eg.clone();
+                            let modal_el = modal_res.root.weak();
+                            let input = modal_res.input.weak();
+                            move || {
+                                let offline_view = offline_view.clone();
+                                let eg = eg.clone();
+                                let modal_el = modal_el.clone();
+                                let input = input.clone();
+                                async move {
+                                    let name = input
+                                        .upgrade()
+                                        .and_then(
+                                            |el| el.raw().dyn_ref::<HtmlInputElement>().map(|i| i.value()),
+                                        )
+                                        .unwrap_or_default();
+                                    let mut view = offline_view.borrow().clone();
+                                    view.title = name;
+                                    if let Err(e) = ensure_offline(eg.clone(), view).await {
+                                        state().log.log(
+                                            &format!("Error triggering offline for view: {}", e),
+                                        );
+                                    }
+                                    if let Some(modal_el) = modal_el.upgrade() {
+                                        modal_el.ref_replace(vec![]);
+                                    }
+                                }
+                            }
+                        });
+                        state().modal_stack.ref_push(modal_res.root.clone());
                     }
-                ),
-            );
-            state().menu_page_buttons.ref_push(offline_button);
+                });
+                offline_button.ref_own(
+                    |b: &El| link!(
+                        (_pc = pc),
+                        (offline_view = offline_view.clone(), offline_views_list = state().offline_list.clone()),
+                        (),
+                        (b = b.weak()) {
+                            let b = b.upgrade()?;
+                            let offline_view = offline_view.borrow();
+                            b.ref_modify_classes(
+                                &[
+                                    (
+                                        &style_export::class_state_disabled().value,
+                                        offline_views_list.borrow_values().iter().any(|(_, v1)| v1 == &*offline_view),
+                                    )
+                                ]
+                            );
+                        }
+                    ),
+                );
+                state().menu_page_buttons.ref_push(offline_button);
+            }
         }
         build_page_view_body(pc, &common, &*param_data.borrow(), restore_playlist_pos, offline);
         return Ok(style_export::cont_page_view(style_export::ContPageViewArgs {
