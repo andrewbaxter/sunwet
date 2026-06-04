@@ -305,9 +305,10 @@ impl OpfsWriteFile {
                         |e| format!("Error getting file handle writable [{}]: {:?}", self.0, JSON::stringify(&e)),
                     )?,
             );
+        let arr = Uint8Array::new_from_slice(data);
         JsFuture::from(
             w
-                .write_with_u8_array(data)
+                .write_with_js_u8_array(&arr)
                 .map_err(|e| format!("Error writing message to opfs file [{}]: {:?}", self.0, jsstr(e)))?,
         )
             .await
