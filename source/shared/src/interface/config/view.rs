@@ -376,6 +376,9 @@ pub struct WidgetPlayButton {
     pub cover_field: Option<String>,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]
+    pub original_language_field: Option<String>,
+    #[serde(default)]
+    #[ts(optional, as = "Option<_>")]
     pub orientation: Option<Orientation>,
     #[serde(default)]
     #[ts(optional, as = "Option<_>")]

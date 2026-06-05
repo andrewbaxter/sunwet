@@ -31,6 +31,7 @@ use {
         },
     },
     shared_wasm::{
+        world::Lang,
         log::{
             Log,
             LogJsErr,
@@ -93,22 +94,12 @@ pub fn env_preferred_video_url(env: &Env, hash: &FileHash) -> String {
     return generated_file_url(env, hash, &env_preferred_video_gentype(), "");
 }
 
-pub fn gen_video_subtitle_subpath(nav_lang: &str) -> String {
-    let short_lang = if let Some((l, _)) = nav_lang.split_once("-") {
-        l
-    } else {
-        nav_lang
-    };
-    let vtt_lang = match short_lang {
-        "en" => "eng",
-        "jp" => "jpn",
-        x => x,
-    };
-    return gentype_vtt_subpath(vtt_lang);
+pub fn gen_video_subtitle_subpath(lang: &Lang) -> String {
+    return gentype_vtt_subpath(lang.iso639_3());
 }
 
-pub fn env_video_subtitle_url(env: &Env, nav_lang: &str, hash: &FileHash) -> String {
-    return generated_file_url(env, hash, GENTYPE_VTT, &gen_video_subtitle_subpath(nav_lang));
+pub fn env_video_subtitle_url(env: &Env, lang: &Lang, hash: &FileHash) -> String {
+    return generated_file_url(env, hash, GENTYPE_VTT, &gen_video_subtitle_subpath(lang));
 }
 
 struct MyIntersectionObserver_ {

@@ -193,11 +193,12 @@ fn build_link(log: &Rc<dyn Log>, media_audio_el: HtmlMediaElement, media_video_e
                                                         .iter()
                                                         .map(
                                                             |lang| (
-                                                                lang.clone(),
-                                                                env_video_subtitle_url(&env, &lang, &source_hash),
+                                                                *lang,
+                                                                env_video_subtitle_url(&env, lang, &source_hash),
                                                             ),
                                                         )
                                                         .collect(),
+                                                    None,
                                                     0.,
                                                 ),
                                             );

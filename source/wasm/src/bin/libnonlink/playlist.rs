@@ -84,6 +84,7 @@ use {
             state,
         },
     },
+    shared_wasm::world::Lang,
     wasm::{
         js::{
             env_preferred_audio_url,
@@ -160,6 +161,7 @@ pub struct PlaylistEntry {
     pub album: Option<String>,
     pub artist: Option<String>,
     pub cover_source_url: Option<FileHash>,
+    pub original_language: Option<Lang>,
     pub source_file: FileHash,
     pub media_type: PlaylistEntryMediaType,
     pub media: Box<dyn PlaylistMedia>,
@@ -652,6 +654,7 @@ pub struct PlaylistPushArg {
     pub album: Option<String>,
     pub artist: Option<String>,
     pub cover_source_url: Option<FileHash>,
+    pub original_language: Option<Lang>,
     pub source_file: FileHash,
     pub media_type: PlaylistEntryMediaType,
 }
@@ -660,6 +663,7 @@ pub async fn build_entry_media(
     playlist_state: &PlaylistState,
     media_type: PlaylistEntryMediaType,
     source_file: &FileHash,
+    original_language: Option<Lang>,
     time: f64,
     offline: bool,
 ) -> Box<dyn PlaylistMedia> {
@@ -681,7 +685,7 @@ pub async fn build_entry_media(
                 for lang in &state().env.languages {
                     match offline_gen_url(source_file, GENTYPE_VTT, &gen_video_subtitle_subpath(lang)).await {
                         Ok(u) => {
-                            sub_src.insert(u, lang.clone());
+                            sub_src.insert(*lang, u);
                         },
                         Err(e) => {
                             state().log.log(&format!("Error determining offline video subtitle url: {}", e));
@@ -691,12 +695,17 @@ pub async fn build_entry_media(
             } else {
                 src = env_preferred_video_url(&state().env, source_file);
                 for lang in &state().env.languages {
-                    sub_src.insert(env_video_subtitle_url(&state().env, lang, source_file), lang.clone());
+                    sub_src.insert(*lang, env_video_subtitle_url(&state().env, lang, source_file));
                 }
             }
-            sub_src = sub_src.into_iter().map(|(url, weblang)| (weblang, url)).collect();
             return Box::new(
-                PlaylistMediaAudioVideo::new_video(playlist_state.0.media_el_video.clone(), src, sub_src, time),
+                PlaylistMediaAudioVideo::new_video(
+                    playlist_state.0.media_el_video.clone(),
+                    src,
+                    sub_src,
+                    original_language,
+                    time,
+                ),
             );
         },
         PlaylistEntryMediaType::Image => {
@@ -797,12 +806,21 @@ pub async fn playlist_extend(
         } else {
             0.
         };
-        let media = build_entry_media(playlist_state, entry.media_type, &entry.source_file, time, offline).await;
+        let media =
+            build_entry_media(
+                playlist_state,
+                entry.media_type,
+                &entry.source_file,
+                entry.original_language.clone(),
+                time,
+                offline,
+            ).await;
         playlist_state.0.playlist.borrow_mut().insert(entry.index.clone(), Rc::new(PlaylistEntry {
             name: entry.name,
             album: entry.album,
             artist: entry.artist,
             cover_source_url: entry.cover_source_url,
+            original_language: entry.original_language,
             source_file: entry.source_file,
             media_type: entry.media_type,
             media: media,
@@ -916,12 +934,20 @@ pub fn playlist_next(pc: &mut ProcessingContext, state: &PlaylistState, basis: O
                                 .is_some();
                         for entry in entries {
                             let media =
-                                build_entry_media(&state, entry.media_type, &entry.source_file, 0., offline).await;
+                                build_entry_media(
+                                    &state,
+                                    entry.media_type,
+                                    &entry.source_file,
+                                    entry.original_language.clone(),
+                                    0.,
+                                    offline,
+                                ).await;
                             state.0.playlist.borrow_mut().insert(entry.index.clone(), Rc::new(PlaylistEntry {
                                 name: entry.name,
                                 album: entry.album,
                                 artist: entry.artist,
                                 cover_source_url: entry.cover_source_url,
+                                original_language: entry.original_language,
                                 source_file: entry.source_file,
                                 media_type: entry.media_type,
                                 media: media,
