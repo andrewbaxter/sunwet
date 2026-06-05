@@ -5,6 +5,54 @@
 //!
 //! This should allow nixing the play_bg. Also the hash could be passed in instead
 //! of all the urls.
+pub const LOCALSTORAGE_DEFAULT_AUDIO_LANG: &str = "default_audio_lang";
+pub const LOCALSTORAGE_DEFAULT_SUBTITLE_LANG: &str = "default_subtitle_lang";
+pub const LOCALSTORAGE_SHOW_SUBS_IF_MATCHING_AUDIO: &str = "show_subs_if_matching_audio";
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AudioLangPref {
+    WorkOriginal,
+    BrowserLanguage,
+    FirstLanguage,
+    Specific(Lang),
+}
+
+impl AudioLangPref {
+    pub fn display_name(&self) -> &str {
+        match self {
+            AudioLangPref::WorkOriginal => "Work original language",
+            AudioLangPref::BrowserLanguage => "Browser language",
+            AudioLangPref::FirstLanguage => "First language",
+            AudioLangPref::Specific(lang) => lang.display_name(),
+        }
+    }
+
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SubtitleLangPref {
+    None,
+    WorkOriginal,
+    BrowserLanguage,
+    FirstLanguage,
+    Specific(Lang),
+}
+
+impl SubtitleLangPref {
+    pub fn display_name(&self) -> &str {
+        match self {
+            SubtitleLangPref::None => "None",
+            SubtitleLangPref::WorkOriginal => "Work original language",
+            SubtitleLangPref::BrowserLanguage => "Browser language",
+            SubtitleLangPref::FirstLanguage => "First language",
+            SubtitleLangPref::Specific(lang) => lang.display_name(),
+        }
+    }
+
+}
+
 use {
     crate::js::{
         ElExt,
@@ -61,7 +109,10 @@ use {
             Log,
             LogJsErr,
         },
-        world::Env,
+        world::{
+            Env,
+            Lang,
+        },
     },
     std::{
         cell::{
@@ -82,6 +133,7 @@ use {
     tokio_stream::wrappers::WatchStream,
     wasm_bindgen::{
         JsCast,
+        JsValue,
         convert::{
             FromWasmAbi,
             IntoWasmAbi,
@@ -91,6 +143,7 @@ use {
     web_sys::{
         Document,
         Element,
+        EventTarget,
         HtmlElement,
         HtmlIFrameElement,
         HtmlMediaElement,
@@ -142,8 +195,10 @@ pub struct PlaylistMediaAudioVideo {
     pub media_el: HtmlMediaElement,
     pub el: El,
     pub src: String,
-    pub sub_src: HashMap<String, String>,
+    pub sub_src: HashMap<Lang, String>,
+    pub original_language: Option<Lang>,
     pub play_bg: Rc<RefCell<Option<ScopeValue>>>,
+    pub audio_track_listener: RefCell<Option<EventListener>>,
     pub time: Cell<f64>,
 }
 
@@ -155,21 +210,50 @@ impl PlaylistMediaAudioVideo {
             el: el,
             src: src,
             sub_src: Default::default(),
+            original_language: None,
             play_bg: Default::default(),
+            audio_track_listener: Default::default(),
             time: Cell::new(time),
         };
     }
 
-    pub fn new_video(el: El, src: String, sub_src: HashMap<String, String>, time: f64) -> PlaylistMediaAudioVideo {
+    pub fn new_video(
+        el: El,
+        src: String,
+        sub_src: HashMap<Lang, String>,
+        original_language: Option<Lang>,
+        time: f64,
+    ) -> PlaylistMediaAudioVideo {
         return PlaylistMediaAudioVideo {
             video: true,
             media_el: el.raw().dyn_into().unwrap(),
             el: el,
             src: src,
             sub_src: sub_src,
+            original_language: original_language,
             play_bg: Default::default(),
+            audio_track_listener: Default::default(),
             time: Cell::new(time),
         };
+    }
+}
+
+fn select_audio_track(audio_tracks: &JsValue, target_lang: Lang) {
+    let Ok(len) = js_sys::Reflect::get(audio_tracks, &JsValue::from("length")) else {
+        return;
+    };
+    let len = len.as_f64().unwrap_or(0.) as u32;
+    for i in 0..len {
+        let Ok(track) = js_sys::Reflect::get_u32(audio_tracks, i) else {
+            continue;
+        };
+        let track_lang =
+            js_sys::Reflect::get(&track, &JsValue::from("language"))
+                .ok()
+                .and_then(|v| v.as_string())
+                .unwrap_or_default();
+        let is_match = Lang::from_nav_lang(&track_lang).as_ref() == Some(&target_lang);
+        js_sys::Reflect::set(&track, &JsValue::from("enabled"), &JsValue::from(is_match)).ok();
     }
 }
 
@@ -265,22 +349,61 @@ impl PlaylistMedia for PlaylistMediaAudioVideo {
         if self.src != self.media_el.current_src() {
             if self.video {
                 self.media_el.set_inner_html("");
-                let mut set_default = false;
-                for lang in &env.languages {
-                    let Some(sub_src) = self.sub_src.get(lang) else {
-                        continue;
-                    };
+
+                let audio_pref: AudioLangPref =
+                    LocalStorage::get(LOCALSTORAGE_DEFAULT_AUDIO_LANG).unwrap_or(AudioLangPref::WorkOriginal);
+                let subtitle_pref: SubtitleLangPref =
+                    LocalStorage::get(LOCALSTORAGE_DEFAULT_SUBTITLE_LANG).unwrap_or(SubtitleLangPref::None);
+                let show_subs_if_matching =
+                    LocalStorage::get::<bool>(LOCALSTORAGE_SHOW_SUBS_IF_MATCHING_AUDIO).unwrap_or(true);
+                let browser_lang = env.languages.first().cloned();
+
+                let effective_audio_lang = match audio_pref {
+                    AudioLangPref::FirstLanguage => None,
+                    AudioLangPref::WorkOriginal => self.original_language,
+                    AudioLangPref::BrowserLanguage => browser_lang,
+                    AudioLangPref::Specific(lang) => Some(lang),
+                };
+                let effective_sub_lang = match subtitle_pref {
+                    SubtitleLangPref::None | SubtitleLangPref::FirstLanguage => None,
+                    SubtitleLangPref::WorkOriginal => self.original_language,
+                    SubtitleLangPref::BrowserLanguage => browser_lang,
+                    SubtitleLangPref::Specific(lang) => Some(lang),
+                };
+
+                // Suppress subtitles if audio and subtitle language match (when configured)
+                let effective_sub_lang = match (effective_sub_lang, effective_audio_lang) {
+                    (Some(sub), Some(audio)) if !show_subs_if_matching && sub == audio => None,
+                    (sub, _) => sub,
+                };
+
+                for (lang, sub_src) in &self.sub_src {
                     let track =
                         el("track")
                             .attr("kind", "subtitles")
-                            .attr("src", &sub_src)
-                            .attr("srclang", &lang)
-                            .attr("label", &lang);
-                    if !set_default {
+                            .attr("src", sub_src)
+                            .attr("srclang", lang.iso639_3())
+                            .attr("label", lang.display_name());
+                    if effective_sub_lang.as_ref() == Some(lang) {
                         track.ref_attr("default", "default");
-                        set_default = true;
                     }
                     self.media_el.append_child(&track.raw()).log(log, "Error adding track to video element");
+                }
+
+                // Select audio track when tracks become available (addtrack event)
+                *self.audio_track_listener.borrow_mut() = None;
+                if let Some(effective_audio_lang) = effective_audio_lang {
+                    if let Ok(audio_tracks) =
+                        js_sys::Reflect::get(&self.media_el, &JsValue::from("audioTracks"))
+                    {
+                        if !audio_tracks.is_undefined() && !audio_tracks.is_null() {
+                            let audio_tracks_et: EventTarget = audio_tracks.clone().unchecked_into();
+                            *self.audio_track_listener.borrow_mut() =
+                                Some(EventListener::new(&audio_tracks_et, "addtrack", move |_| {
+                                    select_audio_track(&audio_tracks, effective_audio_lang);
+                                }));
+                        }
+                    }
                 }
             }
             self.media_el.set_src(&self.src);

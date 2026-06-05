@@ -523,23 +523,10 @@ pub fn main() {
                             group.root
                         });
                     }
-                    root.push(style_export::cont_menu_group(style_export::ContMenuGroupArgs {
-                        title: "System".to_string(),
-                        children: vec![
-                            style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
-                                title: "Settings".to_string(),
-                                href: ministate_octothorpe(&Ministate::Settings),
-                            }).root,
-                            style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
-                                title: "OPFS".to_string(),
-                                href: ministate_octothorpe(&Ministate::Opfs),
-                            }).root,
-                            style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
-                                title: "Logs".to_string(),
-                                href: ministate_octothorpe(&Ministate::Logs),
-                            }).root,
-                        ],
-                    }).root,);
+                    root.push(style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
+                        title: "Settings".to_string(),
+                        href: ministate_octothorpe(&Ministate::Settings),
+                    }).root);
                     let mut bar_children = vec![];
                     bar_children.push(
                         style_export::cont_group(style_export::ContGroupArgs { children: vec![] })

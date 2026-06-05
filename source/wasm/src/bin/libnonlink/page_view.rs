@@ -111,7 +111,10 @@ use {
             TreeNode,
         },
     },
-    shared_wasm::log::LogJsErr,
+    shared_wasm::{
+        log::LogJsErr,
+        world::Lang,
+    },
     std::{
         cell::{
             Cell,
@@ -1250,6 +1253,15 @@ fn extract_playlist_entries_from_page(
                     break Some(tree_node_to_text(&d));
                 },
                 cover_source_url: cover_source_url,
+                original_language: shed!{
+                    let Some(config_at) = &config_at.original_language_field else {
+                        break None;
+                    };
+                    let Some(d) = maybe_get_field(config_at, data_stack) else {
+                        break None;
+                    };
+                    break Lang::from_nav_lang(&tree_node_to_text(&d));
+                },
                 source_file: src_url,
                 media_type: media_type,
             });
