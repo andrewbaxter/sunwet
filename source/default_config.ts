@@ -590,6 +590,7 @@ export const buildGlobal = async (apiTokens: {
                               album_field: "album_name",
                               artist_field: "artist_name",
                               cover_field: "cover",
+                              original_language_field: "original_language",
                             },
                           },
                           {
