@@ -1098,6 +1098,11 @@ fn main() {
             args: vec![("title", &string_), ("href", &string_)],
             returns: vec![("root", &el_)],
         },
+        Func {
+            name: "leafFormLink",
+            args: vec![("title", &string_), ("href", &string_)],
+            returns: vec![("root", &el_)],
+        },
         // /////////////////////////////////////////////////////////////////////////////
         // xx Components, styles: Main
         Func {

@@ -217,11 +217,11 @@ pub fn build_page_settings(pc: &mut ProcessingContext) {
     });
 
     // OPFS and Logs links
-    let opfs_link = style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
+    let opfs_link = style_export::leaf_form_link(style_export::LeafFormLinkArgs {
         title: "OPFS".to_string(),
         href: ministate_octothorpe(&Ministate::Opfs),
     }).root;
-    let logs_link = style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
+    let logs_link = style_export::leaf_form_link(style_export::LeafFormLinkArgs {
         title: "Logs".to_string(),
         href: ministate_octothorpe(&Ministate::Logs),
     }).root;
