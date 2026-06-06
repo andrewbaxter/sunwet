@@ -6848,6 +6848,64 @@
     };
   };
 
+  presentation.leafFormLink = /** @type {Presentation["leafFormLink"]} */ (
+    args,
+  ) => {
+    return {
+      root: e(
+        "div",
+        {},
+        {
+          styles_: [
+            ss(uniq("leaf_form_link"), {
+              "": (s) => {
+                s.gridColumn = "1 / -1";
+                s.justifySelf = "end";
+              },
+            }),
+          ],
+          children_: [
+            e(
+              "a",
+              {
+                href: args.href,
+              },
+              {
+                styles_: [
+                  leafLinkStyle,
+                  ss(uniq("leaf_form_link_a"), {
+                    "": (s) => {
+                      s.fontSize = varFMenu;
+                      s.display = "flex";
+                      s.flexDirection = "row";
+                      s.alignItems = "center";
+                      s.justifyContent = "flex-end";
+                    },
+                  }),
+                ],
+                children_: [
+                  e(
+                    "span",
+                    { textContent: args.title },
+                    {
+                      styles_: [
+                        ss(uniq("leaf_form_link_text"), {
+                          "": (s) => {
+                            s.flexShrink = "1";
+                          },
+                        }),
+                      ],
+                    },
+                  ),
+                ],
+              },
+            ),
+          ],
+        },
+      ),
+    };
+  };
+
   ///////////////////////////////////////////////////////////////////////////////
   // xx Components, styles: Main
 
