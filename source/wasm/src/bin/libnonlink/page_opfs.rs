@@ -291,5 +291,5 @@ pub fn build_page_opfs(pc: &mut ProcessingContext) {
         bar_children: vec![delete_button],
         children: vec![entries_container],
     });
-    set_page(pc, "OPFS", page.root);
+    set_page(pc, "Storage", page.root);
 }

@@ -36,10 +36,7 @@ use {
             Log,
             LogJsErr,
         },
-        world::{
-            Engine,
-            Env,
-        },
+        world::Env,
     },
     std::{
         cell::RefCell,
@@ -70,20 +67,12 @@ use {
     },
 };
 
-pub fn env_preferred_audio_gentype(env: &Env) -> Option<String> {
-    if env.engine == Some(Engine::IosSafari) {
-        return Some(gentype_transcode("audio/aac"));
-    } else {
-        return None;
-    }
+pub fn env_preferred_audio_gentype() -> String {
+    return gentype_transcode("audio/webm");
 }
 
 pub fn env_preferred_audio_url(env: &Env, hash: &FileHash) -> String {
-    if let Some(gentype) = env_preferred_audio_gentype(env) {
-        return generated_file_url(env, hash, &gentype, "");
-    } else {
-        return file_url(env, hash);
-    }
+    return generated_file_url(env, hash, &env_preferred_audio_gentype(), "");
 }
 
 pub fn env_preferred_video_gentype() -> String {

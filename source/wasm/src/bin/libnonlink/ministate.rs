@@ -155,7 +155,7 @@ pub fn ministate_title(s: &Ministate) -> String {
         Ministate::History(_) => return format!("History"),
         Ministate::Query(_) => return format!("Query"),
         Ministate::Logs => return format!("Logs"),
-        Ministate::Opfs => return format!("OPFS"),
+        Ministate::Opfs => return format!("Storage"),
         Ministate::Settings => return format!("Settings"),
     }
 }

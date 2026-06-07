@@ -467,7 +467,7 @@ pub fn alphanumeric_only(s: &str) -> String {
 }
 
 pub const TRANSCODE_MIME_WEBM: &str = "video/webm";
-pub const TRANSCODE_MIME_AAC: &str = "audio/aac";
+pub const TRANSCODE_MIME_AUDIO_WEBM: &str = "audio/webm";
 
 pub fn gentype_transcode(mime: &str) -> String {
     return format!("mime_{}", alphanumeric_only(mime));

@@ -68,7 +68,7 @@ use {
                 GENTYPE_EPUBHTML,
                 GENTYPE_VTT,
                 GEN_FILENAME_COMICMANIFEST,
-                TRANSCODE_MIME_AAC,
+                TRANSCODE_MIME_AUDIO_WEBM,
                 TRANSCODE_MIME_WEBM,
                 gentype_transcode,
                 gentype_vtt_subpath,
@@ -364,8 +364,8 @@ async fn generate_webm(state: &Arc<State>, file: &FileHash, source: &Path) -> Re
     return Ok(());
 }
 
-async fn generate_aac(state: &Arc<State>, file: &FileHash, source: &Path) -> Result<(), loga::Error> {
-    let mimetype = TRANSCODE_MIME_AAC;
+async fn generate_audio_webm(state: &Arc<State>, file: &FileHash, source: &Path) -> Result<(), loga::Error> {
+    let mimetype = TRANSCODE_MIME_AUDIO_WEBM;
     let gentype = gentype_transcode(mimetype);
     if generated_exists(state, file, &gentype).await? {
         return Ok(());
@@ -377,14 +377,19 @@ async fn generate_aac(state: &Arc<State>, file: &FileHash, source: &Path) -> Res
     cmd.arg("-i");
     cmd.arg(source);
     cmd.arg("-codec:a");
-    cmd.arg("aac");
+    cmd.arg("libopus");
+    cmd.args(&["-af", "aformat=channel_layouts=7.1|5.1|stereo|mono"]);
     cmd.arg("-f");
-    cmd.arg("adts");
+    cmd.arg("webm");
     cmd.arg(&tempdest_path);
-    let res = cmd.output().await.context_with("Error converting audio to aac", ea!(command = cmd.dbg_str()))?;
+    let res =
+        cmd
+            .output()
+            .await
+            .context_with("Error converting audio to webm", ea!(command = cmd.dbg_str()))?;
     if !res.status.success() {
         return Err(
-            loga::err_with("Error converting audio to aac", ea!(res = res.dbg_str(), command = cmd.dbg_str())),
+            loga::err_with("Error converting audio to webm", ea!(res = res.dbg_str(), command = cmd.dbg_str())),
         );
     }
     commit_generated(
@@ -544,11 +549,11 @@ async fn generate_files(
             }
         },
         ("audio", _) => match mime_slice.1 {
-            "aac" | "mp3" => { },
+            "webm" => { },
             _ => {
-                generate_aac(&state, &file, &source)
+                generate_audio_webm(&state, &file, &source)
                     .await
-                    .log(&log, loga::WARN, "Error doing webm transcode file generation");
+                    .log(&log, loga::WARN, "Error doing audio webm transcode file generation");
             },
         },
         ("application", "epub+zip") => {

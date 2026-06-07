@@ -447,7 +447,7 @@ pub fn main() {
                                                         ClientPage::Opfs => {
                                                             return style_export::leaf_menu_link(
                                                                 style_export::LeafMenuLinkArgs {
-                                                                    title: "OPFS".to_string(),
+                                                                    title: "Storage".to_string(),
                                                                     href: ministate_octothorpe(&Ministate::Opfs,),
                                                                 }
                                                             ).root;
