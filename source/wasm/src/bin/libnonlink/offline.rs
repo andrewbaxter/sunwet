@@ -49,7 +49,7 @@ use {
             ReqViewQuery,
             RespQuery,
             RespQueryRows,
-            TRANSCODE_MIME_AAC,
+            TRANSCODE_MIME_AUDIO_WEBM,
             TRANSCODE_MIME_WEBM,
             TreeNode,
             gentype_transcode,
@@ -345,14 +345,14 @@ async fn fetch_media_file(
                 file_url(&state().env, &src),
             ).await?;
             let gen_dir = file_dir.ensure_dir(vec![OPFS_OFFLINE_FILES_GEN_DIR.to_string()]).await?;
-            let gentype = gentype_transcode(TRANSCODE_MIME_AAC);
+            let gentype = gentype_transcode(TRANSCODE_MIME_AUDIO_WEBM);
             if let Err(e) =
                 download_colocate_mime(
                     &gen_dir,
                     &gentype,
                     generated_file_url(&state().env, &src, &gentype, ""),
                 ).await {
-                state().log.log(&format!("Failed to offline aac transcode file: {}", e));
+                state().log.log(&format!("Failed to offline audio webm transcode file: {}", e));
             }
         },
         ("application", "epub+zip") => {
@@ -426,23 +426,14 @@ pub async fn retrieve_offline_query(
 }
 
 pub async fn offline_audio_url(h: &FileHash) -> String {
-    if let Some(gentype) = env_preferred_audio_gentype(&state().env) {
-        return match offline_gen_url(h, &gentype, "").await {
-            Ok(v) => v,
-            Err(e) => {
-                state().log.log(&format!("Error getting opfs generated url: {}", e));
-                format!("")
-            },
-        };
-    } else {
-        return match offline_file_url(h).await {
-            Ok(v) => v,
-            Err(e) => {
-                state().log.log(&format!("Error getting opfs file url: {}", e));
-                format!("")
-            },
-        };
-    }
+    let gentype = env_preferred_audio_gentype();
+    return match offline_gen_url(h, &gentype, "").await {
+        Ok(v) => v,
+        Err(e) => {
+            state().log.log(&format!("Error getting opfs generated url: {}", e));
+            format!("")
+        },
+    };
 }
 
 pub async fn offline_video_url(h: &FileHash) -> String {

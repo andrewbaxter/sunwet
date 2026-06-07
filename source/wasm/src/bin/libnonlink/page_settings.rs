@@ -216,9 +216,9 @@ pub fn build_page_settings(pc: &mut ProcessingContext) {
         }
     });
 
-    // OPFS and Logs links
+    // Storage and Logs links
     let opfs_link = style_export::leaf_form_link(style_export::LeafFormLinkArgs {
-        title: "OPFS".to_string(),
+        title: "Storage".to_string(),
         href: ministate_octothorpe(&Ministate::Opfs),
     }).root;
     let logs_link = style_export::leaf_form_link(style_export::LeafFormLinkArgs {
