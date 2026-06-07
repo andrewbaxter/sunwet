@@ -6,6 +6,9 @@ const browser = /** @type {any} */ (globalThis).browser;
   const { default: init } = await import(src);
   const { do_twitter } = await import(browser.runtime.getURL("site_twitter.js"));
   const { do_booru } = await import(browser.runtime.getURL("site_booru.js"));
+  const { do_instagram } = await import(browser.runtime.getURL("site_instagram.js"));
+  const { do_deviantart } = await import(browser.runtime.getURL("site_deviantart.js"));
+  const { do_artstation } = await import(browser.runtime.getURL("site_artstation.js"));
 
   await init(browser.runtime.getURL("content2_bg.wasm"));
 
@@ -37,5 +40,20 @@ const browser = /** @type {any} */ (globalThis).browser;
     hostname.includes("booru")
   ) {
     runWhenReady(do_booru);
+  }
+
+  // Instagram
+  if (hostname === "www.instagram.com" || hostname === "instagram.com") {
+    runWhenReady(do_instagram);
+  }
+
+  // DeviantArt
+  if (hostname === "www.deviantart.com" || hostname === "deviantart.com") {
+    runWhenReady(do_deviantart);
+  }
+
+  // ArtStation
+  if (hostname === "www.artstation.com" || hostname === "artstation.com") {
+    runWhenReady(do_artstation);
   }
 })();
