@@ -9,5 +9,4 @@
         }
     )
     ( -> "sunwet/1/cover" first { => cover } )
-    ( -> "sunwet/1/orig_lang" first { => original_language } )
 }

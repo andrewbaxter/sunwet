@@ -159,7 +159,7 @@ pub const PREDICATE_TOPIC: &str = "sunwet/1/topic";
 /// readable in English, or videos with French main audio tracks.
 pub const PREDICATE_LANG: &str = "sunwet/1/language";
 
-/// * Subject: an album or track entity
+/// * Subject: a track entity
 ///
 /// * Object: a language identifier, e.g. ISO 639-1 (`"en"`, `"ja"`),
 ///   ISO 639-3 (`"eng"`, `"jpn"`), or a navigator language string (`"en-US"`).
@@ -169,7 +169,7 @@ pub const PREDICATE_LANG: &str = "sunwet/1/language";
 /// The language the media was originally created in. Used by the player to
 /// select a matching audio track and subtitle track based on settings.
 ///
-/// Example triple: `(album_entity, "sunwet/1/orig_lang", "ja")`
+/// Example triple: `(track_entity, "sunwet/1/orig_lang", "ja")`
 pub const PREDICATE_ORIGINAL_LANGUAGE: &str = "sunwet/1/orig_lang";
 
 /// * Subject: any entity
