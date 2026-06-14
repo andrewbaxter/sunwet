@@ -96,7 +96,6 @@ use {
                 RespWhoAmI,
             },
         },
-        stringpattern::node_to_text,
     },
     shared_wasm::{
         log::{
@@ -112,7 +111,6 @@ use {
             Cell,
             RefCell,
         },
-        collections::BTreeMap,
         panic,
         rc::Rc,
     },
@@ -482,17 +480,8 @@ pub fn main() {
                                         let b = b.upgrade()?;
 
                                         fn build(key: &String, view: &MinistateView) -> El {
-                                            let sorted_params = view.params.iter().collect::<BTreeMap<_, _>>();
                                             return style_export::leaf_menu_link(style_export::LeafMenuLinkArgs {
-                                                title: format!(
-                                                    "{}: {}",
-                                                    view.title,
-                                                    sorted_params
-                                                        .iter()
-                                                        .map(|(k, v)| format!("{}={}", k, node_to_text(&v)))
-                                                        .collect::<Vec<_>>()
-                                                        .join(", ")
-                                                ),
+                                                title: view.title.clone(),
                                                 href: ministate_octothorpe(&Ministate::OfflineView(MinistateOfflineView {
                                                     id: view.id.clone(),
                                                     pos: view.pos.clone(),
