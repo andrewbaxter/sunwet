@@ -715,6 +715,7 @@
               currentListName: "ABCD",
               currentListLink: "abcd",
               nodeLink: "abcd",
+              nodeValue: "d7f26c48-18a3-4b9e-b1f4-a5c3e9d02687",
             }).root,
           ]);
         }

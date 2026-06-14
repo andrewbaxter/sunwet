@@ -60,6 +60,7 @@ use {
         },
         stringpattern::node_to_text,
     },
+    gloo::utils::window,
     shared_wasm::log::LogJsErr,
     wasm::js::{
         on_thinking,
@@ -220,6 +221,7 @@ pub fn setup_node_button(eg: &EventGraph, out: &El, name: String, node: Node) {
                     title: name.clone(),
                     node: node.clone(),
                 })),
+                node_value: node_to_text(&node),
             });
 
             // Modal boilerplate
@@ -242,6 +244,15 @@ pub fn setup_node_button(eg: &EventGraph, out: &El, name: String, node: Node) {
                     };
                     modal_el.ref_replace(vec![]);
                 }).unwrap()
+            });
+
+            // Copy node value
+            modal_res.button_copy.ref_on("click", {
+                let node_value = node_to_text(&node);
+                move |ev| {
+                    ev.stop_propagation();
+                    let _ = window().navigator().clipboard().write_text(&node_value);
+                }
             });
 
             // Add to list

@@ -980,22 +980,22 @@ fn main() {
         Func {
             name: "leafQueryPrettyV",
             args: vec![("value", &string_), ("link", &optstring_)],
-            returns: vec![("root", &el_)],
+            returns: vec![("root", &el_), ("nodeButton", &el_)],
         },
         Func {
             name: "leafQueryPrettyMediaV",
             args: vec![("value", &el_), ("link", &string_)],
-            returns: vec![("root", &el_)],
+            returns: vec![("root", &el_), ("nodeButton", &el_)],
         },
         Func {
             name: "leafQueryPrettyInlineKV",
             args: vec![("key", &string_), ("value", &string_), ("link", &optstring_)],
-            returns: vec![("root", &el_)],
+            returns: vec![("root", &el_), ("nodeButton", &el_)],
         },
         Func {
             name: "leafQueryPrettyMediaKV",
             args: vec![("key", &string_), ("value", &el_), ("link", &string_)],
-            returns: vec![("root", &el_)],
+            returns: vec![("root", &el_), ("nodeButton", &el_)],
         },
         Func {
             name: "contPageQueryTabDownloadV",
@@ -1044,14 +1044,16 @@ fn main() {
                 ("currentListName", &optstring_),
                 ("currentListId", &optstring_),
                 ("currentListLink", &optstring_),
-                ("nodeLink", &string_)
+                ("nodeLink", &string_),
+                ("nodeValue", &string_)
             ],
             returns: vec![
                 ("root", &el_),
                 ("errors", &el_),
                 ("buttonClose", &el_),
                 ("buttonSetList", &el_),
-                ("buttonAddToList", &el_)
+                ("buttonAddToList", &el_),
+                ("buttonCopy", &el_)
             ],
         },
         // /////////////////////////////////////////////////////////////////////////////

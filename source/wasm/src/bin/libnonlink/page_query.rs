@@ -3,11 +3,13 @@ use {
         api::req_post_json,
         infinite::InfPageRes,
         ministate::{
+            Ministate,
             MinistateNodeView,
             MinistateQuery,
             ministate_octothorpe,
             record_replace_ministate,
         },
+        node_button::setup_node_button,
         node_edit::build_node_edit_contents,
         playlist::{
             PlaylistEntryMediaType,
@@ -87,11 +89,13 @@ struct QueryState {
 struct PrettyElNormal {
     text: String,
     link: Option<String>,
+    node: Option<Node>,
 }
 
 struct PrettyElMedia {
     el: El,
     link: String,
+    node: Node,
 }
 
 enum PrettyEl {
@@ -104,6 +108,7 @@ fn value_to_pretty_el(v: TreeNode, meta: &HashMap<Node, NodeMeta>) -> PrettyEl {
         return PrettyEl::Normal(PrettyElNormal {
             text: serde_json::to_string(&v).unwrap(),
             link: None,
+            node: None,
         });
     };
     shed!{
@@ -114,7 +119,7 @@ fn value_to_pretty_el(v: TreeNode, meta: &HashMap<Node, NodeMeta>) -> PrettyEl {
             break;
         };
         let src_url = file_url(&state().env, file);
-        let link = ministate_octothorpe(&super::ministate::Ministate::NodeView(MinistateNodeView {
+        let link = ministate_octothorpe(&Ministate::NodeView(MinistateNodeView {
             title: node_to_text(n),
             node: n.clone(),
         }));
@@ -123,18 +128,21 @@ fn value_to_pretty_el(v: TreeNode, meta: &HashMap<Node, NodeMeta>) -> PrettyEl {
                 return PrettyEl::Media(PrettyElMedia {
                     el: style_export::leaf_media_audio(style_export::LeafMediaAudioArgs { src: src_url }).root,
                     link: link,
+                    node: n.clone(),
                 });
             },
             Some(PlaylistEntryMediaType::Video) => {
                 return PrettyEl::Media(PrettyElMedia {
                     el: style_export::leaf_media_video(style_export::LeafMediaVideoArgs { src: src_url }).root,
                     link: link,
+                    node: n.clone(),
                 });
             },
             Some(PlaylistEntryMediaType::Image) => {
                 return PrettyEl::Media(PrettyElMedia {
                     el: style_export::leaf_media_img(style_export::LeafMediaImgArgs { src: src_url }).root,
                     link: link,
+                    node: n.clone(),
                 });
             },
             _ => {
@@ -143,20 +151,21 @@ fn value_to_pretty_el(v: TreeNode, meta: &HashMap<Node, NodeMeta>) -> PrettyEl {
         }
     }
     let text = node_to_text(n);
-    let link = ministate_octothorpe(&super::ministate::Ministate::NodeView(MinistateNodeView {
+    let link = ministate_octothorpe(&Ministate::NodeView(MinistateNodeView {
         title: text.clone(),
         node: n.clone(),
     }));
     return PrettyEl::Normal(PrettyElNormal {
         text: text,
         link: Some(link),
+        node: Some(n.clone()),
     });
 }
 
 fn refresh_query(eg: EventGraph, qstate: QueryState, text: &str) {
     record_replace_ministate(
         &state().log,
-        &super::ministate::Ministate::Query(MinistateQuery { query: Some(text.to_string()) }),
+        &Ministate::Query(MinistateQuery { query: Some(text.to_string()) }),
     );
     {
         let Some(pretty_results_group) = qstate.pretty_results_group.upgrade() else {
@@ -184,8 +193,10 @@ fn refresh_query(eg: EventGraph, qstate: QueryState, text: &str) {
         pretty_results_group.ref_push(build_infinite(&state().log, None, None, {
             let seed = (Math::random() * u64::MAX as f64) as u64;
             let query = query.clone();
+            let eg = eg.clone();
             move |key| {
                 let query = query.clone();
+                let eg = eg.clone();
                 async move {
                     let page_data = req_post_json(ReqQuery {
                         query: query.clone(),
@@ -201,23 +212,36 @@ fn refresh_query(eg: EventGraph, qstate: QueryState, text: &str) {
                     match page_data.rows {
                         RespQueryRows::Scalar(rows) => {
                             for row in rows {
+                                let pretty = value_to_pretty_el(TreeNode::Scalar(row), &meta);
+                                let child = match pretty {
+                                    PrettyEl::Normal(v) => {
+                                        let res = style_export::leaf_query_pretty_v(
+                                            style_export::LeafQueryPrettyVArgs {
+                                                value: v.text.clone(),
+                                                link: v.link,
+                                            },
+                                        );
+                                        if let Some(node) = v.node {
+                                            setup_node_button(&eg, &res.node_button, v.text, node);
+                                        }
+                                        res.root
+                                    },
+                                    PrettyEl::Media(v) => {
+                                        let name = node_to_text(&v.node);
+                                        let res = style_export::leaf_query_pretty_media_v(
+                                            style_export::LeafQueryPrettyMediaVArgs {
+                                                value: v.el,
+                                                link: v.link,
+                                            },
+                                        );
+                                        setup_node_button(&eg, &res.node_button, name, v.node);
+                                        res.root
+                                    },
+                                };
                                 out.push(
                                     style_export::cont_query_pretty_row(
                                         style_export::ContQueryPrettyRowArgs {
-                                            children: vec![match value_to_pretty_el(TreeNode::Scalar(row), &meta) {
-                                                PrettyEl::Normal(v) => style_export::leaf_query_pretty_v(
-                                                    style_export::LeafQueryPrettyVArgs {
-                                                        value: v.text,
-                                                        link: v.link,
-                                                    },
-                                                ).root,
-                                                PrettyEl::Media(v) => style_export::leaf_query_pretty_media_v(
-                                                    style_export::LeafQueryPrettyMediaVArgs {
-                                                        value: v.el,
-                                                        link: v.link,
-                                                    },
-                                                ).root,
-                                            }],
+                                            children: vec![child],
                                         },
                                     ).root,
                                 );
@@ -230,24 +254,31 @@ fn refresh_query(eg: EventGraph, qstate: QueryState, text: &str) {
                                     let field;
                                     match value_to_pretty_el(v, &meta) {
                                         PrettyEl::Normal(v) => {
-                                            field =
+                                            let res =
                                                 style_export::leaf_query_pretty_inline_kv(
                                                     style_export::LeafQueryPrettyInlineKvArgs {
                                                         key: k,
-                                                        value: v.text,
+                                                        value: v.text.clone(),
                                                         link: v.link,
                                                     },
-                                                ).root;
+                                                );
+                                            if let Some(node) = v.node {
+                                                setup_node_button(&eg, &res.node_button, v.text, node);
+                                            }
+                                            field = res.root;
                                         },
                                         PrettyEl::Media(v) => {
-                                            field =
+                                            let name = node_to_text(&v.node);
+                                            let res =
                                                 style_export::leaf_query_pretty_media_kv(
                                                     style_export::LeafQueryPrettyMediaKvArgs {
                                                         key: k,
                                                         value: v.el,
                                                         link: v.link,
                                                     },
-                                                ).root;
+                                                );
+                                            setup_node_button(&eg, &res.node_button, name, v.node);
+                                            field = res.root;
                                         },
                                     }
                                     fields.push(field);

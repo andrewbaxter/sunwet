@@ -6017,6 +6017,10 @@
     });
   presentation.leafQueryPrettyV =
     /** @type {Presentation["leafQueryPrettyV"]} */ (args) => {
+      const nodeButton = leafButtonFree({
+        icon: textIconOverflow,
+        hint: "Node actions",
+      }).root;
       /** @type { HTMLElement[] } */
       const children = [
         e(
@@ -6046,6 +6050,7 @@
             download: false,
           }).root,
         );
+        children.push(nodeButton);
       }
       return {
         root: e(
@@ -6062,65 +6067,74 @@
             children_: children,
           },
         ),
+        nodeButton: nodeButton,
       };
     };
   presentation.leafQueryPrettyMediaV =
-    /** @type {Presentation["leafQueryPrettyMediaV"]} */ (args) => ({
-      root: e(
-        "div",
-        {},
-        {
-          styles_: [
-            ss(uniq("leaf_query_pretty_media_kv"), {
-              "": (s) => {
-                s.display = "contents";
-              },
-            }),
-          ],
-          children_: [
-            e(
-              "div",
-              {},
-              {
-                styles_: [
-                  ss(uniq("leaf_query_pretty_media_link"), {
-                    "": (s) => {
-                      s.gridColumn = "3";
-                    },
-                  }),
-                ],
-                children_: [
-                  leafButtonFreeLink({
-                    icon: textIconNode,
-                    hint: "View",
-                    url: args.link,
-                    download: false,
-                  }).root,
-                ],
-              },
-            ),
-            e(
-              "div",
-              {},
-              {
-                styles_: [
-                  ss(uniq("leaf_query_pretty_media_v"), {
-                    "": (s) => {
-                      s.paddingLeft = varP05;
-                      s.gridColumn = "1 / 3";
-                    },
-                    ">*": (s) => {
-                      s.maxWidth = "100%";
-                    },
-                  }),
-                ],
-                children_: [args.value],
-              },
-            ),
-          ],
-        },
-      ),
-    });
+    /** @type {Presentation["leafQueryPrettyMediaV"]} */ (args) => {
+      const nodeButton = leafButtonFree({
+        icon: textIconOverflow,
+        hint: "Node actions",
+      }).root;
+      return {
+        root: e(
+          "div",
+          {},
+          {
+            styles_: [
+              ss(uniq("leaf_query_pretty_media_kv"), {
+                "": (s) => {
+                  s.display = "contents";
+                },
+              }),
+            ],
+            children_: [
+              e(
+                "div",
+                {},
+                {
+                  styles_: [
+                    ss(uniq("leaf_query_pretty_media_link"), {
+                      "": (s) => {
+                        s.gridColumn = "3";
+                      },
+                    }),
+                  ],
+                  children_: [
+                    leafButtonFreeLink({
+                      icon: textIconNode,
+                      hint: "View",
+                      url: args.link,
+                      download: false,
+                    }).root,
+                    nodeButton,
+                  ],
+                },
+              ),
+              e(
+                "div",
+                {},
+                {
+                  styles_: [
+                    ss(uniq("leaf_query_pretty_media_v"), {
+                      "": (s) => {
+                        s.paddingLeft = varP05;
+                        s.gridColumn = "1 / 3";
+                      },
+                      ">*": (s) => {
+                        s.maxWidth = "100%";
+                      },
+                    }),
+                  ],
+                  children_: [args.value],
+                },
+              ),
+            ],
+          },
+        ),
+        nodeButton: nodeButton,
+      };
+    };
   const queryPrettyInlineKStyle = ss(uniq("query_pretty_inline_k"), {
     "": (s) => {
       s.fontWeight = "600";
@@ -6130,6 +6144,10 @@
   });
   presentation.leafQueryPrettyInlineKV =
     /** @type {Presentation["leafQueryPrettyInlineKV"]} */ (args) => {
+      const nodeButton = leafButtonFree({
+        icon: textIconOverflow,
+        hint: "Node actions",
+      }).root;
       /** @type { HTMLElement[] } */
       const children = [
         e(
@@ -6161,6 +6179,7 @@
             download: false,
           }).root,
         );
+        children.push(nodeButton);
       }
       return {
         root: e(
@@ -6177,70 +6196,79 @@
             children_: children,
           },
         ),
+        nodeButton: nodeButton,
       };
     };
   presentation.leafQueryPrettyMediaKV =
-    /** @type {Presentation["leafQueryPrettyMediaKV"]} */ (args) => ({
-      root: e(
-        "div",
-        {},
-        {
-          styles_: [
-            ss(uniq("leaf_query_pretty_media_kv"), {
-              "": (s) => {
-                s.display = "contents";
-              },
-            }),
-          ],
-          children_: [
-            e(
-              "div",
-              { textContent: args.key },
-              { styles_: [queryPrettyInlineKStyle] },
-            ),
-            e(
-              "div",
-              {},
-              {
-                styles_: [
-                  ss(uniq("leaf_query_pretty_media_link"), {
-                    "": (s) => {
-                      s.gridColumn = "3";
-                    },
-                  }),
-                ],
-                children_: [
-                  leafButtonFreeLink({
-                    icon: textIconNode,
-                    hint: "View",
-                    url: args.link,
-                    download: false,
-                  }).root,
-                ],
-              },
-            ),
-            e(
-              "div",
-              {},
-              {
-                styles_: [
-                  ss(uniq("leaf_query_pretty_media_v"), {
-                    "": (s) => {
-                      s.paddingLeft = varP05;
-                      s.gridColumn = "1 / 3";
-                    },
-                    ">*": (s) => {
-                      s.maxWidth = "100%";
-                    },
-                  }),
-                ],
-                children_: [args.value],
-              },
-            ),
-          ],
-        },
-      ),
-    });
+    /** @type {Presentation["leafQueryPrettyMediaKV"]} */ (args) => {
+      const nodeButton = leafButtonFree({
+        icon: textIconOverflow,
+        hint: "Node actions",
+      }).root;
+      return {
+        root: e(
+          "div",
+          {},
+          {
+            styles_: [
+              ss(uniq("leaf_query_pretty_media_kv"), {
+                "": (s) => {
+                  s.display = "contents";
+                },
+              }),
+            ],
+            children_: [
+              e(
+                "div",
+                { textContent: args.key },
+                { styles_: [queryPrettyInlineKStyle] },
+              ),
+              e(
+                "div",
+                {},
+                {
+                  styles_: [
+                    ss(uniq("leaf_query_pretty_media_link"), {
+                      "": (s) => {
+                        s.gridColumn = "3";
+                      },
+                    }),
+                  ],
+                  children_: [
+                    leafButtonFreeLink({
+                      icon: textIconNode,
+                      hint: "View",
+                      url: args.link,
+                      download: false,
+                    }).root,
+                    nodeButton,
+                  ],
+                },
+              ),
+              e(
+                "div",
+                {},
+                {
+                  styles_: [
+                    ss(uniq("leaf_query_pretty_media_v"), {
+                      "": (s) => {
+                        s.paddingLeft = varP05;
+                        s.gridColumn = "1 / 3";
+                      },
+                      ">*": (s) => {
+                        s.maxWidth = "100%";
+                      },
+                    }),
+                  ],
+                  children_: [args.value],
+                },
+              ),
+            ],
+          },
+        ),
+        nodeButton: nodeButton,
+      };
+    };
   presentation.leafQueryDownloadRow =
     /** @type {Presentation["leafQueryDownloadRow"]} */ (args) => {
       const out = e(
@@ -6515,6 +6543,24 @@
         checkbox: check,
       };
     };
+  const contModalNodeRowStyle = ss(uniq("cont_modal_node_row"), {
+    "": (s) => {
+      s.margin = `${varPSmall} ${varP05}`;
+      s.gap = varPSmall;
+      s.alignItems = "center";
+    },
+  });
+  /** @type { (args: { children: HTMLElement[] }) => HTMLElement } */
+  const contModalNodeRow = (args) =>
+    e(
+      "div",
+      {},
+      {
+        styles_: [contHboxStyle, contModalNodeRowStyle],
+        children_: args.children,
+      },
+    );
+
   presentation.contModalNode = /** @type {Presentation["contModalNode"]} */ (
     args,
   ) => {
@@ -6542,6 +6588,29 @@
         }).root;
       };
 
+    const nodeValueText = e(
+      "div",
+      { textContent: args.nodeValue },
+      {
+        styles_: [
+          ss(uniq("cont_modal_node_value_text"), {
+            "": (s) => {
+              s.flexGrow = "1";
+              s.overflow = "hidden";
+              s.textOverflow = "ellipsis";
+              s.whiteSpace = "nowrap";
+              s.opacity = varONoninteractive;
+              s.flexBasis = "0";
+            },
+          }),
+        ],
+      },
+    );
+    const buttonCopy = leafButtonFree({ icon: "\ue14d", hint: "Copy" }).root;
+    const nodeValueRow = contModalNodeRow({
+      children: [nodeValueText, buttonCopy],
+    });
+
     const listGroupChildren = [];
     if (
       args.currentListId != null &&
@@ -6549,58 +6618,45 @@
       args.currentListLink != null
     ) {
       listGroupChildren.push(
-        e(
-          "div",
-          {},
-          {
-            styles_: [
-              contHboxStyle,
-              ss(uniq("cont_modal_node_current_list_horiz"), {
-                "": (s) => {
-                  s.margin = `${varPSmall} ${varP05}`;
-                  s.gap = varPSmall;
-                },
-              }),
-            ],
-            children_: [
-              e("div", { textContent: "Current list:" }, {}),
-              e(
-                "div",
-                {},
-                {
-                  styles_: [
-                    contVboxStyle,
-                    ss(uniq("cont_modal_node_current_list_vert"), {
-                      "": (s) => {
-                        s.gap = varPSmall;
-                        s.flexGrow = "1";
-                      },
-                    }),
-                  ],
-                  children_: [
-                    e("div", { textContent: args.currentListId }, {}),
-                    e(
-                      "div",
-                      { textContent: args.currentListName },
-                      {
-                        styles_: [
-                          ss(uniq("cont_modal_node_current_list_name"), {
-                            "": (s) => {
-                              s.opacity = varONoninteractive;
-                            },
-                          }),
-                        ],
-                      },
-                    ),
-                  ],
-                },
-              ),
-              presentation.leafNodeEditToolbarViewLinkButton({
-                link: args.currentListLink,
-              }).root,
-            ],
-          },
-        ),
+        contModalNodeRow({
+          children: [
+            e("div", { textContent: "Current list:" }, {}),
+            e(
+              "div",
+              {},
+              {
+                styles_: [
+                  contVboxStyle,
+                  ss(uniq("cont_modal_node_current_list_vert"), {
+                    "": (s) => {
+                      s.gap = varPSmall;
+                      s.flexGrow = "1";
+                    },
+                  }),
+                ],
+                children_: [
+                  e("div", { textContent: args.currentListId }, {}),
+                  e(
+                    "div",
+                    { textContent: args.currentListName },
+                    {
+                      styles_: [
+                        ss(uniq("cont_modal_node_current_list_name"), {
+                          "": (s) => {
+                            s.opacity = varONoninteractive;
+                          },
+                        }),
+                      ],
+                    },
+                  ),
+                ],
+              },
+            ),
+            presentation.leafNodeEditToolbarViewLinkButton({
+              link: args.currentListLink,
+            }).root,
+          ],
+        }),
       );
     }
     const buttonAddToList = modalMenuButton({ text: "Add to list" });
@@ -6625,6 +6681,7 @@
             }),
           ],
           children_: [
+            nodeValueRow,
             errors,
             leafButtonBigLink({
               text: "View node",
@@ -6657,6 +6714,7 @@
       buttonClose: out.buttonClose,
       buttonSetList: buttonSetCurrentList,
       buttonAddToList: buttonAddToList,
+      buttonCopy: buttonCopy,
     };
   };
 
