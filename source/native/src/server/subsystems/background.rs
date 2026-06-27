@@ -376,6 +376,7 @@ async fn generate_audio_webm(state: &Arc<State>, file: &FileHash, source: &Path)
     cmd.kill_on_drop(true);
     cmd.arg("-i");
     cmd.arg(source);
+    cmd.arg("-vn");
     cmd.arg("-codec:a");
     cmd.arg("libopus");
     cmd.args(&["-af", "aformat=channel_layouts=7.1|5.1|stereo|mono"]);
