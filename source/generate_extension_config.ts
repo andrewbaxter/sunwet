@@ -89,7 +89,7 @@ type FormId = ${formIds};
 type ViewId = ${viewIds};
 `;
 
-  const outPath = `${import.meta.dirname}/browser/ext_static/extension_config.d.ts`;
+  const outPath = `${import.meta.dirname}/generated/browser/extension_config.d.ts`;
   fs.writeFileSync(outPath, output);
   console.log(`Generated ${outPath}`);
 })();

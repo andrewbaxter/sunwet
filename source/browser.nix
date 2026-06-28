@@ -53,6 +53,7 @@ in
     ${pkgs.coreutils}/bin/mkdir -p $out
     ${pkgs.coreutils}/bin/mkdir -p stage
     hoj_cp ${./browser} browser_src
+    hoj_cp ${./generated/browser/extension_config.d.ts} browser_src/ext_static/extension_config.d.ts
     hoj_cp ${./wasm/prestatic/big-icon.svg} browser_src/ext_static/big-icon.svg
     hoj_cp ${./wasm/prestatic/small-icon.svg} browser_src/ext_static/small-icon.svg
 

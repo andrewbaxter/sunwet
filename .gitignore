@@ -1,5 +1,6 @@
 /source/native/src/db.rs
 /source/wasm/static/style_export.d.ts
 /source/browser/ext_static/*.d.ts
+!/source/browser/ext_static/extension_config.d.ts
 target
 *.bak
