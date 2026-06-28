@@ -75,8 +75,7 @@ in
     # Extract numeric version (e.g. v1.2.3-5-gabcdef -> 1.2.3) for the manifest version field
     numeric_version=$(echo "$version" | ${pkgs.gnused}/bin/sed -e 's/^v//' -e 's/-.*//')
     hoj_set browser_src/browser_manifest.json _PLACEHOLDER_VERSION "$numeric_version"
-    # Set version_name to the full version string for display
-    ${hoj}/bin/hoj --in-place "f:browser_src/browser_manifest.json" set version_name "\"$version\""
+    hoj_set browser_src/browser_manifest.json _PLACEHOLDER_VERSION_NAME "$version"
 
     hoj_cp browser_src/ext_static stage/browser_chrome
     hoj_cp browser_wasm/* stage/browser_chrome/

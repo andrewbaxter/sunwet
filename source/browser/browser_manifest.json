@@ -4,6 +4,7 @@
   "description": "Sunwet and the web",
   "homepage_url": "https://github.com/andrewbaxter/sunwet",
   "version": "_PLACEHOLDER_VERSION",
+  "version_name": "_PLACEHOLDER_VERSION_NAME",
   "author": "Andrew Baxter",
   "icons": {
     "48": "big-icon.svg"
