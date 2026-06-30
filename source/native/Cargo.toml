@@ -46,7 +46,7 @@ moka = { version = "0.12", features = ["future"] }
 cookie = { version = "0.18" }
 serde_urlencoded = "0.7"
 platform-info = "2"
-rand = "0.8"
+rand = "0.10"
 oauth2 = { version = "4", default-features = false }
 fdap = { version = "0.1" }
 mime_guess = "2"
