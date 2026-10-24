@@ -152,7 +152,6 @@ pub fn migrate<C: SqliteConnection>(versions: &mut DbVersions<C>) -> Result<(), 
                    "#;
                 db
             )?;
-            db.0.execute("VACUUM", [])?;
         },
         _ => { },
     }

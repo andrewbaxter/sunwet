@@ -23,11 +23,9 @@ use {
             PlaylistPushArg,
             categorize_mime_media,
             playlist_extend,
-            playlist_len,
             playlist_next,
             playlist_previous,
             playlist_set_link,
-            playlist_set_source,
             playlist_toggle_play,
         },
         seekbar::setup_seekbar,
@@ -1486,89 +1484,6 @@ fn build_widget_root_data_rows(
                             ).root,
                         );
                     } else {
-                        playlist_set_source(&state().playlist, Rc::new({
-                            let view_id = view_id.clone();
-                            let query_id = query_id.clone();
-                            let params = params.clone();
-                            let config_at = config_at.clone();
-                            let data_at = data_at.clone();
-                            let source_count = Rc::new(Cell::new(0usize));
-                            let source_page_key: Rc<RefCell<Option<Node>>> = Rc::new(RefCell::new(None));
-                            let source_started = Rc::new(Cell::new(false));
-                            move || {
-                                let view_id = view_id.clone();
-                                let query_id = query_id.clone();
-                                let params = params.clone();
-                                let config_at = config_at.clone();
-                                let data_at = data_at.clone();
-                                let source_count = source_count.clone();
-                                let source_page_key = source_page_key.clone();
-                                let source_started = source_started.clone();
-                                Box::pin(async move {
-                                    if source_started.get() && source_page_key.borrow().is_none() {
-                                        return None;
-                                    }
-                                    if !source_started.get() {
-                                        // Sync count with current playlist length
-                                        source_count.set(playlist_len(&state().playlist));
-                                        source_started.set(true);
-                                    }
-                                    let res = match req_post_json(ReqViewQuery {
-                                        view_id: view_id.clone(),
-                                        query: query_id.clone(),
-                                        parameters: params.clone(),
-                                        pagination: Some(Pagination {
-                                            count: 10,
-                                            seed: Some(seed),
-                                            key: source_page_key.borrow().clone(),
-                                        }),
-                                    }).await {
-                                        Ok(r) => r,
-                                        Err(_) => return None,
-                                    };
-                                    let mut chunk = vec![];
-                                    match res.rows {
-                                        RespQueryRows::Scalar(rows) => {
-                                            for v in rows {
-                                                chunk.push((source_count.get(), TreeNode::Scalar(v)));
-                                                source_count.set(source_count.get() + 1);
-                                            }
-                                        },
-                                        RespQueryRows::Record(rows) => {
-                                            for v in rows {
-                                                chunk.push((source_count.get(), TreeNode::Record(v)));
-                                                source_count.set(source_count.get() + 1);
-                                            }
-                                        },
-                                    }
-                                    *source_page_key.borrow_mut() = res.next_page_key;
-                                    let node_meta = Rc::new(res.meta.into_iter().collect::<HashMap<_, _>>());
-                                    let mut entries = vec![];
-                                    for (i, row_data) in chunk {
-                                        let mut data_stack = data_at.clone();
-                                        data_stack.push(Rc::new(DataStackLevel {
-                                            data: row_data,
-                                            node_meta: node_meta.clone(),
-                                        }));
-                                        extract_playlist_entries_from_page(
-                                            &config_at.element_body,
-                                            &vec![i],
-                                            &data_stack,
-                                            &mut entries,
-                                        );
-                                        if let Some(exp) = &config_at.element_expansion {
-                                            extract_playlist_entries_from_page(
-                                                exp,
-                                                &vec![i],
-                                                &data_stack,
-                                                &mut entries,
-                                            );
-                                        }
-                                    }
-                                    Some(entries)
-                                })
-                            }
-                        }));
                         body.ref_push(build_infinite(&state().log, None, Some(state().advance_infinite_tx.clone()), {
                             let view_id = view_id.clone();
                             let query_id = query_id.clone();

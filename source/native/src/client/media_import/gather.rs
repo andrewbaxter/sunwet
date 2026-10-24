@@ -16,24 +16,17 @@ use {
     },
 };
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum GatherMedia {
-    Audio,
-    Video,
-    Comic,
-    Book,
-}
-
+#[derive(Debug)]
 pub struct Gather {
-    pub album_name: Option<String>,
     pub album_artist: BTreeSet<String>,
+    pub album_name: Option<String>,
     pub track_artist: Vec<String>,
-    pub track_name: Option<String>,
-    pub track_index: Option<f64>,
-    pub track_type: GatherMedia,
-    pub track_superindex: Option<f64>,
-    pub track_language: Option<String>,
     pub track_cover: HashMap<usize, PathBuf>,
+    pub track_index: Option<f64>,
+    pub track_language: Option<String>,
+    pub track_name: Option<String>,
+    pub track_superindex: Option<f64>,
+    pub track_type: GatherMedia,
 }
 
 impl Gather {
@@ -50,6 +43,14 @@ impl Gather {
             track_cover: Default::default(),
         };
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum GatherMedia {
+    Audio,
+    Book,
+    Comic,
+    Video,
 }
 
 pub fn prep_cover(sunwet_dir: &Path, mime: &str, data: &[u8]) -> Result<Option<PathBuf>, loga::Error> {

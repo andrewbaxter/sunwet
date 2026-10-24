@@ -78,6 +78,7 @@ use {
         time::Duration,
     },
     super::{
+        infinite::InfAdvanceMsg,
         ministate::PlaylistRestorePos,
         state::{
             MinistateViewState,
@@ -167,11 +168,6 @@ pub struct PlaylistEntry {
     pub media: Box<dyn PlaylistMedia>,
 }
 
-/// Callback type for pulling more playlist entries. Returns Some(entries) for a
-/// page of results, or None when exhausted or on error (clears the source).
-pub type PlaylistSourceFn =
-    Rc<dyn Fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<Vec<PlaylistPushArg>>>>>>;
-
 pub struct PlaylistState_ {
     pub view_ministate_state: RefCell<Option<MinistateViewState>>,
     pub env: Env,
@@ -190,7 +186,6 @@ pub struct PlaylistState_ {
     pub media_el_video: El,
     pub media_el_image: El,
     pub log: Rc<dyn Log>,
-    pub source: RefCell<Option<PlaylistSourceFn>>,
     pub play_buttons: RefCell<BTreeMap<PlaylistIndex, WeakEl>>,
     pub center_to_playing_bg: RefCell<Option<rooting::ScopeValue>>,
     pub movement_bg: RefCell<Option<rooting::ScopeValue>>,
@@ -296,7 +291,6 @@ pub fn state_new(pc: &mut ProcessingContext, log: Rc<dyn Log>, env: Env) -> (Pla
         media_el_video: media_el_video,
         media_el_image: media_el_image,
         log: log.clone(),
-        source: RefCell::new(None),
         play_buttons: RefCell::new(Default::default()),
         center_to_playing_bg: RefCell::new(None),
         movement_bg: RefCell::new(None),
@@ -644,10 +638,6 @@ pub fn playlist_set_link(pc: &mut ProcessingContext, playlist_state: &PlaylistSt
         );
 }
 
-pub fn playlist_len(state: &PlaylistState) -> usize {
-    return state.0.playlist.borrow().len();
-}
-
 pub struct PlaylistPushArg {
     pub index: PlaylistIndex,
     pub name: Option<String>,
@@ -838,10 +828,6 @@ pub async fn playlist_extend(
     }
 }
 
-pub fn playlist_set_source(state: &PlaylistState, source: PlaylistSourceFn) {
-    *state.0.source.borrow_mut() = Some(source);
-}
-
 pub fn playlist_clear(pc: &mut ProcessingContext, state: &PlaylistState, shuffle: bool, track_end_mode: TrackEndMode) {
     if *state.0.playing.borrow() {
         let playing_i = state.0.playing_i.get().unwrap();
@@ -856,9 +842,9 @@ pub fn playlist_clear(pc: &mut ProcessingContext, state: &PlaylistState, shuffle
     state.0.shuffle.set(shuffle);
     state.0.track_end_mode.set(track_end_mode);
     *state.0.image_advance_timeout.borrow_mut() = None;
-    *state.0.source.borrow_mut() = None;
     *state.0.movement_bg.borrow_mut() = None;
     state.0.play_buttons.borrow_mut().clear();
+    *super::state::state().advance_infinite_tx.borrow_mut() = None;
 }
 
 pub fn playlist_toggle_play(pc: &mut ProcessingContext, state: &PlaylistState, i: Option<PlaylistIndex>) {
@@ -904,75 +890,44 @@ pub fn playlist_next(pc: &mut ProcessingContext, state: &PlaylistState, basis: O
             let Some(i) = basis else {
                 return;
             };
-            if let Some((i, _)) = state.0.playlist.borrow().range((Bound::Excluded(i), Bound::Unbounded)).next() {
+
+            fn play_next_after(state: &PlaylistState, eg: &EventGraph, i: &PlaylistIndex) -> bool {
+                let next = state.0.playlist.borrow().range((Bound::Excluded(i.clone()), Bound::Unbounded)).next().map(|(next_i, _)| next_i.clone());
+                let Some(next_i) = next else {
+                    return false;
+                };
                 eg.event(|pc| {
                     state.0.playing.set(pc, true);
-                    state.0.playing_i.set(pc, Some(i.clone()));
+                    state.0.playing_i.set(pc, Some(next_i));
                     state.0.playing_time.set(pc, 0.);
                 }).unwrap();
-                return;
+                return true;
             }
-            if state.0.source.borrow().is_none() {
-                eg.event(|pc| {
-                    playlist_stop(pc, &state);
-                }).unwrap();
+
+            if play_next_after(&state, &eg, &i) {
                 return;
             }
             loop {
-                let Some(source) = state.0.source.borrow().clone() else {
-                    break;
+                let tx = super::state::state().advance_infinite_tx.borrow().clone();
+                let Some(tx) = tx else {
+                    eg.event(|pc| {
+                        playlist_stop(pc, &state);
+                    }).unwrap();
+                    return;
                 };
-                match source().await {
-                    Some(entries) => {
-                        let offline =
-                            state
-                                .0
-                                .view_ministate_state
-                                .borrow()
-                                .as_ref()
-                                .and_then(|vs| vs.0.borrow().offline.clone())
-                                .is_some();
-                        for entry in entries {
-                            let media =
-                                build_entry_media(
-                                    &state,
-                                    entry.media_type,
-                                    &entry.source_file,
-                                    entry.original_language.clone(),
-                                    0.,
-                                    offline,
-                                ).await;
-                            state.0.playlist.borrow_mut().insert(entry.index.clone(), Rc::new(PlaylistEntry {
-                                name: entry.name,
-                                album: entry.album,
-                                artist: entry.artist,
-                                cover_source_url: entry.cover_source_url,
-                                original_language: entry.original_language,
-                                source_file: entry.source_file,
-                                media_type: entry.media_type,
-                                media: media,
-                            }));
-                        }
-                        if let Some(i) = state.0.playing_i.get() {
-                            if let Some((next_i, _)) =
-                                state.0.playlist.borrow().range((Bound::Excluded(i), Bound::Unbounded)).next() {
-                                eg.event(|pc| {
-                                    state.0.playing.set(pc, true);
-                                    state.0.playing_i.set(pc, Some(next_i.clone()));
-                                    state.0.playing_time.set(pc, 0.);
-                                }).unwrap();
-                                return;
-                            };
-                        }
-                    },
-                    None => {
-                        *state.0.source.borrow_mut() = None;
-                    },
+                let (loaded_tx, loaded_rx) = tokio::sync::oneshot::channel();
+                if tx.send(InfAdvanceMsg {
+                    force: true,
+                    loaded: Some(loaded_tx),
+                }).is_err() {
+                    TimeoutFuture::new(100).await;
+                    continue;
+                }
+                _ = loaded_rx.await;
+                if play_next_after(&state, &eg, &i) {
+                    return;
                 }
             }
-            eg.event(|pc| {
-                playlist_stop(pc, &state);
-            }).unwrap();
         }
     }));
 }
